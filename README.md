@@ -7,3 +7,5 @@
 
 ### Every time (make aliases for these commands)
 `conda activate /groups/hephy/mlearning/conda_envs/uncertainty_challenge`
+### Test it
+ipython -i BPT/bpt_training.py
