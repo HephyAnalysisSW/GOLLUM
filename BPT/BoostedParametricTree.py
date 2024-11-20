@@ -23,7 +23,7 @@ default_cfg = {
 
 class BoostedParametricTree:
 
-    def __init__( self, training_data, combinations, nominal_base_point, parameters, **kwargs ):
+    def __init__( self, training_data, combinations, nominal_base_point, base_points, parameters, **kwargs ):
 
         # make cfg and node_cfg from the kwargs keys known by the Node
         self.cfg = default_cfg
@@ -47,12 +47,14 @@ class BoostedParametricTree:
             self.learning_rate = 1-0.02**(1./self.n_trees)
 
         # Make sure of the format
-        if "base_points" in kwargs:
-            self.base_points = kwargs["base_points"]
-        elif training_data is not None: 
-            self.base_points = np.array( sorted(list(training_data.keys())), dtype='float')
-        else:
-            raise RuntimeError("Did not find base_points.")
+        #if "base_points" in kwargs:
+        #    self.base_points = kwargs["base_points"]
+        #elif training_data is not None: 
+        #    self.base_points = np.array( sorted(list(training_data.keys())), dtype='float')
+        #else:
+        #    raise RuntimeError("Did not find base_points.")
+        self.base_points = np.array(base_points)
+
         self.n_base_points = len(self.base_points)
 
         self.nominal_base_point = np.array( nominal_base_point, dtype='float')

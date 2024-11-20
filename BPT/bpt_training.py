@@ -77,6 +77,7 @@ if bpt is None or args.overwrite:
     bpt = BoostedParametricTree(
             training_data      = training_data,
             nominal_base_point = model.nominal_base_point,
+            base_points        = model.base_points,
             parameters         = model.parameters,
             combinations       = model.combinations,
             feature_names      = model.feature_names,
@@ -104,7 +105,7 @@ hist_configs = []
 colors = ['black', 'blue', 'green', 'red', 'orange', 'magenta', 'cyan']
 for i_point, point in enumerate(model.base_points):
     hist_configs.append( {'features':training_data[model.nominal_base_point]['features'], 'name':'%s'%str(point) +" (truth.)", 'weights':training_data[point]['weights'], 'color':colors[i_point], 'linestyle':'--'} )
-    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'], 'name':'%s'%str(point) +" (pred.)", 'weights':predicted_reweights[:,-i_point]*training_data[model.nominal_base_point]['weights'], 'color':colors[i_point], 'linestyle':'-'} )
+    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'], 'name':'%s'%str(point) +" (pred.)", 'weights':predicted_reweights[:,i_point]*training_data[model.nominal_base_point]['weights'], 'color':colors[i_point], 'linestyle':'-'} )
 
 def plot_weighted_histograms(hist_configs, bins=20, title='Overlayed Weighted Histograms'):
     """

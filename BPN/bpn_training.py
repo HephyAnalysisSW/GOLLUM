@@ -189,8 +189,16 @@ import numpy as np
 hist_configs = []
 colors = ['black', 'blue', 'green', 'red', 'orange', 'magenta', 'cyan']
 for i_point, point in enumerate(base_points):
-    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 'name':'%s'%str(point) +" (truth.)", 'weights':training_data[tuple(point)]['weights'].detach().numpy(), 'color':colors[i_point], 'linestyle':'--'} )
-    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 'name':'%s'%str(point) +" (pred.)", 'weights':predicted_reweights[:,-i_point]*training_data[model.nominal_base_point]['weights'].detach().numpy(), 'color':colors[i_point], 'linestyle':'-'} )
+    # truth
+    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 
+                          'name':'%s'%str(point) +" (truth.)", 
+                          'weights':training_data[tuple(point)]['weights'].detach().numpy(), 
+                          'color':colors[i_point], 'linestyle':'--'} )
+    # prediction
+    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 
+                          'name':'%s'%str(point) +" (pred.)", 
+                          'weights':predicted_reweights[:,i_point]*training_data[model.nominal_base_point]['weights'].detach().numpy(), 
+                          'color':colors[i_point], 'linestyle':'-'} )
 
 def plot_weighted_histograms(hist_configs, bins=20, title='Overlayed Weighted Histograms'):
     """
