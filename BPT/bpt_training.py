@@ -91,9 +91,7 @@ if bpt is None or args.overwrite:
     boosting_time = time2 - time1
     print ("Boosting time: %.2f seconds" % boosting_time)
 
-
 predicted_reweights = np.exp( np.dot( bpt.vectorized_predict(training_data[model.nominal_base_point]['features'],  max_n_tree = None), bpt.VkA.transpose() ) )
-
 
 plot_directory = os.path.join( common.user.plot_directory, args.directory )
 os.makedirs(plot_directory, exist_ok=True)

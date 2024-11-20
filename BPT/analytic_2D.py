@@ -20,7 +20,8 @@ base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,] ] 
 parameters         = ['nu1', 'nu2']
-combinations       = [('nu1',),  ('nu1', 'nu1'), ('nu2',), ('nu2', 'nu2'), ('nu1', 'nu2')] #('nu1', 'nu1', 'nu1'), ('nu1', 'nu1', 'nu1', 'nu1')]
+combinations       = [('nu1',),  ('nu1', 'nu1'), ('nu2',), ('nu2', 'nu2'), ('nu1', 'nu2')] #THIS 
+#combinations       = [('nu1',),  ('nu2',), ] #('nu1', 'nu1', 'nu1'), ('nu1', 'nu1', 'nu1', 'nu1')]
 tex                = {"nu1":"#nu_{1}", "nu2":"#nu_{2}"}
 nominal_base_point = base_point_index[0]
 
@@ -51,7 +52,8 @@ class PDF:
     # for external use
     @staticmethod
     def generic_pdf( x, parameters):
-        return np.exp( .25*(parameters[0]*np.sin(x)+ parameters[1]*np.cos(.5*x))**2 ) 
+        return np.exp( .25*(parameters[0]*np.sin(x)+ parameters[1]*np.cos(.5*x))**2 ) #THIS 
+        #return np.exp( .25*(parameters[0]*np.sin(x)+ parameters[1]*np.cos(.5*x)) ) 
 
     def pdf(self, x: float) -> float:
         # note that the normalization constant isn't required
@@ -86,4 +88,8 @@ bpt_cfg = {
     "loss" : "CrossEntropy", 
     "learn_global_param": False,
     "min_size": 50,
+}
+bpn_cfg = {
+    "learning_rate" : 0.01,
+    "n_epochs":1000, 
 }
