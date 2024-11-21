@@ -9,13 +9,13 @@ from math import pi
 base_point_index = {
     0 : (0.,0.),
     1 : (1.,0.),
-    2 : (0,1.),
-    #4 : (0.8,),
+    2 : (0, 1.),
+    3 : (1.,1.),
     #3 : (1.3,),
 }
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
-base_points        = [ base_point_index[i] for i in [0,1,2] ] 
+base_points        = [ base_point_index[i] for i in [0,1,2,3] ] 
 parameters         = ['nu1','nu2']
 combinations       = [ ('nu1',), ('nu2',)]
 tex                = {"nu1":"#nu_{1}", "nu2":"#nu_{2}"}

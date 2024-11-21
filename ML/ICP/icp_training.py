@@ -85,7 +85,6 @@ if icp is None or args.overwrite:
             parameters         = model.parameters,
             combinations       = model.combinations,
                 )
-    icp.train()
 
     icp.save(filename)
     print ("Written %s"%( filename ))

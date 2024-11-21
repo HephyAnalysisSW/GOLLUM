@@ -57,11 +57,11 @@ class ICP:
         nu_mask[self.nominal_base_point_index] = 0
 
         # remove the nominal from the list of all the base_points
-        masked_base_points = self.base_points[nu_mask]
+        self.masked_base_points = self.base_points[nu_mask]
 
         # computing base-point matrix
         C    = np.zeros( [len(self.combinations), len(self.combinations) ], dtype='float64')
-        for i_base_point, base_point in enumerate(masked_base_points):
+        for i_base_point, base_point in enumerate(self.masked_base_points):
             for i_comb1, comb1 in enumerate(self.combinations):
                 for i_comb2, comb2 in enumerate(self.combinations):
                     C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
@@ -71,8 +71,8 @@ class ICP:
         self.CInv = np.linalg.inv(C)
 
         # Compute matrix Mkk from non-nominal base_points
-        self._VKA = np.zeros( (len(masked_base_points), len(self.combinations)) )
-        for i_base_point, base_point in enumerate(masked_base_points):
+        self._VKA = np.zeros( (len(self.masked_base_points), len(self.combinations)) )
+        for i_base_point, base_point in enumerate(self.masked_base_points):
             for i_combination, combination in enumerate(self.combinations):
                 res=1
                 for var in combination:
@@ -80,8 +80,8 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-        self.MkA  = np.dot(self._VKA, self.CInv).transpose()
-        self.Mkkp = np.dot(self._VKA, self.MkA )
+        #self.MkA  = np.dot(self._VKA, self.CInv).transpose()
+        #self.Mkkp = np.dot(self._VKA, self.MkA )
 
         self.yields = {}
         if training_data is not None:
@@ -106,9 +106,7 @@ class ICP:
                     if not 'weights' in v:
                         self.yields[k] = len( v['features'] ) 
 
-        #    exponent_left  = np.dot( self.Mkkp, np.log(sorted_weight_sums_left/sorted_weight_sums_nominal_left[:,None]).transpose())
-            self.log_ratio = np.array( [np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(masked_base_points)])
-            self.exponent = np.dot( self.Mkkp, self.log_ratio.transpose())
+            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
 
     @staticmethod 
@@ -134,28 +132,8 @@ class ICP:
         with open(filename,'wb') as file_:
             pickle.dump( self, file_ )
 
-    def train( self ):
+    def nu_A(self, nu):
+        return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
-        training_time     = 0
-
-        # fit to data
-        time1 = time.process_time()
-
-        #root = Node.Node( 
-        #     weights      = self.weights,
-        #     Mkkp         = self.Mkkp,
-        #     MkA          = self.MkA,
-        #     n_base_points=self.n_base_points,
-        #     nominal_base_point_index=self.nominal_base_point_index,
-        #     combinations = self.combinations,
-        #     **self.node_cfg )
-
-        time2 = time.process_time()
-        training_time      = time2 - time1
-
-        sys.stdout.write("]\n") # this ends the progress bar
-        print ("ICP time: %.2f" % training_time)
-
-    def predict( self):
-#    exponent_left  = np.dot( self.Mkkp, np.log(sorted_weight_sums_left/sorted_weight_sums_nominal_left[:,None]).transpose())
-        return self.exponent 
+    def predict( self, nu):
+        return np.exp(np.dot( self.nu_A(nu), self.DeltaA ))
