@@ -8,10 +8,10 @@ default_cfg = {
 }
 
 
-class BPN(Model):
+class PNN(Model):
     def __init__(self, in_features, out_features, VkA, **kwargs):
         """
-        TensorFlow implementation of the BPN model.
+        TensorFlow implementation of the PNN model.
         
         Args:
             in_features (int): Input feature dimension.
@@ -19,7 +19,7 @@ class BPN(Model):
             VkA (tf.Tensor): The base point matrix.
             kwargs: Additional configuration arguments.
         """
-        super(BPN, self).__init__()
+        super(PNN, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.VkA = tf.convert_to_tensor(VkA, dtype=tf.float32)
@@ -46,7 +46,7 @@ class BPN(Model):
 
     def call(self, x):
         """
-        Forward pass of the BPN model.
+        Forward pass of the PNN model.
         
         Args:
             x (tf.Tensor): Input tensor of shape (batch_size, in_features).

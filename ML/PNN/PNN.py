@@ -6,9 +6,9 @@ default_cfg = {
     "hidden_layers" : [64, 32]
 }
 
-class BPN(torch.nn.Module):
+class PNN(torch.nn.Module):
     def __init__(self, in_features, out_features, VkA,  **kwargs ):
-        super(BPN, self).__init__()
+        super(PNN, self).__init__()
 
         self.VkA = VkA
 

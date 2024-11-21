@@ -85,7 +85,7 @@ bpt_cfg = {
     "learn_global_param": False,
     "min_size": 50,
 }
-bpn_cfg = {
+pnn_cfg = {
     "learning_rate" : 0.01,
     "n_epochs": 1000, 
 }

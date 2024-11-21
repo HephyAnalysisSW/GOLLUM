@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 import numpy as np
-import analytic_2D as model 
 import os,sys
 import os, sys
 sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
+import models.analytic_2D as model 
 import time
 
 import common.user

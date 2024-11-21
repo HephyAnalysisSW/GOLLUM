@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import torch
 import copy
 import numpy as np
 import os,sys
@@ -13,12 +12,14 @@ import operator
 import common.user
 import common.syncer
 from   common.helpers import copyIndexPHP
-from   BPT import analytic_2D as model 
+import models.analytic_2D as model 
+
+import tensorflow as tf
 
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
-argParser.add_argument("--directory",     action="store",      default="bpn", help="Subdirectory for output")
+argParser.add_argument("--directory",     action="store",      default="pnn", help="Subdirectory for output")
 argParser.add_argument("--nTraining",     action="store",      default=100000, type=int,  help="Number of training events")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 
@@ -53,12 +54,11 @@ for key, val in extra_args.items():
     if type(val)==type([]) and len(val)==1:
         extra_args[key]=val[0]
 
-cfg = model.bpn_cfg
+cfg = model.pnn_cfg
 cfg.update( extra_args )
 
 training_data = model.getEvents(args.nTraining)
 total_size    =  sum([len(s['features']) for s in training_data.values() if 'features' in s ])
-
 
 # Base point matrix
 base_points = np.array( model.base_points )
@@ -66,7 +66,7 @@ VkA  = np.zeros( [len(base_points), len(model.combinations) ], dtype='float32')
 for i_base_point, base_point in enumerate(base_points):
     for i_comb1, comb1 in enumerate(model.combinations):
         VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[model.parameters.index(c)] for c in list(comb1)], 1)
-VkA = torch.tensor( VkA )
+VkA = tf.convert_to_tensor( VkA )
 
 # Dissect inputs into nominal sample and variied
 nominal_base_point_index = np.where(np.all(base_points==model.nominal_base_point,axis=1))[0]
@@ -102,82 +102,74 @@ for k, v in training_data.items():
             raise RuntimeError("Key %r has unequal length of weights and features: %i != %i" % (k, len(v['weights']), len(v['features'])) )
 
     if 'weights' in v:
-        v['weights'] = torch.tensor(v['weights'], dtype=torch.float32)
+        v['weights'] = tf.convert_to_tensor(v['weights'], dtype=tf.float32)
     if 'features' in v:
-        v['features'] = torch.tensor(v['features'], dtype=torch.float32)
+        v['features'] = tf.convert_to_tensor(v['features'], dtype=tf.float32)
 
 model_directory = os.path.join( common.user.model_directory, args.directory )
 os.makedirs(model_directory, exist_ok=True)
 
-from BPN import BPN
-bpn = BPN.BPN(
+from PNN_tf import PNN  # Importing TensorFlow-based PNN
+
+pnn = PNN(
         in_features  = n_features,
         out_features = len(model.combinations),
         VkA          = VkA,
         **cfg,
             )
-bpn_name = "BPN_analytic_2D_nTraining_%i_nLayers_%s"%( args.nTraining, "_".join(map( str, bpn.layer_size())))
+pnn_name = "PNN_tf_analytic_2D_nTraining_%i_nLayers_%s"%( args.nTraining, "_".join(map( str, pnn.layer_size())))
 
-optimizer = torch.optim.Adam(bpn.parameters(), lr=model.bpn_cfg['learning_rate'])
+optimizer = tf.keras.optimizers.Adam(learning_rate=model.pnn_cfg['learning_rate'])
 
-# Training loop
-ema_decay = 0.99  # Exponential moving average decay factos
-ema_model = copy.deepcopy(bpn)  # Create a copy of the model for EMA
 
-for epoch in range(model.bpn_cfg['n_epochs']):
+for epoch in range(model.pnn_cfg['n_epochs']):
     total_loss = 0.0
 
-    # Compute nominal values
-    DeltaA_nominal = bpn(training_data[nominal_base_point_key]['features'])
-    weights_nominal = training_data[nominal_base_point_key]['weights'] if 'weights' in training_data[nominal_base_point_key] else torch.ones(len(DeltaA_nominal))
+    with tf.GradientTape() as tape:
 
-    for i_base_point, base_point in enumerate(base_points):
-        if i_base_point == nominal_base_point_index:
-            continue
+        # Compute nominal values
+        DeltaA_nominal = pnn(training_data[nominal_base_point_key]['features'])
+        weights_nominal = training_data[nominal_base_point_key]['weights'] if 'weights' in training_data[nominal_base_point_key] else tf.ones(len(DeltaA_nominal))
 
-        # Retrieve features and weights for current \nu
-        if 'features' in training_data[tuple(base_point)]:
-            DeltaA = bpn(training_data[tuple(base_point)]['features'])
-        else:
-            DeltaA = DeltaA_nominal
-        if 'weights' in training_data[tuple(base_point)]:
-            weights = training_data[tuple(base_point)]['weights']
-        else:
-            weights = weights_nominal
+        for i_base_point, base_point in enumerate(base_points):
+            if i_base_point == nominal_base_point_index:
+                continue
 
-        # Compute weighted losses
-        loss_0  = torch.sum(weights_nominal * torch.log1p(torch.exp(DeltaA_nominal @ VkA[i_base_point])))  # Soft⁺(ν_A Δ_A(x_0))
-        loss_nu = torch.sum(weights * torch.log1p(torch.exp(-(DeltaA @ VkA[i_base_point]))))  # Soft⁺(-ν_A Δ_A(x_nu))
+            # Retrieve features and weights for current ν
+            if 'features' in training_data[tuple(base_point)]:
+                DeltaA = pnn(training_data[tuple(base_point)]['features'])
+            else:
+                DeltaA = DeltaA_nominal
 
-        # Total loss for the current \nu
-        loss = loss_0 + loss_nu
-        loss -= (weights_nominal.sum()+weights.sum())*np.log(2.)
-        total_loss += loss
+            if 'weights' in training_data[tuple(base_point)]:
+                weights = training_data[tuple(base_point)]['weights']
+            else:
+                weights = weights_nominal
 
-    # Backward pass and optimization
-    optimizer.zero_grad()
-    total_loss.backward()
+            # Compute weighted losses
+            loss_0 = tf.reduce_sum(
+                weights_nominal * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, VkA[i_base_point]))
+            )
+            loss_nu = tf.reduce_sum(
+                weights * tf.math.softplus(-tf.linalg.matvec(DeltaA, VkA[i_base_point]))
+            )
 
-    # Gradient clipping
-    torch.nn.utils.clip_grad_norm_(bpn.parameters(), max_norm=1.0)
+            # Total loss for the current ν
+            loss = loss_0 + loss_nu
+            loss -= (tf.reduce_sum(weights_nominal) + tf.reduce_sum(weights)) * np.log(2.0)
+            total_loss += loss
 
-    # Update parameters
-    optimizer.step()
+       # Backpropagation
+        gradients = tape.gradient(total_loss, pnn.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, pnn.trainable_variables))
 
-    # Apply exponential moving average to stabilize model
-    with torch.no_grad():
-        for ema_param, param in zip(ema_model.parameters(), bpn.parameters()):
-            ema_param.data = ema_decay * ema_param.data + (1 - ema_decay) * param.data
+    print(f"Epoch {epoch + 1}/{model.pnn_cfg['n_epochs']}, Loss: {total_loss.numpy():.4f}")
 
-    # Use the EMA model parameters for prediction
-    bpn.load_state_dict(ema_model.state_dict())
 
-    print(f"Epoch {epoch + 1}/{model.bpn_cfg['n_epochs']}, Loss: {total_loss.item():.4f}")
-
-torch.set_grad_enabled(False)
-
-#predicted_reweights = np.exp( np.dot( bpn.forward(features), bpt.VkA.transpose() ) )
-predicted_reweights = np.exp( np.dot( bpn.forward(training_data[model.nominal_base_point]['features']).detach().numpy(), bpn.VkA.transpose(0,1) ) )
+# Final Predictions
+predicted_reweights = np.exp(
+    tf.matmul(pnn(training_data[nominal_base_point_key]['features']), tf.transpose(VkA)).numpy()
+)
 
 plot_directory = os.path.join( common.user.plot_directory, args.directory )
 os.makedirs(plot_directory, exist_ok=True)
@@ -190,14 +182,14 @@ hist_configs = []
 colors = ['black', 'blue', 'green', 'red', 'orange', 'magenta', 'cyan']
 for i_point, point in enumerate(base_points):
     # truth
-    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 
+    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].numpy(), 
                           'name':'%s'%str(point) +" (truth.)", 
-                          'weights':training_data[tuple(point)]['weights'].detach().numpy(), 
+                          'weights':training_data[tuple(point)]['weights'].numpy(), 
                           'color':colors[i_point], 'linestyle':'--'} )
     # prediction
-    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].detach().numpy(), 
+    hist_configs.append( {'features':training_data[model.nominal_base_point]['features'][:,0].numpy(), 
                           'name':'%s'%str(point) +" (pred.)", 
-                          'weights':predicted_reweights[:,i_point]*training_data[model.nominal_base_point]['weights'].detach().numpy(), 
+                          'weights':predicted_reweights[:,i_point]*training_data[model.nominal_base_point]['weights'].numpy(), 
                           'color':colors[i_point], 'linestyle':'-'} )
 
 def plot_weighted_histograms(hist_configs, bins=20, title='Overlayed Weighted Histograms'):
