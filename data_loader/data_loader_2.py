@@ -58,6 +58,7 @@ class H5DataLoader:
         self.current_index += self.batch_size
         return batch
 
+
 file_path = "/eos/vbc/group/mlearning/data/PUdata/syst_train_set_test.h5"
 # Assume 'data.h5' contains datasets: 'data', 'weights', 'detailed_labels'
 datasets = ['data', 'weights', 'detailed_labels']
@@ -67,10 +68,13 @@ n_split    = 1000
 # Initialize the data loader
 data_loader = H5DataLoader(file_path, datasets, batch_size=batch_size, n_split=n_split)
 
-# Iterate through the dataset
-for batch in data_loader:
-    data = batch['data']
-    weights = batch['weights']
-    labels = batch['detailed_labels']
-    print(data.shape, weights.shape, labels.shape)
+feature_names = ["PRI_had_pt", "PRI_had_eta", "PRI_had_phi", "PRI_lep_pt", "PRI_lep_eta", "PRI_lep_phi", "PRI_met", "PRI_met_phi", "PRI_jet_num", "PRI_jet_leading_pt", "PRI_jet_leading_eta", "PRI_jet_leading_phi", "PRI_jet_subleading_pt", "PRI_jet_subleading_eta", "PRI_jet_subleading_phi", "PRI_jet_all_pt", "DER_mass_transverse_met_lep", "DER_mass_vis", "DER_pt_h", "DER_deltaeta_jet_jet", "DER_mass_jet_jet", "DER_prodeta_jet_jet", "DER_deltar_had_lep", "DER_pt_tot", "DER_sum_pt", "DER_pt_ratio_lep_tau", "DER_met_phi_centrality", "DER_lep_eta_centrality", ]
+
+if __name__=="__main__":
+    # Iterate through the dataset
+    for batch in data_loader:
+        data = batch['data']
+        weights = batch['weights']
+        labels = batch['detailed_labels']
+        print(data.shape, weights.shape, labels.shape)
 
