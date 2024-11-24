@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+# columns = ['PRI_lep_pt', 'PRI_lep_eta', 'PRI_lep_phi','PRI_had_pt', 'PRI_had_eta', 'PRI_had_phi','PRI_jet_leading_pt', 'PRI_jet_leading_eta', 'PRI_jet_leading_phi','PRI_jet_subleading_pt', 'PRI_jet_subleading_eta', 'PRI_jet_subleading_phi','PRI_n_jets','PRI_jet_all_pt','PRI_met', 'PRI_met_phi']
+
 class HiggsDataset(Dataset):
     def __init__(self, file_path, dataset_names, indices=None, load_mode='multiple', single_dataset_name=None):
         """
