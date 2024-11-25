@@ -47,6 +47,26 @@ def myPrint( self, *args):
 ROOT.TCanvas.Print = myPrint 
 
 from matplotlib import pyplot as plt
+from functools import wraps
+import os
+
+## Save the original plt.savefig function before wrapping
+#_savefig = plt.savefig
+#
+#@wraps(_savefig)  # Decorate after _savefig is defined
+#def my_savefig(*args, **kwargs):
+#    if args:  # Ensure args is not empty
+#        file_path = args[0]
+#        if not os.path.exists(os.path.dirname(file_path)):
+#            os.makedirs(os.path.dirname(file_path))
+#        file_sync_storage.append(file_path)
+#    _savefig(*args, **kwargs)  # Call the original savefig function
+#
+## Overwrite plt.savefig with your custom function
+#plt.savefig = my_savefig
+
+
+from matplotlib import pyplot as plt
 
 _savefig = plt.savefig
 def my_savefig( *args, **kwargs):
