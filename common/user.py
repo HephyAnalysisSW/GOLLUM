@@ -9,6 +9,10 @@ if os.environ['USER'] in ['robert.schoefbeck']:
     model_directory        = "/groups/hephy/cms/robert.schoefbeck/Challenge/models/"
     # Maybe we let this later point to the input data.
 
+elif os.environ['USER'] in ['dennis.schwarz']:
+    plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
+    model_directory        = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/models/"
+
 elif os.environ['USER'] in ['claudius.krause']:
     raise RuntimeError( "Hello Claudius. Specify your directories in common/user.py." )
 
