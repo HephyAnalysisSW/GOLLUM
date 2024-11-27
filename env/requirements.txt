@@ -12,7 +12,6 @@ pytorch-cuda=12.4
 pytorch
 PyYAML
 requests
-root=6.28.0
 scikit-learn
 scikit-optimize
 scipy

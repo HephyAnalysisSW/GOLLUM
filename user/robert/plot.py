@@ -302,15 +302,44 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
 from common.FeatureSelector import FeatureSelector
 from common.features import feature_names, class_labels
 from data import get_data_loader
-data_loader = get_data_loader(n_split=100)
-output_path = os.path.join(user.plot_directory, "plots", "inclusive")
+
+import argparse
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    
+    # Add arguments
+    parser.add_argument("--selection", type=str, default="inclusive", help="Event selection")
+    parser.add_argument("--plot_directory", type=str, default="", help="Plot directory")
+    parser.add_argument("--small", action="store_true" )
+
+    return parser.parse_args()
+
+args = parse_arguments()
+
+if args.selection != "inclusive":
+    exec( f"from eventSelection import {args.selection} as selection" )
+else: 
+    selection = None
+
+if args.selection.lower() == "vbf":
+    data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/VBF/split_train_dataset/" 
+    selection      = None
+else: 
+    data_directory = user.data_directory 
+
+data_loader = get_data_loader(
+    n_split = 1000 if args.small else 100, 
+    selection_function = selection,
+    data_directory = data_directory)
+
+output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else ""))
 os.makedirs(output_path, exist_ok=True)
 
 # Accumulate histograms
-truth_histograms, bin_edges = accumulate_truth_histograms(data_loader, class_labels, max_batch=-1)
+truth_histograms, bin_edges = accumulate_truth_histograms(data_loader, class_labels, max_batch=1 if args.small else -1)
 
 # Plot and save
-#plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_names, output_path)
 plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, feature_names, output_path)
 
 common.syncer.sync()
