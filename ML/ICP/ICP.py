@@ -16,9 +16,7 @@ default_cfg = {
 }
 
 class ICP:
-
     def __init__( self, training_data, combinations, nominal_base_point, base_points, parameters, **kwargs ):
-
         # make cfg and node_cfg from the kwargs keys known by the Node
         self.cfg = default_cfg
         self.cfg.update( kwargs )
@@ -80,9 +78,6 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-        #self.MkA  = np.dot(self._VKA, self.CInv).transpose()
-        #self.Mkkp = np.dot(self._VKA, self.MkA )
-
         self.yields = {}
         if training_data is not None:
             if 'weights' not in training_data[self.nominal_base_point_key]:
@@ -107,7 +102,6 @@ class ICP:
                         self.yields[k] = len( v['features'] ) 
 
             self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
-
 
     @staticmethod 
     def sort_comb( comb ):

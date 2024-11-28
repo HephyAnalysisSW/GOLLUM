@@ -1,6 +1,7 @@
 import os
 
-data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/"
+data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
+derived_data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/"
 
 if os.environ['USER'] in ['robert.schoefbeck']:
     # Where the plots go:

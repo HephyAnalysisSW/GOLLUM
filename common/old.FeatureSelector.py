@@ -15,6 +15,8 @@ class FeatureSelector:
         self.feature_index = {name: i for i, name in enumerate(feature_names)}  # Map feature names to indices
         self.conditions = []  # Store conditions for later representation
 
+        raise RuntimeError("Let's not use the FeatureSelector")
+
     def _parse_string_condition(self, condition_str):
         """
         Parse a string condition into a tuple of bounds and feature.
@@ -54,6 +56,7 @@ class FeatureSelector:
         Returns:
         - A function that applies the condition to a NumPy array.
         """
+
         if isinstance(condition, str):
             condition = self._parse_string_condition(condition)
 

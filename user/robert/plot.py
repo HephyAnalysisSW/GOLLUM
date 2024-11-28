@@ -317,16 +317,16 @@ def parse_arguments():
 
 args = parse_arguments()
 
-if args.selection != "inclusive":
-    exec( f"from eventSelection import {args.selection} as selection" )
-else: 
-    selection = None
+#if args.selection != "inclusive":
+#    exec( f"from eventSelection import {args.selection} as selection" )
+#else: 
+#    selection = None
 
-if args.selection.lower() == "vbf":
-    data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/VBF/split_train_dataset/" 
-    selection      = None
-else: 
-    data_directory = user.data_directory 
+#if args.selection.lower() == "vbf":
+data_directory = f"/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/{args.selection}/" 
+selection      = None
+#else: 
+#    data_directory = user.data_directory 
 
 data_loader = get_data_loader(
     n_split = 1000 if args.small else 100, 
