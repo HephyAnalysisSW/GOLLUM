@@ -3,30 +3,30 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 from Multiclassifier import MulticlassClassifier
 
-from data import get_data_loader, feature_names
+from data import get_data_loader
+import common.features as features
 import common.user as user
 import common.syncer
 
-data_loader = get_data_loader( n_split=1000 )
+data_loader = get_data_loader(
+    n_split = 20, 
+    selection_function = None,
+    data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/VBF/split_train_dataset/" )
 
 # Initialize model
-input_dim = 28  # Number of features
-num_classes = 4
-model = MulticlassClassifier(input_dim, num_classes)
-class_labels = [b'diboson', b'htautau', b'ttbar', b'ztautau']
-class_labels = [label.decode('utf-8') for label in class_labels]  # Convert bytes to strings
+class_labels = features.class_labels 
+model = MulticlassClassifier(len(features.feature_names), len(class_labels))
 
 # Training Loop
 
-training = "test"
+training = "VBF"
 
-epochs = 10
+epochs = 100
 save_path = os.path.join( user.model_directory, "multiClass", training) 
-max_batch = 1
+max_batch = -1
 
 output_path = os.path.join(user.plot_directory, "multiClass", training)
 os.makedirs(output_path, exist_ok=True)
-
 
 for epoch in range(epochs):
     print(f"Epoch {epoch + 1}/{epochs}")
@@ -46,14 +46,13 @@ for epoch in range(epochs):
         epoch,
         output_path,
         class_labels,
-        feature_names,  # Pass feature names
+        features.feature_names,  # Pass feature names
     )
 
     # Evaluate on the same data for simplicity (use a validation set in practice)
     model.evaluate(data_loader, class_labels, max_batch=max_batch)
 
 # Load the saved model for further use
-model.load(save_path, checkpoint=5)
 model.load(save_path)
 common.syncer.sync()
 

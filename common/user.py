@@ -7,7 +7,6 @@ if os.environ['USER'] in ['robert.schoefbeck']:
     plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/Challenge/"
     # For model output:
     model_directory        = "/groups/hephy/cms/robert.schoefbeck/Challenge/models/"
-    # Maybe we let this later point to the input data.
 
 elif os.environ['USER'] in ['dennis.schwarz']:
     plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
