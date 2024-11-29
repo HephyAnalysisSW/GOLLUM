@@ -6,8 +6,6 @@ sys.path.insert(0, '../..')
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
 
-datasets = ['data', 'weights', 'detailed_labels']
-
 batch_size = None #64**2
 n_split    = 10
 

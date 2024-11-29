@@ -93,11 +93,13 @@ if __name__=="__main__":
     import selections
 
     batch_size = None #64**2
-    n_split    = 1
+    n_split    = 10000
+
+    file_path = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/processed/ztautau_tes_1p03.h5"
 
     # Example1: load all the data, then select
     data_loader_1 = H5DataLoader(
-        file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/test.h5" , 
+        file_path = file_path, 
         batch_size= batch_size, 
         n_split   = n_split,
         )
@@ -109,7 +111,7 @@ if __name__=="__main__":
 
     # Example2 (equivalent): loop over selected data 
     data_loader_2 = H5DataLoader(
-        file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/test.h5" , 
+        file_path = file_path, 
         batch_size= batch_size, 
         n_split   = n_split,
         selection_function=selections.inclusive,
