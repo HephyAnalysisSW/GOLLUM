@@ -9,7 +9,7 @@ sys.path.insert(0, '../..')
 import common.user as user
 from data_loader.data_loader_2 import H5DataLoader
 from histograms import npHistograms, convertNPtoROOT
-import common.common as common
+import common.data_structure as data_structure
 # import selections
 
 import argparse
@@ -35,7 +35,7 @@ dataLoader = H5DataLoader(
 NBatchesDone = 0
 for batch in dataLoader:
     features, weights, labels = dataLoader.split(batch)
-    for k, feature in enumerate(common.feature_names):
+    for k, feature in enumerate(data_structure.feature_names):
         featureValues = features[:, k]
         binning = npHistograms[args.process][feature]["binning"]
         npHistograms[args.process][feature]["hist"] += np.histogram( featureValues, binning, weights=weights )[0]
@@ -47,8 +47,8 @@ for batch in dataLoader:
 # Convert to root hists and put in root file
 outfile = ROOT.TFile(f"hists/{args.process}.root","RECREATE")
 outfile.cd()
-for feature in common.feature_names:
-    axisLabel = common.plot_options[feature]['tex']
+for feature in data_structure.feature_names:
+    axisLabel = data_structure.plot_options[feature]['tex']
     rootHist = convertNPtoROOT(
         npHist = npHistograms[args.process][feature]["hist"],
         binedges = npHistograms[args.process][feature]["binning"],

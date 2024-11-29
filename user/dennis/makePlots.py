@@ -4,11 +4,11 @@ sys.path.insert(0, '../..')
 
 from Plotter import Plotter
 import common.syncer
-import common.common as common
+import common.data_structure as data_structure
 import common.user as user
 
-file = ROOT.TFile("nominal.root")
-for feature in common.feature_names:
+file = ROOT.TFile("hists/nominal.root")
+for feature in data_structure.feature_names:
 
     hist = file.Get(feature)
 
@@ -16,7 +16,7 @@ for feature in common.feature_names:
     p.plot_dir = user.plot_directory
     p.drawRatio = True
     p.ratiorange = 0.2, 1.8
-    p.xtitle = common.plot_options[feature]["tex"]
+    p.xtitle = data_structure.plot_options[feature]["tex"]
     p.addBackground(hist, "test", ROOT.kRed)
     p.draw()
     # # Add Backgrounds, those will be stacked

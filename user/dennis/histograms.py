@@ -5,14 +5,14 @@ from array import array
 from math import sqrt
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
-import common.common as common
+import common.data_structure as data_structure
 
 npHistograms = {}
 processes = []
 for process in processes+["test", "nominal"]:
     npHistograms[process] = {}
-    for feature in common.feature_names:
-        nBins, lower, upper = common.plot_options[feature]['binning']
+    for feature in data_structure.feature_names:
+        nBins, lower, upper = data_structure.plot_options[feature]['binning']
         # setup numpy hist
         binning = np.linspace(lower, upper, nBins+1)
         hist, binedges = np.histogram( np.array([]), binning, weights=np.array([]) )
