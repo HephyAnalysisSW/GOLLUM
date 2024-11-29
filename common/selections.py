@@ -4,12 +4,12 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 # It is much faster to NOT user the FeatureSelector. 
-import common.common as common
+import common.data_structure as data_structure
 
-MT_ind  = common.feature_names.index("DER_mass_transverse_met_lep")
-LJ_ind  = common.feature_names.index("PRI_jet_leading_pt")
-SLJ_ind = common.feature_names.index("PRI_jet_subleading_pt")
-ptH_ind = common.feature_names.index("DER_pt_h")
+MT_ind  = data_structure.feature_names.index("DER_mass_transverse_met_lep")
+LJ_ind  = data_structure.feature_names.index("PRI_jet_leading_pt")
+SLJ_ind = data_structure.feature_names.index("PRI_jet_subleading_pt")
+ptH_ind = data_structure.feature_names.index("DER_pt_h")
 
 # Put the elements of your selections here, i.e., cuts you want to apply
 selections = {

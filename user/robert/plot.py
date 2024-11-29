@@ -8,20 +8,18 @@ from common.helpers import copyIndexPHP
 import matplotlib
 matplotlib.use("Agg")  # Set the backend
 import common.syncer  # Re-import syncer after backend configuration
-
+import common.data_structure as data_structure
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
-import common.features as features  # Import features to use plot_options
 from tqdm import tqdm  # Import tqdm for the progress bar
 
-def accumulate_truth_histograms(data_loader, class_labels, max_batch=-1):
+def accumulate_truth_histograms(data_loader, max_batch=-1):
     """
     Accumulate histograms for true class weights.
 
     Parameters:
     - data_loader: H5DataLoader, for loading batches of data.
-    - class_labels: list of str, class names in the dataset.
     - max_batch: int, maximum number of batches to process (default: -1, process all).
 
     Returns:
@@ -36,22 +34,19 @@ def accumulate_truth_histograms(data_loader, class_labels, max_batch=-1):
 
     with tqdm(total=total_batches, desc="Accumulating Histograms", unit="batch") as pbar:
         for batch in data_loader:
-            data = batch['data']
-            weights = batch['weights']
-            raw_labels = batch['detailed_labels']
+            data, weights, labels = data_loader.split( batch )
 
             # Convert raw labels to one-hot encoded format
-            labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
+            labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(data_structure.labels))
 
-            for k, feature in enumerate(features.feature_names):
+            for k, feature in enumerate(data_structure.feature_names):
                 feature_values = data[:, k]
 
                 # Use plot_options for binning
-                n_bins, lower, upper = features.plot_options[feature]['binning']
+                n_bins, lower, upper = data_structure.plot_options[feature]['binning']
                 if feature not in bin_edges:
                     bin_edges[feature] = np.linspace(lower, upper, n_bins + 1)
-                    truth_histograms[feature] = np.zeros((n_bins, len(class_labels)))
+                    truth_histograms[feature] = np.zeros((n_bins, len(data_structure.labels)))
 
                 # Accumulate weights for each bin and class
                 for b in range(n_bins):
@@ -69,15 +64,13 @@ def accumulate_truth_histograms(data_loader, class_labels, max_batch=-1):
 
     return truth_histograms, bin_edges
 
-def plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_names=features.feature_names, output_dir="./plots/"):
+def plot_truth_histograms(truth_histograms, bin_edges, output_dir="./plots/"):
     """
     Plot and save truth histograms as separate plots per feature with linear and logarithmic top panels.
 
     Parameters:
     - truth_histograms: dict, true class weights accumulated over bins.
     - bin_edges: dict, bin edges for each feature.
-    - class_labels: list of str, class names.
-    - feature_names: list of str, feature names for the x-axis.
     - output_dir: str, directory to save the PNG files.
     """
     lin_dir = os.path.join(output_dir, "lin")
@@ -87,10 +80,10 @@ def plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_nam
     copyIndexPHP(lin_dir)
     copyIndexPHP(log_dir)
 
-    n_classes = len(class_labels)
+    n_classes = len(data_structure.labels)
     colors = plt.cm.tab10(np.arange(n_classes))  # Use tab10 colormap for distinct colors
 
-    for feature in feature_names:
+    for feature in data_structure.feature_names:
         # Get total yields for sorting
         total_yields = truth_histograms[feature].sum(axis=0)
         sorted_indices = np.argsort(total_yields)
@@ -98,7 +91,7 @@ def plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_nam
         # Reorder histograms and colors by total yield
         stacked_histograms = np.cumsum(truth_histograms[feature][:, sorted_indices], axis=1)
         sorted_colors = colors[sorted_indices]
-        sorted_class_labels = [class_labels[i] for i in sorted_indices]
+        sorted_class_labels = [data_structure.labels[i] for i in sorted_indices]
 
         for scale, subdir in zip(["linear", "log"], [lin_dir, log_dir]):
             # Create a figure with two panels
@@ -128,7 +121,7 @@ def plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_nam
             total_weights = truth_histograms[feature].sum(axis=1, keepdims=True)
             fractional_weights = truth_histograms[feature] / np.where(total_weights == 0, 1, total_weights)
 
-            for c, class_name in enumerate(class_labels):
+            for c, class_name in enumerate(data_structure.labels):
                 ax_bottom.step(
                     bin_edges[feature],  # Bin edges
                     np.append(fractional_weights[:, c], 0),  # Heights
@@ -151,15 +144,13 @@ def plot_truth_histograms(truth_histograms, bin_edges, class_labels, feature_nam
 
             print(f"Saved {scale} plot for {feature} to {output_file}.")
 
-def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, feature_names, output_dir):
+def plot_truth_histograms_root(truth_histograms, bin_edges, output_dir):
     """
     Plot and save truth histograms as separate ROOT canvases per feature with linear and logarithmic top panels.
 
     Parameters:
     - truth_histograms: dict, true class weights accumulated over bins.
     - bin_edges: dict, bin edges for each feature.
-    - class_labels: list of str, class names.
-    - feature_names: list of str, feature names for the x-axis.
     - output_dir: str, directory to save the ROOT files.
     """
     import ROOT
@@ -171,16 +162,16 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
     copyIndexPHP(lin_dir)
     copyIndexPHP(log_dir)
 
-    n_classes = len(class_labels)
+    n_classes = len(data_structure.labels)
 
-    for feature in feature_names:
+    for feature in data_structure.feature_names:
         # Get total yields for sorting
         total_yields = truth_histograms[feature].sum(axis=0)
         sorted_indices = np.argsort(total_yields)
 
         # Reorder histograms and styles by total yield
         stacked_histograms = truth_histograms[feature][:, sorted_indices]
-        sorted_class_labels = [class_labels[i] for i in sorted_indices]
+        sorted_class_labels = [data_structure.labels[i] for i in sorted_indices]
 
         for scale, subdir in zip(["linear", "log"], [lin_dir, log_dir]):
             canvas = ROOT.TCanvas(f"c_{feature}_{scale}", feature, 800, 800)
@@ -202,7 +193,7 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
             if scale == "log":
                 top_pad.SetLogy()
 
-            h_stack = ROOT.THStack("h_stack", f";{features.plot_options[feature]['tex']};Number of Events")
+            h_stack = ROOT.THStack("h_stack", f";{data_structure.plot_options[feature]['tex']};Number of Events")
 
             hist_list = []
             for c, class_name in enumerate(sorted_class_labels):
@@ -210,9 +201,9 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
                 for b in range(len(bin_edges[feature]) - 1):
                     hist.SetBinContent(b + 1, stacked_histograms[b, c])
 
-                hist.SetFillColor(features.plot_styles[class_name]["fill_color"])
-                hist.SetLineColor(features.plot_styles[class_name]["line_color"])
-                hist.SetLineWidth(features.plot_styles[class_name]["line_width"])
+                hist.SetFillColor(data_structure.plot_styles[class_name]["fill_color"])
+                hist.SetLineColor(data_structure.plot_styles[class_name]["line_color"])
+                hist.SetLineWidth(data_structure.plot_styles[class_name]["line_width"])
 
                 h_stack.Add(hist)
                 hist_list.append(hist)
@@ -247,19 +238,19 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
             # Bottom pad: fractional contributions
             bottom_pad.cd()
 
-            h_ratio = ROOT.THStack("h_ratio", f";{features.plot_options[feature]['tex']};Fraction")
+            h_ratio = ROOT.THStack("h_ratio", f";{data_structure.plot_options[feature]['tex']};Fraction")
 
             total_weights = truth_histograms[feature].sum(axis=1, keepdims=True)
             fractional_weights = truth_histograms[feature] / np.where(total_weights == 0, 1, total_weights)
 
             fraction_hists = []
-            for c, class_name in enumerate(class_labels):
+            for c, class_name in enumerate(data_structure.labels):
                 hist_frac = ROOT.TH1F(f"{class_name}_fraction", class_name, len(bin_edges[feature]) - 1, bin_edges[feature])
                 for b in range(len(bin_edges[feature]) - 1):
                     hist_frac.SetBinContent(b + 1, fractional_weights[b, c])
 
                 # Fractional contributions always use line styles
-                hist_frac.SetLineColor(features.plot_styles[class_name]["fill_color"])
+                hist_frac.SetLineColor(data_structure.plot_styles[class_name]["fill_color"])
                 hist_frac.SetLineWidth(2)
                 h_ratio.Add(hist_frac)
                 fraction_hists.append(hist_frac)
@@ -274,7 +265,7 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
             h_ratio.GetXaxis().SetTitleSize(24)
             h_ratio.GetYaxis().SetLabelSize(20)
             h_ratio.GetXaxis().SetLabelSize(20)
-            h_ratio.GetXaxis().SetTitle(features.plot_options[feature]["tex"])
+            h_ratio.GetXaxis().SetTitle(data_structure.plot_options[feature]["tex"])
             #h_ratio.GetXaxis().SetTitleOffset(3.2)
             h_ratio.GetYaxis().SetTitleOffset(1.6)
             h_ratio.GetXaxis().SetTickLength(0.03 * 3)
@@ -299,8 +290,6 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, featur
             print(f"Saved {scale} plot for {feature} to {output_file}.")
 
 
-from common.FeatureSelector import FeatureSelector
-from common.features import feature_names, class_labels
 from data import get_data_loader
 
 import argparse
@@ -310,36 +299,29 @@ def parse_arguments():
     
     # Add arguments
     parser.add_argument("--selection", type=str, default="inclusive", help="Event selection")
-    parser.add_argument("--plot_directory", type=str, default="", help="Plot directory")
+    parser.add_argument("--plot_directory", type=str, default="v2", help="Plot directory")
     parser.add_argument("--small", action="store_true" )
 
     return parser.parse_args()
 
 args = parse_arguments()
 
-#if args.selection != "inclusive":
-#    exec( f"from eventSelection import {args.selection} as selection" )
-#else: 
-#    selection = None
+import data
 
-#if args.selection.lower() == "vbf":
-data_directory = f"/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/{args.selection}/" 
-selection      = None
-#else: 
-#    data_directory = user.data_directory 
-
-data_loader = get_data_loader(
-    n_split = 1000 if args.small else 100, 
-    selection_function = selection,
-    data_directory = data_directory)
+data_loader = data.get_data_loader( 
+    name = "nominal", 
+    n_split=10, 
+    selection=args.selection, 
+    selection_function=None, 
+    )
 
 output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else ""))
 os.makedirs(output_path, exist_ok=True)
 
 # Accumulate histograms
-truth_histograms, bin_edges = accumulate_truth_histograms(data_loader, class_labels, max_batch=1 if args.small else -1)
+truth_histograms, bin_edges = accumulate_truth_histograms(data_loader, max_batch=1 if args.small else -1)
 
 # Plot and save
-plot_truth_histograms_root(truth_histograms, bin_edges, class_labels, feature_names, output_path)
+plot_truth_histograms_root(truth_histograms, bin_edges, output_path)
 
 common.syncer.sync()
