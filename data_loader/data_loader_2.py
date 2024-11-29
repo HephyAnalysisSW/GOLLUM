@@ -4,7 +4,7 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-import common.common as common
+import common.data_structure as data_structure
 
 class H5DataLoader:
 
@@ -34,7 +34,7 @@ class H5DataLoader:
             if self.n_split is None:
                 raise ValueError("Either batch_size or n_split must be provided.")
             self.batch_size = int(np.ceil(self.dataset_size / self.n_split))
-        print(f"data_loader_2: Initializes {self.file_path}")
+        print(f"data_loader_2: Initializ reading from {self.file_path}")
 
     def set_selection(self, selection_function):
         """
@@ -74,15 +74,15 @@ class H5DataLoader:
 
     @staticmethod
     def features( arr ):
-        return( arr[:, :len(common.feature_names)] )
+        return( arr[:, :len(data_structure.feature_names)] )
 
     @staticmethod
     def weights( arr ):
-        return( arr[:, common.weight_index] )
+        return( arr[:, data_structure.weight_index] )
 
     @staticmethod
     def labels( arr ):
-        return( arr[:, common.label_index] )
+        return( arr[:, data_structure.label_index] )
 
     @staticmethod
     def split( arr ):
