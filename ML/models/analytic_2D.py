@@ -20,25 +20,12 @@ base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,] ] 
 parameters         = ['nu1', 'nu2']
-combinations       = [('nu1',),  ('nu1', 'nu1'), ('nu2',), ('nu2', 'nu2'), ('nu1', 'nu2')] #THIS 
-#combinations       = [('nu1',),  ('nu2',), ] #('nu1', 'nu1', 'nu1'), ('nu1', 'nu1', 'nu1', 'nu1')]
+combinations       = [('nu1',),  ('nu1', 'nu1'), ('nu2',), ('nu2', 'nu2'), ('nu1', 'nu2')] 
 tex                = {"nu1":"#nu_{1}", "nu2":"#nu_{2}"}
 nominal_base_point = base_point_index[0]
 
 default_parameters = {  }
 default_parameters.update( {var:0. for var in parameters} )
-
-def make_parameters(**kwargs):
-    result = { key:val for key, val in default_parameters.items() }
-    for key, val in kwargs.items():
-        if not key in parameters:
-            raise RuntimeError ("Parameter not known.")
-        else:
-            result[key] = float(val)
-    return result
-
-random_parameters = make_parameters(**{v:random.random() for v in parameters} )
-sm         = make_parameters()
 
 feature_names =  ['x']
 

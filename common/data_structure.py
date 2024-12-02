@@ -27,7 +27,7 @@ plot_options = {
     "PRI_lep_pt"                    :{'tex':"p_{T}(l)",                 'binning':[50, 20, 1300                   ]},
     "PRI_lep_eta"                   :{'tex':"#eta(l)",                  'binning':[50, -2.5, 2.5                  ]},
     "PRI_lep_phi"                   :{'tex':"#phi(l)",                  'binning':[50, -math.pi, math.pi          ]},
-    "PRI_had_pt"                    :{'tex':"p_{T}(#tau)",               'binning':[50, 25, 1200                   ]},
+    "PRI_had_pt"                    :{'tex':"p_{T}(#tau)",              'binning':[50, 25, 1200                   ]},
     "PRI_had_eta"                   :{'tex':"#eta(#tau)",               'binning':[50, -3, 3                      ]},
     "PRI_had_phi"                   :{'tex':"#phi(#tau)",               'binning':[50, -math.pi, math.pi          ]},
     "PRI_jet_leading_pt"            :{'tex':"p_{T}(j_{0})",             'binning':[50, 25, 1900                   ]},
