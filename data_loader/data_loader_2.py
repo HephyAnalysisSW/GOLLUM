@@ -34,7 +34,7 @@ class H5DataLoader:
             if self.n_split is None:
                 raise ValueError("Either batch_size or n_split must be provided.")
             self.batch_size = int(np.ceil(self.dataset_size / self.n_split))
-        print(f"data_loader_2: Initializ reading from {self.file_path}")
+        print(f"data_loader_2: Initialize reading from {self.file_path}")
 
     def set_selection(self, selection_function):
         """
@@ -87,6 +87,15 @@ class H5DataLoader:
     @staticmethod
     def split( arr ):
         return H5DataLoader.features(arr), H5DataLoader.weights(arr), H5DataLoader.labels(arr)
+
+    @staticmethod
+    def get_weight_sum( data_loader, small=False):
+        from tqdm import tqdm
+        sum_ = 0.
+        for batch in tqdm(data_loader, desc="Computing weight sum", unit="batch"):
+            sum_ += data_loader.weights(batch).sum()
+            if small: break
+        return sum_
 
 if __name__=="__main__":
 

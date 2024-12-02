@@ -12,6 +12,8 @@ import numpy as np
 import operator
 import functools
 
+from data_loader.data_loader_2 import H5DataLoader
+
 class ICP:
     def __init__( self, combinations, nominal_base_point, base_points, parameters, **kwargs ):
 
@@ -61,42 +63,24 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-    def self.train( self, training_data ):
+    def train( self, training_data, small=False):
         self.yields = {}
-        if training_data is not None:
-            if 'weights' not in training_data[self.nominal_base_point_key]:
-                self.yields[self.nominal_base_point_key] = training_data[self.nominal_base_point_key]['features'].shape[0]
-            else:
-                self.yields[self.nominal_base_point_key] = training_data[self.nominal_base_point_key]['weights'].sum()
+        for base_point, loader in training_data.items():
+            self.yields[base_point] = H5DataLoader.get_weight_sum(training_data[base_point], small=small)
 
-            for k, v in training_data.items():
-                if "features" not in v and "weights" not in v:
-                    raise RuntimeError( "Key %r has neither features nor weights" %k  )
-                if k == self.nominal_base_point_key:
-                    if 'features' not in v:
-                        raise RuntimeError( "Nominal base point does not have features!" )
-                else:
-                    if not 'features' in v:
-                        # we must have weights
-                        self.yields[k] = v['weights'].sum()
-                    if (not 'weights' in training_data[self.nominal_base_point_key].keys()) and 'weights' in v:
-                        raise RuntimeError( "Found no weights for nominal base point, but for a variation. This is not allowed" )
-
-                    if not 'weights' in v:
-                        self.yields[k] = len( v['features'] ) 
-
-            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
+        self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
     @classmethod
     def load(cls, filename):
         with open(filename,'rb') as file_:
             old_instance = pickle.load(file_)
-            new_instance = cls( None,  
+            new_instance = cls(   
                     nominal_base_point  = old_instance.nominal_base_point,
                     parameters          = old_instance.parameters,
                     combinations        = old_instance.combinations,
                     base_points         = old_instance.base_points,
                     )
+            new_instance.DeltaA         = old_instance.DeltaA
             return new_instance  
 
     def __setstate__(self, state):
