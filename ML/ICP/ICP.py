@@ -12,25 +12,8 @@ import numpy as np
 import operator
 import functools
 
-default_cfg = {
-}
-
 class ICP:
-    def __init__( self, training_data, combinations, nominal_base_point, base_points, parameters, **kwargs ):
-        # make cfg and node_cfg from the kwargs keys known by the Node
-        self.cfg = default_cfg
-        self.cfg.update( kwargs )
-        self.node_cfg = {}
-        for (key, val) in kwargs.items():
-            if key in Node.default_cfg.keys():
-                self.node_cfg[key] = val 
-            elif key in default_cfg.keys():
-                self.cfg[key]      = val
-            else:
-                raise RuntimeError( "Got unexpected keyword arg: %s:%r" %( key, val ) )
-
-        for (key, val) in self.cfg.items():
-                setattr( self, key, val )
+    def __init__( self, combinations, nominal_base_point, base_points, parameters, **kwargs ):
 
         self.base_points   = np.array(base_points)
         self.n_base_points = len(self.base_points)
@@ -78,6 +61,7 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
+    def self.train( self, training_data ):
         self.yields = {}
         if training_data is not None:
             if 'weights' not in training_data[self.nominal_base_point_key]:
@@ -102,10 +86,6 @@ class ICP:
                         self.yields[k] = len( v['features'] ) 
 
             self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
-
-    @staticmethod 
-    def sort_comb( comb ):
-        return tuple(sorted(comb))
 
     @classmethod
     def load(cls, filename):

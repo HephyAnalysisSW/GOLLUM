@@ -14,6 +14,7 @@ class testStatistic:
         # smXS = getInclXS(0, 0)
         # getPenalty(nu)
         # getXSratio(features, mu, nu) <- This function should be configurable in order to stich multiple ML models together
+        #       Comment from Robert: The x-sec value depends on the selection, not the features.
         #
         # Function to maximize with respect to nu
         # Function to scan over mu

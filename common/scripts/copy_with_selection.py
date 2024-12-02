@@ -54,6 +54,8 @@ def copy_with_selection(input_files, target_dir, selection_function, n_batches=1
                 shape=(0, *dataset_shape),
                 maxshape=(None, *dataset_shape),
                 dtype=first_batch.dtype,
+                compression="gzip",  # Use gzip compression
+                compression_opts=4   # Compression level (1: fastest, 9: smallest)
             )
 
             # Reset the data loader iterator after peeking
@@ -76,8 +78,8 @@ def copy_with_selection(input_files, target_dir, selection_function, n_batches=1
 def parse_arguments():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Apply event selection and copy HDF5 files to a target directory.")
-    parser.add_argument("--files", type=str, required=True,
-                        help="Input files with wildcards (e.g., '/path/to/files/*.h5').")
+    parser.add_argument("--files", type=str, nargs='+', required=True,
+                        help="Input files (can use wildcards, e.g., '/path/to/files/*.h5').")
     parser.add_argument("--target-dir", type=str, required=True,
                         help="Directory to copy selected files.")
     parser.add_argument("--selection", type=str, required=True,
@@ -86,6 +88,8 @@ def parse_arguments():
                         help="Number of batches to divide the dataset into (default: 1000).")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing target files.")
+    parser.add_argument("--cmds", action="store_true",
+                        help="Write single jobs to jobs.sh.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -96,11 +100,34 @@ if __name__ == "__main__":
     print(f"Loading selection: {args.selection}")
     exec( f"from common.selections import {args.selection} as selection_function")
 
-    # Expand input files (support for wildcards)
-    input_files = glob.glob(args.files)
+    # Handle input files
+    input_files = []
+    for file_pattern in args.files:
+        expanded_files = glob.glob(file_pattern)  # Expand wildcards
+        if expanded_files:
+            input_files.extend(expanded_files)
+        else:
+            # If glob fails, assume it's a direct file path
+            input_files.append(file_pattern)
+
+    # Ensure files exist
     if not input_files:
-        raise FileNotFoundError(f"No files matched the pattern: {args.files}")
+        raise FileNotFoundError(f"No input files matched the patterns or were provided: {args.files}")
+    missing_files = [file for file in input_files if not os.path.exists(file)]
+    if missing_files:
+        raise FileNotFoundError(f"The following files were not found: {missing_files}")
+
+    # write jobs.sh if required
+    if args.cmds:
+        with open('jobs.sh', 'a+') as job_file:
+            for i_input_file, input_file in enumerate(input_files):
+
+                cmds = ["python", "copy_with_selection.py", "--files", input_file, "--target-dir", args.target_dir, "--selection", args.selection, "--n-batches", str(args.n_batches)]
+                if args.overwrite:
+                    cmds.append("-overwrite")
+                job_file.write(" ".join(cmds)+ '\n')
+        print("Appended %i jobs to jobs.sh."%len(input_files))
+        sys.exit(0)
 
     # Apply selection and copy files
     copy_with_selection(input_files, target_dir=args.target_dir, selection_function=selection_function, n_batches=args.n_batches, overwrite=args.overwrite)
-

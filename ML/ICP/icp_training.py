@@ -18,7 +18,7 @@ from ICP import ICP
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument("--directory",     action="store",      default="v1", help="Subdirectory for output")
-argParser.add_argument("--nTraining",     action="store",      default=100000, type=int,  help="Number of training events")
+#argParser.add_argument("--nTraining",     action="store",      default=100000, type=int,  help="Number of training events")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--model",         action="store",      default="analytic_2D",                 help="Which model?")
 argParser.add_argument("--modelDir",      action="store",      default="models",                 help="Which model directory?")
@@ -93,4 +93,3 @@ if icp is None or args.overwrite:
     boosting_time = time2 - time1
     print ("Boosting time: %.2f seconds" % boosting_time)
 
-#prediction = np.exp( np.dot( icp.predict, icp.VkA.transpose() ) )
