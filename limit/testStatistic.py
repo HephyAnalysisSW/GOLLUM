@@ -11,10 +11,20 @@ class testStatistic:
         #
         # lumi = const
         # getInclXS(mu, nu)
-        # smXS = getInclXS(0, nu0)
+        # smXS = getInclXS(0, 0)
         # getPenalty(nu)
         # getXSratio(features, mu, nu) <- This function should be configurable in order to stich multiple ML models together
         #
         # Function to maximize with respect to nu
         # Function to scan over mu
         # return a funktion (of mu)
+
+
+        q = getProfiledU1(mu) - getProfiledU_MLE(mu)
+
+    def getMLE(features, mu):
+        # maximize with respect to nu 
+
+    def getProfiledU(features, mu):
+        # maximize u
+        # u = -2 * (-lumi*getInclXS(mu, nu) + lumi*getInclXS(0, 0) +  getXSratio(features, mu, nu) )
