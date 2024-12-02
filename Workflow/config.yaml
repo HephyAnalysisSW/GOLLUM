@@ -1,0 +1,36 @@
+Tasks:
+  - Classifier
+#  - BPT
+#  - Uncert_JES
+#  - Fit
+
+Classifier:
+  module: "Model"
+  model: "/path/to/model" # path of the trained ML model 
+  input: "/path/to/input"
+  output: "/path/to/output"
+  hyper_param:
+    nepochs: 100
+    nlayers: 3
+
+BPT:
+  module: "BoostedParametricTree"
+  model: "/path/to/model" # path of the trained ML model 
+  input: "/path/to/input"
+  output: "/path/to/output"
+  hyper_param:
+    nepochs: 100
+    nlayers: 3
+
+
+Uncert_TES:
+  module: "TES"
+  model: "/path/to/model"
+  input: "/path/to/input"
+  output: "/path/to/output"
+  hyper_param:
+    nepochs: 100
+    nlayers: 3
+
+Fit:
+  # Not clear yet what to put for this...
