@@ -26,7 +26,7 @@ IC:
 ICP:
   module: "ICP"
   model_name_rel: "ICP_1203" # reletive path of the trained ML model 
-  model_name_abs: "/groups/hephy/cms/ang.li/HiggsChallenge/models/ICP/ICP_1203_2" # absolute path of the trained ML model 
+  model_name_abs: "" # absolute path of the trained ML model 
   input: "/path/to/input"
   output: "/path/to/output"
   config: "ML.configs.icp_quad_jes"
