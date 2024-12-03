@@ -56,6 +56,11 @@ for s in [
 
 selections.update(update)
 
-# This allows to do
+all_selections = sorted(list(selections.keys()))
+
+def print_all():
+    print("All selections: "+", ".join(all_selections)) 
+
 # from selections import lowMT_VBFJet
 globals().update(selections)
+

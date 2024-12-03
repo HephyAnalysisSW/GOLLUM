@@ -53,34 +53,3 @@ plot_options = {
     "DER_met_phi_centrality"        :{'tex':"C(E_{T}^{miss})",          'binning':[50, -math.sqrt(2), math.sqrt(2)]},
     "DER_lep_eta_centrality"        :{'tex':"C(l, jets)",               'binning':[50, 0, 1                       ]},
     }                                                                              
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
