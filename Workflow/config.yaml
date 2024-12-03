@@ -1,5 +1,6 @@
 Tasks:
-  - Classifier
+#  - Classifier
+  - ICP
 #  - BPT
 #  - Uncert_JES
 #  - Fit
@@ -12,6 +13,17 @@ Classifier:
   hyper_param:
     nepochs: 100
     nlayers: 3
+
+ICP:
+  module: "ICP"
+  model: "ICP_1203" # path of the trained ML model 
+  input: "/path/to/input"
+  output: "/path/to/output"
+  config: "ML.configs.icp_quad_jes"
+  selection: "lowMT_VBFJet"
+  hyper_param:
+    #nepochs: 100
+    #nlayers: 3
 
 BPT:
   module: "BoostedParametricTree"
