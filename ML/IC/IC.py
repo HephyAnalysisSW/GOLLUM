@@ -14,7 +14,7 @@ import functools
 
 import common.data_structure as data_structure
 
-class IC:
+class InclusiveCrosssection:
     def __init__( self ):
         pass
 

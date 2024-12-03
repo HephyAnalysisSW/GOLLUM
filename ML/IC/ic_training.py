@@ -6,7 +6,7 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 import common.user
-from IC import IC
+from ML.IC.IC import InclusiveCrosssection
 
 # Parser
 import argparse
@@ -32,14 +32,14 @@ ic = None
 if not args.overwrite:
     try:
         print ("Trying to load %s from %s"%(ic_name, filename))
-        ic = IC.load(filename)
+        ic = InclusiveCrosssection.load(filename)
     except (IOError, EOFError, ValueError):
         pass 
 
 if ic is None or args.overwrite:
     print ("Training.")
     time1 = time.time()
-    ic = IC()
+    ic = InclusiveCrosssection()
 
     ic.load_training_data(datasets, args.selection)
     ic.train             (datasets, args.selection, small=args.small)

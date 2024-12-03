@@ -5,7 +5,7 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 import importlib
-
+import tensorflow as tf
 from TFMC import TFMC
 
 import common.user as user
@@ -27,51 +27,68 @@ args = argParser.parse_args()
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
+# Do we use IC?
+if config.scale_with_ic:
+    from ML.IC.IC import InclusiveCrosssection
+    ic = InclusiveCrosssection.load(os.path.join(user.model_directory, "IC", "IC_"+args.selection+'.pkl'))
+    config.weight_sums = ic.weight_sums
+
 # import the data
 import common.datasets as datasets
 
 # Where to store the training
-model_directory = os.path.join( common.user.model_directory, "TFMC", args.selection, args.config, args.training)
+model_directory = os.path.join( common.user.model_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 os.makedirs(model_directory, exist_ok=True)
 
-# Initialize model
-tfmc = TFMC(len(data_structure.feature_names), len(config.class_labels))
+# where to store the plots
+plot_path = os.path.join(user.plot_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 
+# Initialize model
 if not args.overwrite:
     try:
-        print ("Trying to load TFMC from %s"%model_directory)
-        tfmc.load(model_directory)
-    except (IOError, EOFError, ValueError):
-        pass
+        print(f"Trying to load TFMC from {model_directory}")
+        tfmc = TFMC.load(model_directory)
+    except FileNotFoundError:
+        print("No checkpoint found. Starting from scratch.")
+        config = importlib.import_module(f"{args.configDir}.{args.config}")
+        tfmc = TFMC(config)
+else:
+    config = importlib.import_module(f"{args.configDir}.{args.config}")
+    tfmc = TFMC(config)
 
 # Initialize for training
-tfmc.load_training_data( datasets, args.selection)
+tfmc.load_training_data(datasets, args.selection)
+
+max_batch = 1 if args.small else -1
+
+# Determine the starting epoch
+starting_epoch = 0
+if not args.overwrite:
+    latest_checkpoint = tf.train.latest_checkpoint(model_directory)
+    if latest_checkpoint:
+        try:
+            starting_epoch = int(os.path.basename(latest_checkpoint))
+        except ValueError:
+            pass
 
 # Training Loop
-for epoch in range(config.n_epochs):
+for epoch in range(starting_epoch, config.n_epochs):
     print(f"Epoch {epoch + 1}/{config.n_epochs}")
-    model.train_one_epoch(data_loader, config.class_labels, max_batch=max_batch)
-    model.save(save_path, epoch)  # Save model after each epoch
+    tfmc.train_one_epoch(max_batch=max_batch)
+    tfmc.save(model_directory, epoch)  # Save model and config after each epoch
 
     # Accumulate histograms
-    true_histograms, pred_histograms, bin_edges = model.accumulate_histograms(
-        data_loader, config.class_labels, max_batch=max_batch
-    )
+    true_histograms, pred_histograms, bin_edges = tfmc.accumulate_histograms(max_batch=max_batch)
 
     # Plot convergence
-    model.plot_convergence(
+    tfmc.plot_convergence(
         true_histograms,
         pred_histograms,
         bin_edges,
         epoch,
-        output_path,
-        config.class_labels,
+        plot_path,
         data_structure.feature_names,  # Pass feature names
     )
 
-    # Evaluate on the same data for simplicity (use a validation set in practice)
-    model.evaluate(data_loader, class_labels, max_batch=max_batch)
-
-# Load the saved model for further use
-model.load(save_path)
+# Sync to ensure everything is saved
 common.syncer.sync()

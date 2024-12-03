@@ -6,9 +6,11 @@ import matplotlib
 matplotlib.use("Agg")  # Use the non-interactive Agg backend
 import matplotlib.pyplot as plt
 from math import ceil, sqrt
+import pickle
+import importlib
 
 class TFMC:
-    def __init__(self, input_dim, num_classes):
+    def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """
         Initialize the multiclass classifier model.
         
@@ -16,31 +18,68 @@ class TFMC:
         - input_dim: int, number of features in the input data.
         - num_classes: int, number of output classes.
         """
-        self.model = self._build_model(input_dim, num_classes)
+        
+        # Whether to perform class reweighting
+        self.reweighting = reweighting
+
+        if config is not None:
+            self.config        = config
+            self.config_name   = config.__name__
+            self.input_dim     = config.input_dim 
+            self.classes       = config.classes
+            self.hidden_layers = config.hidden_layers
+        elif (input_dim is not None) and (classes is not None) and (hidden_layers is not None):
+            self.config        = None
+            self.config_name   = None
+            self.input_dim     = input_dim 
+            self.classes       = classes
+            self.hidden_layers = hidden_layers
+        else:
+            raise Exception("Please provide either a config or all other parameters (input_dim, classes, hidden_layers).")
+
+        self.num_classes = len(self.classes) 
+
+        self.model = self._build_model()
         self.optimizer = tf.keras.optimizers.Adam()
         self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction='none')
         self.metrics = tf.keras.metrics.CategoricalAccuracy()
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
 
-    def _build_model(self, input_dim, num_classes):
-        """Build a simple neural network for classification."""
-        model = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(input_dim,)),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(num_classes, activation='softmax')
-        ])
-        return model 
+        if hasattr( config, "weight_sums"):
+            self.weight_sums = config.weight_sums
+        else:
+            self.weight_sums = {i:1 for i in range(self.num_classes)}
+
+        # Scale cross sections to the same integral
+        total = sum(self.weight_sums.values())
+        self.scales = np.array([total/self.weight_sums[i] for i in range(self.num_classes)])
+        
+        print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.scales[i]) for i in range( self.num_classes)]) )
+
+    def _build_model(self):
+        """Build a simple neural network for classification with dynamic hidden layers."""
+        model = tf.keras.Sequential()
+        
+        # Input layer
+        model.add(tf.keras.layers.Input(shape=(self.input_dim,)))
+        
+        # Hidden layers
+        for units in self.hidden_layers:
+            model.add(tf.keras.layers.Dense(units, activation='relu'))
+        
+        # Output layer
+        model.add(tf.keras.layers.Dense(self.num_classes, activation='softmax'))
+        
+        return model
 
     def load_training_data( self, datasets, selection, n_split=10):
         self.data_loader = datasets.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
 
-    def train_one_epoch(self, class_labels, max_batch=-1):
+    def train_one_epoch(self, max_batch=-1):
         """
         Train the model for one epoch using the data loader.
         
         Parameters:
-        - class_labels: list of str, class names in the dataset.
         """
         accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
         total_loss = 0.0
@@ -49,9 +88,13 @@ class TFMC:
         for batch in self.data_loader:
             print(f"Batch {i_batch}")
             data, weights, raw_labels = self.data_loader.split(batch)
-            
+
+            # reweighting
+            if self.reweighting:
+                weights = weights * self.scales[raw_labels.astype('int')]
+
             # Convert raw labels to one-hot encoded format
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
  
             with tf.GradientTape() as tape:
                 predictions = self.model(data, training=True)
@@ -74,12 +117,11 @@ class TFMC:
         epoch_loss = total_loss / total_samples
         print(f"Epoch loss: {epoch_loss:.4f}")
     
-    def evaluate(self, class_labels, max_batch=-1):
+    def evaluate(self, max_batch=-1):
         """
         Evaluate the model on the data loader.
         
         Parameters:
-        - class_labels: list of str, class names in the dataset.
         """
         total_samples = 0
         self.metrics.reset_states()
@@ -89,9 +131,7 @@ class TFMC:
             data, weights, raw_labels = self.data_loader.split(batch)
             
             # Convert raw labels to one-hot encoded format
-            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
             
             predictions = self.model(data, training=False)
             self.metrics.update_state(labels_one_hot, predictions)
@@ -104,7 +144,7 @@ class TFMC:
 
     def save(self, save_dir, epoch):
         """
-        Save the model and optimizer state to a file.
+        Save the model, optimizer state, and config module name to a file.
 
         Parameters:
         - save_dir: str, directory to save the checkpoints (e.g., 'models/test').
@@ -116,65 +156,126 @@ class TFMC:
         checkpoint_path = os.path.join(save_dir, str(epoch))
         self.checkpoint.write(checkpoint_path)
 
+        # Save the config name in a separate pickle file
+        config_path = os.path.join(save_dir, "config.pkl")
+        with open(config_path, "wb") as f:
+            pickle.dump(self.config_name, f)
+
         # Manually create the 'checkpoint' metadata file
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
             f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
 
-        print(f"Model checkpoint saved for epoch {epoch} in {checkpoint_path}.")
+        print(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
 
-    def load(self, save_dir, checkpoint=None):
+#    def save(self, save_dir, epoch):
+#        """
+#        Save the model and optimizer state to a file.
+#
+#        Parameters:
+#        - save_dir: str, directory to save the checkpoints (e.g., 'models/test').
+#        - epoch: int, the current epoch number (used as the checkpoint filename).
+#        """
+#        os.makedirs(save_dir, exist_ok=True)  # Ensure the directory exists
+#
+#        # Write checkpoint and update the metadata file
+#        checkpoint_path = os.path.join(save_dir, str(epoch))
+#        self.checkpoint.write(checkpoint_path)
+#
+#        # Manually create the 'checkpoint' metadata file
+#        with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
+#            f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
+#
+#        print(f"Model checkpoint saved for epoch {epoch} in {checkpoint_path}.")
+#
+#    def load(self, save_dir, checkpoint=None):
+#        """
+#        Load the model and optimizer state from a checkpoint.
+#
+#        Parameters:
+#        - save_dir: str, directory where checkpoints are stored (e.g., 'models/test').
+#        - checkpoint: int or None, specific epoch number to load (e.g., 5).
+#                      If None, the latest checkpoint will be loaded.
+#        """
+#        if not os.path.isdir(save_dir):
+#            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
+#
+#        if checkpoint is None:
+#            # Find the latest checkpoint using TensorFlow's metadata
+#            latest_checkpoint = tf.train.latest_checkpoint(save_dir)
+#            if not latest_checkpoint:
+#                raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
+#            checkpoint_path = latest_checkpoint
+#        else:
+#            # Use the specified epoch as the checkpoint filename
+#            checkpoint_path = os.path.join(save_dir, str(checkpoint))
+#            if not os.path.exists(f"{checkpoint_path}.index"):  # Checkpoint files include '.index'
+#                raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+#
+#        self.checkpoint.restore(checkpoint_path).expect_partial()
+#        print(f"Model checkpoint loaded from {checkpoint_path}.")
+
+    @classmethod
+    def load(cls, save_dir):
         """
-        Load the model and optimizer state from a checkpoint.
-
-        Parameters:
-        - save_dir: str, directory where checkpoints are stored (e.g., 'models/test').
-        - checkpoint: int or None, specific epoch number to load (e.g., 5).
-                      If None, the latest checkpoint will be loaded.
+        Class method to load a saved TFMC instance from the latest checkpoint.
+        Handles corrupted or missing config.pkl files gracefully.
         """
         if not os.path.isdir(save_dir):
             raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
 
-        if checkpoint is None:
-            # Find the latest checkpoint using TensorFlow's metadata
-            latest_checkpoint = tf.train.latest_checkpoint(save_dir)
-            if not latest_checkpoint:
-                raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
-            checkpoint_path = latest_checkpoint
-        else:
-            # Use the specified epoch as the checkpoint filename
-            checkpoint_path = os.path.join(save_dir, str(checkpoint))
-            if not os.path.exists(f"{checkpoint_path}.index"):  # Checkpoint files include '.index'
-                raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+        latest_checkpoint = tf.train.latest_checkpoint(save_dir)
+        if not latest_checkpoint:
+            raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
 
-        self.checkpoint.restore(checkpoint_path).expect_partial()
-        print(f"Model checkpoint loaded from {checkpoint_path}.")
+        # Load the config module name from the pickle file
+        config_path = os.path.join(save_dir, "config.pkl")
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Config file not found: {config_path}")
 
-    def accumulate_histograms(self, class_labels, n_bins=30, max_batch=-1):
+        try:
+            with open(config_path, "rb") as f:
+                config_name = pickle.load(f)
+        except (EOFError, pickle.UnpicklingError) as e:
+            raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
+
+        # Dynamically import the config module
+        config = importlib.import_module(config_name)
+
+        # Create a new TFMC instance
+        instance = cls(config=config)
+
+        # Restore the model and optimizer state
+        instance.checkpoint.restore(latest_checkpoint).expect_partial()
+        print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
+
+        return instance
+
+    def accumulate_histograms(self, n_bins=30, max_batch=-1):
         """
         Accumulate histograms of true and predicted class probabilities for visualization.
 
         Parameters:
-        - class_labels: list of str, class names in the dataset.
         - n_bins: int, number of bins for histograms (default: 30).
         - max_batch: int, maximum number of batches to process (default: -1, process all).
         """
-        n_features = self.model.input_shape[1]
-        n_classes = len(class_labels)
+        num_features = self.model.input_shape[1]
         bin_edges = []
-        true_histograms = {k: np.zeros((n_bins, n_classes)) for k in range(n_features)}
-        pred_histograms = {k: np.zeros((n_bins, n_classes)) for k in range(n_features)}
+        true_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
+        pred_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
 
         i_batch = 0
         for batch in self.data_loader:
             data, weights, raw_labels = self.data_loader.split(batch)
             predictions = self.model(data, training=False).numpy()
 
-            # Convert raw labels to one-hot encoded format
-            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=n_classes)
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
+            # reweighting
+            if self.reweighting:
+                weights = weights * self.scales[raw_labels.astype('int')]
 
-            for k in range(n_features):
+            # Convert raw labels to one-hot encoded format
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
+
+            for k in range(num_features):
                 feature_values = data[:, k]
 
                 # Define bin edges only once
@@ -199,7 +300,7 @@ class TFMC:
                 break
 
         # Normalize histograms
-        for k in range(n_features):
+        for k in range(num_features):
             true_sums = true_histograms[k].sum(axis=1, keepdims=True)
             pred_sums = pred_histograms[k].sum(axis=1, keepdims=True)
             true_histograms[k] /= np.where(true_sums == 0, 1, true_sums)
@@ -207,7 +308,7 @@ class TFMC:
 
         return true_histograms, pred_histograms, bin_edges
 
-    def plot_convergence(self, true_histograms, pred_histograms, bin_edges, epoch, output_path, class_labels, feature_names):
+    def plot_convergence(self, true_histograms, pred_histograms, bin_edges, epoch, output_path, feature_names):
         """
         Plot and save the convergence visualization for each feature.
 
@@ -217,24 +318,22 @@ class TFMC:
         - bin_edges: list, bin edges for each feature.
         - epoch: int, current epoch number.
         - output_path: str, directory to save the PNG files.
-        - class_labels: list of str, class names.
         - feature_names: list of str, feature names for the x-axis.
         """
-        n_features = len(true_histograms)
-        n_classes = len(class_labels)
+        num_features = len(true_histograms)
 
         # Calculate grid size dynamically to fit all features
-        grid_size = ceil(sqrt(n_features))
+        grid_size = ceil(sqrt(num_features))
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(15, 15))
         axes = axes.flatten()
 
-        colors = plt.cm.tab10(np.arange(n_classes))  # Use tab10 colormap for distinct colors
+        colors = plt.cm.tab10(np.arange(self.num_classes))  # Use tab10 colormap for distinct colors
 
-        for k in range(n_features):
+        for k in range(num_features):
             ax = axes[k]
             bin_centers = 0.5 * (bin_edges[k][:-1] + bin_edges[k][1:])
 
-            for c, class_name in enumerate(class_labels):
+            for c, class_name in enumerate(self.classes):
                 # Dashed lines for true probabilities
                 ax.plot(
                     bin_centers,
@@ -259,18 +358,18 @@ class TFMC:
             ax.grid(True)
 
         # Hide unused subplots
-        for ax in axes[n_features:]:
+        for ax in axes[num_features:]:
             ax.axis("off")
 
         # Add legend to the figure
         handles = [
             plt.Line2D([0], [0], color=colors[c], linestyle="--", label=f"{class_name} (true)")
-            for c, class_name in enumerate(class_labels)
+            for c, class_name in enumerate(self.classes)
         ] + [
             plt.Line2D([0], [0], color=colors[c], linestyle="-", label=f"{class_name} (pred)")
-            for c, class_name in enumerate(class_labels)
+            for c, class_name in enumerate(self.classes)
         ]
-        fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.95), ncol=n_classes, frameon=False)
+        fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.95), ncol=self.num_classes, frameon=False)
 
         output_file = os.path.join(output_path, f"epoch_{epoch}.png")
         plt.tight_layout()
