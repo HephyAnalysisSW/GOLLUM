@@ -46,14 +46,13 @@ class MulticlassClassifier:
         i_batch = 0
         for batch in data_loader:
             print(f"Batch {i_batch}")
-            data = batch['data']
-            weights = batch['weights']
-            raw_labels = batch['detailed_labels']
+            data, weights, raw_labels = data_loader.split(batch)
             
             # Convert raw labels to one-hot encoded format
-            labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
-            
+            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
+            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
+ 
             with tf.GradientTape() as tape:
                 predictions = self.model(data, training=True)
                 loss = self.loss_fn(labels_one_hot, predictions)
@@ -88,12 +87,12 @@ class MulticlassClassifier:
 
         i_batch = 0
         for batch in data_loader:
-            data = batch['data']
-            raw_labels = batch['detailed_labels']
+            data, weights, raw_labels = data_loader.split(batch)
             
             # Convert raw labels to one-hot encoded format
-            labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
+            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
+            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
             
             predictions = self.model(data, training=False)
             self.metrics.update_state(labels_one_hot, predictions)
@@ -169,14 +168,13 @@ class MulticlassClassifier:
 
         i_batch = 0
         for batch in data_loader:
-            data = batch['data']
-            weights = batch['weights']
-            raw_labels = batch['detailed_labels']
+            data, weights, raw_labels = data_loader.split(batch)
             predictions = self.model(data, training=False).numpy()
 
             # Convert raw labels to one-hot encoded format
-            labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=n_classes)
+            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
+            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=n_classes)
+            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
 
             for k in range(n_features):
                 feature_values = data[:, k]

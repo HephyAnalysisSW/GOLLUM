@@ -4,26 +4,27 @@ sys.path.insert(0, '../..')
 from Multiclassifier import MulticlassClassifier
 
 from data import get_data_loader
-import common.features as features
 import common.user as user
 import common.syncer
 
-data_loader = get_data_loader(
+import common.datasets as datasets
+import common.data_structure as data_structure
+
+data_loader = datasets.get_data_loader(
     n_split = 20, 
-    selection_function = None,
-    data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/VBF/split_train_dataset/" )
+    selection = "lowMT_VBFJet" )
 
 # Initialize model
-class_labels = features.class_labels 
-model = MulticlassClassifier(len(features.feature_names), len(class_labels))
+class_labels = data_structure.labels
+model = MulticlassClassifier(len(data_structure.feature_names), len(class_labels))
 
 # Training Loop
 
-training = "VBF"
+training = "VBF_v2"
 
 epochs = 100
 save_path = os.path.join( user.model_directory, "multiClass", training) 
-max_batch = -1
+max_batch = 1
 
 output_path = os.path.join(user.plot_directory, "multiClass", training)
 os.makedirs(output_path, exist_ok=True)
@@ -46,7 +47,7 @@ for epoch in range(epochs):
         epoch,
         output_path,
         class_labels,
-        features.feature_names,  # Pass feature names
+        data_structure.feature_names,  # Pass feature names
     )
 
     # Evaluate on the same data for simplicity (use a validation set in practice)
@@ -55,4 +56,3 @@ for epoch in range(epochs):
 # Load the saved model for further use
 model.load(save_path)
 common.syncer.sync()
-

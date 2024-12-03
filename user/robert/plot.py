@@ -289,7 +289,6 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, output_dir):
 
             print(f"Saved {scale} plot for {feature} to {output_file}.")
 
-
 from data import get_data_loader
 
 import argparse
@@ -299,17 +298,16 @@ def parse_arguments():
     
     # Add arguments
     parser.add_argument("--selection", type=str, default="inclusive", help="Event selection")
-    parser.add_argument("--plot_directory", type=str, default="v2", help="Plot directory")
+    parser.add_argument("--plot_directory", type=str, default="v3", help="Plot directory")
     parser.add_argument("--small", action="store_true" )
 
     return parser.parse_args()
 
 args = parse_arguments()
 
-import data
+import common.datasets as datasets
 
-data_loader = data.get_data_loader( 
-    name = "nominal", 
+data_loader = datasets.get_data_loader( 
     n_split=10, 
     selection=args.selection, 
     selection_function=None, 

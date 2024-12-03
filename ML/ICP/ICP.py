@@ -19,8 +19,8 @@ class ICP:
     def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None, **kwargs ):
 
         if config is not None:
-            self.config = config
-    
+            self.config      = config
+            self.config_name = config.__name__ 
             self.base_points   = np.array(config.base_points)
             self.n_base_points = len(self.base_points)
     
@@ -29,6 +29,7 @@ class ICP:
             self.parameters         = config.parameters
         elif (combinations is not None) and (nominal_base_point is not None) and (base_points is not None) and (parameters is not None):
             print("Config not provided, the ICP can only be used for prediction.")
+            self.config_name   = None
             self.base_points   = np.array(base_points)
             self.n_base_points = len(self.base_points)
     
@@ -77,12 +78,12 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-    def load_training_data( self, datasets, selection):
+    def load_training_data( self, datasets, selection, n_split=10):
         self.training_data = {}
         for base_point in self.base_points:
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=10)
+            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=n_split)
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
@@ -101,24 +102,35 @@ class ICP:
     @classmethod
     def load(cls, filename):
         with open(filename,'rb') as file_:
+            import importlib
             old_instance = pickle.load(file_)
-            new_instance = cls(   
-                    nominal_base_point  = old_instance.nominal_base_point,
-                    parameters          = old_instance.parameters,
-                    combinations        = old_instance.combinations,
-                    base_points         = old_instance.base_points,
-                    )
+            if old_instance.config_name is not None:
+                config_ = importlib.import_module(old_instance.config_name) 
+                #new_instance.config = config_
+                new_instance = cls(   
+                        config               = config_,
+                        )
+            else:
+                new_instance = cls(   
+                        nominal_base_point  = old_instance.nominal_base_point,
+                        parameters          = old_instance.parameters,
+                        combinations        = old_instance.combinations,
+                        base_points         = old_instance.base_points,
+                        )
+
             new_instance.DeltaA         = old_instance.DeltaA
+
             return new_instance  
 
     def __setstate__(self, state):
         self.__dict__ = state
 
     def save(self, filename):
-        print("Removing self.config to save...")
+        _config = self.config
         self.config=None
         with open(filename,'wb') as file_:
             pickle.dump( self, file_ )
+        self.config = _config
 
     def nu_A(self, nu):
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
