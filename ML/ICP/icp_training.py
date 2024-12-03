@@ -2,6 +2,7 @@
 
 import numpy as np
 import os,sys,time
+import importlib
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
@@ -19,18 +20,11 @@ argParser.add_argument('--small',        action='store_true',  help="Only one ba
 args = argParser.parse_args()
 
 # import the config
-exec('import %s.%s as config'%( args.configDir, args.config))
+#exec('import %s.%s as config'%( args.configDir, args.config))
+config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
 import common.datasets as datasets
-
-print("Find training data for selection "+'\033[1m'+f"{args.selection}"+'\033[0m'+" and config "+'\033[1m'+f"{args.config}"+'\033[0m')
-training_data = {}
-for base_point in config.base_points:
-    values = config.get_alpha(base_point)
-    data_loader = datasets.get_data_loader( selection=args.selection, values=values, selection_function=None, n_split=10)
-    print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
-    training_data[base_point] = data_loader
 
 icp_name = f"ICP_{args.selection}_{args.config}"
 
@@ -50,14 +44,10 @@ if not args.overwrite:
 if icp is None or args.overwrite:
     print ("Training.")
     time1 = time.time()
-    icp = ICP(
-            nominal_base_point = config.nominal_base_point,
-            base_points        = config.base_points,
-            parameters         = config.parameters,
-            combinations       = config.combinations,
-                )
+    icp = ICP( config = config )
 
-    icp.train(training_data, small=args.small)
+    icp.load_training_data(datasets, args.selection) 
+    icp.train             (datasets, args.selection, small=args.small)
 
     icp.save(filename)
     print ("Written %s"%( filename ))
