@@ -24,7 +24,7 @@ exec('import %s.%s as config'%( args.configDir, args.config))
 # import the data
 import common.datasets as datasets
 
-print("Find training data for selection "+'\033[1m'+f"{args.selection} and config "+'\033[0m'+f"{args.config}")
+print("Find training data for selection "+'\033[1m'+f"{args.selection}"+'\033[0m'+" and config "+'\033[1m'+f"{args.config}"+'\033[0m')
 training_data = {}
 for base_point in config.base_points:
     values = config.get_alpha(base_point)
@@ -37,7 +37,7 @@ icp_name = f"ICP_{args.selection}_{args.config}"
 model_directory = os.path.join( common.user.model_directory, "ICP" )
 os.makedirs(model_directory, exist_ok=True)
 
-filename = os.path.join(model_directory, icp_name)+'.pkl'
+filename = os.path.join(model_directory, ('small_' if args.small else '')+icp_name)+'.pkl'
 
 icp = None
 if not args.overwrite:
@@ -64,5 +64,4 @@ if icp is None or args.overwrite:
 
     time2 = time.time()
     boosting_time = time2 - time1
-    print ("Boosting time: %.2f seconds" % boosting_time)
-
+    print ("Training time: %.2f seconds" % boosting_time)

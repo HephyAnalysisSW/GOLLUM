@@ -70,6 +70,9 @@ class ICP:
 
         self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
+    def __str__( self ):
+        return " ".join( [("%+2.3f"%deltaA)+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+
     @classmethod
     def load(cls, filename):
         with open(filename,'rb') as file_:
