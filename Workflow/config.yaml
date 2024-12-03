@@ -16,7 +16,8 @@ Classifier:
 
 ICP:
   module: "ICP"
-  model: "ICP_1203" # path of the trained ML model 
+  model_name_rel: "ICP_1203" # reletive path of the trained ML model 
+  model_name_abs: "" # absolute path of the trained ML model 
   input: "/path/to/input"
   output: "/path/to/output"
   config: "ML.configs.icp_quad_jes"
@@ -27,7 +28,8 @@ ICP:
 
 BPT:
   module: "BoostedParametricTree"
-  model: "/path/to/model" # path of the trained ML model 
+  model_name_rel: "model_name" # reletive path of the trained ML model 
+  model_name_abs: "" # absolute path of the trained ML model 
   input: "/path/to/input"
   output: "/path/to/output"
   hyper_param:
@@ -37,7 +39,8 @@ BPT:
 
 Uncert_TES:
   module: "TES"
-  model: "/path/to/model"
+  model_name_rel: "model_name" # reletive path of the trained ML model 
+  model_name_abs: "" # absolute path of the trained ML model 
   input: "/path/to/input"
   output: "/path/to/output"
   hyper_param:
