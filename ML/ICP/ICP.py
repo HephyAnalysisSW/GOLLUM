@@ -15,20 +15,34 @@ import functools
 from data_loader.data_loader_2 import H5DataLoader
 
 class ICP:
-    def __init__( self, combinations, nominal_base_point, base_points, parameters, **kwargs ):
+    #def __init__( self, combinations, nominal_base_point, base_points, parameters, **kwargs ):
+    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None, **kwargs ):
 
-        self.base_points   = np.array(base_points)
-        self.n_base_points = len(self.base_points)
-
-        self.nominal_base_point = np.array( nominal_base_point, dtype='float')
-        self.combinations       = combinations
-        self.parameters         = parameters
+        if config is not None:
+            self.config = config
+    
+            self.base_points   = np.array(config.base_points)
+            self.n_base_points = len(self.base_points)
+    
+            self.nominal_base_point = np.array( config.nominal_base_point, dtype='float')
+            self.combinations       = config.combinations
+            self.parameters         = config.parameters
+        elif (combinations is not None) and (nominal_base_point is not None) and (base_points is not None) and (parameters is not None):
+            print("Config not provided, the ICP can only be used for prediction.")
+            self.base_points   = np.array(base_points)
+            self.n_base_points = len(self.base_points)
+    
+            self.nominal_base_point = np.array( nominal_base_point, dtype='float')
+            self.combinations       = combinations
+            self.parameters         = parameters
+        else:
+            raise Exception("Please provide either a config or all other parameters (combinations, nominal_base_point, base_points, parameters).")
 
         # Base point matrix
         self.VkA  = np.zeros( [len(self.base_points), len(self.combinations) ], dtype='float64')
         for i_base_point, base_point in enumerate(self.base_points):
             for i_comb1, comb1 in enumerate(self.combinations):
-                self.VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[parameters.index(c)] for c in list(comb1)], 1)
+                self.VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)], 1)
             
         # Dissect inputs into nominal sample and variied
         nominal_base_point_index = np.where(np.all(self.base_points==self.nominal_base_point,axis=1))[0]
@@ -47,7 +61,7 @@ class ICP:
         for i_base_point, base_point in enumerate(self.masked_base_points):
             for i_comb1, comb1 in enumerate(self.combinations):
                 for i_comb2, comb2 in enumerate(self.combinations):
-                    C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
+                    C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
 
         assert np.linalg.matrix_rank(C)==C.shape[0], "Base point matrix does not have full rank. Check base points & combinations."
 
@@ -59,14 +73,25 @@ class ICP:
             for i_combination, combination in enumerate(self.combinations):
                 res=1
                 for var in combination:
-                    res*=base_point[parameters.index(var)]
+                    res*=base_point[self.parameters.index(var)]
 
                 self._VKA[i_base_point, i_combination ] = res
 
-    def train( self, training_data, small=False):
+    def load_training_data( self, datasets, selection):
+        self.training_data = {}
+        for base_point in self.base_points:
+            base_point = tuple(base_point)
+            values = self.config.get_alpha(base_point)
+            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=10)
+            print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
+            self.training_data[base_point] = data_loader
+
+
+    def train( self, datasets, selection, small=False):
+        self.load_training_data(datasets, selection)
         self.yields = {}
-        for base_point, loader in training_data.items():
-            self.yields[base_point] = H5DataLoader.get_weight_sum(training_data[base_point], small=small)
+        for base_point, loader in self.training_data.items():
+            self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
 
         self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
@@ -90,6 +115,8 @@ class ICP:
         self.__dict__ = state
 
     def save(self, filename):
+        print("Removing self.config to save...")
+        self.config=None
         with open(filename,'wb') as file_:
             pickle.dump( self, file_ )
 
