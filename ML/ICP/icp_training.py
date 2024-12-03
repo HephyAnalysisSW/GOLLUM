@@ -20,7 +20,6 @@ argParser.add_argument('--small',        action='store_true',  help="Only one ba
 args = argParser.parse_args()
 
 # import the config
-#exec('import %s.%s as config'%( args.configDir, args.config))
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
