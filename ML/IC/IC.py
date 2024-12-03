@@ -52,5 +52,10 @@ class IC:
     def __str__( self ):
         return (" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ]))
 
-    def predict( self, nu):
-        return np.exp(np.dot( self.nu_A(nu), self.DeltaA ))
+    def predict( self, sample):
+        if type(sample)==str:
+            return self.weight_sums[data_structure.label_encoding[sample]]
+        elif sample in self.weight_sums:
+            return self.weight_sums[sample]
+        else:
+            raise RuntimeError("IC: Don't know what to do with sample %r"%sample)

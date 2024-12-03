@@ -7,7 +7,7 @@ matplotlib.use("Agg")  # Use the non-interactive Agg backend
 import matplotlib.pyplot as plt
 from math import ceil, sqrt
 
-class MulticlassClassifier:
+class TFMC:
     def __init__(self, input_dim, num_classes):
         """
         Initialize the multiclass classifier model.
@@ -32,25 +32,25 @@ class MulticlassClassifier:
         ])
         return model 
 
-    def train_one_epoch(self, data_loader, class_labels, max_batch=-1):
+    def load_training_data( self, datasets, selection, n_split=10):
+        self.data_loader = datasets.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
+
+    def train_one_epoch(self, class_labels, max_batch=-1):
         """
         Train the model for one epoch using the data loader.
         
         Parameters:
-        - data_loader: H5DataLoader, for loading batches of data.
         - class_labels: list of str, class names in the dataset.
         """
         accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
         total_loss = 0.0
         total_samples = 0
         i_batch = 0
-        for batch in data_loader:
+        for batch in self.data_loader:
             print(f"Batch {i_batch}")
-            data, weights, raw_labels = data_loader.split(batch)
+            data, weights, raw_labels = self.data_loader.split(batch)
             
             # Convert raw labels to one-hot encoded format
-            #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
-            #labels_one_hot = tf.keras.utils.to_categorical(labels, num_classes=len(class_labels))
             labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=len(class_labels))
  
             with tf.GradientTape() as tape:
@@ -74,20 +74,19 @@ class MulticlassClassifier:
         epoch_loss = total_loss / total_samples
         print(f"Epoch loss: {epoch_loss:.4f}")
     
-    def evaluate(self, data_loader, class_labels, max_batch=-1):
+    def evaluate(self, class_labels, max_batch=-1):
         """
         Evaluate the model on the data loader.
         
         Parameters:
-        - data_loader: H5DataLoader, for loading batches of data.
         - class_labels: list of str, class names in the dataset.
         """
         total_samples = 0
         self.metrics.reset_states()
 
         i_batch = 0
-        for batch in data_loader:
-            data, weights, raw_labels = data_loader.split(batch)
+        for batch in self.data_loader:
+            data, weights, raw_labels = self.data_loader.split(batch)
             
             # Convert raw labels to one-hot encoded format
             #labels = np.array([class_labels.index(label.decode('utf-8')) for label in raw_labels])
@@ -150,12 +149,11 @@ class MulticlassClassifier:
         self.checkpoint.restore(checkpoint_path).expect_partial()
         print(f"Model checkpoint loaded from {checkpoint_path}.")
 
-    def accumulate_histograms(self, data_loader, class_labels, n_bins=30, max_batch=-1):
+    def accumulate_histograms(self, class_labels, n_bins=30, max_batch=-1):
         """
         Accumulate histograms of true and predicted class probabilities for visualization.
 
         Parameters:
-        - data_loader: H5DataLoader, for loading batches of data.
         - class_labels: list of str, class names in the dataset.
         - n_bins: int, number of bins for histograms (default: 30).
         - max_batch: int, maximum number of batches to process (default: -1, process all).
@@ -167,8 +165,8 @@ class MulticlassClassifier:
         pred_histograms = {k: np.zeros((n_bins, n_classes)) for k in range(n_features)}
 
         i_batch = 0
-        for batch in data_loader:
-            data, weights, raw_labels = data_loader.split(batch)
+        for batch in self.data_loader:
+            data, weights, raw_labels = self.data_loader.split(batch)
             predictions = self.model(data, training=False).numpy()
 
             # Convert raw labels to one-hot encoded format
