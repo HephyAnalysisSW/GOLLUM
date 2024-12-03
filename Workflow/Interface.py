@@ -51,6 +51,7 @@ if __name__ == '__main__':
         os.makedirs(model_directory)
       if os.path.exists(model_path) and not args.overwrite:
         raise Exception("Model path {} already exists!".format(model_path))
+      mm.load_training_data(datasets, cfg[t]["selection"])
       mm.train(datasets, cfg[t]["selection"], small=True)
       mm.save(model_path)
       print("Model saved in {}".format(model_path))
@@ -58,6 +59,7 @@ if __name__ == '__main__':
       print("Predicting...")
       mm = m.load(model_path)
       print("Model loaded from {}".format(model_path))
+      print(mm)
       print(mm.predict((1,)))
       print(mm.predict((2,)))
       #mm.predict()

@@ -1,6 +1,7 @@
 Tasks:
 #  - Classifier
-  - ICP
+  - IC
+#  - ICP
 #  - BPT
 #  - Uncert_JES
 #  - Fit
@@ -13,6 +14,14 @@ Classifier:
   hyper_param:
     nepochs: 100
     nlayers: 3
+
+IC:
+  module: "IC"
+  model_name_rel: "IC_1203" # reletive path of the trained ML model 
+  model_name_abs: "" # absolute path of the trained ML model 
+  input: "/path/to/input"
+  output: "/path/to/output"
+  selection: "lowMT_VBFJet"
 
 ICP:
   module: "ICP"
