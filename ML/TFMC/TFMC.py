@@ -9,6 +9,8 @@ from math import ceil, sqrt
 import pickle
 import importlib
 
+import common.data_structure as data_structure
+
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """
@@ -40,7 +42,7 @@ class TFMC:
         self.num_classes = len(self.classes) 
 
         self.model = self._build_model()
-        self.optimizer = tf.keras.optimizers.Adam()
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
         self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction='none')
         self.metrics = tf.keras.metrics.CategoricalAccuracy()
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
@@ -167,53 +169,6 @@ class TFMC:
 
         print(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
 
-#    def save(self, save_dir, epoch):
-#        """
-#        Save the model and optimizer state to a file.
-#
-#        Parameters:
-#        - save_dir: str, directory to save the checkpoints (e.g., 'models/test').
-#        - epoch: int, the current epoch number (used as the checkpoint filename).
-#        """
-#        os.makedirs(save_dir, exist_ok=True)  # Ensure the directory exists
-#
-#        # Write checkpoint and update the metadata file
-#        checkpoint_path = os.path.join(save_dir, str(epoch))
-#        self.checkpoint.write(checkpoint_path)
-#
-#        # Manually create the 'checkpoint' metadata file
-#        with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
-#            f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
-#
-#        print(f"Model checkpoint saved for epoch {epoch} in {checkpoint_path}.")
-#
-#    def load(self, save_dir, checkpoint=None):
-#        """
-#        Load the model and optimizer state from a checkpoint.
-#
-#        Parameters:
-#        - save_dir: str, directory where checkpoints are stored (e.g., 'models/test').
-#        - checkpoint: int or None, specific epoch number to load (e.g., 5).
-#                      If None, the latest checkpoint will be loaded.
-#        """
-#        if not os.path.isdir(save_dir):
-#            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
-#
-#        if checkpoint is None:
-#            # Find the latest checkpoint using TensorFlow's metadata
-#            latest_checkpoint = tf.train.latest_checkpoint(save_dir)
-#            if not latest_checkpoint:
-#                raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
-#            checkpoint_path = latest_checkpoint
-#        else:
-#            # Use the specified epoch as the checkpoint filename
-#            checkpoint_path = os.path.join(save_dir, str(checkpoint))
-#            if not os.path.exists(f"{checkpoint_path}.index"):  # Checkpoint files include '.index'
-#                raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
-#
-#        self.checkpoint.restore(checkpoint_path).expect_partial()
-#        print(f"Model checkpoint loaded from {checkpoint_path}.")
-
     @classmethod
     def load(cls, save_dir):
         """
@@ -250,130 +205,403 @@ class TFMC:
 
         return instance
 
-    def accumulate_histograms(self, n_bins=30, max_batch=-1):
+#    def accumulate_histograms(self, n_bins=30, max_batch=-1):
+#        """
+#        Accumulate histograms of true and predicted class probabilities for visualization.
+#
+#        Parameters:
+#        - n_bins: int, number of bins for histograms (default: 30).
+#        - max_batch: int, maximum number of batches to process (default: -1, process all).
+#        """
+#        num_features = self.model.input_shape[1]
+#        bin_edges = []
+#        true_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
+#        pred_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
+#
+#        i_batch = 0
+#        for batch in self.data_loader:
+#            data, weights, raw_labels = self.data_loader.split(batch)
+#            predictions = self.model(data, training=False).numpy()
+#
+#            # reweighting
+#            if self.reweighting:
+#                weights = weights * self.scales[raw_labels.astype('int')]
+#
+#            # Convert raw labels to one-hot encoded format
+#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
+#
+#            for k in range(num_features):
+#                feature_values = data[:, k]
+#
+#                # Define bin edges only once
+#                if i_batch == 0:
+#                    bin_edges.append(np.linspace(feature_values.min(), feature_values.max(), n_bins + 1))
+#
+#                # Accumulate true and predicted probabilities in bins
+#                for b in range(n_bins):
+#                    in_bin = (feature_values >= bin_edges[k][b]) & (feature_values < bin_edges[k][b + 1])
+#                    bin_weights = weights[in_bin]
+#
+#                    # True class probabilities
+#                    if bin_weights.sum() > 0:
+#                        true_histograms[k][b, :] += np.sum(bin_weights[:, None] * labels_one_hot[in_bin], axis=0)
+#
+#                    # Predicted class probabilities
+#                    if bin_weights.sum() > 0:
+#                        pred_histograms[k][b, :] += np.sum(bin_weights[:, None] * predictions[in_bin], axis=0)
+#
+#            i_batch += 1
+#            if max_batch > 0 and i_batch >= max_batch:
+#                break
+#
+#        # Normalize histograms
+#        for k in range(num_features):
+#            true_sums = true_histograms[k].sum(axis=1, keepdims=True)
+#            pred_sums = pred_histograms[k].sum(axis=1, keepdims=True)
+#            true_histograms[k] /= np.where(true_sums == 0, 1, true_sums)
+#            pred_histograms[k] /= np.where(pred_sums == 0, 1, pred_sums)
+#
+#        return true_histograms, pred_histograms, bin_edges
+
+    def accumulate_histograms(self, max_batch=-1):
         """
         Accumulate histograms of true and predicted class probabilities for visualization.
 
         Parameters:
-        - n_bins: int, number of bins for histograms (default: 30).
         - max_batch: int, maximum number of batches to process (default: -1, process all).
+
+        Returns:
+        - true_histograms: dict, true class probabilities accumulated over bins.
+        - pred_histograms: dict, predicted class probabilities accumulated over bins.
+        - bin_edges: dict, bin edges for each feature.
         """
+
         num_features = self.model.input_shape[1]
-        bin_edges = []
-        true_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
-        pred_histograms = {k: np.zeros((n_bins, self.num_classes)) for k in range(num_features)}
+        true_histograms = {}
+        pred_histograms = {}
+        bin_edges = {}
+
+        # Initialize histograms based on plot_options
+        for feature_name in data_structure.plot_options.keys():
+            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+            true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+            pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+            bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
 
         i_batch = 0
         for batch in self.data_loader:
             data, weights, raw_labels = self.data_loader.split(batch)
             predictions = self.model(data, training=False).numpy()
 
-            # reweighting
+            # Apply reweighting if enabled
             if self.reweighting:
                 weights = weights * self.scales[raw_labels.astype('int')]
 
             # Convert raw labels to one-hot encoded format
             labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
 
-            for k in range(num_features):
-                feature_values = data[:, k]
-
-                # Define bin edges only once
-                if i_batch == 0:
-                    bin_edges.append(np.linspace(feature_values.min(), feature_values.max(), n_bins + 1))
+            # Loop through each feature
+            for feature_idx, feature_name in enumerate(data_structure.feature_names):
+                feature_values = data[:, feature_idx]
+                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
 
                 # Accumulate true and predicted probabilities in bins
                 for b in range(n_bins):
-                    in_bin = (feature_values >= bin_edges[k][b]) & (feature_values < bin_edges[k][b + 1])
+                    in_bin = (feature_values >= bin_edges[feature_name][b]) & (
+                        feature_values < bin_edges[feature_name][b + 1]
+                    )
                     bin_weights = weights[in_bin]
 
                     # True class probabilities
                     if bin_weights.sum() > 0:
-                        true_histograms[k][b, :] += np.sum(bin_weights[:, None] * labels_one_hot[in_bin], axis=0)
+                        true_histograms[feature_name][b, :] += np.sum(
+                            bin_weights[:, None] * labels_one_hot[in_bin], axis=0
+                        )
 
                     # Predicted class probabilities
                     if bin_weights.sum() > 0:
-                        pred_histograms[k][b, :] += np.sum(bin_weights[:, None] * predictions[in_bin], axis=0)
+                        pred_histograms[feature_name][b, :] += np.sum(
+                            bin_weights[:, None] * predictions[in_bin], axis=0
+                        )
 
             i_batch += 1
             if max_batch > 0 and i_batch >= max_batch:
                 break
 
         # Normalize histograms
-        for k in range(num_features):
-            true_sums = true_histograms[k].sum(axis=1, keepdims=True)
-            pred_sums = pred_histograms[k].sum(axis=1, keepdims=True)
-            true_histograms[k] /= np.where(true_sums == 0, 1, true_sums)
-            pred_histograms[k] /= np.where(pred_sums == 0, 1, pred_sums)
+        for feature_name in data_structure.feature_names:
+            true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
+            pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
+            true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
+            pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
 
         return true_histograms, pred_histograms, bin_edges
 
-    def plot_convergence(self, true_histograms, pred_histograms, bin_edges, epoch, output_path, feature_names):
+    def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
         """
-        Plot and save the convergence visualization for each feature.
+        Plot and save the convergence visualization for all features in one canvas using ROOT.
 
         Parameters:
         - true_histograms: dict, true class probabilities accumulated over bins.
         - pred_histograms: dict, predicted class probabilities accumulated over bins.
-        - bin_edges: list, bin edges for each feature.
         - epoch: int, current epoch number.
-        - output_path: str, directory to save the PNG files.
+        - output_path: str, directory to save the ROOT files.
         - feature_names: list of str, feature names for the x-axis.
         """
-        num_features = len(true_histograms)
+        import ROOT
+        ROOT.gStyle.SetOptStat(0)
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
+        ROOT.setTDRStyle()
 
-        # Calculate grid size dynamically to fit all features
-        grid_size = ceil(sqrt(num_features))
-        fig, axes = plt.subplots(grid_size, grid_size, figsize=(15, 15))
-        axes = axes.flatten()
+        os.makedirs(output_path, exist_ok=True)
 
-        colors = plt.cm.tab10(np.arange(self.num_classes))  # Use tab10 colormap for distinct colors
+        num_features = len(feature_names)
+        num_classes = len(self.classes)
 
-        for k in range(num_features):
-            ax = axes[k]
-            bin_centers = 0.5 * (bin_edges[k][:-1] + bin_edges[k][1:])
+        # Calculate grid size, adding one pad for the legend
+        total_pads = num_features + 1
+        grid_size = int(ceil(sqrt(total_pads)))
+        canvas = ROOT.TCanvas("c_convergence", "Convergence Plot", 1200, 1200)
+        canvas.Divide(grid_size, grid_size)
 
+        colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]  # Define a set of colors
+        stuff = []  # Prevent ROOT objects from being garbage collected
+
+        # Loop through each feature
+        for feature_idx, feature_name in enumerate(feature_names):
+            pad = canvas.cd(feature_idx + 1)
+            pad.SetTicks(1, 1)
+            pad.SetBottomMargin(0.15)
+            pad.SetLeftMargin(0.15)
+
+            # Determine the maximum y-value for scaling
+            max_y = 0
+            for c in range(num_classes):
+                max_y = max(
+                    max_y,
+                    true_histograms[feature_name][:, c].max(),
+                    pred_histograms[feature_name][:, c].max(),
+                )
+
+            # Fetch binning and axis title from plot_options
+            n_bins, x_min, x_max = data_structure.plot_options[feature_name]["binning"]
+            x_axis_title = data_structure.plot_options[feature_name]["tex"]
+
+            h_frame = ROOT.TH2F(
+                f"h_frame_{feature_name}",
+                f";{x_axis_title};Probability",
+                n_bins, x_min, x_max,
+                100, 0, 1.2 * max_y,
+            )
+            h_frame.GetYaxis().SetTitleOffset(1.4)
+            h_frame.Draw()
+            stuff.append(h_frame)
+
+            # Loop through classes to create and style histograms
             for c, class_name in enumerate(self.classes):
-                # Dashed lines for true probabilities
-                ax.plot(
-                    bin_centers,
-                    true_histograms[k][:, c],
-                    linestyle="--",
-                    color=colors[c],
-                    label=f"{class_name} (true)" if k == 0 else "",
+                # True probabilities (dashed)
+                h_true = ROOT.TH1F(
+                    f"h_true_{feature_name}_{c}",
+                    f"{feature_name} (true {class_name})",
+                    n_bins, x_min, x_max,
                 )
+                for i, y in enumerate(true_histograms[feature_name][:, c]):
+                    h_true.SetBinContent(i + 1, y)
 
-                # Solid lines for predicted probabilities
-                ax.plot(
-                    bin_centers,
-                    pred_histograms[k][:, c],
-                    linestyle="-",
-                    color=colors[c],
-                    label=f"{class_name} (pred)" if k == 0 else "",
+                h_true.SetLineColor(colors[c % len(colors)])
+                h_true.SetLineStyle(2)  # Dashed
+                h_true.SetLineWidth(2)
+                h_true.Draw("HIST SAME")
+                stuff.append(h_true)
+
+                # Predicted probabilities (solid)
+                h_pred = ROOT.TH1F(
+                    f"h_pred_{feature_name}_{c}",
+                    f"{feature_name} (pred {class_name})",
+                    n_bins, x_min, x_max,
                 )
+                for i, y in enumerate(pred_histograms[feature_name][:, c]):
+                    h_pred.SetBinContent(i + 1, y)
 
-            ax.set_title(feature_names[k])
-            ax.set_xlabel(feature_names[k])  # Use feature name for x-axis
-            ax.set_ylabel("Probability")
-            ax.grid(True)
+                h_pred.SetLineColor(colors[c % len(colors)])
+                h_pred.SetLineStyle(1)  # Solid
+                h_pred.SetLineWidth(2)
+                h_pred.Draw("HIST SAME")
+                stuff.append(h_pred)
 
-        # Hide unused subplots
-        for ax in axes[num_features:]:
-            ax.axis("off")
+        # Legend in the last pad
+        legend_pad_index = num_features + 1
+        canvas.cd(legend_pad_index)
 
-        # Add legend to the figure
-        handles = [
-            plt.Line2D([0], [0], color=colors[c], linestyle="--", label=f"{class_name} (true)")
-            for c, class_name in enumerate(self.classes)
-        ] + [
-            plt.Line2D([0], [0], color=colors[c], linestyle="-", label=f"{class_name} (pred)")
-            for c, class_name in enumerate(self.classes)
-        ]
-        fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.95), ncol=self.num_classes, frameon=False)
+        legend = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+        legend.SetBorderSize(0)
+        legend.SetShadowColor(0)
 
-        output_file = os.path.join(output_path, f"epoch_{epoch}.png")
-        plt.tight_layout()
-        plt.savefig(output_file)
-        plt.close(fig)
+        # Create dummy histograms for legend
+        dummy_true = []
+        dummy_pred = []
+
+        for c, class_name in enumerate(self.classes):
+            # Dummy histogram for true probabilities
+            hist_true = ROOT.TH1F(f"dummy_true_{c}", "", 1, 0, 1)
+            hist_true.SetLineColor(colors[c % len(colors)])
+            hist_true.SetLineStyle(2)  # Dashed
+            hist_true.SetLineWidth(2)
+            dummy_true.append(hist_true)
+
+            # Dummy histogram for predicted probabilities
+            hist_pred = ROOT.TH1F(f"dummy_pred_{c}", "", 1, 0, 1)
+            hist_pred.SetLineColor(colors[c % len(colors)])
+            hist_pred.SetLineStyle(1)  # Solid
+            hist_pred.SetLineWidth(2)
+            dummy_pred.append(hist_pred)
+
+            # Add entries to the legend
+            legend.AddEntry(hist_true, f"{class_name} (true)", "l")
+            legend.AddEntry(hist_pred, f"{class_name} (pred)", "l")
+
+        legend.Draw()
+        stuff.extend(dummy_true + dummy_pred)
+
+        # Save the canvas
+        output_file = os.path.join(output_path, f"epoch_{epoch:04d}.png")
+        for fmt in ["png", "pdf"]:  # Save as both PNG and PDF
+            canvas.SaveAs(output_file.replace(".png", f".{fmt}"))
+
         print(f"Saved convergence plot for epoch {epoch} to {output_file}.")
 
+
+#    def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
+#        """
+#        Plot and save the convergence visualization for all features in one canvas using ROOT.
+#
+#        Parameters:
+#        - true_histograms: dict, true class probabilities accumulated over bins.
+#        - pred_histograms: dict, predicted class probabilities accumulated over bins.
+#        - epoch: int, current epoch number.
+#        - output_path: str, directory to save the ROOT files.
+#        - feature_names: list of str, feature names for the x-axis.
+#        """
+#
+#        import ROOT
+#        ROOT.gStyle.SetOptStat(0)
+#        dir_path = os.path.dirname(os.path.realpath(__file__))
+#        ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
+#        ROOT.setTDRStyle()
+#
+#        os.makedirs(output_path, exist_ok=True)
+#
+#        num_features = len(feature_names)
+#        num_classes = len(self.classes)
+#
+#        # Calculate grid size, adding one pad for the legend
+#        total_pads = num_features + 1
+#        grid_size = int(ceil(sqrt(total_pads)))
+#        canvas = ROOT.TCanvas("c_convergence", "Convergence Plot", 1200, 1200)
+#        canvas.Divide(grid_size, grid_size)
+#
+#        colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]  # Define a set of colors
+#        stuff = []  # Prevent ROOT objects from being garbage collected
+#
+#        # Loop through each feature
+#        for feature_idx, feature_name in enumerate(feature_names):
+#            pad = canvas.cd(feature_idx + 1)
+#            pad.SetTicks(1, 1)
+#            pad.SetBottomMargin(0.15)
+#            pad.SetLeftMargin(0.15)
+#
+#            # Extract plot options
+#            plot_option = data_structure.plot_options[feature_name]
+#            x_axis_title = plot_option['tex']
+#            n_bins, x_min, x_max = plot_option['binning']
+#
+#            # Determine the maximum y-value for scaling
+#            max_y = 0
+#            for c in range(num_classes):
+#                max_y = max(max_y, true_histograms[feature_idx][:, c].max(), pred_histograms[feature_idx][:, c].max())
+#
+#            h_frame = ROOT.TH2F(
+#                f"h_frame_{feature_idx}",
+#                f";{x_axis_title};Probability",
+#                n_bins, x_min, x_max,
+#                100, 0, 1.2 * max_y,
+#            )
+#            h_frame.GetYaxis().SetTitleOffset(1.4)
+#            h_frame.Draw()
+#            stuff.append(h_frame)
+#
+#            # Loop through classes to create and style histograms
+#            for c, class_name in enumerate(self.classes):
+#                # True probabilities (dashed)
+#                h_true = ROOT.TH1F(
+#                    f"h_true_{feature_idx}_{c}",
+#                    f"{feature_name} (true {class_name})",
+#                    n_bins, x_min, x_max,
+#                )
+#                for i in range(len(true_histograms[feature_idx][:, c])):
+#                    h_true.SetBinContent(i + 1, true_histograms[feature_idx][i, c])
+#
+#                h_true.SetLineColor(colors[c % len(colors)])
+#                h_true.SetLineStyle(2)  # Dashed
+#                h_true.SetLineWidth(2)
+#                h_true.Draw("HIST SAME")
+#                stuff.append(h_true)
+#
+#                # Predicted probabilities (solid)
+#                h_pred = ROOT.TH1F(
+#                    f"h_pred_{feature_idx}_{c}",
+#                    f"{feature_name} (pred {class_name})",
+#                    n_bins, x_min, x_max,
+#                )
+#                for i in range(len(pred_histograms[feature_idx][:, c])):
+#                    h_pred.SetBinContent(i + 1, pred_histograms[feature_idx][i, c])
+#
+#                h_pred.SetLineColor(colors[c % len(colors)])
+#                h_pred.SetLineStyle(1)  # Solid
+#                h_pred.SetLineWidth(2)
+#                h_pred.Draw("HIST SAME")
+#                stuff.append(h_pred)
+#
+#        # Legend
+#        legend_pad_index = total_pads
+#        canvas.cd(legend_pad_index)
+#
+#        legend = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+#        legend.SetBorderSize(0)
+#        legend.SetShadowColor(0)
+#
+#        # Create dummy histograms for legend
+#        dummy_true = []
+#        dummy_pred = []
+#
+#        for c, class_name in enumerate(self.classes):
+#            # Dummy histogram for true probabilities
+#            hist_true = ROOT.TH1F(f"dummy_true_{c}", "", 1, 0, 1)
+#            hist_true.SetLineColor(colors[c % len(colors)])
+#            hist_true.SetLineStyle(2)  # Dashed
+#            hist_true.SetLineWidth(2)
+#            dummy_true.append(hist_true)
+#
+#            # Dummy histogram for predicted probabilities
+#            hist_pred = ROOT.TH1F(f"dummy_pred_{c}", "", 1, 0, 1)
+#            hist_pred.SetLineColor(colors[c % len(colors)])
+#            hist_pred.SetLineStyle(1)  # Solid
+#            hist_pred.SetLineWidth(2)
+#            dummy_pred.append(hist_pred)
+#
+#            # Add entries to the legend
+#            legend.AddEntry(hist_true, f"{class_name} (true)", "l")
+#            legend.AddEntry(hist_pred, f"{class_name} (pred)", "l")
+#
+#        legend.Draw()
+#        stuff.extend(dummy_true + dummy_pred)
+#
+#        # Save the canvas
+#        output_file = os.path.join(output_path, f"epoch_{epoch:04d}.png")
+#        canvas.SaveAs(output_file)
+#        for fmt in ["png", "pdf"]:  # Save as both PNG and PDF
+#            canvas.SaveAs(output_file.replace(".png", f".{fmt}"))
+#
+#        print(f"Saved convergence plot for epoch {epoch} to {output_file}.")
+#

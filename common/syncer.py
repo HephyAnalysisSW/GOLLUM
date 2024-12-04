@@ -46,6 +46,17 @@ def myPrint( self, *args):
 
 ROOT.TCanvas.Print = myPrint 
 
+_saveAs = ROOT.TCanvas.SaveAs 
+def mySaveAs( self, *args):
+    logger.debug( "Appending file %s", args[0] )
+    if not os.path.exists(os.path.dirname( args[0] ) ):
+        os.makedirs( os.path.dirname( args[0] ) )
+    file_sync_storage.append( args[0] )
+    # call original Print method 
+    _saveAs(self, *args)
+
+ROOT.TCanvas.SaveAs = mySaveAs 
+
 from matplotlib import pyplot as plt
 from functools import wraps
 import os
