@@ -10,6 +10,7 @@ from TFMC import TFMC
 
 import common.user as user
 import common.syncer
+import common.helpers as helpers
 
 import common.data_structure as data_structure
 
@@ -18,6 +19,7 @@ import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
 argParser.add_argument("--training",      action="store",      default="v2",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="tfmc",                   help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
@@ -41,8 +43,8 @@ model_directory = os.path.join( common.user.model_directory, "TFMC", args.select
 os.makedirs(model_directory, exist_ok=True)
 
 # where to store the plots
-plot_path = os.path.join(user.plot_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
-
+plot_directory = os.path.join(user.plot_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
+helpers.copyIndexPHP(plot_directory)
 # Initialize model
 if not args.overwrite:
     try:
@@ -57,7 +59,7 @@ else:
     tfmc = TFMC(config)
 
 # Initialize for training
-tfmc.load_training_data(datasets, args.selection)
+tfmc.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
 
 max_batch = 1 if args.small else -1
 
@@ -81,14 +83,14 @@ for epoch in range(starting_epoch, config.n_epochs):
     true_histograms, pred_histograms, bin_edges = tfmc.accumulate_histograms(max_batch=max_batch)
 
     # Plot convergence
-    tfmc.plot_convergence(
+    tfmc.plot_convergence_root(
         true_histograms,
         pred_histograms,
-        bin_edges,
         epoch,
-        plot_path,
+        plot_directory,
         data_structure.feature_names,  # Pass feature names
     )
+    syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
 
 # Sync to ensure everything is saved
 common.syncer.sync()
