@@ -90,7 +90,7 @@ for epoch in range(starting_epoch, config.n_epochs):
         plot_directory,
         data_structure.feature_names,  # Pass feature names
     )
-    syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
+    common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
 
 # Sync to ensure everything is saved
 common.syncer.sync()
