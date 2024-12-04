@@ -20,11 +20,14 @@ argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
-argParser.add_argument("--training",      action="store",      default="v2",                     help="Training version")
+argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="tfmc",                   help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
 args = argParser.parse_args()
+
+# import the data
+import common.datasets as datasets
 
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
@@ -34,9 +37,18 @@ if config.scale_with_ic:
     from ML.IC.IC import InclusiveCrosssection
     ic = InclusiveCrosssection.load(os.path.join(user.model_directory, "IC", "IC_"+args.selection+'.pkl'))
     config.weight_sums = ic.weight_sums
+    print("We use this IC:")
+    print(ic)
+    
+# Do we use a Scaler?
+if config.use_scaler:
+    from ML.Scaler.Scaler import Scaler 
+    scaler = Scaler.load(os.path.join(user.model_directory, "Scaler", "Scaler_"+args.selection+'.pkl'))
+    config.feature_means     = scaler.feature_means
+    config.feature_variances = scaler.feature_variances
 
-# import the data
-import common.datasets as datasets
+    print("We use this scaler:")
+    print(scaler)
 
 # Where to store the training
 model_directory = os.path.join( common.user.model_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
@@ -76,11 +88,19 @@ if not args.overwrite:
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
     print(f"Epoch {epoch + 1}/{config.n_epochs}")
+
+    #for batch in tfmc.data_loader:
+    #    import numpy as np
+    #    data, weights, raw_labels = tfmc.data_loader.split(batch)
+    #    data = (data - tfmc.feature_means) / np.sqrt(tfmc.feature_variances)
+    #    break
+    #assert False, ""
+
     tfmc.train_one_epoch(max_batch=max_batch)
     tfmc.save(model_directory, epoch)  # Save model and config after each epoch
 
     # Accumulate histograms
-    true_histograms, pred_histograms, bin_edges = tfmc.accumulate_histograms(max_batch=max_batch)
+    true_histograms, pred_histograms = tfmc.accumulate_histograms(max_batch=max_batch)
 
     # Plot convergence
     tfmc.plot_convergence_root(
@@ -91,6 +111,9 @@ for epoch in range(starting_epoch, config.n_epochs):
         data_structure.feature_names,  # Pass feature names
     )
     common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
+    common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
-# Sync to ensure everything is saved
+    if epoch%10==0 or not args.small:
+        common.syncer.sync()
+
 common.syncer.sync()

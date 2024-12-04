@@ -16,7 +16,7 @@ import common.data_structure as data_structure
 
 class InclusiveCrosssection:
     def __init__( self ):
-        pass
+        self.selection = None
 
     @classmethod
     def load(cls, filename):
@@ -24,6 +24,7 @@ class InclusiveCrosssection:
             old_instance = pickle.load(file_)
             new_instance = cls()
             new_instance.weight_sums = old_instance.weight_sums 
+            new_instance.selection   = old_instance.selection if hasattr(old_instance, "selection") else None
             return new_instance  
 
     def __setstate__(self, state):
@@ -35,6 +36,7 @@ class InclusiveCrosssection:
 
     def load_training_data( self, datasets, selection, n_split=10):
         self.data_loader = datasets.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
+        self.selection   = selection
 
     def train(self, datasets, selection, small=True):
         from collections import defaultdict
@@ -50,7 +52,8 @@ class InclusiveCrosssection:
         self.weight_sums = {int(k):v for k,v in dict(weight_sums).items()}
 
     def __str__( self ):
-        return (" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ]))
+        prefix = ("IC: "+'\033[1m'+self.selection+'\033[0m'+" X-sec: ") if hasattr(self, "selection") and self.selection is not None else "X-Sec: "
+        return ( prefix+" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ]))
 
     def predict( self, sample):
         if type(sample)==str:

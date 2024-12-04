@@ -48,5 +48,5 @@ if ic is None or args.overwrite:
     print ("Written %s"%( filename ))
 
     time2 = time.time()
-    boosting_time = time2 - time1
-    print ("Training time: %.2f seconds" % boosting_time)
+    training_time = time2 - time1
+    print ("Training time: %.2f seconds" % training_time)

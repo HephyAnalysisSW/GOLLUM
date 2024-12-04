@@ -2,11 +2,13 @@ import pickle
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
+import common.data_structure as data_structure 
 
 class Scaler:
     def __init__(self):
         self.feature_means = {}
         self.feature_variances = {}
+        self.selection = None
 
     @classmethod
     def load(cls, filename):
@@ -15,6 +17,8 @@ class Scaler:
             new_instance = cls()
             new_instance.feature_means = old_instance.feature_means
             new_instance.feature_variances = old_instance.feature_variances
+            new_instance.selection   = old_instance.selection if hasattr(old_instance, "selection") else None
+
             return new_instance
 
     def __setstate__(self, state):
@@ -26,6 +30,7 @@ class Scaler:
 
     def load_training_data(self, datasets, selection, n_split=10):
         self.data_loader = datasets.get_data_loader(selection=selection, selection_function=None, n_split=n_split)
+        self.selection   = selection
 
     def train(self, datasets, selection, small=True):
         num_features = None
@@ -51,7 +56,8 @@ class Scaler:
         self.feature_variances = (feature_sq_sums / total_samples) - (self.feature_means**2)
 
     def __str__(self):
-        lines = []
+        lines = [ "Scaler: "+'\033[1m'+self.selection+'\033[0m' ] if hasattr(self, "selection") and self.selection is not None else []
+
         for i, feature_name in enumerate(data_structure.feature_names):
             mean = self.feature_means[i]
             variance = self.feature_variances[i]
