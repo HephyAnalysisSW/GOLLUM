@@ -17,14 +17,20 @@ parameters         = ['nu_jes']
 combinations       = [('nu_jes',),  ('nu_jes', 'nu_jes'), ] 
 
 # Base point coordinates in tes/jes/met; Example: jes, where we have +/- 3 sigma in steps
+#base_point_index = {
+#    0 : ( -3., ),
+#    1 : ( -2., ),
+#    2 : ( -1., ),
+#    3 : (  0., ),
+#    4 : (  1., ),
+#    5 : (  2., ),
+#    6 : (  3., ),
+#}
+
 base_point_index = {
-    0 : ( -3., ),
-    1 : ( -2., ),
-    2 : ( -1., ),
-    3 : (  0., ),
-    4 : (  1., ),
-    5 : (  2., ),
-    6 : (  3., ),
+    0 : ( -1., ),
+    1 : (  0., ),
+    2 : (  1., ),
 }
 
 # translate nuisances to alpha values
@@ -35,10 +41,12 @@ def get_alpha( base_point ):
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 # Make a matrix
-base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
+#base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
+base_points        = [ base_point_index[i] for i in [0,1,2] ] 
 
 # Pick out the "SM" base point
-nominal_base_point = base_point_index[3]
+#nominal_base_point = base_point_index[3]
+nominal_base_point = base_point_index[1]
 
 # Number of epochs
 n_epochs = 100
