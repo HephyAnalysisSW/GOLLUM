@@ -15,7 +15,7 @@ import functools
 from data_loader.data_loader_2 import H5DataLoader
 
 class ICP:
-    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None, **kwargs ):
+    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None):
 
         if config is not None:
             self.config      = config
@@ -104,7 +104,6 @@ class ICP:
             old_instance = pickle.load(file_)
             if old_instance.config_name is not None:
                 config_ = importlib.import_module(old_instance.config_name) 
-                #new_instance.config = config_
                 new_instance = cls(   
                         config               = config_,
                         )
