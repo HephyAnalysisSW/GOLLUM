@@ -125,50 +125,155 @@ class TFMC:
     def load_training_data( self, datasets, selection, n_split=10):
         self.data_loader = datasets.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
 
-    def train_one_epoch(self, max_batch=-1):
+    def train_one_epoch(self, max_batch=-1, accumulate_histograms=False):
         """
-        Train the model for one epoch using the data loader.
-        
+        Train the model for one epoch using the data loader, with optional histogram accumulation.
+
         Parameters:
+        - max_batch: int, maximum number of batches to process (default: -1, process all).
+        - accumulate_histograms: bool, whether to accumulate histograms of true and predicted class probabilities.
+
+        Returns:
+        - true_histograms, pred_histograms: dict, accumulated histograms if accumulate_histograms is True.
+          Otherwise, returns None, None.
         """
+        if accumulate_histograms:
+            # For histogram accumulation
+            num_features = self.model.input_shape[1]
+            true_histograms = {}
+            pred_histograms = {}
+            bin_edges = {}
+
+            # Initialize histograms based on plot_options
+            for feature_name in data_structure.plot_options.keys():
+                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+                true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+                pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+                bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
+
         accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
         total_loss = 0.0
         total_samples = 0
         i_batch = 0
+
         for batch in self.data_loader:
             print(f"Batch {i_batch}")
             data, weights, raw_labels = self.data_loader.split(batch)
 
-            # Scaler
-            data = (data - self.feature_means) / np.sqrt(self.feature_variances)
+            # Normalize data
+            data_norm = (data - self.feature_means) / np.sqrt(self.feature_variances)
 
-            # reweighting
+            # Apply reweighting if enabled
             if self.reweighting:
                 weights = weights * self.scales[raw_labels.astype('int')]
 
             # Convert raw labels to one-hot encoded format
             labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
- 
+
+            # Compute gradients and loss
             with tf.GradientTape() as tape:
-                predictions = self.model(data, training=True)
+                predictions = self.model(data_norm, training=True)
                 loss = self.loss_fn(labels_one_hot, predictions)
                 weighted_loss = tf.reduce_mean(loss * weights)
-            
+
             gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
             accumulated_gradients = [
                 acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
             ]
-            
+
+            # Accumulate histograms if requested
+            if accumulate_histograms:
+                for feature_idx, feature_name in enumerate(data_structure.feature_names):
+                    feature_values = data[:, feature_idx]
+                    n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+
+                    # Accumulate true and predicted probabilities in bins
+                    for b in range(n_bins):
+                        in_bin = (feature_values >= bin_edges[feature_name][b]) & (
+                            feature_values < bin_edges[feature_name][b + 1]
+                        )
+                        bin_weights = weights[in_bin]
+
+                        # True class probabilities
+                        if bin_weights.sum() > 0:
+                            true_histograms[feature_name][b, :] += np.sum(
+                                bin_weights[:, None] * labels_one_hot[in_bin], axis=0
+                            )
+
+                        # Predicted class probabilities
+                        if bin_weights.sum() > 0:
+                            pred_histograms[feature_name][b, :] += np.sum(
+                                bin_weights[:, None] * predictions[in_bin], axis=0
+                            )
+
             total_loss += weighted_loss.numpy() * len(data)
             total_samples += len(data)
-            i_batch+=1
-            if max_batch>0 and i_batch>=max_batch:
+            i_batch += 1
+
+            if max_batch > 0 and i_batch >= max_batch:
                 break
 
         # Apply accumulated gradients after looping over the dataset
         self.optimizer.apply_gradients(zip(accumulated_gradients, self.model.trainable_variables))
         epoch_loss = total_loss / total_samples
         print(f"Epoch loss: {epoch_loss:.4f}")
+
+        if accumulate_histograms:
+            # Normalize histograms before returning
+            for feature_name in true_histograms.keys():
+                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
+                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
+                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
+                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
+
+            return true_histograms, pred_histograms
+        else:
+            return None, None
+
+#    def train_one_epoch(self, max_batch=-1):
+#        """
+#        Train the model for one epoch using the data loader.
+#        
+#        Parameters:
+#        """
+#        accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
+#        total_loss = 0.0
+#        total_samples = 0
+#        i_batch = 0
+#        for batch in self.data_loader:
+#            print(f"Batch {i_batch}")
+#            data, weights, raw_labels = self.data_loader.split(batch)
+#
+#            # Scaler
+#            data = (data - self.feature_means) / np.sqrt(self.feature_variances)
+#
+#            # reweighting
+#            if self.reweighting:
+#                weights = weights * self.scales[raw_labels.astype('int')]
+#
+#            # Convert raw labels to one-hot encoded format
+#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
+# 
+#            with tf.GradientTape() as tape:
+#                predictions = self.model(data, training=True)
+#                loss = self.loss_fn(labels_one_hot, predictions)
+#                weighted_loss = tf.reduce_mean(loss * weights)
+#            
+#            gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
+#            accumulated_gradients = [
+#                acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
+#            ]
+#            
+#            total_loss += weighted_loss.numpy() * len(data)
+#            total_samples += len(data)
+#            i_batch+=1
+#            if max_batch>0 and i_batch>=max_batch:
+#                break
+#
+#        # Apply accumulated gradients after looping over the dataset
+#        self.optimizer.apply_gradients(zip(accumulated_gradients, self.model.trainable_variables))
+#        epoch_loss = total_loss / total_samples
+#        print(f"Epoch loss: {epoch_loss:.4f}")
     
     def evaluate(self, max_batch=-1):
         """
@@ -256,71 +361,71 @@ class TFMC:
 
         return instance
 
-    def accumulate_histograms(self, max_batch=-1):
-        """
-        Accumulate histograms of true and predicted class probabilities for visualization.
-
-        Parameters:
-        - max_batch: int, maximum number of batches to process (default: -1, process all).
-
-        Returns:
-        - true_histograms: dict, true class probabilities accumulated over bins.
-        - pred_histograms: dict, predicted class probabilities accumulated over bins.
-        - bin_edges: dict, bin edges for each feature.
-        """
-
-        num_features = self.model.input_shape[1]
-        true_histograms = {}
-        pred_histograms = {}
-        bin_edges = {}
-
-        # Initialize histograms based on plot_options
-        for feature_name in data_structure.plot_options.keys():
-            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-            true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-            pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-            bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
-
-        i_batch = 0
-        for batch in self.data_loader:
-            data, weights, raw_labels = self.data_loader.split(batch)
-            predictions = self.predict(data, ic_scaling=False)
-            # Apply reweighting if enabled
-            if self.reweighting:
-                weights = weights * self.scales[raw_labels.astype('int')]
-
-            # Convert raw labels to one-hot encoded format
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-
-            # Loop through each feature
-            for feature_idx, feature_name in enumerate(data_structure.feature_names):
-                feature_values = data[:, feature_idx]
-                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-
-                # Accumulate true and predicted probabilities in bins
-                for b in range(n_bins):
-                    in_bin = (feature_values >= bin_edges[feature_name][b]) & (
-                        feature_values < bin_edges[feature_name][b + 1]
-                    )
-                    bin_weights = weights[in_bin]
-
-                    # True class probabilities
-                    if bin_weights.sum() > 0:
-                        true_histograms[feature_name][b, :] += np.sum(
-                            bin_weights[:, None] * labels_one_hot[in_bin], axis=0
-                        )
-
-                    # Predicted class probabilities
-                    if bin_weights.sum() > 0:
-                        pred_histograms[feature_name][b, :] += np.sum(
-                            bin_weights[:, None] * predictions[in_bin], axis=0
-                        )
-
-            i_batch += 1
-            if max_batch > 0 and i_batch >= max_batch:
-                break
-
-        return true_histograms, pred_histograms
+#    def accumulate_histograms(self, max_batch=-1):
+#        """
+#        Accumulate histograms of true and predicted class probabilities for visualization.
+#
+#        Parameters:
+#        - max_batch: int, maximum number of batches to process (default: -1, process all).
+#
+#        Returns:
+#        - true_histograms: dict, true class probabilities accumulated over bins.
+#        - pred_histograms: dict, predicted class probabilities accumulated over bins.
+#        - bin_edges: dict, bin edges for each feature.
+#        """
+#
+#        num_features = self.model.input_shape[1]
+#        true_histograms = {}
+#        pred_histograms = {}
+#        bin_edges = {}
+#
+#        # Initialize histograms based on plot_options
+#        for feature_name in data_structure.plot_options.keys():
+#            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+#            true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+#            pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
+#            bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
+#
+#        i_batch = 0
+#        for batch in self.data_loader:
+#            data, weights, raw_labels = self.data_loader.split(batch)
+#            predictions = self.predict(data, ic_scaling=False)
+#            # Apply reweighting if enabled
+#            if self.reweighting:
+#                weights = weights * self.scales[raw_labels.astype('int')]
+#
+#            # Convert raw labels to one-hot encoded format
+#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
+#
+#            # Loop through each feature
+#            for feature_idx, feature_name in enumerate(data_structure.feature_names):
+#                feature_values = data[:, feature_idx]
+#                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+#
+#                # Accumulate true and predicted probabilities in bins
+#                for b in range(n_bins):
+#                    in_bin = (feature_values >= bin_edges[feature_name][b]) & (
+#                        feature_values < bin_edges[feature_name][b + 1]
+#                    )
+#                    bin_weights = weights[in_bin]
+#
+#                    # True class probabilities
+#                    if bin_weights.sum() > 0:
+#                        true_histograms[feature_name][b, :] += np.sum(
+#                            bin_weights[:, None] * labels_one_hot[in_bin], axis=0
+#                        )
+#
+#                    # Predicted class probabilities
+#                    if bin_weights.sum() > 0:
+#                        pred_histograms[feature_name][b, :] += np.sum(
+#                            bin_weights[:, None] * predictions[in_bin], axis=0
+#                        )
+#
+#            i_batch += 1
+#            if max_batch > 0 and i_batch >= max_batch:
+#                break
+#
+#        return true_histograms, pred_histograms
 
     def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
         """

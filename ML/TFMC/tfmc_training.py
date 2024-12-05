@@ -87,8 +87,9 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    print(f"Epoch {epoch + 1}/{config.n_epochs}")
+    print(f"Epoch {epoch}/{config.n_epochs}")
 
+    ## for debugging
     #for batch in tfmc.data_loader:
     #    import numpy as np
     #    data, weights, raw_labels = tfmc.data_loader.split(batch)
@@ -96,24 +97,22 @@ for epoch in range(starting_epoch, config.n_epochs):
     #    break
     #assert False, ""
 
-    tfmc.train_one_epoch(max_batch=max_batch)
+    true_histograms, pred_histograms = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
     tfmc.save(model_directory, epoch)  # Save model and config after each epoch
 
-    # Accumulate histograms
-    true_histograms, pred_histograms = tfmc.accumulate_histograms(max_batch=max_batch)
+    if true_histograms is not None and pred_histograms is not None:
+        # Plot convergence
+        tfmc.plot_convergence_root(
+            true_histograms,
+            pred_histograms,
+            epoch,
+            plot_directory,
+            data_structure.feature_names, 
+        )
+        common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
+        common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
-    # Plot convergence
-    tfmc.plot_convergence_root(
-        true_histograms,
-        pred_histograms,
-        epoch,
-        plot_directory,
-        data_structure.feature_names,  # Pass feature names
-    )
-    common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
-    common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
-
-    if epoch%10==0 or not args.small:
+    if epoch%5==0 or not args.small:
         common.syncer.sync()
 
 common.syncer.sync()
