@@ -218,13 +218,6 @@ class TFMC:
         print(f"Epoch loss: {epoch_loss:.4f}")
 
         if accumulate_histograms:
-            # Normalize histograms before returning
-            for feature_name in true_histograms.keys():
-                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
-
             return true_histograms, pred_histograms
         else:
             return None, None
@@ -314,72 +307,6 @@ class TFMC:
         print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
 
         return instance
-
-#    def accumulate_histograms(self, max_batch=-1):
-#        """
-#        Accumulate histograms of true and predicted class probabilities for visualization.
-#
-#        Parameters:
-#        - max_batch: int, maximum number of batches to process (default: -1, process all).
-#
-#        Returns:
-#        - true_histograms: dict, true class probabilities accumulated over bins.
-#        - pred_histograms: dict, predicted class probabilities accumulated over bins.
-#        - bin_edges: dict, bin edges for each feature.
-#        """
-#
-#        num_features = self.model.input_shape[1]
-#        true_histograms = {}
-#        pred_histograms = {}
-#        bin_edges = {}
-#
-#        # Initialize histograms based on plot_options
-#        for feature_name in data_structure.plot_options.keys():
-#            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#            true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-#            pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-#            bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
-#
-#        i_batch = 0
-#        for batch in self.data_loader:
-#            data, weights, raw_labels = self.data_loader.split(batch)
-#            predictions = self.predict(data, ic_scaling=False)
-#            # Apply reweighting if enabled
-#            if self.reweighting:
-#                weights = weights * self.scales[raw_labels.astype('int')]
-#
-#            # Convert raw labels to one-hot encoded format
-#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-#
-#            # Loop through each feature
-#            for feature_idx, feature_name in enumerate(data_structure.feature_names):
-#                feature_values = data[:, feature_idx]
-#                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#
-#                # Accumulate true and predicted probabilities in bins
-#                for b in range(n_bins):
-#                    in_bin = (feature_values >= bin_edges[feature_name][b]) & (
-#                        feature_values < bin_edges[feature_name][b + 1]
-#                    )
-#                    bin_weights = weights[in_bin]
-#
-#                    # True class probabilities
-#                    if bin_weights.sum() > 0:
-#                        true_histograms[feature_name][b, :] += np.sum(
-#                            bin_weights[:, None] * labels_one_hot[in_bin], axis=0
-#                        )
-#
-#                    # Predicted class probabilities
-#                    if bin_weights.sum() > 0:
-#                        pred_histograms[feature_name][b, :] += np.sum(
-#                            bin_weights[:, None] * predictions[in_bin], axis=0
-#                        )
-#
-#            i_batch += 1
-#            if max_batch > 0 and i_batch >= max_batch:
-#                break
-#
-#        return true_histograms, pred_histograms
 
     def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
         """
