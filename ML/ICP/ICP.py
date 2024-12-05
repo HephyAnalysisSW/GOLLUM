@@ -67,7 +67,7 @@ class ICP:
 
         self.CInv = np.linalg.inv(C)
 
-        # Compute matrix Mkk from non-nominal base_points
+        # Compute matrix VkA from non-nominal base_points
         self._VKA = np.zeros( (len(self.masked_base_points), len(self.combinations)) )
         for i_base_point, base_point in enumerate(self.masked_base_points):
             for i_combination, combination in enumerate(self.combinations):
@@ -86,9 +86,8 @@ class ICP:
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
-
     def train( self, datasets, selection, small=False):
-        self.load_training_data(datasets, selection)
+        #self.load_training_data(datasets, selection)
         self.yields = {}
         for base_point, loader in self.training_data.items():
             self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
@@ -99,103 +98,37 @@ class ICP:
         return " ".join( [("%+2.3f"%deltaA)+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
 
     @classmethod
-    def load(cls, save_dir):
-        """
-        Class method to load a saved TFMC instance from the latest checkpoint.
+    def load(cls, filename):
+        with open(filename,'rb') as file_:
+            import importlib
+            old_instance = pickle.load(file_)
+            if old_instance.config_name is not None:
+                config_ = importlib.import_module(old_instance.config_name) 
+                #new_instance.config = config_
+                new_instance = cls(   
+                        config               = config_,
+                        )
+            else:
+                new_instance = cls(   
+                        nominal_base_point  = old_instance.nominal_base_point,
+                        parameters          = old_instance.parameters,
+                        combinations        = old_instance.combinations,
+                        base_points         = old_instance.base_points,
+                        )
 
-        Parameters:
-        - save_dir: str, directory where checkpoints are stored (e.g., 'models/test').
+            new_instance.DeltaA         = old_instance.DeltaA
 
-        Returns:
-        - TFMC instance loaded with the latest checkpoint.
-        """
-        if not os.path.isdir(save_dir):
-            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
+            return new_instance  
 
-        # Load the configuration module name
-        config_path = os.path.join(save_dir, "config.pkl")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found in directory: {save_dir}")
-
-        import pickle
-        with open(config_path, "rb") as f:
-            config_name = pickle.load(f)
-
-        # Dynamically import the configuration module
-        config = importlib.import_module(config_name)
-
-        # Find the latest checkpoint
-        latest_checkpoint = tf.train.latest_checkpoint(save_dir)
-        if not latest_checkpoint:
-            raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
-
-        # Create a new TFMC instance
-        instance = cls(config=config)
-
-        # Restore the model and optimizer state
-        instance.checkpoint.restore(latest_checkpoint).expect_partial()
-        print(f"Model checkpoint loaded from {latest_checkpoint}. Configuration: {config_name}")
-
-        return instance
-
-#    @classmethod
-#    def load(cls, filename):
-#        with open(filename,'rb') as file_:
-#            import importlib
-#            old_instance = pickle.load(file_)
-#            if old_instance.config_name is not None:
-#                config_ = importlib.import_module(old_instance.config_name) 
-#                #new_instance.config = config_
-#                new_instance = cls(   
-#                        config               = config_,
-#                        )
-#            else:
-#                new_instance = cls(   
-#                        nominal_base_point  = old_instance.nominal_base_point,
-#                        parameters          = old_instance.parameters,
-#                        combinations        = old_instance.combinations,
-#                        base_points         = old_instance.base_points,
-#                        )
-#
-#            new_instance.DeltaA         = old_instance.DeltaA
-#
-#            return new_instance  
+    def save(self, filename):
+        _config = self.config
+        self.config=None
+        with open(filename,'wb') as file_:
+            pickle.dump( self, file_ )
+        self.config = _config
 
     def __setstate__(self, state):
         self.__dict__ = state
-
-#    def save(self, filename):
-#        _config = self.config
-#        self.config=None
-#        with open(filename,'wb') as file_:
-#            pickle.dump( self, file_ )
-#        self.config = _config
-
-    def save(self, save_dir, epoch):
-        """
-        Save the model, optimizer state, and configuration to a file.
-
-        Parameters:
-        - save_dir: str, directory to save the checkpoints (e.g., 'models/test').
-        - epoch: int, the current epoch number (used as the checkpoint filename).
-        """
-        os.makedirs(save_dir, exist_ok=True)  # Ensure the directory exists
-
-        # Save model and optimizer state
-        checkpoint_path = os.path.join(save_dir, str(epoch))
-        self.checkpoint.write(checkpoint_path)
-
-        # Save configuration module name
-        config_path = os.path.join(save_dir, "config.pkl")
-        with open(config_path, "wb") as f:
-            import pickle
-            pickle.dump(self.config_name, f)
-
-        # Manually create the 'checkpoint' metadata file
-        with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
-            f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
-
-        print(f"Model checkpoint and config saved for epoch {epoch} in {checkpoint_path}.")
 
     def nu_A(self, nu):
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )

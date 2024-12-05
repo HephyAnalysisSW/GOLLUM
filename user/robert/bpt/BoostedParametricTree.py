@@ -13,38 +13,60 @@ import operator
 import functools
 import Node
 
-from data_loader.data_loader_2 import H5DataLoader
+default_cfg = {
+    "n_trees" : 100,
+    "learning_rate" : 0.2, 
+    "loss" : "CrossEntropy", 
+    "learn_global_param": False,
+    "min_size": 50,
+}
 
 class BoostedParametricTree:
-    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None, **kwargs ):
 
-        if config is not None:
-            self.config      = config
-            self.config_name = config.__name__
-            self.base_points   = np.array(config.base_points)
-            self.n_base_points = len(self.base_points)
+    def __init__( self, training_data, combinations, nominal_base_point, base_points, parameters, **kwargs ):
 
-            self.nominal_base_point = np.array( config.nominal_base_point, dtype='float')
-            self.combinations       = config.combinations
-            self.parameters         = config.parameters
-        elif (combinations is not None) and (nominal_base_point is not None) and (base_points is not None) and (parameters is not None):
-            #print("Config not provided, the ICP can only be used for prediction.")
-            self.config_name   = None
-            self.base_points   = np.array(base_points)
-            self.n_base_points = len(self.base_points)
+        # make cfg and node_cfg from the kwargs keys known by the Node
+        self.cfg = default_cfg
+        self.cfg.update( kwargs )
+        self.node_cfg = {}
+        for (key, val) in kwargs.items():
+            if key in Node.default_cfg.keys():
+                self.node_cfg[key] = val 
+            elif key in default_cfg.keys():
+                self.cfg[key]      = val
+            else:
+                raise RuntimeError( "Got unexpected keyword arg: %s:%r" %( key, val ) )
 
-            self.nominal_base_point = np.array( nominal_base_point, dtype='float')
-            self.combinations       = combinations
-            self.parameters         = parameters
-        else:
-            raise Exception("Please provide either a config or all other parameters (combinations, nominal_base_point, base_points, parameters).")
+        self.node_cfg['loss'] = self.cfg['loss'] 
+
+        for (key, val) in self.cfg.items():
+                setattr( self, key, val )
+
+        # Attempt to learn 98%. (1-learning_rate)^n_trees = 0.02 -> After the fit, the score is at least down to 2% 
+        if self.learning_rate == "auto":
+            self.learning_rate = 1-0.02**(1./self.n_trees)
+
+        # Make sure of the format
+        #if "base_points" in kwargs:
+        #    self.base_points = kwargs["base_points"]
+        #elif training_data is not None: 
+        #    self.base_points = np.array( sorted(list(training_data.keys())), dtype='float')
+        #else:
+        #    raise RuntimeError("Did not find base_points.")
+        self.base_points = np.array(base_points)
+
+        self.n_base_points = len(self.base_points)
+
+        self.nominal_base_point = np.array( nominal_base_point, dtype='float')
+        self.combinations       = combinations
+        self.parameters         = parameters
 
         # Base point matrix
         self.VkA  = np.zeros( [len(self.base_points), len(self.combinations) ], dtype='float64')
         for i_base_point, base_point in enumerate(self.base_points):
             for i_comb1, comb1 in enumerate(self.combinations):
-                self.VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)], 1)
-
+                self.VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[parameters.index(c)] for c in list(comb1)], 1)
+            
         # Dissect inputs into nominal sample and variied
         nominal_base_point_index = np.where(np.all(self.base_points==self.nominal_base_point,axis=1))[0]
         assert len(nominal_base_point_index)>0, "Could not find nominal base %r point in training data keys %r"%( self.nominal_base_point, self.base_points)
@@ -55,49 +77,64 @@ class BoostedParametricTree:
         nu_mask[self.nominal_base_point_index] = 0
 
         # remove the nominal from the list of all the base_points
-        self.masked_base_points = self.base_points[nu_mask]
+        masked_base_points = self.base_points[nu_mask]
 
         # computing base-point matrix
         C    = np.zeros( [len(self.combinations), len(self.combinations) ], dtype='float64')
-        for i_base_point, base_point in enumerate(self.masked_base_points):
+        for i_base_point, base_point in enumerate(masked_base_points):
             for i_comb1, comb1 in enumerate(self.combinations):
                 for i_comb2, comb2 in enumerate(self.combinations):
-                    C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
+                    C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
 
         assert np.linalg.matrix_rank(C)==C.shape[0], "Base point matrix does not have full rank. Check base points & combinations."
 
         self.CInv = np.linalg.inv(C)
 
-        self._VKA = np.zeros( (len(self.masked_base_points), len(self.combinations)) )
-        for i_base_point, base_point in enumerate(self.masked_base_points):
+        # Compute matrix Mkk from non-nominal base_points
+        self._VKA = np.zeros( (len(masked_base_points), len(self.combinations)) )
+        for i_base_point, base_point in enumerate(masked_base_points):
             for i_combination, combination in enumerate(self.combinations):
                 res=1
                 for var in combination:
-                    res*=base_point[self.parameters.index(var)]
+                    res*=base_point[parameters.index(var)]
 
                 self._VKA[i_base_point, i_combination ] = res
 
-        # Compute matrix Mkk from non-nominal base_points
         self.MkA  = np.dot(self._VKA, self.CInv).transpose()
         self.Mkkp = np.dot(self._VKA, self.MkA )
 
+        if training_data is not None:
+            # Complement training data
+            if 'weights' not in training_data[self.nominal_base_point_key]:
+                training_data[self.nominal_base_point_key]['weights'] = np.ones(training_data[self.nominal_base_point_key]['features'].shape[0])
+
+            for k, v in training_data.items():
+                if "features" not in v and "weights" not in v:
+                    raise RuntimeError( "Key %r has neither features nor weights" %k  )
+                if k == self.nominal_base_point_key:
+                    if 'features' not in v:
+                        raise RuntimeError( "Nominal base point does not have features!" )
+                else:
+                    if not 'features' in v:
+                        # we must have weights
+                        v['features'] = training_data[self.nominal_base_point_key]['features']
+                        if len(v['features'])!=len(v['weights']):
+                            raise runtimeerror("key %r has inconsistent length in weights"%v) 
+                    if (not 'weights' in training_data[self.nominal_base_point_key].keys()) and 'weights' in v:
+                        raise RuntimeError( "Found no weights for nominal base point, but for a variation. This is not allowed" )
+
+                    if not 'weights' in v:
+                        v['weights'] = np.ones(v['features'].shape[0])
+
+                if len(v['weights'])!=len(v['features']):
+                    raise RuntimeError("Key %r has unequal length of weights and features: %i != %i" % (k, len(v['weights']), len(v['features'])) )
+
+            self.enumeration = np.concatenate( [ np.array( [i_base_point for _ in training_data[tuple(base_point)]['features']]) for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
+            self.features    = np.concatenate( [ training_data[tuple(base_point)]['features'] for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
+            self.weights     = np.concatenate( [ training_data[tuple(base_point)]['weights'] for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
+
         # Will hold the trees
         self.trees              = []
-
-    def load_training_data( self, datasets, selection, n_split=10):
-        self.training_data = {}
-        for base_point in self.base_points:
-            base_point = tuple(base_point)
-            values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=n_split)
-            print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path))
-            self.training_data[base_point] = data_loader
-
-        # FIXME->this needs adjustement
-        self.enumeration = np.concatenate( [ np.array( [i_base_point for _ in training_data[tuple(base_point)]['features']]) for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
-        self.features    = np.concatenate( [ training_data[tuple(base_point)]['features'] for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
-        self.weights     = np.concatenate( [ training_data[tuple(base_point)]['weights'] for i_base_point, base_point in enumerate( self.base_points)] , axis=0)
-
 
     @staticmethod 
     def sort_comb( comb ):
