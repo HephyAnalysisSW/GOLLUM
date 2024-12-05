@@ -81,7 +81,6 @@ class TFMC:
         else:
             self.weight_sums = {i:1 for i in range(self.num_classes)}
 
-
         if hasattr( config, "feature_means"):
             self.feature_means     = config.feature_means
             self.feature_variances = config.feature_variances
@@ -230,51 +229,6 @@ class TFMC:
         else:
             return None, None
 
-#    def train_one_epoch(self, max_batch=-1):
-#        """
-#        Train the model for one epoch using the data loader.
-#        
-#        Parameters:
-#        """
-#        accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
-#        total_loss = 0.0
-#        total_samples = 0
-#        i_batch = 0
-#        for batch in self.data_loader:
-#            print(f"Batch {i_batch}")
-#            data, weights, raw_labels = self.data_loader.split(batch)
-#
-#            # Scaler
-#            data = (data - self.feature_means) / np.sqrt(self.feature_variances)
-#
-#            # reweighting
-#            if self.reweighting:
-#                weights = weights * self.scales[raw_labels.astype('int')]
-#
-#            # Convert raw labels to one-hot encoded format
-#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-# 
-#            with tf.GradientTape() as tape:
-#                predictions = self.model(data, training=True)
-#                loss = self.loss_fn(labels_one_hot, predictions)
-#                weighted_loss = tf.reduce_mean(loss * weights)
-#            
-#            gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
-#            accumulated_gradients = [
-#                acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
-#            ]
-#            
-#            total_loss += weighted_loss.numpy() * len(data)
-#            total_samples += len(data)
-#            i_batch+=1
-#            if max_batch>0 and i_batch>=max_batch:
-#                break
-#
-#        # Apply accumulated gradients after looping over the dataset
-#        self.optimizer.apply_gradients(zip(accumulated_gradients, self.model.trainable_variables))
-#        epoch_loss = total_loss / total_samples
-#        print(f"Epoch loss: {epoch_loss:.4f}")
-    
     def evaluate(self, max_batch=-1):
         """
         Evaluate the model on the data loader.

@@ -57,6 +57,7 @@ os.makedirs(model_directory, exist_ok=True)
 # where to store the plots
 plot_directory  = os.path.join(user.plot_directory,  "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 helpers.copyIndexPHP(plot_directory)
+
 # Initialize model
 if not args.overwrite:
     try:

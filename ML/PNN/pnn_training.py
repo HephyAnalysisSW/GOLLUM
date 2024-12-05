@@ -1,80 +1,124 @@
 #!/usr/bin/env python
-import copy
-import numpy as np
-import os,sys
-import os, sys
+
+import sys, os
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
-import time
-import functools
-import operator
 
-import common.user
-import common.syncer
-from   common.helpers import copyIndexPHP
-import models.analytic_2D as model 
-
+import importlib
 import tensorflow as tf
+from ML.PNN.PNN import PNN
+
+import common.user as user
+import common.syncer
+import common.helpers as helpers
+
+import common.data_structure as data_structure
 
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
-argParser.add_argument("--directory",     action="store",      default="pnn", help="Subdirectory for output")
-argParser.add_argument("--nTraining",     action="store",      default=100000, type=int,  help="Number of training events")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
+argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
+argParser.add_argument("--training",      action="store",      default="v1",                     help="Training version")
+argParser.add_argument("--config",        action="store",      default="pnn_quad_jes",           help="Which config?")
+argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
+argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
+args = argParser.parse_args()
 
-args, extra = argParser.parse_known_args(sys.argv[1:])
+# import the data
+import common.datasets as datasets
 
-def parse_value( s ):
+# import the config
+config = importlib.import_module("%s.%s"%( args.configDir, args.config))
+
+## Do we use IC?
+#if config.scale_with_ic:
+#    from ML.IC.IC import InclusiveCrosssection
+#    ic = InclusiveCrosssection.load(os.path.join(user.model_directory, "IC", "IC_"+args.selection+'.pkl'))
+#    config.weight_sums = ic.weight_sums
+#    print("We use this IC:")
+#    print(ic)
+
+# Do we use a Scaler?
+if config.use_scaler:
+    from ML.Scaler.Scaler import Scaler
+    scaler = Scaler.load(os.path.join(user.model_directory, "Scaler", "Scaler_"+args.selection+'.pkl'))
+    config.feature_means     = scaler.feature_means
+    config.feature_variances = scaler.feature_variances
+
+    print("We use this scaler:")
+    print(scaler)
+
+# Where to store the training
+model_directory = os.path.join(user.model_directory, "PNN", args.selection, args.config, args.training+("_small" if args.small else ""))
+os.makedirs(model_directory, exist_ok=True)
+
+# where to store the plots
+plot_directory  = os.path.join(user.plot_directory,  "PNN", args.selection, args.config, args.training+("_small" if args.small else ""))
+helpers.copyIndexPHP(plot_directory)
+
+# Initialize model
+if not args.overwrite:
     try:
-        r = int( s )
-    except ValueError:
+        print(f"Trying to load PNN from {model_directory}")
+        pnn = PNN.load(model_directory)
+    except FileNotFoundError:
+        print("No checkpoint found. Starting from scratch.")
+        config = importlib.import_module(f"{args.configDir}.{args.config}")
+        pnn    = PNN(config)
+else:
+    config = importlib.import_module(f"{args.configDir}.{args.config}")
+    pnn    = PNN(config)
+
+# Initialize for training
+pnn.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
+
+max_batch = 1 if args.small else -1
+
+# Determine the starting epoch
+starting_epoch = 0
+if not args.overwrite:
+    latest_checkpoint = tf.train.latest_checkpoint(model_directory)
+    if latest_checkpoint:
         try:
-            r = float(s)
+            starting_epoch = int(os.path.basename(latest_checkpoint))
         except ValueError:
-            r = s
-    return r
+            pass
 
-extra_args = {}
-key        = None
-for arg in extra:
-    if arg.startswith('--'):
-        # previous no value? -> Interpret as flag
-        #if key is not None and extra_args[key] is None:
-        #    extra_args[key]=True
-        key = arg.lstrip('-')
-        extra_args[key] = True # without values, interpret as flag
-        continue
-    else:
-        if type(extra_args[key])==type([]):
-            extra_args[key].append( parse_value(arg) )
-        else:
-            extra_args[key] = [parse_value(arg)]
-for key, val in extra_args.items():
-    if type(val)==type([]) and len(val)==1:
-        extra_args[key]=val[0]
+# Training Loop
+for epoch in range(starting_epoch, config.n_epochs):
+    print(f"Epoch {epoch}/{config.n_epochs}")
 
-cfg = model.pnn_cfg
-cfg.update( extra_args )
+    ## for debugging
+    #for batch in pnn.data_loader:
+    #    import numpy as np
+    #    data, weights, raw_labels = pnn.data_loader.split(batch)
+    #    data = (data - pnn.feature_means) / np.sqrt(pnn.feature_variances)
+    #    break
+    #assert False, ""
 
-training_data = model.getEvents(args.nTraining)
-total_size    =  sum([len(s['features']) for s in training_data.values() if 'features' in s ])
+    true_histograms, pred_histograms = pnn.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
+    pnn.save(model_directory, epoch)  # Save model and config after each epoch
 
-# Base point matrix
-base_points = np.array( model.base_points )
-VkA  = np.zeros( [len(base_points), len(model.combinations) ], dtype='float32')
-for i_base_point, base_point in enumerate(base_points):
-    for i_comb1, comb1 in enumerate(model.combinations):
-        VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[model.parameters.index(c)] for c in list(comb1)], 1)
-VkA = tf.convert_to_tensor( VkA )
+    if true_histograms is not None and pred_histograms is not None:
+        # Plot convergence
+        pnn.plot_convergence_root(
+            true_histograms,
+            pred_histograms,
+            epoch,
+            plot_directory,
+            data_structure.feature_names,
+        )
+        common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
+        common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
-# Dissect inputs into nominal sample and variied
-nominal_base_point_index = np.where(np.all(base_points==model.nominal_base_point,axis=1))[0]
-assert len(nominal_base_point_index)>0, "Could not find nominal base %r point in training data keys %r"%( model.nominal_base_point, base_points)
-nominal_base_point_index = nominal_base_point_index[0]
-nominal_base_point_key   = tuple(model.nominal_base_point)
+    if epoch%5==0 or not args.small:
+        common.syncer.sync()
 
-n_features = len(training_data[nominal_base_point_key]['features'][0])
+common.syncer.sync()
+
+assert False, ""
 
 # Complement training data
 if 'weights' not in training_data[nominal_base_point_key]:
