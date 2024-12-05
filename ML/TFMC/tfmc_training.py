@@ -20,7 +20,7 @@ argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
-argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
+argParser.add_argument("--training",      action="store",      default="v4",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="tfmc",                   help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
@@ -51,11 +51,11 @@ if config.use_scaler:
     print(scaler)
 
 # Where to store the training
-model_directory = os.path.join( common.user.model_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
+model_directory = os.path.join(user.model_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 os.makedirs(model_directory, exist_ok=True)
 
 # where to store the plots
-plot_directory = os.path.join(user.plot_directory, "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
+plot_directory  = os.path.join(user.plot_directory,  "TFMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 helpers.copyIndexPHP(plot_directory)
 # Initialize model
 if not args.overwrite:

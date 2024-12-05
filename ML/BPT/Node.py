@@ -143,7 +143,6 @@ class Node:
 
         assert not np.isnan(self.split_value)
 
-
         self.split_left_group = self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
 
         if np.count_nonzero(self.split_left_group)>0 and np.count_nonzero(self.split_left_group)<self.min_size:
