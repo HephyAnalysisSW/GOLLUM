@@ -60,8 +60,8 @@ class TFMC:
             self.feature_means     = config.feature_means
             self.feature_variances = config.feature_variances
         else:
-            self.feature_means     = {i:0 for i in range(len(data_structure.feature_names))}
-            self.feature_variances = {i:1 for i in range(len(data_structure.feature_names))}
+            self.feature_means     = np.array([0 for i in range(len(data_structure.feature_names))])
+            self.feature_variances = np.array([1 for i in range(len(data_structure.feature_names))])
 
         # Scale cross sections to the same integral
         total = sum(self.weight_sums.values())
@@ -238,7 +238,7 @@ class TFMC:
         # Save the config name in a separate pickle file
         config_path = os.path.join(save_dir, "config.pkl")
         with open(config_path, "wb") as f:
-            pickle.dump(self.config_name, f)
+            pickle.dump((self.config_name, self.feature_means, self.feature_variances), f)
 
         # Manually create the 'checkpoint' metadata file
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
@@ -266,7 +266,7 @@ class TFMC:
 
         try:
             with open(config_path, "rb") as f:
-                config_name = pickle.load(f)
+                config_name, feature_means, feature_variances = pickle.load(f)
         except (EOFError, pickle.UnpicklingError) as e:
             raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
 
@@ -279,6 +279,9 @@ class TFMC:
         # Restore the model and optimizer state
         instance.checkpoint.restore(latest_checkpoint).expect_partial()
         print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
+
+        instance.feature_means     = feature_means
+        instance.feature_variances = feature_variances
 
         return instance
 
