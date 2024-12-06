@@ -9,6 +9,7 @@ from data_loader.data_loader_2 import H5DataLoader
 import os
 import pickle
 from math import ceil, sqrt
+import importlib
 
 class PNN:
     def __init__(self, config):
@@ -134,12 +135,11 @@ class PNN:
           Otherwise, returns None, None.
         """
         if accumulate_histograms:
-            # For histogram accumulation
+            # Initialize histograms based on plot_options
             true_histograms = {}
             pred_histograms = {}
             bin_edges = {}
 
-            # Initialize histograms based on plot_options
             for feature_name in data_structure.plot_options.keys():
                 n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
                 true_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
@@ -165,65 +165,51 @@ class PNN:
                 features_nominal_tensor = tf.convert_to_tensor(features_nominal_norm, dtype=tf.float32)
                 DeltaA_nominal = self.model(features_nominal_tensor, training=True)
 
-                # Process other base points
+                # Process all base points, including nominal
                 for i_base_point, (base_point, batch) in enumerate(zip(self.base_points, batches)):
-                    if i_base_point == self.nominal_base_point_index:
-                        continue
-
                     features_nu, weights_nu, _ = H5DataLoader.split(batch)
                     features_nu_norm = (features_nu - self.feature_means) / np.sqrt(self.feature_variances)
                     features_nu_tensor = tf.convert_to_tensor(features_nu_norm, dtype=tf.float32)
                     DeltaA_nu = self.model(features_nu_tensor, training=True)
 
                     # Compute weighted losses
-                    loss_0 = tf.reduce_sum(
-                        tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
-                        * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]))
-                    )
-                    loss_nu = tf.reduce_sum(
-                        tf.convert_to_tensor(weights_nu, dtype=tf.float32)
-                        * tf.math.softplus(-tf.linalg.matvec(DeltaA_nu, self.VkA[i_base_point]))
-                    )
-                    loss = loss_0 + loss_nu
-                    loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
+                    if i_base_point != self.nominal_base_point_index:
+                        loss_0 = tf.reduce_sum(
+                            tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
+                            * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]))
+                        )
+                        loss_nu = tf.reduce_sum(
+                            tf.convert_to_tensor(weights_nu, dtype=tf.float32)
+                            * tf.math.softplus(-tf.linalg.matvec(DeltaA_nu, self.VkA[i_base_point]))
+                        )
+                        loss = loss_0 + loss_nu
+                        loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
+                        total_loss += loss
 
-                    # Accumulate loss
-                    total_loss += loss
-
+                    # Accumulate histograms
                     if accumulate_histograms:
                         for feature_idx, feature_name in enumerate(data_structure.feature_names):
                             feature_values_nominal = features_nominal[:, feature_idx]
                             feature_values_nu = features_nu[:, feature_idx]
                             n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
 
-                            # Accumulate true and predicted probabilities in bins
-                            for b in range(n_bins):
-                                in_bin_nominal = (feature_values_nominal >= bin_edges[feature_name][b]) & (
-                                    feature_values_nominal < bin_edges[feature_name][b + 1]
-                                )
-                                in_bin_nu = (feature_values_nu >= bin_edges[feature_name][b]) & (
-                                    feature_values_nu < bin_edges[feature_name][b + 1]
-                                )
-                                bin_weights_nominal = weights_nominal[in_bin_nominal]
-                                bin_weights_nu = weights_nu[in_bin_nu]
+                            # Compute true probabilities for nu
+                            true_histogram_nu, _ = np.histogram(
+                                feature_values_nu,
+                                bins=bin_edges[feature_name],
+                                weights=weights_nu
+                            )
+                            true_histograms[feature_name][:, i_base_point] += true_histogram_nu
 
-                                # True probabilities
-                                if bin_weights_nominal.sum() > 0:
-                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nominal.sum()
-                                if bin_weights_nu.sum() > 0:
-                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nu.sum()
-
-                                # Predicted probabilities
-                                if bin_weights_nominal.sum() > 0:
-                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
-                                        bin_weights_nominal
-                                        * np.exp(tf.linalg.matvec(DeltaA_nominal[in_bin_nominal], self.VkA[i_base_point]))
-                                    )
-                                if bin_weights_nu.sum() > 0:
-                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
-                                        bin_weights_nu
-                                        * np.exp(tf.linalg.matvec(DeltaA_nu[in_bin_nu], self.VkA[i_base_point]))
-                                    )
+                            # Compute predicted probabilities for nu
+                            pred_histogram_nu, _ = np.histogram(
+                                feature_values_nominal,
+                                bins=bin_edges[feature_name],
+                                weights=weights_nominal * np.exp(
+                                    tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]).numpy()
+                                )
+                            )
+                            pred_histograms[feature_name][:, i_base_point] += pred_histogram_nu
 
             gradients = tape.gradient(total_loss, self.model.trainable_variables)
             self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
@@ -235,16 +221,134 @@ class PNN:
         print(f"Epoch loss: {total_loss:.4f}")
 
         if accumulate_histograms:
-            # Normalize histograms
-            for feature_name in true_histograms.keys():
-                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
-
             return true_histograms, pred_histograms
         else:
             return None, None
+
+#    def train_one_epoch(self, max_batch=-1, accumulate_histograms=False):
+#        """
+#        Train the model for one epoch using the data loader, with optional histogram accumulation.
+#
+#        Parameters:
+#        - max_batch: int, maximum number of batches to process (default: -1, process all).
+#        - accumulate_histograms: bool, whether to accumulate histograms for visualization.
+#
+#        Returns:
+#        - true_histograms, pred_histograms: dict, accumulated histograms if accumulate_histograms is True.
+#          Otherwise, returns None, None.
+#        """
+#        if accumulate_histograms:
+#            # For histogram accumulation
+#            true_histograms = {}
+#            pred_histograms = {}
+#            bin_edges = {}
+#
+#            # Initialize histograms based on plot_options
+#            for feature_name in data_structure.plot_options.keys():
+#                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+#                true_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
+#                pred_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
+#                bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
+#
+#        total_loss = 0.0
+#        i_batch = 0
+#
+#        # Prepare loaders for iteration
+#        loaders = [
+#            self.training_data[tuple(base_point)]
+#            for base_point in self.base_points
+#        ]
+#
+#        # Outer loop over batches
+#        for batches in zip(*loaders):
+#            with tf.GradientTape() as tape:
+#                # Process nominal batch
+#                nominal_batch = batches[self.nominal_base_point_index]
+#                features_nominal, weights_nominal, _ = H5DataLoader.split(nominal_batch)
+#                features_nominal_norm = (features_nominal - self.feature_means) / np.sqrt(self.feature_variances)
+#                features_nominal_tensor = tf.convert_to_tensor(features_nominal_norm, dtype=tf.float32)
+#                DeltaA_nominal = self.model(features_nominal_tensor, training=True)
+#
+#                # Process other base points
+#                for i_base_point, (base_point, batch) in enumerate(zip(self.base_points, batches)):
+#                    if i_base_point == self.nominal_base_point_index:
+#                        continue
+#
+#                    features_nu, weights_nu, _ = H5DataLoader.split(batch)
+#                    features_nu_norm = (features_nu - self.feature_means) / np.sqrt(self.feature_variances)
+#                    features_nu_tensor = tf.convert_to_tensor(features_nu_norm, dtype=tf.float32)
+#                    DeltaA_nu = self.model(features_nu_tensor, training=True)
+#
+#                    # Compute weighted losses
+#                    loss_0 = tf.reduce_sum(
+#                        tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
+#                        * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]))
+#                    )
+#                    loss_nu = tf.reduce_sum(
+#                        tf.convert_to_tensor(weights_nu, dtype=tf.float32)
+#                        * tf.math.softplus(-tf.linalg.matvec(DeltaA_nu, self.VkA[i_base_point]))
+#                    )
+#                    loss = loss_0 + loss_nu
+#                    loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
+#
+#                    # Accumulate loss
+#                    total_loss += loss
+#
+#                    if accumulate_histograms:
+#                        for feature_idx, feature_name in enumerate(data_structure.feature_names):
+#                            feature_values_nominal = features_nominal[:, feature_idx]
+#                            feature_values_nu = features_nu[:, feature_idx]
+#                            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+#
+#                            # Accumulate true and predicted probabilities in bins
+#                            for b in range(n_bins):
+#                                in_bin_nominal = (feature_values_nominal >= bin_edges[feature_name][b]) & (
+#                                    feature_values_nominal < bin_edges[feature_name][b + 1]
+#                                )
+#                                in_bin_nu = (feature_values_nu >= bin_edges[feature_name][b]) & (
+#                                    feature_values_nu < bin_edges[feature_name][b + 1]
+#                                )
+#                                bin_weights_nominal = weights_nominal[in_bin_nominal]
+#                                bin_weights_nu = weights_nu[in_bin_nu]
+#
+#                                # True probabilities
+#                                if bin_weights_nominal.sum() > 0:
+#                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nominal.sum()
+#                                if bin_weights_nu.sum() > 0:
+#                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nu.sum()
+#
+#                                # Predicted probabilities
+#                                if bin_weights_nominal.sum() > 0:
+#                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
+#                                        bin_weights_nominal
+#                                        * np.exp(tf.linalg.matvec(DeltaA_nominal[in_bin_nominal], self.VkA[i_base_point]))
+#                                    )
+#                                if bin_weights_nu.sum() > 0:
+#                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
+#                                        bin_weights_nu
+#                                        * np.exp(tf.linalg.matvec(DeltaA_nu[in_bin_nu], self.VkA[i_base_point]))
+#                                    )
+#
+#            gradients = tape.gradient(total_loss, self.model.trainable_variables)
+#            self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+#
+#            i_batch += 1
+#            if max_batch > 0 and i_batch >= max_batch:
+#                break
+#
+#        print(f"Epoch loss: {total_loss:.4f}")
+#
+#        if accumulate_histograms:
+#            # Normalize histograms
+#            for feature_name in true_histograms.keys():
+#                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
+#                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
+#                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
+#                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
+#
+#            return true_histograms, pred_histograms
+#        else:
+#            return None, None
 
 
     def save(self, save_dir, epoch):
@@ -332,12 +436,19 @@ class PNN:
 
         for normalized in [False, True]:
             if normalized:
-                # Normalize histograms
-                for feature_name in feature_names:
-                    true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-                    pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-                    true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-                    pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
+                # Normalize histograms relative to the true nominal distribution
+                for feature_name in true_histograms.keys():
+                    # Get the true nominal distribution
+                    true_nominal = true_histograms[feature_name][:, self.nominal_base_point_index]
+                    true_nominal = np.where(true_nominal == 0, 1, true_nominal)  # Avoid division by zero
+
+                    # Normalize true histograms
+                    for i_base_point in range(len(self.base_points)):
+                        true_histograms[feature_name][:, i_base_point] /= true_nominal
+
+                    # Normalize predicted histograms
+                    for i_base_point in range(len(self.base_points)):
+                        pred_histograms[feature_name][:, i_base_point] /= true_nominal
 
             # Calculate grid size, adding one pad for the legend
             total_pads = num_features + 1
@@ -347,6 +458,8 @@ class PNN:
             canvas.Divide(grid_size_x, grid_size_y)
 
             colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]  # Define a set of colors
+            colors[self.nominal_base_point_index] = ROOT.kBlack
+
             stuff = []  # Prevent ROOT objects from being garbage collected
 
             # Loop through each feature
@@ -356,7 +469,7 @@ class PNN:
                 pad.SetBottomMargin(0.15)
                 pad.SetLeftMargin(0.15)
 
-                pad.SetLogy(not normalized)
+                pad.SetLogy(not normalized and data_structure.plot_options[feature_name]['logY'])
 
                 # Determine the maximum y-value for scaling
                 max_y = 0
