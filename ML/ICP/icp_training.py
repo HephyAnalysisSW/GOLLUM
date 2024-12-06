@@ -12,11 +12,11 @@ from ICP import ICP
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
-argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
+argParser.add_argument('--overwrite',     action='store_true',                                   help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--config",        action="store",      default="icp_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
-argParser.add_argument('--small',        action='store_true',  help="Only one batch, for debugging")
+argParser.add_argument('--small',         action='store_true',                                   help="Only one batch, for debugging")
 args = argParser.parse_args()
 
 # import the config

@@ -15,31 +15,6 @@ import common.data_structure as data_structure
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.initializers import RandomNormal, Constant
 
-#class CustomDense(Dense):
-#    """ This class makes the initial outputs close to 1/num_classes
-#    """
-#    def __init__(self, units, **kwargs):
-#        super().__init__(units, **kwargs)
-#
-#    def build(self, input_shape):
-#        super().build(input_shape)
-#
-#        # Ensure weights are initialized normally (default in most cases)
-#        initializer = RandomNormal(mean=0.0, stddev=0.05)
-#        self.kernel_initializer = initializer
-#
-#        # Bias initialization
-#        num_classes = self.units
-#        target_logits = tf.math.log(tf.constant(1.0 / num_classes, dtype=tf.float32))
-#        bias_perturbation = tf.random.normal(
-#            shape=(num_classes,),
-#            mean=0.0,
-#            stddev=0.05,
-#            dtype=tf.float32
-#        )
-#        self.bias_initializer = Constant(target_logits + bias_perturbation)
-
-
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """
@@ -81,13 +56,12 @@ class TFMC:
         else:
             self.weight_sums = {i:1 for i in range(self.num_classes)}
 
-
         if hasattr( config, "feature_means"):
             self.feature_means     = config.feature_means
             self.feature_variances = config.feature_variances
         else:
-            self.feature_means     = {i:0 for i in range(len(data_structure.feature_names))}
-            self.feature_variances = {i:1 for i in range(len(data_structure.feature_names))}
+            self.feature_means     = np.array([0 for i in range(len(data_structure.feature_names))])
+            self.feature_variances = np.array([1 for i in range(len(data_structure.feature_names))])
 
         # Scale cross sections to the same integral
         total = sum(self.weight_sums.values())
@@ -180,31 +154,29 @@ class TFMC:
             accumulated_gradients = [
                 acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
             ]
-
             # Accumulate histograms if requested
             if accumulate_histograms:
                 for feature_idx, feature_name in enumerate(data_structure.feature_names):
                     feature_values = data[:, feature_idx]
                     n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
 
-                    # Accumulate true and predicted probabilities in bins
-                    for b in range(n_bins):
-                        in_bin = (feature_values >= bin_edges[feature_name][b]) & (
-                            feature_values < bin_edges[feature_name][b + 1]
+                    # Loop over classes for true probabilities
+                    for c in range(self.num_classes):
+                        true_histogram, _ = np.histogram(
+                            feature_values,
+                            bins=bin_edges[feature_name],
+                            weights=weights * labels_one_hot[:, c]
                         )
-                        bin_weights = weights[in_bin]
+                        true_histograms[feature_name][:, c] += true_histogram
 
-                        # True class probabilities
-                        if bin_weights.sum() > 0:
-                            true_histograms[feature_name][b, :] += np.sum(
-                                bin_weights[:, None] * labels_one_hot[in_bin], axis=0
-                            )
-
-                        # Predicted class probabilities
-                        if bin_weights.sum() > 0:
-                            pred_histograms[feature_name][b, :] += np.sum(
-                                bin_weights[:, None] * predictions[in_bin], axis=0
-                            )
+                    # Loop over classes for predicted probabilities
+                    for c in range(self.num_classes):
+                        pred_histogram, _ = np.histogram(
+                            feature_values,
+                            bins=bin_edges[feature_name],
+                            weights=weights * predictions[:, c]
+                        )
+                        pred_histograms[feature_name][:, c] += pred_histogram
 
             total_loss += weighted_loss.numpy() * len(data)
             total_samples += len(data)
@@ -219,62 +191,11 @@ class TFMC:
         print(f"Epoch loss: {epoch_loss:.4f}")
 
         if accumulate_histograms:
-            # Normalize histograms before returning
-            for feature_name in true_histograms.keys():
-                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
-
             return true_histograms, pred_histograms
         else:
             return None, None
 
-#    def train_one_epoch(self, max_batch=-1):
-#        """
-#        Train the model for one epoch using the data loader.
-#        
-#        Parameters:
-#        """
-#        accumulated_gradients = [tf.zeros_like(var) for var in self.model.trainable_variables]
-#        total_loss = 0.0
-#        total_samples = 0
-#        i_batch = 0
-#        for batch in self.data_loader:
-#            print(f"Batch {i_batch}")
-#            data, weights, raw_labels = self.data_loader.split(batch)
-#
-#            # Scaler
-#            data = (data - self.feature_means) / np.sqrt(self.feature_variances)
-#
-#            # reweighting
-#            if self.reweighting:
-#                weights = weights * self.scales[raw_labels.astype('int')]
-#
-#            # Convert raw labels to one-hot encoded format
-#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-# 
-#            with tf.GradientTape() as tape:
-#                predictions = self.model(data, training=True)
-#                loss = self.loss_fn(labels_one_hot, predictions)
-#                weighted_loss = tf.reduce_mean(loss * weights)
-#            
-#            gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
-#            accumulated_gradients = [
-#                acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
-#            ]
-#            
-#            total_loss += weighted_loss.numpy() * len(data)
-#            total_samples += len(data)
-#            i_batch+=1
-#            if max_batch>0 and i_batch>=max_batch:
-#                break
-#
-#        # Apply accumulated gradients after looping over the dataset
-#        self.optimizer.apply_gradients(zip(accumulated_gradients, self.model.trainable_variables))
-#        epoch_loss = total_loss / total_samples
-#        print(f"Epoch loss: {epoch_loss:.4f}")
-    
+
     def evaluate(self, max_batch=-1):
         """
         Evaluate the model on the data loader.
@@ -317,7 +238,7 @@ class TFMC:
         # Save the config name in a separate pickle file
         config_path = os.path.join(save_dir, "config.pkl")
         with open(config_path, "wb") as f:
-            pickle.dump(self.config_name, f)
+            pickle.dump((self.config_name, self.feature_means, self.feature_variances), f)
 
         # Manually create the 'checkpoint' metadata file
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
@@ -345,7 +266,7 @@ class TFMC:
 
         try:
             with open(config_path, "rb") as f:
-                config_name = pickle.load(f)
+                config_name, feature_means, feature_variances = pickle.load(f)
         except (EOFError, pickle.UnpicklingError) as e:
             raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
 
@@ -359,73 +280,10 @@ class TFMC:
         instance.checkpoint.restore(latest_checkpoint).expect_partial()
         print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
 
-        return instance
+        instance.feature_means     = feature_means
+        instance.feature_variances = feature_variances
 
-#    def accumulate_histograms(self, max_batch=-1):
-#        """
-#        Accumulate histograms of true and predicted class probabilities for visualization.
-#
-#        Parameters:
-#        - max_batch: int, maximum number of batches to process (default: -1, process all).
-#
-#        Returns:
-#        - true_histograms: dict, true class probabilities accumulated over bins.
-#        - pred_histograms: dict, predicted class probabilities accumulated over bins.
-#        - bin_edges: dict, bin edges for each feature.
-#        """
-#
-#        num_features = self.model.input_shape[1]
-#        true_histograms = {}
-#        pred_histograms = {}
-#        bin_edges = {}
-#
-#        # Initialize histograms based on plot_options
-#        for feature_name in data_structure.plot_options.keys():
-#            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#            true_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-#            pred_histograms[feature_name] = np.zeros((n_bins, self.num_classes))
-#            bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
-#
-#        i_batch = 0
-#        for batch in self.data_loader:
-#            data, weights, raw_labels = self.data_loader.split(batch)
-#            predictions = self.predict(data, ic_scaling=False)
-#            # Apply reweighting if enabled
-#            if self.reweighting:
-#                weights = weights * self.scales[raw_labels.astype('int')]
-#
-#            # Convert raw labels to one-hot encoded format
-#            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-#
-#            # Loop through each feature
-#            for feature_idx, feature_name in enumerate(data_structure.feature_names):
-#                feature_values = data[:, feature_idx]
-#                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#
-#                # Accumulate true and predicted probabilities in bins
-#                for b in range(n_bins):
-#                    in_bin = (feature_values >= bin_edges[feature_name][b]) & (
-#                        feature_values < bin_edges[feature_name][b + 1]
-#                    )
-#                    bin_weights = weights[in_bin]
-#
-#                    # True class probabilities
-#                    if bin_weights.sum() > 0:
-#                        true_histograms[feature_name][b, :] += np.sum(
-#                            bin_weights[:, None] * labels_one_hot[in_bin], axis=0
-#                        )
-#
-#                    # Predicted class probabilities
-#                    if bin_weights.sum() > 0:
-#                        pred_histograms[feature_name][b, :] += np.sum(
-#                            bin_weights[:, None] * predictions[in_bin], axis=0
-#                        )
-#
-#            i_batch += 1
-#            if max_batch > 0 and i_batch >= max_batch:
-#                break
-#
-#        return true_histograms, pred_histograms
+        return instance
 
     def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
         """
@@ -450,12 +308,19 @@ class TFMC:
 
         for normalized in [False, True]:
             if normalized:
-                # Normalize histograms
+                # Normalize histograms by the total truth sum
                 for feature_name in data_structure.feature_names:
-                    true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-                    pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-                    true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-                    pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
+                    # Compute the total truth sum across all classes
+                    total_truth_sum = true_histograms[feature_name].sum(axis=1, keepdims=True)
+
+                    # Avoid division by zero for total truth sum
+                    total_truth_sum = np.where(total_truth_sum == 0, 1, total_truth_sum)
+
+                    # Normalize true histograms to ensure they sum to 1
+                    true_histograms[feature_name] /= total_truth_sum
+
+                    # Scale predicted histograms by the total truth sum (same normalization)
+                    pred_histograms[feature_name] /= total_truth_sum
 
             # Calculate grid size, adding one pad for the legend
             total_pads = num_features + 1
@@ -474,7 +339,7 @@ class TFMC:
                 pad.SetBottomMargin(0.15)
                 pad.SetLeftMargin(0.15)
                 
-                pad.SetLogy(not normalized)
+                pad.SetLogy(not normalized and data_structure.plot_options[feature_name]['logY'])
 
                 # Determine the maximum y-value for scaling
                 max_y = 0
