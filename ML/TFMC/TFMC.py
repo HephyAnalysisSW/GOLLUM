@@ -10,6 +10,9 @@ import pickle
 import importlib
 import ROOT
 
+import sys
+sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 import common.data_structure as data_structure
 
 from tensorflow.keras.layers import Dense
@@ -79,8 +82,7 @@ class TFMC:
         # Hidden layers with batch normalization
         for units in self.hidden_layers:
             model.add(tf.keras.layers.Dense(units, activation=None))  # No activation yet
-            #model.add(tf.keras.layers.BatchNormalization())
-            model.add(tf.keras.layers.Activation('relu'))  # Apply activation after normalization
+            model.add(tf.keras.layers.Activation(self.config.activation))  # Apply activation after normalization
 
         # Output layer
         #model.add(CustomDense(self.num_classes, activation='softmax'))

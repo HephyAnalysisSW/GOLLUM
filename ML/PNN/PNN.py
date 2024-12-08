@@ -74,14 +74,7 @@ class PNN:
 
         self.model = self._build_model()
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
-        #self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction='none')
-        #self.metrics = tf.keras.metrics.CategoricalAccuracy()
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
-
-        #if hasattr( config, "weight_sums"):
-        #    self.weight_sums = config.weight_sums
-        #else:
-        #    self.weight_sums = {i:1 for i in range(self.num_classes)}
 
         if hasattr( config, "feature_means"):
             self.feature_means     = config.feature_means
@@ -89,12 +82,6 @@ class PNN:
         else:
             self.feature_means     = {i:0 for i in range(len(data_structure.feature_names))}
             self.feature_variances = {i:1 for i in range(len(data_structure.feature_names))}
-
-        ## Scale cross sections to the same integral
-        #total = sum(self.weight_sums.values())
-        #self.scales = np.array([total/self.weight_sums[i] for i in range(self.num_classes)])
-
-        #print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.scales[i]) for i in range( self.num_classes)]) )
 
     def _build_model(self):
         """Build a simple neural network for classification with batch normalization."""
@@ -174,13 +161,20 @@ class PNN:
 
                     # Compute weighted losses
                     if i_base_point != self.nominal_base_point_index:
+                        
+                        if hasattr( self.config, "icp") and self.config.icp is not None:
+                            #bias_nu = np.exp( -np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) )
+                            bias = np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) 
+                        else:
+                            bias = 0
+
                         loss_0 = tf.reduce_sum(
                             tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
-                            * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]))
+                            * tf.math.softplus(tf.linalg.matvec((bias+DeltaA_nominal), self.VkA[i_base_point]))
                         )
                         loss_nu = tf.reduce_sum(
                             tf.convert_to_tensor(weights_nu, dtype=tf.float32)
-                            * tf.math.softplus(-tf.linalg.matvec(DeltaA_nu, self.VkA[i_base_point]))
+                            * tf.math.softplus(-tf.linalg.matvec((bias+DeltaA_nu), self.VkA[i_base_point]))
                         )
                         loss = loss_0 + loss_nu
                         loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
@@ -225,131 +219,19 @@ class PNN:
         else:
             return None, None
 
-#    def train_one_epoch(self, max_batch=-1, accumulate_histograms=False):
-#        """
-#        Train the model for one epoch using the data loader, with optional histogram accumulation.
-#
-#        Parameters:
-#        - max_batch: int, maximum number of batches to process (default: -1, process all).
-#        - accumulate_histograms: bool, whether to accumulate histograms for visualization.
-#
-#        Returns:
-#        - true_histograms, pred_histograms: dict, accumulated histograms if accumulate_histograms is True.
-#          Otherwise, returns None, None.
-#        """
-#        if accumulate_histograms:
-#            # For histogram accumulation
-#            true_histograms = {}
-#            pred_histograms = {}
-#            bin_edges = {}
-#
-#            # Initialize histograms based on plot_options
-#            for feature_name in data_structure.plot_options.keys():
-#                n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#                true_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
-#                pred_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
-#                bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
-#
-#        total_loss = 0.0
-#        i_batch = 0
-#
-#        # Prepare loaders for iteration
-#        loaders = [
-#            self.training_data[tuple(base_point)]
-#            for base_point in self.base_points
-#        ]
-#
-#        # Outer loop over batches
-#        for batches in zip(*loaders):
-#            with tf.GradientTape() as tape:
-#                # Process nominal batch
-#                nominal_batch = batches[self.nominal_base_point_index]
-#                features_nominal, weights_nominal, _ = H5DataLoader.split(nominal_batch)
-#                features_nominal_norm = (features_nominal - self.feature_means) / np.sqrt(self.feature_variances)
-#                features_nominal_tensor = tf.convert_to_tensor(features_nominal_norm, dtype=tf.float32)
-#                DeltaA_nominal = self.model(features_nominal_tensor, training=True)
-#
-#                # Process other base points
-#                for i_base_point, (base_point, batch) in enumerate(zip(self.base_points, batches)):
-#                    if i_base_point == self.nominal_base_point_index:
-#                        continue
-#
-#                    features_nu, weights_nu, _ = H5DataLoader.split(batch)
-#                    features_nu_norm = (features_nu - self.feature_means) / np.sqrt(self.feature_variances)
-#                    features_nu_tensor = tf.convert_to_tensor(features_nu_norm, dtype=tf.float32)
-#                    DeltaA_nu = self.model(features_nu_tensor, training=True)
-#
-#                    # Compute weighted losses
-#                    loss_0 = tf.reduce_sum(
-#                        tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
-#                        * tf.math.softplus(tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]))
-#                    )
-#                    loss_nu = tf.reduce_sum(
-#                        tf.convert_to_tensor(weights_nu, dtype=tf.float32)
-#                        * tf.math.softplus(-tf.linalg.matvec(DeltaA_nu, self.VkA[i_base_point]))
-#                    )
-#                    loss = loss_0 + loss_nu
-#                    loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
-#
-#                    # Accumulate loss
-#                    total_loss += loss
-#
-#                    if accumulate_histograms:
-#                        for feature_idx, feature_name in enumerate(data_structure.feature_names):
-#                            feature_values_nominal = features_nominal[:, feature_idx]
-#                            feature_values_nu = features_nu[:, feature_idx]
-#                            n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
-#
-#                            # Accumulate true and predicted probabilities in bins
-#                            for b in range(n_bins):
-#                                in_bin_nominal = (feature_values_nominal >= bin_edges[feature_name][b]) & (
-#                                    feature_values_nominal < bin_edges[feature_name][b + 1]
-#                                )
-#                                in_bin_nu = (feature_values_nu >= bin_edges[feature_name][b]) & (
-#                                    feature_values_nu < bin_edges[feature_name][b + 1]
-#                                )
-#                                bin_weights_nominal = weights_nominal[in_bin_nominal]
-#                                bin_weights_nu = weights_nu[in_bin_nu]
-#
-#                                # True probabilities
-#                                if bin_weights_nominal.sum() > 0:
-#                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nominal.sum()
-#                                if bin_weights_nu.sum() > 0:
-#                                    true_histograms[feature_name][b, i_base_point] += bin_weights_nu.sum()
-#
-#                                # Predicted probabilities
-#                                if bin_weights_nominal.sum() > 0:
-#                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
-#                                        bin_weights_nominal
-#                                        * np.exp(tf.linalg.matvec(DeltaA_nominal[in_bin_nominal], self.VkA[i_base_point]))
-#                                    )
-#                                if bin_weights_nu.sum() > 0:
-#                                    pred_histograms[feature_name][b, i_base_point] += np.sum(
-#                                        bin_weights_nu
-#                                        * np.exp(tf.linalg.matvec(DeltaA_nu[in_bin_nu], self.VkA[i_base_point]))
-#                                    )
-#
-#            gradients = tape.gradient(total_loss, self.model.trainable_variables)
-#            self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
-#
-#            i_batch += 1
-#            if max_batch > 0 and i_batch >= max_batch:
-#                break
-#
-#        print(f"Epoch loss: {total_loss:.4f}")
-#
-#        if accumulate_histograms:
-#            # Normalize histograms
-#            for feature_name in true_histograms.keys():
-#                true_sums = true_histograms[feature_name].sum(axis=1, keepdims=True)
-#                pred_sums = pred_histograms[feature_name].sum(axis=1, keepdims=True)
-#                true_histograms[feature_name] /= np.where(true_sums == 0, 1, true_sums)
-#                pred_histograms[feature_name] /= np.where(pred_sums == 0, 1, pred_sums)
-#
-#            return true_histograms, pred_histograms
-#        else:
-#            return None, None
+    def nu_A(self, nu):
+        return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
+    def predict( self, features, nu):
+        if hasattr( self.config, "icp") and self.config.icp is not None:
+            # Attention. No guarantee that ICP and PNN are trained with the same base-points. Have to be careful! We can have inconsistent definitions of nu in ICP and PNN!!
+            bias = np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) 
+        else:
+            bias = 0
+
+        DeltaA = self.model( tf.convert_to_tensor(
+            (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
+        return np.exp( bias + tf.linalg.matvec(DeltaA, self.nu_A(nu).numpy() ))
 
     def save(self, save_dir, epoch):
         """
@@ -365,16 +247,34 @@ class PNN:
         checkpoint_path = os.path.join(save_dir, str(epoch))
         self.checkpoint.write(checkpoint_path)
 
-        # Save the config name in a separate pickle file
-        config_path = os.path.join(save_dir, "config.pkl")
-        with open(config_path, "wb") as f:
-            pickle.dump(self.config_name, f)
-
         # Manually create the 'checkpoint' metadata file
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
             f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
 
         print(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
+
+        _config     = self.config
+        self.config = None
+        if hasattr( self.config, "icp"):
+            self.config.icp.config = None
+
+        _checkpoint     = self.checkpoint
+        _optimizer      = self.optimizer
+        _model          = self.model
+        self.checkpoint = None  
+        self.optimizer  = None  
+        self.model      = None  
+
+        config_path = os.path.join(save_dir, "config.pkl")
+
+        with open(config_path, "wb") as f:
+            #pickle.dump(self.config_name, f)
+            pickle.dump(self, f)
+
+        self.checkpoint = _checkpoint
+        self.config     = _config
+        self.optimizer  = _optimizer
+        self.model      = _model
 
     @classmethod
     def load(cls, save_dir):
@@ -382,12 +282,6 @@ class PNN:
         Class method to load a saved TFMC instance from the latest checkpoint.
         Handles corrupted or missing config.pkl files gracefully.
         """
-        if not os.path.isdir(save_dir):
-            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
-
-        latest_checkpoint = tf.train.latest_checkpoint(save_dir)
-        if not latest_checkpoint:
-            raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
 
         # Load the config module name from the pickle file
         config_path = os.path.join(save_dir, "config.pkl")
@@ -396,21 +290,34 @@ class PNN:
 
         try:
             with open(config_path, "rb") as f:
-                config_name = pickle.load(f)
+                old_instance = pickle.load(f)
         except (EOFError, pickle.UnpicklingError) as e:
             raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
 
         # Dynamically import the config module
-        config = importlib.import_module(config_name)
+        # FIXME we have some old trainings where I only stored the config_name
+        config = importlib.import_module(old_instance.config_name if not type(old_instance)==str else old_instance)
 
         # Create a new TFMC instance
-        instance = cls(config=config)
+        new_instance = cls(config=config)
+
+        if not os.path.isdir(save_dir):
+            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
+
+        latest_checkpoint = tf.train.latest_checkpoint(save_dir)
+        if not latest_checkpoint:
+            raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
 
         # Restore the model and optimizer state
-        instance.checkpoint.restore(latest_checkpoint).expect_partial()
-        print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
+        new_instance.checkpoint.restore(latest_checkpoint).expect_partial()
+        # FIXME:
+        if not type(old_instance)==str:
+            new_instance.config_name = old_instance.config_name
+            new_instance.VkA         = old_instance.VkA
 
-        return instance
+            print(f"Model and config loaded from {latest_checkpoint} with config {old_instance.config_name}.")
+
+        return new_instance
 
     def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
         """
@@ -484,11 +391,16 @@ class PNN:
                 n_bins, x_min, x_max = data_structure.plot_options[feature_name]["binning"]
                 x_axis_title = data_structure.plot_options[feature_name]["tex"]
 
+                if normalized: 
+                    min_y = max(0, 1-(1.2 * max_y-1))
+                else:
+                    min_y = 0
+
                 h_frame = ROOT.TH2F(
                     f"h_frame_{feature_name}",
                     f";{x_axis_title};Probability",
                     n_bins, x_min, x_max,
-                    100, 0, 1.2 * max_y,
+                    100, min_y, 1.2 * max_y,
                 )
                 h_frame.GetYaxis().SetTitleOffset(1.3)
                 h_frame.Draw()

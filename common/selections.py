@@ -46,7 +46,7 @@ for s in [
     "noVBFJet_ptH0to100",
     "noVBFJet_ptH50to100",
     "noVBFJet_ptH100to200",
-    "noVBFJet_ptH100to200"
+    "noVBFJet_ptH100to200",
     "noVBFJet_ptH200"
     ]:
     c_fs = [selections[k] for k in s.split('_')]

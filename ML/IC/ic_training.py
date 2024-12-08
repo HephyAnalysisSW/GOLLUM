@@ -50,3 +50,6 @@ if ic is None or args.overwrite:
     time2 = time.time()
     training_time = time2 - time1
     print ("Training time: %.2f seconds" % training_time)
+
+print(f"Trained IC for this selection: {args.selection}")
+print(ic)
