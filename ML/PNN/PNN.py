@@ -231,7 +231,7 @@ class PNN:
 
         DeltaA = self.model( tf.convert_to_tensor(
             (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
-        return np.exp( bias + tf.linalg.matvec(DeltaA, self.nu_A(nu).numpy() ))
+        return np.exp( bias + np.dot(DeltaA.numpy(), self.nu_A(nu) ))
 
     def save(self, save_dir, epoch):
         """
@@ -314,6 +314,8 @@ class PNN:
         if not type(old_instance)==str:
             new_instance.config_name = old_instance.config_name
             new_instance.VkA         = old_instance.VkA
+            new_instance.feature_means     = old_instance.feature_means
+            new_instance.feature_variances = old_instance.feature_variances
 
             print(f"Model and config loaded from {latest_checkpoint} with config {old_instance.config_name}.")
 

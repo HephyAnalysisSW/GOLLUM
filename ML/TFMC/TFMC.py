@@ -9,7 +9,6 @@ from math import ceil, sqrt
 import pickle
 import importlib
 import ROOT
-
 import sys
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
@@ -57,7 +56,7 @@ class TFMC:
         if hasattr( config, "weight_sums"):
             self.weight_sums = config.weight_sums
         else:
-            self.weight_sums = {i:1 for i in range(self.num_classes)}
+            self.weight_sums = {i:1./self.num_classes for i in range(self.num_classes)}
 
         if hasattr( config, "feature_means"):
             self.feature_means     = config.feature_means
@@ -197,7 +196,6 @@ class TFMC:
         else:
             return None, None
 
-
     def evaluate(self, max_batch=-1):
         """
         Evaluate the model on the data loader.
@@ -240,7 +238,7 @@ class TFMC:
         # Save the config name in a separate pickle file
         config_path = os.path.join(save_dir, "config.pkl")
         with open(config_path, "wb") as f:
-            pickle.dump((self.config_name, self.feature_means, self.feature_variances), f)
+            pickle.dump((self.config_name, self.feature_means, self.feature_variances, self.weight_sums), f)
 
         # Manually create the 'checkpoint' metadata file
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
@@ -268,12 +266,12 @@ class TFMC:
 
         try:
             with open(config_path, "rb") as f:
-                config_name, feature_means, feature_variances = pickle.load(f)
+                config_name, feature_means, feature_variances, weight_sums = pickle.load(f)
         except (EOFError, pickle.UnpicklingError) as e:
             raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
 
         # Dynamically import the config module
-        config = importlib.import_module(config_name)
+        config = importlib.import_module(("ML." if config_name.startswith("configs.") else "") + config_name)
 
         # Create a new TFMC instance
         instance = cls(config=config)
@@ -284,6 +282,10 @@ class TFMC:
 
         instance.feature_means     = feature_means
         instance.feature_variances = feature_variances
+        instance.weight_sums       = weight_sums
+
+        total = sum(instance.weight_sums.values())
+        instance.scales = np.array([total/instance.weight_sums[i] for i in range(instance.num_classes)])
 
         return instance
 
