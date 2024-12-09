@@ -49,7 +49,7 @@ base_points        = [ base_point_index[i] for i in [0,1,2] ]
 nominal_base_point = base_point_index[1]
 
 # Number of epochs
-n_epochs = 100
+n_epochs = 200
 
 # Learning rate 
 learning_rate = 0.001
@@ -57,9 +57,10 @@ learning_rate = 0.001
 # input dimensions
 input_dim     = len(data_structure.feature_names)
 
-# First learn the global parametrization?
+# Scale external scaler (features)?
 use_scaler    = True
-use_icp       = False
+# Use external inclusive xsec dependence? (Default: None)
+icp           = None #"icp_quad_jes"
 
 # hidden layers
 hidden_layers = [64, 32] 

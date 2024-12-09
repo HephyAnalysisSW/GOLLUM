@@ -17,6 +17,7 @@ learning_rate = 0.01
 classes       = data_structure.labels
 input_dim     = len(data_structure.feature_names)
 hidden_layers = [64,64]
+activation    = 'relu'
 
-scale_with_ic = True
+use_ic        = True
 use_scaler    = True

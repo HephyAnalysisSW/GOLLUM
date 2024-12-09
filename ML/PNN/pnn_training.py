@@ -20,7 +20,7 @@ argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
-argParser.add_argument("--training",      action="store",      default="v1",                     help="Training version")
+argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="pnn_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
@@ -32,13 +32,12 @@ import common.datasets as datasets
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
-## Do we use IC?
-#if config.scale_with_ic:
-#    from ML.IC.IC import InclusiveCrosssection
-#    ic = InclusiveCrosssection.load(os.path.join(user.model_directory, "IC", "IC_"+args.selection+'.pkl'))
-#    config.weight_sums = ic.weight_sums
-#    print("We use this IC:")
-#    print(ic)
+# Do we use ICP?
+if config.icp is not None:
+    from ML.ICP.ICP import InclusiveCrosssectionParametrization
+    config.icp = InclusiveCrosssectionParametrization.load(os.path.join(user.model_directory, "ICP", f"ICP_{args.selection}_{config.icp}.pkl"))
+    print("We use this ICP:")
+    print(config.icp)
 
 # Do we use a Scaler?
 if config.use_scaler:
@@ -82,7 +81,7 @@ if not args.overwrite:
     latest_checkpoint = tf.train.latest_checkpoint(model_directory)
     if latest_checkpoint:
         try:
-            starting_epoch = int(os.path.basename(latest_checkpoint))
+            starting_epoch = int(os.path.basename(latest_checkpoint)) + 1
         except ValueError:
             pass
 

@@ -2,8 +2,8 @@
 # Standard imports
 import cProfile
 import sys
-#sys.path.insert( 0, '..')
-#sys.path.insert( 0, '.')
+sys.path.insert( 0, '..')
+sys.path.insert( 0, '../..')
 import time
 import pickle
 import copy
@@ -14,7 +14,7 @@ import functools
 
 from data_loader.data_loader_2 import H5DataLoader
 
-class ICP:
+class InclusiveCrosssectionParametrization:
     def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None):
 
         if config is not None:
@@ -95,7 +95,7 @@ class ICP:
         self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
     def __str__( self ):
-        return " ".join( [("%+2.3f"%deltaA)+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+        return " ".join( [(f"{deltaA:+.1e}")+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
 
     @classmethod
     def load(cls, filename):
@@ -115,7 +115,10 @@ class ICP:
                         base_points         = old_instance.base_points,
                         )
 
+            # Everything we need for prediction should come from the old instance, not the config
             new_instance.DeltaA         = old_instance.DeltaA
+            new_instance.combinations   = old_instance.combinations
+            new_instance.parameters     = old_instance.parameters
 
             return new_instance  
 

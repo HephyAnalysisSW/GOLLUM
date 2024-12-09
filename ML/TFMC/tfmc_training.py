@@ -33,7 +33,7 @@ import common.datasets as datasets
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # Do we use IC?
-if config.scale_with_ic:
+if config.use_ic:
     from ML.IC.IC import InclusiveCrosssection
     ic = InclusiveCrosssection.load(os.path.join(user.model_directory, "IC", "IC_"+args.selection+'.pkl'))
     config.weight_sums = ic.weight_sums
@@ -82,7 +82,7 @@ if not args.overwrite:
     latest_checkpoint = tf.train.latest_checkpoint(model_directory)
     if latest_checkpoint:
         try:
-            starting_epoch = int(os.path.basename(latest_checkpoint))
+            starting_epoch = int(os.path.basename(latest_checkpoint)) + 1
         except ValueError:
             pass
 

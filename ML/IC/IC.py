@@ -52,8 +52,11 @@ class InclusiveCrosssection:
         self.weight_sums = {int(k):v for k,v in dict(weight_sums).items()}
 
     def __str__( self ):
-        prefix = ("IC: "+'\033[1m'+self.selection+'\033[0m'+" X-sec: ") if hasattr(self, "selection") and self.selection is not None else "X-Sec: "
-        return ( prefix+" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ]))
+        prefix = ("IC: "+'\033[1m'+self.selection+'\033[0m') if hasattr(self, "selection") and self.selection is not None else "X-Sec: "
+        S = self.weight_sums[data_structure.label_encoding['htautau']]
+        B = sum( [self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels if l!='htautau' ])
+        SoverB = " S/B = %8.6f "%(S/B)
+        return ( prefix.ljust(50)+SoverB+" X-sec: "+" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ]))
 
     def predict( self, sample):
         if type(sample)==str:
