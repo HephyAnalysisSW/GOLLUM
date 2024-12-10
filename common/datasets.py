@@ -1,6 +1,7 @@
 import os
 import sys
 sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 import glob
 
 from data_loader.data_loader_2 import H5DataLoader
@@ -21,15 +22,19 @@ for subdir in subdirectories:
         data[selection][(process, values)] = filename
         #data[selection][filename] = process
 
-def print_all(specific_selection=None):        
+def print_all(specific_selection=None, verbose=False): 
     print("All data sets I have:")
     for selection in selections.all_selections:
         if selection not in data: continue
         if specific_selection is not None and specific_selection!=selection: continue
-        print( "selection: "+'\033[1m'+selection+'\033[0m')
-        for (s, v), f in data[selection].items():
-            sstr = "  "+(s if s is not None else "combined")+" "+", ".join( [ data_structure.systematics[i_v]+"="+str(v) for i_v, v in enumerate( v )])
-            print(sstr.ljust(50), f)
+        if verbose:
+            print( "selection: "+'\033[1m'+selection+'\033[0m')
+            for (s, v), f in data[selection].items():
+                sstr = "  "+(s if s is not None else "combined")+" "+", ".join( [ data_structure.systematics[i_v]+"="+str(v) for i_v, v in enumerate( v )])
+                print(sstr.ljust(50), f)
+        else:
+            len_=len(data[selection])
+            print( "selection: "+'\033[1m'+selection+'\033[0m'+f" {len_} dataset(s) found")
     print() 
 
 print_all()
