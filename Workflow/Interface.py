@@ -7,7 +7,6 @@ import importlib
 import networks.Models as ms
 import common.user
 
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="ML interface.")
   parser.add_argument("-t","--train", action="store_true", help="Whether to train the network.")
