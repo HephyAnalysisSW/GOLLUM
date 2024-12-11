@@ -68,21 +68,6 @@ class InclusiveCrosssection:
         self.weight_sums = {int(k): v for k, v in dict(weight_sums).items()}
         self.unweighted_sums = {int(k): v for k, v in dict(unweighted_sums).items()}
 
-#    def train(self, datasets, selection, small=True):
-#        from collections import defaultdict
-#        from tqdm import tqdm
-#        weight_sums = defaultdict(float)  # Use defaultdict for easy updates
-#        #unweighted_sums = defaultdict(float)  # Use defaultdict for easy updates
-#        for batch in tqdm(self.data_loader, desc="Computing weight sum", unit="batch"):
-#            weights = batch[:, -2]  # One-but-last column
-#            classes = batch[:, -1]  # Last column
-#            for cls, weight in zip(classes, weights):
-#                weight_sums[cls]     += weight
-#            if small: break
-#
-#        self.weight_sums = {int(k):v for k,v in dict(weight_sums).items()}
-#        self.unweighted_sums = {int(k):v for k,v in dict(unweighted_sums).items()}
-
     def __str__( self ):
         prefix = ("IC: "+'\033[1m'+self.selection+'\033[0m') if hasattr(self, "selection") and self.selection is not None else "X-Sec: "
         S = self.weight_sums[data_structure.label_encoding['htautau']]
