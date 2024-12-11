@@ -89,9 +89,11 @@ def run_pseudo_experiments(
 
 ### **Output**
 For each pseudo experiment, the interface generates:
+
 HDF5 File:
 Contains the dataset for the pseudo experiment.
 File name format: set_<mu_value>_pseudo_exp_<experiment_index>.h5.
+
 PKL File:
 Contains the 6 systematics factors (tes, jes, etc.) and ground truth mu for the pseudo experiment.
 File name format: set_<mu_value>_pseudo_exp_<experiment_index>.pkl.
