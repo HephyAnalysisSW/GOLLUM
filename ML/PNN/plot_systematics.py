@@ -30,7 +30,7 @@ import common.datasets as datasets
 config = importlib.import_module(f"{args.configDir}.{args.config}")
 
 # Output directory for plots
-plot_directory = os.path.join(user.plot_directory, "PNN", args.selection, args.config, "features")
+plot_directory = os.path.join(user.plot_directory, "systematics", args.selection, args.config)
 os.makedirs(plot_directory, exist_ok=True)
 helpers.copyIndexPHP(plot_directory)
 
@@ -84,27 +84,98 @@ for base_point, data_loader in data_loaders.items():
         if max_batch > 0 and i_batch + 1 >= max_batch:
             break
 
-# Plot histograms
+## Plot histograms
+#print("Plotting histograms...")
+#for feature_name, options in data_structure.plot_options.items():
+#    n_bins, x_min, x_max = options['binning']
+#    x_axis_title = options['tex']
+#    logY = options['logY']
+#
+#    canvas = ROOT.TCanvas(f"c_{feature_name}", feature_name, 800, 600)
+#    if logY:
+#        canvas.SetLogy()
+#
+#    legend = ROOT.TLegend(0.7, 0.7, 0.9, 0.9)
+#    legend.SetBorderSize(0)
+#
+#    max_y = 0
+#    hists = []
+#    colors = [ROOT.kBlue, ROOT.kCyan, ROOT.kTeal-1, ROOT.kViolet, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kRed]
+#
+#    for i, (base_point, histogram) in enumerate(histograms[feature_name].items()):
+#        hist = ROOT.TH1F(f"h_{feature_name}_{i}", feature_name, n_bins, x_min, x_max)
+#        hist.GetXaxis().SetTitle(data_structure.plot_options[feature_name]['tex'])
+#        for bin_idx, value in enumerate(histogram):
+#            hist.SetBinContent(bin_idx + 1, value)
+#
+#        color = ROOT.kBlack if base_point == tuple(config.nominal_base_point) else colors[i % len(colors)]
+#        hist.SetLineColor(color)
+#        hist.SetLineWidth(2)
+#        hist.Draw("HIST SAME" if i > 0 else "HIST")
+#        legend_label = "#nu = " + ", ".join(map(str, base_point)) if base_point != tuple(config.nominal_base_point) else "Nominal"
+#        legend.AddEntry(hist, legend_label, "l")
+#
+#        hists.append(hist)
+#        max_y = max(max_y, hist.GetMaximum())
+#
+#    # Set Y-axis range
+#    for hist in hists:
+#        hist.GetYaxis().SetRangeUser(0.03 if logY else 0, 1.2 * max_y)
+#
+#    legend.Draw()
+#    canvas.SaveAs(os.path.join(plot_directory, f"{feature_name}.png"))
+#    print(f"Saved plot for {feature_name}.")
+#
+#print(f"All plots saved in {plot_directory}.")
+#common.syncer.sync()
+
+# Plot histograms with a ratio pad
 print("Plotting histograms...")
 for feature_name, options in data_structure.plot_options.items():
     n_bins, x_min, x_max = options['binning']
     x_axis_title = options['tex']
     logY = options['logY']
 
-    canvas = ROOT.TCanvas(f"c_{feature_name}", feature_name, 800, 600)
+    canvas = ROOT.TCanvas(f"c_{feature_name}", feature_name, 800, 800)
+
+    # Create pads for main plot and ratio
+    top_pad = ROOT.TPad("top_pad", "Top Pad", 0, 0.3, 1, 1.0)
+    bottom_pad = ROOT.TPad("bottom_pad", "Bottom Pad", 0, 0, 1, 0.3)
+
+    top_pad.SetBottomMargin(0)  # No margin for shared x-axis
+    bottom_pad.SetTopMargin(0)
+    bottom_pad.SetBottomMargin(0.35)  # Room for x-axis labels
+    top_pad.Draw()
+    bottom_pad.Draw()
+
+    # Apply ticks to top and right axes
+    top_pad.SetTicks(1, 1)
+    bottom_pad.SetTicks(1, 1)
+
+    # Top pad: main histogram
+    top_pad.cd()
     if logY:
-        canvas.SetLogy()
+        top_pad.SetLogy()
 
     legend = ROOT.TLegend(0.7, 0.7, 0.9, 0.9)
     legend.SetBorderSize(0)
 
     max_y = 0
     hists = []
-    colors = [ROOT.kBlue, ROOT.kCyan, ROOT.kTeal-1, ROOT.kViolet, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kRed]
+    colors = [ROOT.kBlue, ROOT.kCyan, ROOT.kTeal - 1, ROOT.kViolet, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kRed]
 
     for i, (base_point, histogram) in enumerate(histograms[feature_name].items()):
         hist = ROOT.TH1F(f"h_{feature_name}_{i}", feature_name, n_bins, x_min, x_max)
-        hist.GetXaxis().SetTitle(data_structure.plot_options[feature_name]['tex'])
+        hist.GetXaxis().SetTitleFont(43)
+        hist.GetYaxis().SetTitleFont(43)
+        hist.GetXaxis().SetLabelFont(43)
+        hist.GetYaxis().SetLabelFont(43)
+        hist.GetXaxis().SetTitleSize(24)
+        hist.GetYaxis().SetTitleSize(24)
+        hist.GetXaxis().SetLabelSize(20)
+        hist.GetYaxis().SetLabelSize(20)
+        hist.GetYaxis().SetTitleOffset(1.6)
+
         for bin_idx, value in enumerate(histogram):
             hist.SetBinContent(bin_idx + 1, value)
 
@@ -118,13 +189,50 @@ for feature_name, options in data_structure.plot_options.items():
         hists.append(hist)
         max_y = max(max_y, hist.GetMaximum())
 
-    # Set Y-axis range
     for hist in hists:
         hist.GetYaxis().SetRangeUser(0.03 if logY else 0, 1.2 * max_y)
 
     legend.Draw()
+
+    # Bottom pad: ratio plot
+    bottom_pad.cd()
+    nominal_hist = histograms[feature_name][tuple(config.nominal_base_point)]
+
+    ratio_hists = []
+    for i, (base_point, histogram) in enumerate(histograms[feature_name].items()):
+        #if base_point == tuple(config.nominal_base_point):
+        #    nominal_hist = histogram
+        #    continue
+
+        ratio_hist = ROOT.TH1F(f"r_{feature_name}_{i}", "Ratio", n_bins, x_min, x_max)
+        for bin_idx in range(n_bins):
+            ratio_value = histogram[bin_idx] / nominal_hist[bin_idx] if nominal_hist[bin_idx] > 0 else 0
+            ratio_hist.SetBinContent(bin_idx + 1, ratio_value)
+
+        ratio_hist.SetLineColor(colors[i % len(colors)])
+        ratio_hist.SetLineWidth(2)
+        ratio_hist.Draw("HIST SAME" if len(ratio_hists) > 0 else "HIST")
+        ratio_hists.append(ratio_hist)
+
+    # Format the ratio pad
+    ratio_hists[0].GetXaxis().SetTitle(x_axis_title)
+    ratio_hists[0].GetXaxis().SetTitleFont(43)
+    ratio_hists[0].GetYaxis().SetTitleFont(43)
+    ratio_hists[0].GetXaxis().SetLabelFont(43)
+    ratio_hists[0].GetYaxis().SetLabelFont(43)
+    ratio_hists[0].GetXaxis().SetTitleSize(24)
+    ratio_hists[0].GetYaxis().SetTitleSize(24)
+    ratio_hists[0].GetXaxis().SetLabelSize(20)
+    ratio_hists[0].GetYaxis().SetLabelSize(20)
+    ratio_hists[0].GetYaxis().SetTitle("Ratio")
+    ratio_hists[0].GetYaxis().SetTitleOffset(1.6)
+    ratio_hists[0].GetYaxis().SetRangeUser(0.8, 1.2)
+    ratio_hists[0].GetYaxis().SetNdivisions(505)
+
+    # Save the canvas
     canvas.SaveAs(os.path.join(plot_directory, f"{feature_name}.png"))
     print(f"Saved plot for {feature_name}.")
 
 print(f"All plots saved in {plot_directory}.")
 common.syncer.sync()
+

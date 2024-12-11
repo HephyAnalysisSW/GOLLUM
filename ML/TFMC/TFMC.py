@@ -71,23 +71,62 @@ class TFMC:
         
         print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.scales[i]) for i in range( self.num_classes)]) )
 
+#    def _build_model(self):
+#        """Build a simple neural network for classification with batch normalization."""
+#        model = tf.keras.Sequential()
+#
+#        # Input layer
+#        model.add(tf.keras.layers.Input(shape=(self.input_dim,)))
+#
+#        # Hidden layers with batch normalization
+#        for units in self.hidden_layers:
+#            model.add(tf.keras.layers.Dense(units, activation=None))  # No activation yet
+#            model.add(tf.keras.layers.Activation(self.config.activation))  # Apply activation after normalization
+#
+#        # Output layer
+#        #model.add(CustomDense(self.num_classes, activation='softmax'))
+#        model.add(Dense(self.num_classes, activation='softmax'))
+#
+#        return model
+
     def _build_model(self):
-        """Build a simple neural network for classification with batch normalization."""
+        """Build a simple neural network for classification with L1/L2 regularization and dropout."""
+        import tensorflow as tf
+        from tensorflow.keras import regularizers
+
+        # Fetch parameters from config with defaults
+        l1_reg = self.config.__dict__.get("l1_reg", 0.)  # Default value for L1: 0.01
+        l2_reg = self.config.__dict__.get("l2_reg", 0.)  # Default value for L2: 0.01
+        dropout_rate = self.config.__dict__.get("dropout_rate", 0.)  # Default dropout rate: 0.5
+
         model = tf.keras.Sequential()
 
         # Input layer
         model.add(tf.keras.layers.Input(shape=(self.input_dim,)))
 
-        # Hidden layers with batch normalization
+        # Hidden layers with L1/L2 regularization and dropout
         for units in self.hidden_layers:
-            model.add(tf.keras.layers.Dense(units, activation=None))  # No activation yet
-            model.add(tf.keras.layers.Activation(self.config.activation))  # Apply activation after normalization
+            model.add(
+                tf.keras.layers.Dense(
+                    units,
+                    activation=None,
+                    kernel_regularizer=regularizers.l1_l2(l1=l1_reg, l2=l2_reg) if l1_reg > 0 or l2_reg > 0 else None,
+                )
+            )
+            model.add(tf.keras.layers.Activation(self.config.activation))  # Apply activation
+            model.add(tf.keras.layers.Dropout(rate=dropout_rate))  # Apply dropout
 
         # Output layer
-        #model.add(CustomDense(self.num_classes, activation='softmax'))
-        model.add(Dense(self.num_classes, activation='softmax'))
+        model.add(
+            tf.keras.layers.Dense(
+                self.num_classes,
+                activation="softmax",
+                kernel_regularizer=regularizers.l1_l2(l1=l1_reg, l2=l2_reg) if l1_reg > 0 or l2_reg > 0 else None,
+            )
+        )
 
         return model
+
 
     def predict(self, data, ic_scaling=True):   
         res =  self.model((data - self.feature_means) / np.sqrt(self.feature_variances), training=False).numpy()
@@ -266,7 +305,14 @@ class TFMC:
 
         try:
             with open(config_path, "rb") as f:
-                config_name, feature_means, feature_variances, weight_sums = pickle.load(f)
+                #config_name, feature_means, feature_variances, weight_sums = pickle.load(f)
+                in_ = pickle.load(f)
+                if len(in_)==4:
+                    config_name, feature_means, feature_variances, weight_sums = in_
+                else: #FIXME remove the 'else', it is for old trainings
+                    weight_sums = {i:1./4. for i in range(4)} 
+                    config_name, feature_means, feature_variances = in_ 
+                    
         except (EOFError, pickle.UnpicklingError) as e:
             raise RuntimeError(f"Failed to load config.pkl due to corruption: {e}")
 

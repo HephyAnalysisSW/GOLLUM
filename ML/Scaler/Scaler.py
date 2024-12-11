@@ -2,6 +2,11 @@ import pickle
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
+
+import sys
+sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
+
 import common.data_structure as data_structure 
 
 class Scaler:

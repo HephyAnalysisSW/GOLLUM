@@ -20,6 +20,7 @@ argParser = argparse.ArgumentParser(description="Argument parser")
 argParser.add_argument("--selection", action="store", default="lowMT_VBFJet", help="Which selection?")
 argParser.add_argument("--n_split", action="store", default=10, type=int, help="How many batches?")
 argParser.add_argument("--modelDirs", nargs="+", required=True, help="Directories containing the trained TFMC models.")
+argParser.add_argument("--filename", default = "ROC",  help="Directories containing the trained TFMC models.")
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
 args = argParser.parse_args()
 
@@ -77,10 +78,13 @@ canvas.SetTicks(1, 1)
 frame = ROOT.TH2F("frame", ";False Positive Rate;True Positive Rate", 100, 0, 1, 100, 0, 1)
 frame.Draw()
 
-legend = ROOT.TLegend(0.4, 0.15, 0.85, 0.4)
+# Main legend
+legend = ROOT.TLegend(0.45, 0.2, 0.9, 0.45)  # Adjusted position
 legend.SetBorderSize(0)
 legend.SetShadowColor(0)
 stuff = []
+
+# Add ROC curves
 for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
     graph = ROOT.TGraph(len(fpr), np.array(fpr, dtype=float), np.array(tpr, dtype=float))
     graph.SetLineColor(colors[i % len(colors)])
@@ -91,15 +95,83 @@ for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
     label = "/".join(model_name.rstrip("/").split("/")[-2:])
     legend.AddEntry(graph, f"{label} (AUC: {auc:.3f})", "l")
 
-
 legend.Draw()
 
+# Inset for zoomed ROC
+inset = ROOT.TPad("inset", "Inset", 0.6, 0.6, 0.9, 0.9)  # Adjust position
+inset.SetFillStyle(4000)  # Transparent background
+inset.SetBorderSize(1)
+inset.SetTicks(1, 1)
+inset.Draw()
+inset.cd()
+
+# Inset frame
+inset_frame = ROOT.TH2F("inset_frame", "", 100, 0, 0.01, 100, 0, 0.2)  # Focused on low FPR/TPR
+inset_frame.GetXaxis().SetTitle("False Positive Rate")
+inset_frame.GetYaxis().SetTitle("True Positive Rate")
+inset_frame.GetXaxis().SetTitleSize(0.08)
+inset_frame.GetYaxis().SetTitleSize(0.08)
+inset_frame.GetXaxis().SetLabelSize(0.07)
+inset_frame.GetYaxis().SetLabelSize(0.07)
+inset_frame.GetXaxis().SetTitleOffset(1.2)
+inset_frame.GetYaxis().SetTitleOffset(1.0)
+inset_frame.Draw()
+
+# Add ROC curves to inset
+for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
+    zoom_fpr = np.array([x for x in fpr if x <= 0.1], dtype=float)
+    zoom_tpr = np.array(tpr[:len(zoom_fpr)], dtype=float)
+    inset_graph = ROOT.TGraph(len(zoom_fpr), zoom_fpr, zoom_tpr)
+    inset_graph.SetLineColor(colors[i % len(colors)])
+    inset_graph.SetLineWidth(2)
+    inset_graph.Draw("L SAME")
+    stuff.append(inset_graph)
+
+# Back to main canvas
+canvas.cd()
+
 # Save the canvas
-output_file = os.path.join(plot_directory, "ROC_curves.png")
+output_file = os.path.join(plot_directory, f"{args.filename}.png")
 canvas.SaveAs(output_file)
-output_file = os.path.join(plot_directory, "ROC_curves.pdf")
+output_file = os.path.join(plot_directory, f"{args.filename}.pdf")
 canvas.SaveAs(output_file)
 print(f"Saved ROC curves to {output_file}")
 
 common.syncer.sync()
 
+## Plot ROC curves using ROOT
+#ROOT.gStyle.SetOptStat(0)
+#ROOT.gROOT.SetBatch(True)
+#colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta, ROOT.kCyan, ROOT.kPink]
+#
+#canvas = ROOT.TCanvas("c_ROC", "ROC Curves", 800, 600)
+#canvas.SetTicks(1, 1)
+#frame = ROOT.TH2F("frame", ";False Positive Rate;True Positive Rate", 100, 0, 1, 100, 0, 1)
+#frame.Draw()
+#
+#legend = ROOT.TLegend(0.4, 0.15, 0.85, 0.4)
+#legend.SetBorderSize(0)
+#legend.SetShadowColor(0)
+#stuff = []
+#for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
+#    graph = ROOT.TGraph(len(fpr), np.array(fpr, dtype=float), np.array(tpr, dtype=float))
+#    graph.SetLineColor(colors[i % len(colors)])
+#    graph.SetLineWidth(2)
+#    graph.Draw("L SAME")
+#    stuff.append(graph)
+#    auc = np.trapz(tpr, x=fpr)
+#    label = "/".join(model_name.rstrip("/").split("/")[-2:])
+#    legend.AddEntry(graph, f"{label} (AUC: {auc:.3f})", "l")
+#
+#
+#legend.Draw()
+#
+## Save the canvas
+#output_file = os.path.join(plot_directory, "ROC_curves.png")
+#canvas.SaveAs(output_file)
+#output_file = os.path.join(plot_directory, "ROC_curves.pdf")
+#canvas.SaveAs(output_file)
+#print(f"Saved ROC curves to {output_file}")
+#
+#common.syncer.sync()
+#

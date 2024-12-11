@@ -29,25 +29,29 @@ selections = {
 # Define all the selections here
 update={}
 for s in [
+# The following are the current analysis selections:
     "lowMT_VBFJet",
     "highMT_VBFJet",          
-    "lowMT_noVBFJet_ptH0to50",
     "lowMT_noVBFJet_ptH0to100",
-    "lowMT_noVBFJet_ptH50to100",
-    "lowMT_noVBFJet_ptH100to200", 
     "lowMT_noVBFJet_ptH100", 
-    "lowMT_noVBFJet_ptH200",
-    "highMT_noVBFJet_ptH0to50",
     "highMT_noVBFJet_ptH0to100",
-    "highMT_noVBFJet_ptH50to100",
-    "highMT_noVBFJet_ptH100to200",
     "highMT_noVBFJet_ptH100",
+
+# other selections:
+    #"lowMT_noVBFJet_ptH0to50",
+    #"lowMT_noVBFJet_ptH50to100",
+    "lowMT_noVBFJet_ptH100to200", 
+    "lowMT_noVBFJet_ptH200",
+    #"highMT_noVBFJet_ptH0to50",
+    #"highMT_noVBFJet_ptH50to100",
+    "highMT_noVBFJet_ptH100to200",
     "highMT_noVBFJet_ptH200",
     "noVBFJet_ptH0to100",
     "noVBFJet_ptH50to100",
     "noVBFJet_ptH100to200",
     "noVBFJet_ptH100to200",
-    "noVBFJet_ptH200"
+    "noVBFJet_ptH100",
+    "noVBFJet_ptH200",
     ]:
     c_fs = [selections[k] for k in s.split('_')]
     def selector(data, c_fs=c_fs):
