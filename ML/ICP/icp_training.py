@@ -1,95 +1,60 @@
 #!/usr/bin/env python
 
 import numpy as np
-import os,sys
-import os, sys
+import os,sys,time
+import importlib
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
-import models.analytic_2D as model 
-import time
 
 import common.user
-import common.syncer
-from common.helpers import copyIndexPHP
-
-from ICP import ICP 
+from ML.ICP.ICP import InclusiveCrosssectionParametrization
 
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
-argParser.add_argument("--directory",     action="store",      default="v1", help="Subdirectory for output")
-#argParser.add_argument("--nTraining",     action="store",      default=100000, type=int,  help="Number of training events")
-argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
-argParser.add_argument("--model",         action="store",      default="analytic_2D",                 help="Which model?")
-argParser.add_argument("--modelDir",      action="store",      default="models",                 help="Which model directory?")
+argParser.add_argument('--overwrite',     action='store_true',                                   help="Overwrite training?")
+argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--config",        action="store",      default="icp_quad_jes",           help="Which config?")
+argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
+argParser.add_argument('--small',         action='store_true',                                   help="Only one batch, for debugging")
+args = argParser.parse_args()
 
-args, extra = argParser.parse_known_args(sys.argv[1:])
+# import the config
+config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
-def parse_value( s ):
-    try:
-        r = int( s )
-    except ValueError:
-        try:
-            r = float(s)
-        except ValueError:
-            r = s
-    return r
+# import the data
+import common.datasets as datasets
 
-extra_args = {}
-key        = None
-for arg in extra:
-    if arg.startswith('--'):
-        # previous no value? -> Interpret as flag
-        #if key is not None and extra_args[key] is None:
-        #    extra_args[key]=True
-        key = arg.lstrip('-')
-        extra_args[key] = True # without values, interpret as flag
-        continue
-    else:
-        if type(extra_args[key])==type([]):
-            extra_args[key].append( parse_value(arg) )
-        else:
-            extra_args[key] = [parse_value(arg)]
-for key, val in extra_args.items():
-    if type(val)==type([]) and len(val)==1:
-        extra_args[key]=val[0]
+icp_name = f"ICP_{args.selection}_{args.config}"
 
-cfg = model.pnn_cfg
-cfg.update( extra_args )
-
-# import the model
-exec('import %s.%s as model'%( args.modelDir, args.model))
-
-training_data = model.getEvents(args.nTraining)
-total_size    =  sum([len(s['features']) for s in training_data.values() if 'features' in s ])
-
-icp_name = "ICP_%s_nTraining_%i"%( args.model, args.nTraining)
-
-model_directory = os.path.join( common.user.model_directory, args.directory )
+model_directory = os.path.join( common.user.model_directory, "ICP" )
 os.makedirs(model_directory, exist_ok=True)
 
-filename = os.path.join(model_directory, icp_name)+'.pkl'
-try:
-    print ("Trying to load %s from %s"%(icp_name, filename))
-    icp = ICP.load(filename)
-except (IOError, EOFError, ValueError):
-    icp = None
+filename = os.path.join(model_directory, ('small_' if args.small else '')+icp_name)+'.pkl'
+
+icp = None
+if not args.overwrite:
+    try:
+        print ("Trying to load %s from %s"%(icp_name, filename))
+        icp = InclusiveCrosssectionParametrization.load(filename)
+    except (IOError, EOFError, ValueError):
+        pass 
 
 if icp is None or args.overwrite:
-    print ("Not found. Training.")
+    print ("Training.")
     time1 = time.time()
-    icp = ICP(
-            training_data      = training_data,
-            nominal_base_point = model.nominal_base_point,
-            base_points        = model.base_points,
-            parameters         = model.parameters,
-            combinations       = model.combinations,
-                )
+    icp = InclusiveCrosssectionParametrization( config = config )
+
+    icp.load_training_data(datasets, args.selection) 
+    icp.train             (datasets, args.selection, small=args.small)
 
     icp.save(filename)
     print ("Written %s"%( filename ))
 
     time2 = time.time()
     boosting_time = time2 - time1
-    print ("Boosting time: %.2f seconds" % boosting_time)
+    print ("Training time: %.2f seconds" % boosting_time)
 
+print (f"Trained ICP with config {args.config} in selection {args.selection}")
+prefix = "ICP: "+'\033[1m'+args.selection+'\033[0m'
+print (prefix.ljust(50)+icp.__str__())

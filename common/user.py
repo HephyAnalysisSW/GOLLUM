@@ -1,6 +1,8 @@
 import os
 
+# default
 data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
+derived_data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/"
 
 if os.environ['USER'] in ['robert.schoefbeck']:
     # Where the plots go:
@@ -12,6 +14,10 @@ if os.environ['USER'] in ['robert.schoefbeck']:
 elif os.environ['USER'] in ['dennis.schwarz']:
     plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
     model_directory        = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/models/"
+
+elif os.environ['USER'] in ['ang.li']:
+    plot_directory         = "/groups/hephy/cms/ang.li/www/HiggsChallenge/"
+    model_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/models/"
 
 elif os.environ['USER'] in ['claudius.krause']:
     raise RuntimeError( "Hello Claudius. Specify your directories in common/user.py." )

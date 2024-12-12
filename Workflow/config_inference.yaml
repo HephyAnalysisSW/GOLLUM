@@ -1,0 +1,17 @@
+Tasks:
+  - MultiClassifier
+  - JES
+
+Data:
+  selections:
+    - "lowMT_VBFJet"
+  n_split: 100
+  max_n_batch: 1 # set to -1 as infinity
+
+MultiClassifier:
+  module: "TFMC"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_5/v5"
+
+JES:
+  module: "PNN"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/lowMT_VBFJet/pnn_quad_jes/v3"
