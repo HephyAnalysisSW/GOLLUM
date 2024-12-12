@@ -22,6 +22,8 @@ if args.process == "test":
     filename = os.path.join( user.data_directory, "test.h5")
 elif args.process == "nominal":
     filename = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/nominal.h5"
+else:
+    filename = f"/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/{args.process}_nominal.h5"
 
 print("Prosessing %s"%(filename))
 dataLoader = H5DataLoader(
@@ -45,7 +47,8 @@ for batch in dataLoader:
     print("%i/%i batches processed"%(NBatchesDone,args.batches))
 
 # Convert to root hists and put in root file
-outfile = ROOT.TFile(f"hists/{args.process}.root","RECREATE")
+outname = f"hists/{args.process}.root"
+outfile = ROOT.TFile(outname,"RECREATE")
 outfile.cd()
 for feature in data_structure.feature_names:
     axisLabel = data_structure.plot_options[feature]['tex']
@@ -58,5 +61,5 @@ for feature in data_structure.feature_names:
     )
     rootHist.Write(feature)
 outfile.Close()
-
+print(f"created {outname}")
 print("Done.")
