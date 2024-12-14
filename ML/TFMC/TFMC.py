@@ -17,6 +17,30 @@ import common.data_structure as data_structure
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.initializers import RandomNormal, Constant
 
+class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, initial_lr, n_epochs, n_epoch_phaseout):
+        self.initial_lr = initial_lr
+        self.n_epochs = n_epochs
+        self.n_epoch_phaseout = n_epoch_phaseout
+
+    def __call__(self, epoch):
+            """
+            Calculate the learning rate based on the current epoch.
+            
+            Parameters:
+            - epoch: int or tf.Tensor, current epoch number.
+            
+            Returns:
+            - float, learning rate for the current epoch.
+            """
+            epoch = tf.cast(epoch, tf.float32)  # Ensure the epoch is a float
+            if epoch < self.n_epochs - self.n_epoch_phaseout:
+                return tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            else:
+                decay_start_epoch = self.n_epochs - self.n_epoch_phaseout
+                decay_rate = self.initial_lr / self.n_epoch_phaseout
+                return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """
@@ -48,7 +72,15 @@ class TFMC:
         self.num_classes = len(self.classes) 
 
         self.model = self._build_model()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
+
+        # Integrate learning rate scheduler
+        lr_schedule = PhaseoutScheduler(
+            initial_lr=config.learning_rate,
+            n_epochs=config.n_epochs,
+            n_epoch_phaseout=config.__dict__.get("n_epoch_phaseout",0),
+        )
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
         self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction='none')
         self.metrics = tf.keras.metrics.CategoricalAccuracy()
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
@@ -66,28 +98,11 @@ class TFMC:
             self.feature_variances = np.array([1 for i in range(len(data_structure.feature_names))])
 
         # Scale cross sections to the same integral
-        total = sum(self.weight_sums.values())
-        self.scales = np.array([total/self.weight_sums[i] for i in range(self.num_classes)])
+        self.class_weights = [ self.weight_sums[data_structure.label_encoding[label]] for label in self.config.classes ]
+        total = sum(self.class_weights)
+        self.class_weights = np.array([total/self.class_weights[i] for i in range(len(self.class_weights))])
         
-        print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.scales[i]) for i in range( self.num_classes)]) )
-
-#    def _build_model(self):
-#        """Build a simple neural network for classification with batch normalization."""
-#        model = tf.keras.Sequential()
-#
-#        # Input layer
-#        model.add(tf.keras.layers.Input(shape=(self.input_dim,)))
-#
-#        # Hidden layers with batch normalization
-#        for units in self.hidden_layers:
-#            model.add(tf.keras.layers.Dense(units, activation=None))  # No activation yet
-#            model.add(tf.keras.layers.Activation(self.config.activation))  # Apply activation after normalization
-#
-#        # Output layer
-#        #model.add(CustomDense(self.num_classes, activation='softmax'))
-#        model.add(Dense(self.num_classes, activation='softmax'))
-#
-#        return model
+        print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.class_weights[i]) for i in range( self.num_classes)]) )
 
     def _build_model(self):
         """Build a simple neural network for classification with L1/L2 regularization and dropout."""
@@ -127,12 +142,11 @@ class TFMC:
 
         return model
 
-
     def predict(self, data, ic_scaling=True):   
         res =  self.model((data - self.feature_means) / np.sqrt(self.feature_variances), training=False).numpy()
         # put back the inclusive xsec
         if ic_scaling:
-            return res/self.scales # DCR
+            return res/self.class_weights # DCR
         else:
             return res             # LR
 
@@ -170,19 +184,34 @@ class TFMC:
         total_samples = 0
         i_batch = 0
 
+        selected_indices = [data_structure.label_encoding[label] for label in self.config.classes]
+
         for batch in self.data_loader:
             print(f"Batch {i_batch}")
-            data, weights, raw_labels = self.data_loader.split(batch)
+            data, weights, raw_labels_ = self.data_loader.split(batch)
+
+            # Filter events based on the selected classes
+            mask = np.isin(raw_labels_, selected_indices) #FIXME raw_labels_ only for debugging
+            data = data[mask]
+            weights = weights[mask]
+            raw_labels = raw_labels_[mask]
 
             # Normalize data
             data_norm = (data - self.feature_means) / np.sqrt(self.feature_variances)
 
+            # preprocess features, if needed
+            if hasattr( self.config, "preprocessor"):
+                data_norm = self.config.preprocessor( data, data_norm)
+
             # Apply reweighting if enabled
             if self.reweighting:
-                weights = weights * self.scales[raw_labels.astype('int')]
+                weights = weights * self.class_weights[raw_labels.astype('int')]
 
-            # Convert raw labels to one-hot encoded format
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
+            # Remap raw labels to sequential indices for the selected classes
+            remapped_labels = np.array([selected_indices.index(label) for label in raw_labels])
+            
+            # Convert remapped labels to one-hot encoded format
+            labels_one_hot = tf.keras.utils.to_categorical(remapped_labels, num_classes=self.num_classes)
 
             # Compute gradients and loss
             with tf.GradientTape() as tape:
@@ -190,10 +219,13 @@ class TFMC:
                 loss = self.loss_fn(labels_one_hot, predictions)
                 weighted_loss = tf.reduce_mean(loss * weights)
 
+            #return data, data_norm, weights, raw_labels, raw_labels_, remapped_labels, labels_one_hot, predictions, loss
+
             gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
             accumulated_gradients = [
                 acc_grad + grad for acc_grad, grad in zip(accumulated_gradients, gradients)
             ]
+
             # Accumulate histograms if requested
             if accumulate_histograms:
                 for feature_idx, feature_name in enumerate(data_structure.feature_names):
@@ -234,31 +266,6 @@ class TFMC:
             return true_histograms, pred_histograms
         else:
             return None, None
-
-    def evaluate(self, max_batch=-1):
-        """
-        Evaluate the model on the data loader.
-        
-        Parameters:
-        """
-        total_samples = 0
-        self.metrics.reset_states()
-
-        i_batch = 0
-        for batch in self.data_loader:
-            data, weights, raw_labels = self.data_loader.split(batch)
-            
-            # Convert raw labels to one-hot encoded format
-            labels_one_hot = tf.keras.utils.to_categorical(raw_labels, num_classes=self.num_classes)
-            
-            predictions = self.model(data, training=False)
-            self.metrics.update_state(labels_one_hot, predictions)
-            total_samples += len(data)
-            i_batch+=1
-            if max_batch>0 and i_batch>=max_batch:
-                break
-        
-        print(f"Validation accuracy: {self.metrics.result().numpy():.4f}")
 
     def save(self, save_dir, epoch):
         """
@@ -331,7 +338,7 @@ class TFMC:
         instance.weight_sums       = weight_sums
 
         total = sum(instance.weight_sums.values())
-        instance.scales = np.array([total/instance.weight_sums[i] for i in range(instance.num_classes)])
+        instance.class_weights = np.array([total/instance.weight_sums[i] for i in range(instance.num_classes)])
 
         return instance
 

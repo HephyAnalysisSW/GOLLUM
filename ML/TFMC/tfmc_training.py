@@ -88,7 +88,10 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    print(f"Epoch {epoch}/{config.n_epochs}")
+    # Get the current learning rate
+    current_lr = tf.keras.backend.get_value(tfmc.optimizer.learning_rate)  # Direct access
+
+    print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
     ## for debugging
     #for batch in tfmc.data_loader:
@@ -96,6 +99,9 @@ for epoch in range(starting_epoch, config.n_epochs):
     #    data, weights, raw_labels = tfmc.data_loader.split(batch)
     #    data = (data - tfmc.feature_means) / np.sqrt(tfmc.feature_variances)
     #    break
+    #assert False, ""
+
+    #data, data_norm, weights, raw_labels, raw_labels_, remapped_labels, labels_one_hot, predictions, loss = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
     #assert False, ""
 
     true_histograms, pred_histograms = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
