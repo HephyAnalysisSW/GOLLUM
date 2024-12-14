@@ -32,6 +32,7 @@ for s in [
 # The following are the current analysis selections:
     "lowMT_VBFJet",
     "highMT_VBFJet",          
+    "highMT_noVBFJet",          
     "lowMT_noVBFJet_ptH0to100",
     "lowMT_noVBFJet_ptH100", 
     "highMT_noVBFJet_ptH0to100",
