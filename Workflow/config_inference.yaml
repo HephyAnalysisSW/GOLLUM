@@ -21,5 +21,4 @@ JES:
   module: "PNN"
   model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/lowMT_VBFJet/pnn_quad_jes/v3"
   save:
-    - bias
     - DeltaA
