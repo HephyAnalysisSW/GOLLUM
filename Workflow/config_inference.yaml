@@ -8,10 +8,17 @@ Data:
   n_split: 100
   max_n_batch: 1 # set to -1 as infinity
 
+Predict:
+  sim_path: "test"
+
 MultiClassifier:
   module: "TFMC"
   model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_5/v5"
+  save:
+    - predict
 
 JES:
   module: "PNN"
   model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/lowMT_VBFJet/pnn_quad_jes/v3"
+  save:
+    - DeltaA
