@@ -90,7 +90,6 @@ if not args.overwrite:
 for epoch in range(starting_epoch, config.n_epochs):
     # Get the current learning rate
     current_lr = tf.keras.backend.get_value(tfmc.optimizer.learning_rate)  # Direct access
-
     print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
     ## for debugging

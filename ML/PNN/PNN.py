@@ -1,6 +1,9 @@
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense
+from tensorflow.keras import regularizers
+from tqdm import tqdm
+
 import numpy as np
 import operator
 import functools
@@ -10,6 +13,31 @@ import os
 import pickle
 from math import ceil, sqrt
 import importlib
+
+class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, initial_lr, n_epochs, n_epochs_phaseout):
+        self.initial_lr = initial_lr
+        self.n_epochs = n_epochs
+        self.n_epochs_phaseout = n_epochs_phaseout
+
+    def __call__(self, epoch):
+            """
+            Calculate the learning rate based on the current epoch.
+            
+            Parameters:
+            - epoch: int or tf.Tensor, current epoch number.
+            
+            Returns:
+            - float, learning rate for the current epoch.
+            """
+            epoch = tf.cast(epoch, tf.float32)  # Ensure the epoch is a float
+            if epoch < self.n_epochs - self.n_epochs_phaseout:
+                return tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            else:
+                decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
+                decay_rate = self.initial_lr / self.n_epochs_phaseout
+                return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
 
 class PNN:
     def __init__(self, config):
@@ -73,7 +101,15 @@ class PNN:
         self.Mkkp = np.dot(self._VKA, self.MkA )
 
         self.model = self._build_model()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
+
+        # Integrate learning rate scheduler
+        lr_schedule = PhaseoutScheduler(
+            initial_lr=config.learning_rate,
+            n_epochs=config.n_epochs,
+            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout",0),
+        )
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
 
         if hasattr( config, "feature_means"):
@@ -85,18 +121,51 @@ class PNN:
 
     def _build_model(self):
         """Build a simple neural network for classification with batch normalization."""
+
+        # Fetch parameters from config with defaults
+        l1_reg = self.config.__dict__.get("l1_reg", 0.)  # Default value for L1: 0.01
+        l2_reg = self.config.__dict__.get("l2_reg", 0.)  # Default value for L2: 0.01
+        dropout_rate = self.config.__dict__.get("dropout_rate", 0.)  # Default dropout rate: 0.5
+        initialize_zero = self.config.__dict__.get("initialize_zero", False)  # Whether to initialize outputs to zero
+
         model = tf.keras.Sequential()
 
         # Input layer
         model.add(tf.keras.layers.Input(shape=(self.input_dim,)))
 
-        # Hidden layers with batch normalization
+        # Hidden layers with L1/L2 regularization and dropout
         for units in self.hidden_layers:
-            model.add(tf.keras.layers.Dense(units, activation=None))  # No activation yet
-            model.add(tf.keras.layers.Activation('relu'))  # Apply activation after normalization
+            model.add(
+                Dense(
+                    units,
+                    activation=None,
+                    kernel_regularizer=regularizers.l1_l2(l1=l1_reg, l2=l2_reg) if l1_reg > 0 or l2_reg > 0 else None,
+                )
+            )
+            model.add(tf.keras.layers.Activation(self.config.__dict__.get("activation", "relu")))  # Apply activation
+            model.add(tf.keras.layers.Dropout(rate=dropout_rate))  # Apply dropout
 
         # Output layer
-        model.add(Dense(self.num_outputs, activation=None))
+        if initialize_zero:
+            # Initialize weights and biases to zero
+            model.add(
+                Dense(
+                    self.num_outputs,
+                    kernel_regularizer=regularizers.l1_l2(l1=l1_reg, l2=l2_reg) if l1_reg > 0 or l2_reg > 0 else None,
+                    activation=None,
+                    kernel_initializer=tf.keras.initializers.Zeros(),  # Zero weights
+                    bias_initializer=tf.keras.initializers.Zeros(),    # Zero biases
+                )
+            )
+        else:
+            # Default initialization
+            model.add(
+                Dense(
+                    self.num_outputs,
+                    kernel_regularizer=regularizers.l1_l2(l1=l1_reg, l2=l2_reg) if l1_reg > 0 or l2_reg > 0 else None,
+                    activation=None,  # Default activation (no activation)
+                )
+            )
 
         return model
 
@@ -143,7 +212,8 @@ class PNN:
         ]
 
         # Outer loop over batches
-        for batches in zip(*loaders):
+        for batches in tqdm(zip(*loaders), desc="Processing Batches"):
+
             with tf.GradientTape() as tape:
                 # Process nominal batch
                 nominal_batch = batches[self.nominal_base_point_index]
@@ -159,22 +229,22 @@ class PNN:
                     features_nu_tensor = tf.convert_to_tensor(features_nu_norm, dtype=tf.float32)
                     DeltaA_nu = self.model(features_nu_tensor, training=True)
 
+                    # ICP scaling in the nu-term
+                    if hasattr( self.config, "icp_predictor"):
+                        bias_factor = self.config.icp_predictor(**{k:v for k,v in zip( self.parameters, self.base_points[i_base_point])}) 
+                    else:
+                        bias_factor = 1
+
                     # Compute weighted losses
                     if i_base_point != self.nominal_base_point_index:
-                        
-                        if hasattr( self.config, "icp") and self.config.icp is not None:
-                            #bias_nu = np.exp( -np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) )
-                            bias = np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) 
-                        else:
-                            bias = 0
 
                         loss_0 = tf.reduce_sum(
                             tf.convert_to_tensor(weights_nominal, dtype=tf.float32)
-                            * tf.math.softplus(tf.linalg.matvec((bias+DeltaA_nominal), self.VkA[i_base_point]))
+                            * tf.math.softplus(tf.linalg.matvec((DeltaA_nominal), self.VkA[i_base_point]))
                         )
-                        loss_nu = tf.reduce_sum(
+                        loss_nu = 1./bias_factor*tf.reduce_sum(
                             tf.convert_to_tensor(weights_nu, dtype=tf.float32)
-                            * tf.math.softplus(-tf.linalg.matvec((bias+DeltaA_nu), self.VkA[i_base_point]))
+                            * tf.math.softplus(-tf.linalg.matvec((DeltaA_nu), self.VkA[i_base_point]))
                         )
                         loss = loss_0 + loss_nu
                         loss -= (np.sum(weights_nominal) + np.sum(weights_nu)) * tf.math.log(2.0)
@@ -199,7 +269,7 @@ class PNN:
                             pred_histogram_nu, _ = np.histogram(
                                 feature_values_nominal,
                                 bins=bin_edges[feature_name],
-                                weights=weights_nominal * np.exp(
+                                weights=weights_nominal * bias_factor * np.exp(
                                     tf.linalg.matvec(DeltaA_nominal, self.VkA[i_base_point]).numpy()
                                 )
                             )
@@ -223,15 +293,14 @@ class PNN:
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
     def predict( self, features, nu):
-        if hasattr( self.config, "icp") and self.config.icp is not None:
-            # Attention. No guarantee that ICP and PNN are trained with the same base-points. Have to be careful! We can have inconsistent definitions of nu in ICP and PNN!!
-            bias = np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) 
+        if hasattr( self.config, "icp_predictor"):
+            bias_factor = self.config.icp_predictor(**{k:v for k,v in zip( self.parameters, nu)}) 
         else:
-            bias = 0
+            bias_factor = 1
 
         DeltaA = self.model( tf.convert_to_tensor(
             (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
-        return np.exp( bias + np.dot(DeltaA.numpy(), self.nu_A(nu) ))
+        return bias_factor*np.exp(np.dot(DeltaA.numpy(), self.nu_A(nu) ))
 
     def save(self, save_dir, epoch):
         """

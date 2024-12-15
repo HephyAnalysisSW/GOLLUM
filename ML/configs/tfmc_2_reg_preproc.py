@@ -32,7 +32,9 @@ def preprocessor( features, features_norm ):
 
     return np.column_stack((
         features_norm[:, had_pt],
+        features_norm[:, lep_pt],
         features_norm[:, met],
+        features_norm[:, met_phi],
         features[:, had_eta] - features[:, lep_eta],
         features[:, had_phi] - features[:, lep_phi],
         features[:, met_phi] - features[:, lep_phi],
@@ -42,13 +44,13 @@ def preprocessor( features, features_norm ):
     ))
 
 classes       = ['htautau', 'ztautau'] 
-input_dim     = 8 
-hidden_layers = [64,64]
+input_dim     = 10 
+hidden_layers = [64,128,64]
 activation    = 'relu'
 
-#l1_reg        = 0.1
-#l2_reg        = 0.05
-#dropout_rate  = 0.2
+l1_reg        = 0.1
+l2_reg        = 0.05
+dropout_rate  = 0.2
 
 use_ic        = True
 use_scaler    = True
