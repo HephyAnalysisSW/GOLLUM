@@ -59,9 +59,10 @@ class Inference:
       # FIXME: this ONLY works with multiclassifier and JES. Will make it more flexible when other uncertainties come
       p_mc = h5f["MultiClassifier_predict"]
       DA_pnn_jes = h5f["JES_DeltaA"]
-      bias_pnn_jes = self.models['JES'].get_bias()
+      #bias_pnn_jes = self.models['JES'].get_bias()
       nu_A = self.models['JES'].nu_A((nu_jes,))
-      p_pnn_jes = np.exp( bias_pnn_jes + np.dot(DA_pnn_jes, nu_A))
+      #p_pnn_jes = np.exp( bias_pnn_jes + np.dot(DA_pnn_jes, nu_A))
+      p_pnn_jes = np.exp( np.dot(DA_pnn_jes, nu_A))
       return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
 
   def testStat(self, mu, nu_jes):
