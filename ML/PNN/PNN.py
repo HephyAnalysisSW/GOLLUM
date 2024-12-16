@@ -96,9 +96,10 @@ class PNN:
                     res*=base_point[self.parameters.index(var)]
 
                 self._VKA[i_base_point, i_combination ] = res
-        # Compute matrix Mkk from non-nominal base_points
-        self.MkA  = np.dot(self._VKA, self.CInv).transpose()
-        self.Mkkp = np.dot(self._VKA, self.MkA )
+
+        ## Compute matrix Mkk from non-nominal base_points
+        #self.MkA  = np.dot(self._VKA, self.CInv).transpose()
+        #self.Mkkp = np.dot(self._VKA, self.MkA )
 
         self.model = self._build_model()
 
@@ -106,7 +107,7 @@ class PNN:
         lr_schedule = PhaseoutScheduler(
             initial_lr=config.learning_rate,
             n_epochs=config.n_epochs,
-            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout",0),
+            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout", 0),  # Default to 0 if not specified
         )
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 

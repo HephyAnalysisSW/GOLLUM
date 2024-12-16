@@ -41,6 +41,7 @@ class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
                 decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
                 decay_rate = self.initial_lr / self.n_epochs_phaseout
                 return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """

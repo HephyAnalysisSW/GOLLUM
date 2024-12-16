@@ -75,7 +75,7 @@ else:
 # Initialize for training
 pnn.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
 
-max_batch = 10 if args.small else -1
+max_batch = 1 if args.small else -1
 
 # Determine the starting epoch
 starting_epoch = 0
@@ -89,7 +89,12 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    current_lr = tf.keras.backend.get_value(pnn.optimizer.learning_rate)  # Direct access
+    if isinstance(pnn.optimizer.learning_rate, tf.keras.optimizers.schedules.LearningRateSchedule):
+        current_lr = pnn.optimizer.learning_rate(epoch)  # Evaluate the scheduler
+    else:
+        current_lr = tf.keras.backend.get_value(pnn.optimizer.learning_rate)  # Direct access
+
+
     print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
     ## for debugging

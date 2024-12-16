@@ -74,4 +74,3 @@ learning_rate = 0.001
 #l2_reg          = 0.01
 #dropout         = 0.2
 initialize_zero = True
-
