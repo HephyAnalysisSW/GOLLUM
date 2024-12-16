@@ -20,6 +20,7 @@ argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
+argParser.add_argument("--every",         action="store",      default=5, type=int,             help="Make plot every this number of epochs.")
 argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="pnn_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
@@ -35,9 +36,10 @@ config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 # Do we use ICP?
 if config.icp is not None:
     from ML.ICP.ICP import InclusiveCrosssectionParametrization
-    config.icp = InclusiveCrosssectionParametrization.load(os.path.join(user.model_directory, "ICP", f"ICP_{args.selection}_{config.icp}.pkl"))
+    icp = InclusiveCrosssectionParametrization.load(os.path.join(user.model_directory, "ICP", f"ICP_{args.selection}_{config.icp}.pkl"))
+    config.icp_predictor = icp.get_predictor()
     print("We use this ICP:")
-    print(config.icp)
+    print(icp)
 
 # Do we use a Scaler?
 if config.use_scaler:
@@ -87,7 +89,13 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    print(f"Epoch {epoch}/{config.n_epochs}")
+    if isinstance(pnn.optimizer.learning_rate, tf.keras.optimizers.schedules.LearningRateSchedule):
+        current_lr = pnn.optimizer.learning_rate(epoch)  # Evaluate the scheduler
+    else:
+        current_lr = tf.keras.backend.get_value(pnn.optimizer.learning_rate)  # Direct access
+
+
+    print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
     ## for debugging
     #for batch in pnn.data_loader:
@@ -97,7 +105,7 @@ for epoch in range(starting_epoch, config.n_epochs):
     #    break
     #assert False, ""
 
-    true_histograms, pred_histograms = pnn.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
+    true_histograms, pred_histograms = pnn.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%args.every==0))
     pnn.save(model_directory, epoch)  # Save model and config after each epoch
 
     if true_histograms is not None and pred_histograms is not None:
@@ -112,7 +120,7 @@ for epoch in range(starting_epoch, config.n_epochs):
         common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
         common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
-    if epoch%5==0 or not args.small:
+    if epoch%args.every==0 or not args.small:
         common.syncer.sync()
 
 common.syncer.sync()

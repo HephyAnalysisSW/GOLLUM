@@ -10,19 +10,19 @@ import pickle
 import importlib
 import ROOT
 import sys
+from tqdm import tqdm
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 import common.data_structure as data_structure
 
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.initializers import RandomNormal, Constant
 
 class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
 
-    def __init__(self, initial_lr, n_epochs, n_epoch_phaseout):
+    def __init__(self, initial_lr, n_epochs, n_epochs_phaseout):
         self.initial_lr = initial_lr
         self.n_epochs = n_epochs
-        self.n_epoch_phaseout = n_epoch_phaseout
+        self.n_epochs_phaseout = n_epochs_phaseout
 
     def __call__(self, epoch):
             """
@@ -35,12 +35,13 @@ class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
             - float, learning rate for the current epoch.
             """
             epoch = tf.cast(epoch, tf.float32)  # Ensure the epoch is a float
-            if epoch < self.n_epochs - self.n_epoch_phaseout:
+            if epoch < self.n_epochs - self.n_epochs_phaseout:
                 return tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
             else:
-                decay_start_epoch = self.n_epochs - self.n_epoch_phaseout
-                decay_rate = self.initial_lr / self.n_epoch_phaseout
+                decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
+                decay_rate = self.initial_lr / self.n_epochs_phaseout
                 return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
         """
@@ -77,7 +78,7 @@ class TFMC:
         lr_schedule = PhaseoutScheduler(
             initial_lr=config.learning_rate,
             n_epochs=config.n_epochs,
-            n_epoch_phaseout=config.__dict__.get("n_epoch_phaseout",0),
+            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout",0),
         )
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
@@ -186,15 +187,14 @@ class TFMC:
 
         selected_indices = [data_structure.label_encoding[label] for label in self.config.classes]
 
-        for batch in self.data_loader:
-            print(f"Batch {i_batch}")
-            data, weights, raw_labels_ = self.data_loader.split(batch)
+        for i_batch, batch in enumerate(tqdm(self.data_loader, desc="Processing Batches")):
+            data, weights, raw_labels = self.data_loader.split(batch)
 
             # Filter events based on the selected classes
-            mask = np.isin(raw_labels_, selected_indices) #FIXME raw_labels_ only for debugging
+            mask = np.isin(raw_labels, selected_indices)
             data = data[mask]
             weights = weights[mask]
-            raw_labels = raw_labels_[mask]
+            raw_labels = raw_labels[mask]
 
             # Normalize data
             data_norm = (data - self.feature_means) / np.sqrt(self.feature_variances)

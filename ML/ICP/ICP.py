@@ -137,3 +137,23 @@ class InclusiveCrosssectionParametrization:
 
     def predict( self, nu):
         return np.exp(np.dot( self.nu_A(nu), self.DeltaA ))
+
+    # Predictor of log-DCR for usage in PNN
+    def get_predictor( self ):
+
+        def predictor(  DeltaA=self.DeltaA, parameters=self.parameters, combinations=self.combinations, **kwargs,):
+            
+            nu = [ 0 for _ in range(3)]
+
+            for p in parameters:
+                if p not in kwargs:
+                    raise RuntimeError(f"Must set all parameters: {parameters}")
+
+            for k, v in kwargs.items():
+                nu[parameters.index(k)] = v
+
+            nu_A = np.array( [ functools.reduce(operator.mul, [nu[parameters.index(c)] for c in list(comb)], 1) for comb in combinations] )
+
+            return np.exp(np.dot( nu_A, DeltaA ))
+
+        return predictor
