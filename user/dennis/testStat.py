@@ -1,8 +1,12 @@
-
+###
+### MODES:
+### - Best Fit (find best fit mu, nu)
+### - scan over mu
+### - impacts
 
 
 # We need to construct max[u(mu, nu)] - max[u(mu', nu')]
-# where - 0.5 u(mu,nu) = -L sigma(mu, nu) + L sigma(SM) + dSigmaOverDSigmaSMsum
+# where - 0.5 u(mu,nu) = -L sigma(mu, nu) + L sigma(SM) + dSigmaOverDSigmaSMsum + 0.5*nu^2
 
 # L sigma(mu,nu) = sum_simEvents weights (1+alpha_S)^(nu_s) * exp(nu_A Delta_A(x)) * mu [ where mu is 0 for backgrounds]
 # L sigma(SM) = sum_simEvents weights
