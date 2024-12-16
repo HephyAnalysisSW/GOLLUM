@@ -324,8 +324,6 @@ class PNN:
 
         _config     = self.config
         self.config = None
-        if hasattr( self.config, "icp"):
-            self.config.icp.config = None
 
         _checkpoint     = self.checkpoint
         _optimizer      = self.optimizer

@@ -70,8 +70,8 @@ n_epochs_phaseout  = 30
 learning_rate = 0.001
 
 # Regularization
-l1_reg          = 0.01
-l2_reg          = 0.01
-dropout         = 0.2
+#l1_reg          = 0.01
+#l2_reg          = 0.01
+#dropout         = 0.2
 initialize_zero = True
 
