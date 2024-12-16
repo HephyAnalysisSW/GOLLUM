@@ -88,7 +88,13 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    # Get the current learning rate
+
+    # Manually evaluate and update the learning rate
+    if hasattr(tfmc, 'lr_schedule'):  # Ensure the schedule exists
+        new_lr = tfmc.lr_schedule(epoch)
+        tfmc.optimizer.learning_rate.assign(new_lr)  # Update the optimizer's learning rate
+
+    # Print the current learning rate
     current_lr = tf.keras.backend.get_value(tfmc.optimizer.learning_rate)  # Direct access
     print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 

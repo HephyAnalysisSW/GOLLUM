@@ -64,7 +64,7 @@ activation    = 'relu'
 
 # Number of epochs
 n_epochs           = 200
-n_epochs_phaseout  = 30
+n_epochs_phaseout  = 200
 
 # Learning rate 
 learning_rate = 0.001
