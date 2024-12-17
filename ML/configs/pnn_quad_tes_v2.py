@@ -11,10 +11,10 @@ from configs.common import *
 
 import common.data_structure as data_structure
 
-parameters         = ['nu_jes']
+parameters         = ['nu_tes']
 
-# We learn a quadratic model for the nu_jes dependence in this config
-combinations       = [('nu_jes',),  ('nu_jes', 'nu_jes'), ] 
+# We learn a quadratic model for the nu_tes dependence in this config
+combinations       = [('nu_tes',),  ('nu_tes', 'nu_tes'), ] 
 
 # Base point coordinates in tes/jes/met; Example: jes, where we have +/- 3 sigma in steps
 #base_point_index = {
@@ -35,7 +35,7 @@ base_point_index = {
 
 # translate nuisances to alpha values
 def get_alpha( base_point ):
-    return ( 1, 1+base_point[0]*0.01, 0 )
+    return ( 1+base_point[0]*0.01, 1, 0 )
 
 # For convenience, base_point_index should also know about the inverse dictionary
 base_point_index.update ({val:key for key, val in base_point_index.items()})
@@ -55,7 +55,7 @@ input_dim     = len(data_structure.feature_names)
 use_scaler    = True
 
 # Use external inclusive xsec dependence? (Default: None)
-icp           = "icp_quad_jes"
+icp           = "icp_quad_tes"
 
 # hidden layers
 hidden_layers = [64, 32]

@@ -21,7 +21,7 @@ argParser.add_argument('--overwrite',     action='store_true', help="Overwrite t
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
 argParser.add_argument("--every",         action="store",      default=5, type=int,             help="Make plot every this number of epochs.")
-argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
+argParser.add_argument("--training",      action="store",      default="v4",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="pnn_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")

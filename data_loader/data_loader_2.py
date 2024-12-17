@@ -104,7 +104,7 @@ if __name__=="__main__":
     batch_size = None #64**2
     n_split    = 10000
 
-    file_path = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/processed/ztautau_tes_1p03.h5"
+    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/jes_0p99_met_1.h5"
 
     # Example1: load all the data, then select
     data_loader_1 = H5DataLoader(
