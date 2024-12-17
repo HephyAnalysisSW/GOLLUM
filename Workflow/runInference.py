@@ -18,7 +18,9 @@ if __name__ == '__main__':
   if args.save:
     infer.save(filename="test",isData=False)
   if args.predict:
-    r = infer.predict(1,0,False)
+    r = infer.predict("lowMT_VBFJet",2.2,0,0,0,1.5,0,0,False)
+    print(r)
+    r = infer.predict("lowMT_VBFJet",2.2,0,0,0,1.5,0,0,True)
     print(r)
     infer.clossMLresults()
   # Below is the deprecated feature that calculates the ML prediction on the fly  

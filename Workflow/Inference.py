@@ -20,7 +20,7 @@ class Inference:
     self.max_n_batch = self.cfg['Data']['max_n_batch']
     self.loadmodels()
     self.loaddata()
-    self.MLloaded=False
+    self.h5s = {}
 
   def loaddata(self):
     import common.datasets as datasets
@@ -28,17 +28,24 @@ class Inference:
       self.data[s] = datasets.get_data_loader( selection=s, n_split=self.n_split)
       print("Data loaded for selection: {}".format(s))
 
-  def loadMLresults(self):
-    self.h5s = {}
-    for s in self.selections:
-      h5f = h5py.File(self.cfg["Predict"]["sim_path"]+s+'.h5')
-      # check whether the model path matches
-      for t in self.cfg['Tasks']:
-        assert h5f.attrs[t+"_module"] == self.cfg[t]['module'], "Task {}: inconsistent module! H5: {} -- Config: {}".format(t,h5f.attrs[t+"_module"],self.cfg[t]['module'])
-        assert h5f.attrs[t+"_model_path"] == self.cfg[t]["model_path"], "Task {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t]["model_path"])
-      self.h5s[s] = h5f
-      print("ML results loaded from {}".format(self.cfg["Predict"]["sim_path"]+s+'.h5'))
-      self.MLloaded = True
+  def loadH5(self,filename):
+    h5f = h5py.File(filename)
+    # check whether the model path matches
+    for t in self.cfg['Tasks']:
+      assert h5f.attrs[t+"_module"] == self.cfg[t]['module'], "Task {}: inconsistent module! H5: {} -- Config: {}".format(t,h5f.attrs[t+"_module"],self.cfg[t]['module'])
+      assert h5f.attrs[t+"_model_path"] == self.cfg[t]["model_path"], "Task {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t]["model_path"])
+    return h5f
+
+  def loadMLresults(self,name,filename=None,ignore_done=False):
+    if (ignore_done) or (not name in self.h5s):
+      self.h5s[name] = {}
+      for s in self.selections:
+        if filename is None:
+          filename = self.cfg["Predict"]["sim_path"]
+        filename = filename+s+'.h5'
+        h5f = self.loadH5(filename)
+        self.h5s[name][s] = h5f
+        print("ML results loaded from {}".format(filename))
 
 
   def loadmodels(self):
@@ -55,15 +62,35 @@ class Inference:
       p_pnn_jes = self.models['JES'].predict(features, nu=(nu_jes,))
       return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
 
-  def dSigmaOverDSigmaSM_h5( self, h5f, mu=1, nu_jes=0 ):
+  def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_ztautau=0, nu_tt=0, nu_diboson=0, nu_jes=0, nu_tes=0, nu_met=0):
       # FIXME: this ONLY works with multiclassifier and JES. Will make it more flexible when other uncertainties come
-      p_mc = h5f["MultiClassifier_predict"]
-      DA_pnn_jes = h5f["JES_DeltaA"]
-      #bias_pnn_jes = self.models['JES'].get_bias()
+      # Multiclassifier
+      p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
+
+      # JES
+      DA_pnn_jes = self.h5s[name][selection]["JES_DeltaA"]
       nu_A = self.models['JES'].nu_A((nu_jes,))
-      #p_pnn_jes = np.exp( bias_pnn_jes + np.dot(DA_pnn_jes, nu_A))
       p_pnn_jes = np.exp( np.dot(DA_pnn_jes, nu_A))
-      return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
+
+      # TES
+      # to be implemented
+
+      # MET
+      # to be implemented
+
+      # RATES
+      # FIXME: hardcode alphas for now
+      alpha_ztautau = 0
+      alpha_tt = 0
+      alpha_diboson = 0
+
+      f_ztautau_rate = (1+alpha_ztautau)**nu_ztautau
+      f_tt_rate = (1+alpha_tt)**nu_tt
+      f_diboson_rate = (1+alpha_diboson)**nu_diboson 
+
+      #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
+      return ((mu*p_mc[:,0] + p_mc[:,1]*f_ztautau_rate + p_mc[:,2]*f_tt_rate + p_mc[:,3]*f_diboson_rate) / p_mc[:,:].sum(axis=1))*p_pnn_jes
+
 
   def testStat(self, mu, nu_jes):
     for s in self.selections:
@@ -133,24 +160,38 @@ class Inference:
           h5f.create_dataset(obj, data=datasets[obj])
         print("Saved ML results in {}".format(filename+s+'.h5'))
 
+  def penalty(self, nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+        return nu_ztautau**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
 
-  def predict(self, mu, nu_jes, isData):
-    if not self.MLloaded:
-      self.loadMLresults()
+  def predict(self, selection, mu, nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
+    self.loadMLresults(name='sim')
     # calculate the toy h5 file on the fly, commented out for now
     #self.save("toy",isData)
 
     # perform the calculation
-    teststat_h5 = {}
-    for s in self.selections:
-      dSoDS = self.dSigmaOverDSigmaSM_h5( self.h5s[s], mu=mu, nu_jes = nu_jes )
-      testStat = np.log(dSoDS).sum()
-      teststat_h5[s] = testStat
+    assert selection in self.selections, "Selection {} not available!".format(selection)
 
-    return teststat_h5
+    weights = self.h5s['sim'][selection]["Weight"]
+    dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+    incS = (weights[:]*(1-dSoDS_sim)).sum()
+    penalty = self.penalty(nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
+
+    # Handle toys
+    # FIXME: toys dataloader not implemented in the Inference. Need to modify this later.
+    if isData:
+      self.save("toy",isData)
+      self.loadMLresults(name='toy',filename='toy')
+      dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+    else:
+      dSoDS_toy = dSoDS_sim
+
+    uTerm = -2 *(incS+(weights[:]*np.log(dSoDS_toy)).sum())+penalty
+
+    return uTerm
 
   def clossMLresults(self):
-    if self.MLloaded:
-      for s in self.h5s:
-        self.h5s[s].close()
-    self.MLloaded = False
+      for n in list(self.h5s):
+        for s in list(self.h5s[n]):
+          self.h5s[n][s].close()
+          del self.h5s[n][s]
+        del self.h5s[n]
