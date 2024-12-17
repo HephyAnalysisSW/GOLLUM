@@ -16,7 +16,7 @@
 def dSigmaOverDSigmaSM( self, features, mu=1, nu_jes=0 ):
   p_mc = self.models['MultiClassifier'].predict(features)
   p_pnn_jes = self.models['JES'].predict(features, nu=(nu_jes,))
-  f_ztautau_rate = (1+alpha_ztautau)^(nu_ztautau)
+  f_ztautau_rate = (1+alpha_ztautau)**(nu_ztautau)
   f_tt_rate = (1+alpha_tt)^(nu_tt)
   f_diboson_rate = (1+alpha_diboson)^(nu_diboson)
   return (mu*p_mc[:,0]/(p_mc[:,1]*f_ztautau_rate + p_mc[:,2]*f_tt_rate + p_mc[:,3]*f_diboson_rate) + 1)*p_pnn_jes
