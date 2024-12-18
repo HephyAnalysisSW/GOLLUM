@@ -62,7 +62,7 @@ class Inference:
       p_pnn_jes = self.models['JES'].predict(features, nu=(nu_jes,))
       return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
 
-  def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_ztautau=0, nu_tt=0, nu_diboson=0, nu_jes=0, nu_tes=0, nu_met=0):
+  def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_jes=0, nu_tes=0, nu_met=0):
       # FIXME: this ONLY works with multiclassifier and JES. Will make it more flexible when other uncertainties come
       # Multiclassifier
       p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
@@ -80,16 +80,16 @@ class Inference:
 
       # RATES
       # FIXME: hardcode alphas for now
-      alpha_ztautau = 0
-      alpha_tt = 0
-      alpha_diboson = 0
+      alpha_bkg = 0.01
+      alpha_tt = 0.25
+      alpha_diboson = 0.025
 
-      f_ztautau_rate = (1+alpha_ztautau)**nu_ztautau
+      f_bkg_rate = (1+alpha_bkg)**nu_bkg
       f_tt_rate = (1+alpha_tt)**nu_tt
-      f_diboson_rate = (1+alpha_diboson)**nu_diboson 
+      f_diboson_rate = (1+alpha_diboson)**nu_diboson
 
       #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
-      return ((mu*p_mc[:,0] + p_mc[:,1]*f_ztautau_rate + p_mc[:,2]*f_tt_rate + p_mc[:,3]*f_diboson_rate) / p_mc[:,:].sum(axis=1))*p_pnn_jes
+      return ((mu*p_mc[:,0] + p_mc[:,1]*f_bkg_rate + p_mc[:,2]*f_tt_rate*f_bkg_rate + p_mc[:,3]*f_diboson_rate*f_bkg_rate) / p_mc[:,:].sum(axis=1))*p_pnn_jes
 
 
   def testStat(self, mu, nu_jes):
@@ -126,7 +126,7 @@ class Inference:
             continue
           for obj in self.cfg[t]['save']:
             datasets[t+'_'+obj] = []
-          
+
           h5f.attrs[t+"_module"] = self.cfg[t]["module"]
           h5f.attrs[t+"_model_path"] = self.cfg[t]["model_path"]
 
@@ -160,32 +160,32 @@ class Inference:
           h5f.create_dataset(obj, data=datasets[obj])
         print("Saved ML results in {}".format(filename+s+'.h5'))
 
-  def penalty(self, nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
-        return nu_ztautau**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
+  def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+        return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
 
-  def predict(self, selection, mu, nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
+  def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
     self.loadMLresults(name='sim')
     # calculate the toy h5 file on the fly, commented out for now
     #self.save("toy",isData)
 
     # perform the calculation
-    assert selection in self.selections, "Selection {} not available!".format(selection)
+    uTerm = 0
+    for selection in self.selections:
+        weights = self.h5s['sim'][selection]["Weight"]
+        dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+        incS = (weights[:]*(1-dSoDS_sim)).sum()
+        penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
 
-    weights = self.h5s['sim'][selection]["Weight"]
-    dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
-    incS = (weights[:]*(1-dSoDS_sim)).sum()
-    penalty = self.penalty(nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
+        # Handle toys
+        # FIXME: toys dataloader not implemented in the Inference. Need to modify this later.
+        if isData:
+          self.save("toy",isData)
+          self.loadMLresults(name='toy',filename='toy')
+          dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+        else:
+          dSoDS_toy = dSoDS_sim
 
-    # Handle toys
-    # FIXME: toys dataloader not implemented in the Inference. Need to modify this later.
-    if isData:
-      self.save("toy",isData)
-      self.loadMLresults(name='toy',filename='toy')
-      dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
-    else:
-      dSoDS_toy = dSoDS_sim
-
-    uTerm = -2 *(incS+(weights[:]*np.log(dSoDS_toy)).sum())+penalty
+        uTerm += -2 *(incS+(weights[:]*np.log(dSoDS_toy)).sum())+penalty
 
     return uTerm
 
