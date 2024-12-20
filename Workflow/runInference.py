@@ -16,6 +16,8 @@ if __name__ == '__main__':
   parser.add_argument("-c","--config", help="Path to the config file.")
   parser.add_argument("-s","--save", action="store_true", help="Whether to save the ML predictions for the simulation.")
   parser.add_argument("-p","--predict", action="store_true", help="Whether to predict.")
+  parser.add_argument("-i","--impacts", action="store_true", help="Whether to run postFit uncertainties.")
+  parser.add_argument("-g","--scan", action="store_true", help="Whether to run likelihood scan.")
   args = parser.parse_args()
 
   infer = Inference(args.config)
@@ -29,14 +31,16 @@ if __name__ == '__main__':
     print(f"q_mle = {q_mle}")
     print(f"parameters = {parameters_mle}")
     # Perform a likelihood scan over mu and store result in arrays
-    deltaQ,muPoints = fit.scan(Npoints=10, mumin=0, mumax=5)
-    np.savez('likelihoodScan.npz', deltaQ=np.array(deltaQ), mu=np.array(muPoints))
+    if args.scan:
+        deltaQ,muPoints = fit.scan(Npoints=20, mumin=0, mumax=2)
+        np.savez('likelihoodScan.npz', deltaQ=np.array(deltaQ), mu=np.array(muPoints))
     # Get constraints for all nuisances and store in a dictionary
     # For each parameter, there is a tuple with values (nu_mle, nu_lower, nu_upper)
-    postFitUncerts = fit.impacts()
-    print(f"postFit parameter boundaries: {postFitUncerts}")
-    with open('postFitUncerts.pkl', 'wb') as file:
-        pickle.dump(postFitUncerts, file)
+    if args.impacts:
+        postFitUncerts = fit.impacts()
+        print(f"postFit parameter boundaries: {postFitUncerts}")
+        with open('postFitUncerts.pkl', 'wb') as file:
+            pickle.dump(postFitUncerts, file)
     infer.clossMLresults()
   # Below is the deprecated feature that calculates the ML prediction on the fly
   #r = infer.testStat(1,0)

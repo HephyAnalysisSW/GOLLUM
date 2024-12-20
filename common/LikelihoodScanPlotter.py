@@ -10,19 +10,31 @@ class LikelihoodScanPlotter:
         self.ytitle = "-2 #Delta ln L"
         self.xmin = muValues[0]
         self.xmax = muValues[-1]
+        self.ymin = 0.
+        self.ymax = 10
         self.plot_dir = ""
+
+    def __getDummy(self):
+        d = ROOT.TGraph(2)
+        d.SetPoint(0, self.xmin, self.ymin)
+        d.SetPoint(1, self.xmax, self.ymax)
+        d.SetMarkerSize(0.0)
+        d.SetTitle('')
+        d.GetXaxis().SetTitle(self.xtitle)
+        d.GetYaxis().SetTitle(self.ytitle)
+        return d
 
 
     def draw(self):
-        g = ROOT.TGraph(len(self.muValues), self.muValues, self.qValues)
-        g.SetTitle('')
-        g.GetXaxis().SetTitle(self.xtitle)
-        g.GetYaxis().SetTitle(self.ytitle)
-        g.SetLineWidth(2)
         c = ROOT.TCanvas(self.name, "", 600, 600)
         ROOT.gPad.SetTopMargin(0.02)
-        g.GetXaxis().SetLimits(self.xmin, self.xmax)
-        g.Draw("AL")
+        dummy = self.__getDummy()
+        dummy.Draw("AP")
+        dummy.GetXaxis().SetRangeUser(self.xmin, self.xmax)
+        dummy.GetYaxis().SetRangeUser(self.ymin, self.ymax)
+        g = ROOT.TGraph(len(self.muValues), self.muValues, self.qValues)
+        g.SetLineWidth(2)
+        g.Draw("L SAME")
         l1, l2 = self.getLines()
         l1.Draw("SAME")
         l2.Draw("SAME")
