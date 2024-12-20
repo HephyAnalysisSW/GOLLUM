@@ -80,9 +80,9 @@ class Inference:
 
       # RATES
       # FIXME: hardcode alphas for now
-      alpha_bkg = 0.01
-      alpha_tt = 0.25
-      alpha_diboson = 0.025
+      alpha_bkg = 0.001
+      alpha_tt = 0.02
+      alpha_diboson = 0.25
 
       f_bkg_rate = (1+alpha_bkg)**nu_bkg
       f_tt_rate = (1+alpha_tt)**nu_tt
