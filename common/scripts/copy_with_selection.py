@@ -9,8 +9,9 @@ import argparse
 import h5py
 import numpy as np
 from data_loader.data_loader_2 import H5DataLoader
+import common.data_structure as data_structure
 
-def copy_with_selection(input_files, target_dir, selection_function, n_batches=100, max_batch = None, overwrite=False):
+def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False):
     """
     Apply a selection function to events and copy the selected data to a target directory, writing each batch.
 
@@ -18,6 +19,7 @@ def copy_with_selection(input_files, target_dir, selection_function, n_batches=1
     - input_files (list of str): List of input HDF5 files to process.
     - target_dir (str): Directory where selected files will be copied.
     - selection_function (callable): A function that takes a numpy array and returns a boolean mask for selection.
+    - process (str): Identifier of the process to be copied.
     - n_batches (int): Number of batches to divide the dataset into (default: 100).
     - overwrite (bool): Whether to overwrite existing target files (default: False).
     """
@@ -31,11 +33,31 @@ def copy_with_selection(input_files, target_dir, selection_function, n_batches=1
             file_path=file_path,
             n_split=n_batches,
             selection_function=selection_function,
+            process=process,
         )
 
         # Define target file
-        target_file = os.path.join(target_dir, os.path.basename(file_path))
-        
+        base_name = os.path.basename(file_path)
+        if process is None:
+            target_file = os.path.join(target_dir, base_name)
+        else:
+
+            if process not in data_structure.labels:
+                raise RuntimeError( "Don't know this process: %s" % process )
+
+            # the nominal file
+            if base_name.startswith('nominal'):
+                file_name = base_name.str('nominal', process)
+            # the input file was already process specific
+            elif any( [base_name.startswith(l) for l in data_structure.labels] ):
+                file_name = base_name
+            elif any( [base_name.startswith(s) for s in data_structure.systematics] ):
+                file_name = process+'_'+base_name
+            else:
+                raise RuntimeError( "Don't know what the file name should be." )
+            
+            target_file = os.path.join(target_dir, file_name)
+
         # Handle overwrite logic
         if os.path.exists(target_file) and not overwrite:
             print(f"Skipping file: {target_file} (already exists). Use --overwrite to overwrite.")
@@ -84,6 +106,8 @@ def parse_arguments():
                         help="Directory to copy selected files.")
     parser.add_argument("--selection", type=str, required=True,
                         help="Selection condition for filtering events.")
+    parser.add_argument("--process", type=str, default=None,
+                        help="Copy only events from this process.")
     parser.add_argument("--n-batches", type=int, default=1000,
                         help="Number of batches to divide the dataset into (default: 1000).")
     parser.add_argument("--overwrite", action="store_true",
@@ -123,11 +147,13 @@ if __name__ == "__main__":
             for i_input_file, input_file in enumerate(input_files):
 
                 cmds = ["python", "copy_with_selection.py", "--files", input_file, "--target-dir", args.target_dir, "--selection", args.selection, "--n-batches", str(args.n_batches)]
+                if args.process is not None:
+                    cmds.extend( ["--process", args.process] )
                 if args.overwrite:
-                    cmds.append("-overwrite")
+                    cmds.append("--overwrite")
                 job_file.write(" ".join(cmds)+ '\n')
         print("Appended %i jobs to jobs.sh."%len(input_files))
         sys.exit(0)
 
     # Apply selection and copy files
-    copy_with_selection(input_files, target_dir=args.target_dir, selection_function=selection_function, n_batches=args.n_batches, overwrite=args.overwrite)
+    copy_with_selection(input_files, target_dir=args.target_dir, selection_function=selection_function, process=args.process, n_batches=args.n_batches, overwrite=args.overwrite)
