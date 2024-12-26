@@ -20,6 +20,7 @@ argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
+argParser.add_argument("--every",         action="store",      default=5, type=int,              help="Update plot at every 'every' iteration.")
 argParser.add_argument("--training",      action="store",      default="v6",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="tfmc",                   help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
@@ -88,7 +89,13 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    # Get the current learning rate
+
+    # Manually evaluate and update the learning rate
+    if hasattr(tfmc, 'lr_schedule'):  # Ensure the schedule exists
+        new_lr = tfmc.lr_schedule(epoch)
+        tfmc.optimizer.learning_rate.assign(new_lr)  # Update the optimizer's learning rate
+
+    # Print the current learning rate
     current_lr = tf.keras.backend.get_value(tfmc.optimizer.learning_rate)  # Direct access
     print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
@@ -103,7 +110,7 @@ for epoch in range(starting_epoch, config.n_epochs):
     #data, data_norm, weights, raw_labels, raw_labels_, remapped_labels, labels_one_hot, predictions, loss = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
     #assert False, ""
 
-    true_histograms, pred_histograms = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%5==0))
+    true_histograms, pred_histograms = tfmc.train_one_epoch(max_batch=max_batch, accumulate_histograms=(epoch%args.every==0))
     tfmc.save(model_directory, epoch)  # Save model and config after each epoch
 
     if true_histograms is not None and pred_histograms is not None:
@@ -118,7 +125,7 @@ for epoch in range(starting_epoch, config.n_epochs):
         common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
         common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
-    if epoch%5==0 or not args.small:
+    if epoch%args.every==0 or not args.small:
         common.syncer.sync()
 
 common.syncer.sync()

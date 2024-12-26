@@ -19,9 +19,10 @@ import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--process",       action="store",      default=None,                     help="Which process?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
-argParser.add_argument("--every",         action="store",      default=5, type=int,             help="Make plot every this number of epochs.")
-argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
+argParser.add_argument("--every",         action="store",      default=5, type=int,              help="Make plot every this number of epochs.")
+argParser.add_argument("--training",      action="store",      default="v1",                     help="Training version")
 argParser.add_argument("--config",        action="store",      default="pnn_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
@@ -33,10 +34,12 @@ import common.datasets as datasets
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
+subdir = [arg for arg in [args.process, args.selection] if arg is not None]
+
 # Do we use ICP?
 if config.icp is not None:
     from ML.ICP.ICP import InclusiveCrosssectionParametrization
-    icp = InclusiveCrosssectionParametrization.load(os.path.join(user.model_directory, "ICP", f"ICP_{args.selection}_{config.icp}.pkl"))
+    icp = InclusiveCrosssectionParametrization.load(os.path.join(user.model_directory, "ICP", "ICP_"+"_".join(subdirs)+"_"+config.icp+".pkl"))
     config.icp_predictor = icp.get_predictor()
     print("We use this ICP:")
     print(icp)
@@ -44,7 +47,7 @@ if config.icp is not None:
 # Do we use a Scaler?
 if config.use_scaler:
     from ML.Scaler.Scaler import Scaler
-    scaler = Scaler.load(os.path.join(user.model_directory, "Scaler", "Scaler_"+args.selection+'.pkl'))
+    scaler = Scaler.load(os.path.join(user.model_directory, "Scaler", "Scaler_"+"_".join(subdirs)+'.pkl'))
     config.feature_means     = scaler.feature_means
     config.feature_variances = scaler.feature_variances
 
@@ -52,11 +55,11 @@ if config.use_scaler:
     print(scaler)
 
 # Where to store the training
-model_directory = os.path.join(user.model_directory, "PNN", args.selection, args.config, args.training+("_small" if args.small else ""))
+model_directory = os.path.join(user.model_directory, "PNN", *subdirs,  args.config, args.training+("_small" if args.small else ""))
 os.makedirs(model_directory, exist_ok=True)
 
 # where to store the plots
-plot_directory  = os.path.join(user.plot_directory,  "PNN", args.selection, args.config, args.training+("_small" if args.small else ""))
+plot_directory  = os.path.join(user.plot_directory,  "PNN", *subdirs,  args.config, args.training+("_small" if args.small else ""))
 helpers.copyIndexPHP(plot_directory)
 
 # Initialize model
@@ -89,12 +92,14 @@ if not args.overwrite:
 
 # Training Loop
 for epoch in range(starting_epoch, config.n_epochs):
-    if isinstance(pnn.optimizer.learning_rate, tf.keras.optimizers.schedules.LearningRateSchedule):
-        current_lr = pnn.optimizer.learning_rate(epoch)  # Evaluate the scheduler
-    else:
-        current_lr = tf.keras.backend.get_value(pnn.optimizer.learning_rate)  # Direct access
 
-
+    # Manually evaluate and update the learning rate
+    if hasattr(pnn, 'lr_schedule'):  # Ensure the schedule exists
+        new_lr = pnn.lr_schedule(epoch)
+        pnn.optimizer.learning_rate.assign(new_lr)  # Update the optimizer's learning rate
+  
+    # Print the current learning rate
+    current_lr = tf.keras.backend.get_value(pnn.optimizer.learning_rate)  # Direct access
     print(f"Epoch {epoch}/{config.n_epochs} - Learning rate: {current_lr:.6f}")
 
     ## for debugging

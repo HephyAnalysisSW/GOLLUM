@@ -14,6 +14,7 @@ import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true',                                   help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--process",       action="store",      default=None,                     help="Which process?")
 argParser.add_argument("--config",        action="store",      default="icp_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',                                   help="Only one batch, for debugging")
@@ -25,7 +26,9 @@ config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 # import the data
 import common.datasets as datasets
 
-icp_name = f"ICP_{args.selection}_{args.config}"
+subdirs = [arg for arg in [args.process, args.selection, args.config] if arg is not None]
+
+icp_name = "ICP_"+"_".join(subdirs)
 
 model_directory = os.path.join( common.user.model_directory, "ICP" )
 os.makedirs(model_directory, exist_ok=True)
@@ -45,8 +48,8 @@ if icp is None or args.overwrite:
     time1 = time.time()
     icp = InclusiveCrosssectionParametrization( config = config )
 
-    icp.load_training_data(datasets, args.selection) 
-    icp.train             (datasets, args.selection, small=args.small)
+    icp.load_training_data(datasets=datasets, selection=args.selection, process=args.process) 
+    icp.train             (small=args.small)
 
     icp.save(filename)
     print ("Written %s"%( filename ))

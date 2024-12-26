@@ -20,7 +20,7 @@ base_point_index = {
  2:  (-2, 0, 0.0), 
  3:  (-1, -1, 0.0),
  4:  (-1, -1, 1.0),
- 5:  (-1, -1, 2.0),
+# 5:  (-1, -1, 2.0),
  6:  (-1, 0, 0.0), 
  7:  (-1, 0, 1.0), 
  8:  (-1, 0, 2.0), 
@@ -60,7 +60,7 @@ def get_alpha( base_point ):
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 # Make a matrix
-base_points        = [ base_point_index[i] for i in range(35) ] 
+base_points        = [ base_point_index[i] for i in range(35) if not i==5] 
 
 # Pick out the "SM" base point
 nominal_base_point = base_point_index[0]

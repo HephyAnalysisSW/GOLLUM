@@ -11,6 +11,7 @@ from configs.common import *
 import common.data_structure as data_structure
 
 n_epochs      = 200
+#n_epochs_phaseout = 50
 #learning_rate = 0.00015
 learning_rate = 0.01
 

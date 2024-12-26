@@ -8,7 +8,7 @@ import common.data_structure as data_structure
 
 class H5DataLoader:
 
-    def __init__(self, file_path, batch_size=None, n_split=None, selection_function=None):
+    def __init__(self, file_path, batch_size=None, n_split=None, process=None, selection_function=None):
         """
         Initialize the data loader.
 
@@ -21,8 +21,13 @@ class H5DataLoader:
         self.file_path = file_path
         self.batch_size = batch_size
         self.n_split = n_split
+        self.process = process # Optional process selection
         self.selection_function = selection_function  # Optional selection function
-        self._init_dataset()
+        try:
+            self._init_dataset()
+        except Exception as e:
+            print(f"Problem opening {self.file_path}")
+            raise e
 
     def _init_dataset(self):
         """Load dataset metadata and determine batch size or splits."""
@@ -60,14 +65,22 @@ class H5DataLoader:
             raise StopIteration
 
         # Load the batch
-        with h5py.File(self.file_path, 'r') as f:
-            start = self.current_index
-            end = min(self.current_index + self.batch_size, self.dataset_size)
-            batch_data = f['data'][start:end] 
+        try:
+            with h5py.File(self.file_path, 'r') as f:
+                start = self.current_index
+                end = min(self.current_index + self.batch_size, self.dataset_size)
+                batch_data = f['data'][start:end]
+        except Exception as e:
+            print(f"Problem in {self.file_path}")
+            raise e
 
         # Apply the selection function if provided
         if self.selection_function:
             batch_data = self.selection_function(batch_data)
+
+        # Apply the process selection 
+        if self.process:
+            batch_data = batch_data[batch_data[:,data_structure.label_index]==data_structure.label_encoding[self.process]]
             
         self.current_index += self.batch_size
         return batch_data
@@ -104,7 +117,8 @@ if __name__=="__main__":
     batch_size = None #64**2
     n_split    = 10000
 
-    file_path = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/processed/ztautau_tes_1p03.h5"
+    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_0p99_jes_0p99_met_2.h5"
+    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_1p01_jes_1p01_met_6.h5"
 
     # Example1: load all the data, then select
     data_loader_1 = H5DataLoader(
@@ -116,7 +130,6 @@ if __name__=="__main__":
     # select only the "inclusive" selection
     for batch in data_loader_1:
         features1, weights1, labels1 = data_loader_1.split(selections.inclusive(batch))
-        break
 
     # Example2 (equivalent): loop over selected data 
     data_loader_2 = H5DataLoader(

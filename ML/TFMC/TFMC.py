@@ -25,22 +25,24 @@ class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.n_epochs_phaseout = n_epochs_phaseout
 
     def __call__(self, epoch):
-            """
-            Calculate the learning rate based on the current epoch.
-            
-            Parameters:
-            - epoch: int or tf.Tensor, current epoch number.
-            
-            Returns:
-            - float, learning rate for the current epoch.
-            """
-            epoch = tf.cast(epoch, tf.float32)  # Ensure the epoch is a float
-            if epoch < self.n_epochs - self.n_epochs_phaseout:
-                return tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
-            else:
-                decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
-                decay_rate = self.initial_lr / self.n_epochs_phaseout
-                return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+        epoch = tf.cast(epoch, tf.float32)  # Ensure epoch is a tensor of float32
+        if self.n_epochs_phaseout <=0:
+            # Constant learning rate case
+            lr = tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Constant LR = {lr.numpy()}")
+            return lr
+        elif epoch < self.n_epochs - self.n_epochs_phaseout:
+            # Before phaseout starts, use the constant initial learning rate
+            lr = tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Constant LR = {lr.numpy()}")
+            return lr
+        else:
+            # Phaseout period
+            decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
+            decay_rate = self.initial_lr / self.n_epochs_phaseout
+            lr = self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Decay LR = {lr.numpy()} (decay_rate = {decay_rate})")
+            return lr
 
 class TFMC:
     def __init__(self, config=None, input_dim=None, classes=None, hidden_layers=None, reweighting=True):
@@ -74,13 +76,18 @@ class TFMC:
 
         self.model = self._build_model()
 
-        # Integrate learning rate scheduler
+        # Initialize the learning rate scheduler
         lr_schedule = PhaseoutScheduler(
             initial_lr=config.learning_rate,
             n_epochs=config.n_epochs,
             n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout",0),
         )
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
+        # Initialize the optimizer with a constant learning rate
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
+
+        # Assign the learning rate schedule manually (if you want to control it in the loop)
+        self.lr_schedule = lr_schedule
 
         self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction='none')
         self.metrics = tf.keras.metrics.CategoricalAccuracy()
@@ -144,7 +151,17 @@ class TFMC:
         return model
 
     def predict(self, data, ic_scaling=True):   
-        res =  self.model((data - self.feature_means) / np.sqrt(self.feature_variances), training=False).numpy()
+
+        # apply scaler
+        data_norm = (data - self.feature_means) / np.sqrt(self.feature_variances)
+
+        # preprocess features, if needed
+        if hasattr( self.config, "preprocessor"):
+            data_norm = self.config.preprocessor( data, data_norm)
+
+        # evaluate
+        res =  self.model(data_norm, training=False).numpy()
+
         # put back the inclusive xsec
         if ic_scaling:
             return res/self.class_weights # DCR

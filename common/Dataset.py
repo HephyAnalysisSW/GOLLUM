@@ -58,8 +58,11 @@ def parse_filename(filename):
         - process (str or None): The process name or None for nominal cases.
         - values (tuple): A tuple of three numerical values for 'tes', 'jes', and 'met' in that order.
     """
+    #FIXME: Remove this line: process_pattern = r"^(?!tes|jes|met)(.*?)_"  # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
     # Regex to match process and systematics
-    process_pattern = r"^(?!tes|jes|met)(.*?)_"  # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
+    process_pattern = r"^(?!tes|jes|met)(.*?)(?:_|$)" # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
+
+
     systematic_pattern = r"(tes|jes|met)_(\d+p\d+|\d+)"  # Matches systematics like 'tes_3p99', 'jes_1p01'
 
     # Remove the '.h5' extension

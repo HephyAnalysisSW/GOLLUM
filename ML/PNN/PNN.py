@@ -22,22 +22,24 @@ class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.n_epochs_phaseout = n_epochs_phaseout
 
     def __call__(self, epoch):
-            """
-            Calculate the learning rate based on the current epoch.
-            
-            Parameters:
-            - epoch: int or tf.Tensor, current epoch number.
-            
-            Returns:
-            - float, learning rate for the current epoch.
-            """
-            epoch = tf.cast(epoch, tf.float32)  # Ensure the epoch is a float
-            if epoch < self.n_epochs - self.n_epochs_phaseout:
-                return tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
-            else:
-                decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
-                decay_rate = self.initial_lr / self.n_epochs_phaseout
-                return self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+        epoch = tf.cast(epoch, tf.float32)  # Ensure epoch is a tensor of float32
+        if self.n_epochs_phaseout <=0:
+            # Constant learning rate case
+            lr = tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Constant LR = {lr.numpy()}")
+            return lr
+        elif epoch < self.n_epochs - self.n_epochs_phaseout:
+            # Before phaseout starts, use the constant initial learning rate
+            lr = tf.convert_to_tensor(self.initial_lr, dtype=tf.float32)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Constant LR = {lr.numpy()}")
+            return lr
+        else:
+            # Phaseout period
+            decay_start_epoch = self.n_epochs - self.n_epochs_phaseout
+            decay_rate = self.initial_lr / self.n_epochs_phaseout
+            lr = self.initial_lr - decay_rate * (epoch - decay_start_epoch)
+            #print(f"[PhaseoutScheduler] Epoch {epoch.numpy():.0f}: Decay LR = {lr.numpy()} (decay_rate = {decay_rate})")
+            return lr
 
 class PNN:
     def __init__(self, config):
@@ -103,14 +105,20 @@ class PNN:
 
         self.model = self._build_model()
 
-        # Integrate learning rate scheduler
+        # Initialize the learning rate scheduler
         lr_schedule = PhaseoutScheduler(
             initial_lr=config.learning_rate,
             n_epochs=config.n_epochs,
-            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout", 0),  # Default to 0 if not specified
+            n_epochs_phaseout=config.__dict__.get("n_epochs_phaseout",0),
         )
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
+        # Initialize the optimizer with a constant learning rate
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
+
+        # Assign the learning rate schedule manually (if you want to control it in the loop)
+        self.lr_schedule = lr_schedule
+
+        # Create the checkpoint
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
 
         if hasattr( config, "feature_means"):
@@ -448,7 +456,7 @@ class PNN:
             canvas = ROOT.TCanvas("c_convergence", "Convergence Plot", 500 * grid_size_x, 500 * grid_size_y)
             canvas.Divide(grid_size_x, grid_size_y)
 
-            colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]  # Define a set of colors
+            colors = data_structure.colors[:num_base_points] 
             colors[self.nominal_base_point_index] = ROOT.kBlack
 
             stuff = []  # Prevent ROOT objects from being garbage collected
@@ -480,11 +488,17 @@ class PNN:
                 else:
                     min_y = 0
 
+                max_y = 1.2*max_y
+
+                # Use y_ratio_range if provided
+                if normalized:
+                    min_y, max_y = data_structure.plot_options[feature_name].get('y_ratio_range', [min_y, max_y])
+                
                 h_frame = ROOT.TH2F(
                     f"h_frame_{feature_name}",
                     f";{x_axis_title};Probability",
                     n_bins, x_min, x_max,
-                    100, min_y, 1.2 * max_y,
+                    100, min_y, max_y,
                 )
                 h_frame.GetYaxis().SetTitleOffset(1.3)
                 h_frame.Draw()
@@ -527,6 +541,7 @@ class PNN:
             canvas.cd(legend_pad_index)
 
             legend = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+            legend.SetNColumns( 1+num_base_points//20 )
             legend.SetBorderSize(0)
             legend.SetShadowColor(0)
 

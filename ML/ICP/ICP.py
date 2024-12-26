@@ -77,17 +77,16 @@ class InclusiveCrosssectionParametrization:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-    def load_training_data( self, datasets, selection, n_split=10):
+    def load_training_data( self, datasets, selection, process=None, n_split=10):
         self.training_data = {}
         for base_point in self.base_points:
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=n_split)
+            data_loader = datasets.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
-    def train( self, datasets, selection, small=False):
-        #self.load_training_data(datasets, selection)
+    def train( self, small=False):
         self.yields = {}
         for base_point, loader in self.training_data.items():
             self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
