@@ -151,7 +151,17 @@ class TFMC:
         return model
 
     def predict(self, data, ic_scaling=True):   
-        res =  self.model((data - self.feature_means) / np.sqrt(self.feature_variances), training=False).numpy()
+
+        # apply scaler
+        data_norm = (data - self.feature_means) / np.sqrt(self.feature_variances)
+
+        # preprocess features, if needed
+        if hasattr( self.config, "preprocessor"):
+            data_norm = self.config.preprocessor( data, data_norm)
+
+        # evaluate
+        res =  self.model(data_norm, training=False).numpy()
+
         # put back the inclusive xsec
         if ic_scaling:
             return res/self.class_weights # DCR
