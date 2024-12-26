@@ -112,12 +112,13 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
             raise  # Re-raise the exception after logging or handling
         finally:
             # Ensure the file is deleted in all cases
-            try:
-                if os.path.exists(new_file_path):
-                    os.remove(new_file_path)
-                    print(f"Cleanup. File deleted: {new_file_path}")
-            except Exception as cleanup_error:
-                print(f"Failed to clean up {new_file_path}: {cleanup_error}")
+            if not skip_tmp_copy:
+                try:
+                    if os.path.exists(new_file_path):
+                        os.remove(new_file_path)
+                        print(f"Cleanup. File deleted: {new_file_path}")
+                except Exception as cleanup_error:
+                    print(f"Failed to clean up {new_file_path}: {cleanup_error}")
 
         print(f"Copied selected events to: {target_file}")
 

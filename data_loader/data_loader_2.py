@@ -118,6 +118,7 @@ if __name__=="__main__":
     n_split    = 10000
 
     file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_0p99_jes_0p99_met_2.h5"
+    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_1p01_jes_1p01_met_6.h5"
 
     # Example1: load all the data, then select
     data_loader_1 = H5DataLoader(
