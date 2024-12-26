@@ -2,8 +2,8 @@ import os
 
 # default
 data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
-#derived_data_directory = "/eos/vbc/group/cms/robert.schoefbeck/Higgs_uncertainty/data/"
 derived_data_directory = "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
+tmp_mem_directory      = "/dev/shm/%s/"%(os.environ['USER'])
 
 if os.environ['USER'] in ['robert.schoefbeck']:
     # Where the plots go:

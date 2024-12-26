@@ -80,7 +80,6 @@ class H5DataLoader:
 
         # Apply the process selection 
         if self.process:
-            print("Selectiong %s"%self.process)
             batch_data = batch_data[batch_data[:,data_structure.label_index]==data_structure.label_encoding[self.process]]
             
         self.current_index += self.batch_size

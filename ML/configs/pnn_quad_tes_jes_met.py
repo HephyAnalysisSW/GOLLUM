@@ -8,7 +8,7 @@ sys.path.insert( 0, '.')
 
 # Always the same:
 from configs.common import *
-
+import common.data_structure as data_structure
 parameters         = ['nu_tes', 'nu_jes', 'nu_met']
 # We learn a quadratic model for the nu_jes dependence in this config
 combinations       = [('nu_tes',),  ('nu_jes',), ('nu_met',), ('nu_tes', 'nu_tes'), ('nu_jes', 'nu_jes'), ('nu_met', 'nu_met'), ('nu_tes', 'nu_jes'), ('nu_tes', 'nu_met'), ('nu_jes', 'nu_met')]
@@ -64,3 +64,30 @@ base_points        = [ base_point_index[i] for i in range(35) ]
 
 # Pick out the "SM" base point
 nominal_base_point = base_point_index[0]
+
+# input dimensions
+input_dim     = len(data_structure.feature_names)
+
+# Scale external scaler (features)?
+use_scaler    = True
+
+# Use external inclusive xsec dependence? (Default: None)
+icp           = "icp_quad_tes_jes_met"
+
+# hidden layers
+hidden_layers = [128, 128]
+# activation function
+activation    = 'relu'
+
+# Number of epochs
+n_epochs           = 200
+n_epochs_phaseout  = 50
+
+# Learning rate 
+learning_rate = 0.001
+
+# Regularization
+#l1_reg          = 0.01
+#l2_reg          = 0.01
+#dropout         = 0.2
+initialize_zero = True
