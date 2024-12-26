@@ -14,7 +14,7 @@ import common.user as user
 import shutil
 import uuid
 
-def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False):
+def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False, copy_to_tmp=True):
     """
     Apply a selection function to events and copy the selected data to a target directory, writing each batch.
 
@@ -32,15 +32,17 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
         print(f"Processing file: {file_path}")
 
         # Copy input to tmp directory
-        tmp_dir = os.path.join( user.tmp_mem_directory, str(uuid.uuid4()) )
-        os.makedirs(tmp_dir, exist_ok=True)
-        new_file_path = os.path.join(tmp_dir, os.path.basename( file_path ))
-        print( f"Copy {file_path} to {new_file_path}")
-        shutil.copy(file_path, new_file_path)
+            if copy_to_tmp:
+            tmp_dir = os.path.join( user.tmp_mem_directory, str(uuid.uuid4()) )
+            os.makedirs(tmp_dir, exist_ok=True)
+            new_file_path = os.path.join(tmp_dir, os.path.basename( file_path ))
+            print( f"Copy {file_path} to {new_file_path}")
+            shutil.copy(file_path, new_file_path)
+            file_path = new_file_path
 
         # Initialize data loader
         data_loader = H5DataLoader(
-            file_path=new_file_path,
+            file_path=file_path,
             n_split=n_batches,
             selection_function=selection_function,
             process=process,
@@ -134,6 +136,8 @@ def parse_arguments():
                         help="Number of batches to divide the dataset into (default: 1000).")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing target files.")
+    parser.add_argument("--skip_tmp_copy", action="store_true",
+                        help="Do not copy to tmp before processing.")
     parser.add_argument("--cmds", action="store_true",
                         help="Write single jobs to jobs.sh.")
     return parser.parse_args()
@@ -173,9 +177,11 @@ if __name__ == "__main__":
                     cmds.extend( ["--process", args.process] )
                 if args.overwrite:
                     cmds.append("--overwrite")
+                if args.skip_tmp_copy:
+                    cmds.append("--skip_tmp_copy")
                 job_file.write(" ".join(cmds)+ '\n')
         print("Appended %i jobs to jobs.sh."%len(input_files))
         sys.exit(0)
 
     # Apply selection and copy files
-    copy_with_selection(input_files, target_dir=args.target_dir, selection_function=selection_function, process=args.process, n_batches=args.n_batches, overwrite=args.overwrite)
+    copy_with_selection(input_files, target_dir=args.target_dir, selection_function=selection_function, process=args.process, n_batches=args.n_batches, overwrite=args.overwrite, skip_tmp_copy=args.skip_tmp_copy)
