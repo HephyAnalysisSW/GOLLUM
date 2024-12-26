@@ -10,6 +10,9 @@ import h5py
 import numpy as np
 from data_loader.data_loader_2 import H5DataLoader
 import common.data_structure as data_structure
+import common.user as user
+import shutil
+import uuid
 
 def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False):
     """
@@ -28,9 +31,16 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
     for file_path in input_files:
         print(f"Processing file: {file_path}")
 
+        # Copy input to tmp directory
+        tmp_dir = os.path.join( user.tmp_mem_directory, str(uuid.uuid4()) )
+        os.makedirs(tmp_dir, exist_ok=True)
+        new_file_path = os.path.join(tmp_dir, os.path.basename( file_path ))
+        print( f"Copy {file_path} to {new_file_path}")
+        shutil.copy(file_path, new_file_path)
+
         # Initialize data loader
         data_loader = H5DataLoader(
-            file_path=file_path,
+            file_path=new_file_path,
             n_split=n_batches,
             selection_function=selection_function,
             process=process,
@@ -47,7 +57,7 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
 
             # the nominal file
             if base_name.startswith('nominal'):
-                file_name = base_name.str('nominal', process)
+                file_name = base_name.replace('nominal', process)
             # the input file was already process specific
             elif any( [base_name.startswith(l) for l in data_structure.labels] ):
                 file_name = base_name
@@ -67,33 +77,45 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
             os.remove(target_file)
 
         # Create the output file
-        print(f"Creating target file: {target_file}")
-        with h5py.File(target_file, "w") as f_out:
-            first_batch = next(iter(data_loader))  # Peek at the first batch to infer dataset shapes
-            dataset_shape = first_batch.shape[1:]  # Exclude batch dimension
-            f_out.create_dataset(
-                'data',
-                shape=(0, *dataset_shape),
-                maxshape=(None, *dataset_shape),
-                dtype=first_batch.dtype,
-                compression="gzip",  # Use gzip compression
-                compression_opts=4   # Compression level (1: fastest, 9: smallest)
-            )
+        try:
+            print(f"Creating target file: {target_file}")
+            with h5py.File(target_file, "w") as f_out:
+                first_batch = next(iter(data_loader))  # Peek at the first batch to infer dataset shapes
+                dataset_shape = first_batch.shape[1:]  # Exclude batch dimension
+                f_out.create_dataset(
+                    'data',
+                    shape=(0, *dataset_shape),
+                    maxshape=(None, *dataset_shape),
+                    dtype=first_batch.dtype,
+                    compression="gzip",  # Use gzip compression
+                    compression_opts=4   # Compression level (1: fastest, 9: smallest)
+                )
 
-            # Reset the data loader iterator after peeking
-            data_loader = iter(data_loader)
+                # Reset the data loader iterator after peeking
+                data_loader = iter(data_loader)
 
-            # Write each batch to the output file with progress bar
-            total_batches = len(data_loader)  # Total number of batches
-            with tqdm(total=total_batches, desc=f"Writing to {os.path.basename(target_file)}", unit="batch") as pbar:
-                i_batch=0
-                for data in data_loader:
-                    f_out['data'].resize(f_out['data'].shape[0] + data.shape[0], axis=0)
-                    f_out['data'][-data.shape[0]:] = data
-                    pbar.update(1)  # Update progress bar
-                    i_batch+=1
-                    if max_batch is not None:
-                        if i_batch>=max_batch: break
+                # Write each batch to the output file with progress bar
+                total_batches = len(data_loader)  # Total number of batches
+                with tqdm(total=total_batches, desc=f"Writing to {os.path.basename(target_file)}", unit="batch") as pbar:
+                    i_batch=0
+                    for data in data_loader:
+                        f_out['data'].resize(f_out['data'].shape[0] + data.shape[0], axis=0)
+                        f_out['data'][-data.shape[0]:] = data
+                        pbar.update(1)  # Update progress bar
+                        i_batch+=1
+                        if max_batch is not None:
+                            if i_batch>=max_batch: break
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            raise  # Re-raise the exception after logging or handling
+        finally:
+            # Ensure the file is deleted in all cases
+            try:
+                if os.path.exists(new_file_path):
+                    os.remove(new_file_path)
+                    print(f"Cleanup. File deleted: {new_file_path}")
+            except Exception as cleanup_error:
+                print(f"Failed to clean up {new_file_path}: {cleanup_error}")
 
         print(f"Copied selected events to: {target_file}")
 
