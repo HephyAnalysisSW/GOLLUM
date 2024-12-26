@@ -46,7 +46,7 @@ def get_data_loader( selection="inclusive", process=None, values=data_structure.
         selections.print_all()
     if (process, values) not in data[selection]:
         print("I don't have the file for this choice: process: %s values:%r"%((process if process is not None else "combined"), values))
-        print_all(specific_selection=selection)
+        print_all(specific_selection=selection, verbose=True)
     return H5DataLoader(
         file_path          = data[selection][(process, values)], 
         batch_size         = batch_size,
