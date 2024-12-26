@@ -442,7 +442,7 @@ class PNN:
             canvas = ROOT.TCanvas("c_convergence", "Convergence Plot", 500 * grid_size_x, 500 * grid_size_y)
             canvas.Divide(grid_size_x, grid_size_y)
 
-            colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]  # Define a set of colors
+            colors = data_structure.colors[:num_base_points] 
             colors[self.nominal_base_point_index] = ROOT.kBlack
 
             stuff = []  # Prevent ROOT objects from being garbage collected
@@ -474,11 +474,17 @@ class PNN:
                 else:
                     min_y = 0
 
+                max_y = 1.2*max_y
+
+                # Use y_ratio_range if provided
+                if normalized:
+                    min_y, max_y = data_structure.plot_options[feature_name].get('y_ratio_range', [min_y, max_y])
+                
                 h_frame = ROOT.TH2F(
                     f"h_frame_{feature_name}",
                     f";{x_axis_title};Probability",
                     n_bins, x_min, x_max,
-                    100, min_y, 1.2 * max_y,
+                    100, min_y, max_y,
                 )
                 h_frame.GetYaxis().SetTitleOffset(1.3)
                 h_frame.Draw()
@@ -521,6 +527,7 @@ class PNN:
             canvas.cd(legend_pad_index)
 
             legend = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+            legend.SetNColumns( 1+num_base_points//20 )
             legend.SetBorderSize(0)
             legend.SetShadowColor(0)
 
