@@ -1,0 +1,98 @@
+'''
+This is a class to perform likelihood fits.
+There is a function implemented that acts as a likelihood but it can be
+exchanged with any function that takes mu and nus as arguments.
+'''
+from iminuit import Minuit
+
+class likelihoodFit:
+    def __init__(self, function=None):
+        if function is None:
+            self.function = self.likelihood_function
+        else:
+            self.function = function
+
+    def likelihood_function(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+        # this defines the function that is minimized
+        penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
+        return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2*penalty
+
+    def fit(self):
+        # function to find the global minimum, minimizing mu and nus
+        print("Fit global minimum")
+        errordef = Minuit.LEAST_SQUARES
+        m = Minuit(self.function, mu=0.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+        m.limits["mu"] = (0.0, None)
+        m.migrad()
+        return m.fval, m.values
+
+    def scan(self, Npoints=100, mumin=-5, mumax=5):
+        # Scan over points of mu
+        print("Scan signal strength")
+        # First find global Min and store MLE values
+        q_mle, parameters_mle = self.fit()
+        # Now make scan over nu
+        qDeltas = []
+        muList = [mumin+i*(mumax-mumin)/Npoints for i in range(Npoints)]
+        errordef = Minuit.LEAST_SQUARES
+        fmu = 1
+        for i_mu, mu in enumerate(muList):
+            # Create a function that fixes mu and only uses the nu as arguments
+            fixed_mu = mu
+            likelihood_fixedMu = lambda nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: self.function(fixed_mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
+            m = Minuit(likelihood_fixedMu, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+            m.migrad()
+            qDeltas.append(m.fval-q_mle)
+            if (i_mu+1)/len(muList)*100 >= 10*fmu:
+                print(f"Scaned {i_mu+1}/{len(muList)}")
+                fmu += 1
+        return qDeltas, muList
+
+    def impacts(self):
+        print("Calculate impacts")
+        # First find global Min and store MLE values
+        q_mle, parameters_mle = self.fit()
+        mu_mle = parameters_mle["mu"]
+        nu_bkg_mle = parameters_mle["nu_bkg"]
+        nu_tt_mle = parameters_mle["nu_tt"]
+        nu_diboson_mle = parameters_mle["nu_diboson"]
+        nu_jes_mle = parameters_mle["nu_jes"]
+        nu_tes_mle = parameters_mle["nu_tes"]
+        nu_met_mle = parameters_mle["nu_met"]
+
+        # Define functions that fix all parameters but a single nu
+        nu_bkg_function = lambda nu_bkg: abs(self.function(mu_mle, nu_bkg, nu_tt_mle, nu_diboson_mle, nu_jes_mle, nu_tes_mle, nu_met_mle)-q_mle-1.0)
+        nu_tt_function =      lambda nu_tt: abs(self.function(mu_mle, nu_bkg_mle, nu_tt, nu_diboson_mle, nu_jes_mle, nu_tes_mle, nu_met_mle)-q_mle-1.0)
+        nu_diboson_function = lambda nu_diboson: abs(self.function(mu_mle, nu_bkg_mle, nu_tt_mle, nu_diboson, nu_jes_mle, nu_tes_mle, nu_met_mle)-q_mle-1.0)
+        nu_jes_function = lambda nu_jes: abs(self.function(mu_mle, nu_bkg_mle, nu_tt_mle, nu_diboson_mle, nu_jes, nu_tes_mle, nu_met_mle)-q_mle-1.0)
+        nu_tes_function = lambda nu_tes: abs(self.function(mu_mle, nu_bkg_mle, nu_tt_mle, nu_diboson_mle, nu_jes_mle, nu_tes, nu_met_mle)-q_mle-1.0)
+        nu_met_function = lambda nu_met: abs(self.function(mu_mle, nu_bkg_mle, nu_tt_mle, nu_diboson_mle, nu_jes_mle, nu_tes_mle, nu_met)-q_mle-1.0)
+        nu_functions = {
+            "nu_bkg": nu_bkg_function,
+            "nu_tt": nu_tt_function,
+            "nu_diboson": nu_diboson_function,
+            "nu_jes": nu_jes_function,
+            "nu_tes": nu_tes_function,
+            "nu_met": nu_met_function,
+        }
+
+        # Now go through each nu and find point where q - q_mle == 1
+        # Do this from nu_mle to both sides to find lower and upper boundaries
+        limits = {}
+        for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
+            upper, lower = None, None
+
+            # Use **kwargs in order to dynamically change the parameters
+            param_up = {nuname: parameters_mle[nuname] + 0.01}
+            m_up = Minuit(nu_functions[nuname], **param_up)
+            m_up.limits[nuname] = (parameters_mle[nuname], None)
+            m_up.migrad()
+            upper = m_up.values[nuname]
+
+            param_down = {nuname: parameters_mle[nuname] - 0.01}
+            m_down = Minuit(nu_functions[nuname], **param_down)
+            m_down.limits[nuname] = (None, parameters_mle[nuname])
+            m_down.migrad()
+            lower = m_down.values[nuname]
+            limits[nuname] = (parameters_mle[nuname], lower, upper)
+        return limits

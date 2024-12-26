@@ -311,6 +311,20 @@ class PNN:
             (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
         return bias_factor*np.exp(np.dot(DeltaA.numpy(), self.nu_A(nu) ))
 
+    def get_bias( self):
+        if hasattr( self.config, "icp") and self.config.icp is not None:
+            # Attention. No guarantee that ICP and PNN are trained with the same base-points. Have to be careful! We can have inconsistent definitions of nu in ICP and PNN!!
+            bias = np.dot( self.config.icp.nu_A(base_point), self.config.icp.DeltaA ) 
+        else:
+            bias = 0
+        return bias
+
+    def get_DeltaA( self, features):
+        DeltaA = self.model( tf.convert_to_tensor(
+            (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
+        return DeltaA
+
+
     def save(self, save_dir, epoch):
         """
         Save the model, optimizer state, and config module name to a file.

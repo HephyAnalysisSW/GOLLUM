@@ -8,7 +8,7 @@ sys.path.insert(0, '../..')
 import common.data_structure as data_structure
 
 npHistograms = {}
-processes = []
+processes = ["htautau", "ztautau", "ttbar", "diboson"]
 for process in processes+["test", "nominal"]:
     npHistograms[process] = {}
     for feature in data_structure.feature_names:
