@@ -32,7 +32,7 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
         print(f"Processing file: {file_path}")
 
         # Copy input to tmp directory
-            if copy_to_tmp:
+        if copy_to_tmp:
             tmp_dir = os.path.join( user.tmp_mem_directory, str(uuid.uuid4()) )
             os.makedirs(tmp_dir, exist_ok=True)
             new_file_path = os.path.join(tmp_dir, os.path.basename( file_path ))
