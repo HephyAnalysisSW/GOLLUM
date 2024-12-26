@@ -14,7 +14,7 @@ import common.user as user
 import shutil
 import uuid
 
-def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False, copy_to_tmp=True):
+def copy_with_selection(input_files, target_dir, selection_function, process=None, n_batches=100, max_batch = None, overwrite=False, skip_tmp_copy=False):
     """
     Apply a selection function to events and copy the selected data to a target directory, writing each batch.
 
@@ -32,7 +32,7 @@ def copy_with_selection(input_files, target_dir, selection_function, process=Non
         print(f"Processing file: {file_path}")
 
         # Copy input to tmp directory
-        if copy_to_tmp:
+        if not skip_tmp_copy:
             tmp_dir = os.path.join( user.tmp_mem_directory, str(uuid.uuid4()) )
             os.makedirs(tmp_dir, exist_ok=True)
             new_file_path = os.path.join(tmp_dir, os.path.basename( file_path ))
