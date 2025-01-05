@@ -178,16 +178,17 @@ class PNN:
 
         return model
 
-    def load_training_data( self, datasets, selection, n_split=10):
+    def load_training_data( self, datasets, selection, process=None, n_split=10):
         self.training_data = {}
+        self.process = process
         for base_point in self.base_points:
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=n_split)
-            print ("PNN training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path))
+            data_loader = datasets.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
+            print ("PNN training data: process %s Base point nu = %r, alpha = %r, file = %s"%( (process if process is not None else "combined"), base_point, values, data_loader.file_path))
             self.training_data[base_point] = data_loader
 
-    def train_one_epoch(self, max_batch=-1, accumulate_histograms=False):
+    def train_one_epoch(self, max_batch=-1, accumulate_histograms=False, rebin=1):
         """
         Train the model for one epoch using the data loader, with optional histogram accumulation.
 
@@ -207,10 +208,11 @@ class PNN:
 
             for feature_name in data_structure.plot_options.keys():
                 n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+                # make plots coarser
+                n_bins = n_bins//rebin
                 true_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
                 pred_histograms[feature_name] = np.zeros((n_bins, len(self.base_points)))
                 bin_edges[feature_name] = np.linspace(x_min, x_max, n_bins + 1)
-
         total_loss = 0.0
         i_batch = 0
 
@@ -265,6 +267,9 @@ class PNN:
                             feature_values_nominal = features_nominal[:, feature_idx]
                             feature_values_nu = features_nu[:, feature_idx]
                             n_bins, x_min, x_max = data_structure.plot_options[feature_name]['binning']
+
+                            # make plots coarser
+                            n_bins = n_bins//rebin
 
                             # Compute true probabilities for nu
                             true_histogram_nu, _ = np.histogram(
@@ -411,7 +416,7 @@ class PNN:
 
         return new_instance
 
-    def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names):
+    def plot_convergence_root(self, true_histograms, pred_histograms, epoch, output_path, feature_names, rebin=1):
         """
         Plot and save the convergence visualization for all features in one canvas using ROOT.
 
@@ -481,6 +486,10 @@ class PNN:
 
                 # Fetch binning and axis title from plot_options
                 n_bins, x_min, x_max = data_structure.plot_options[feature_name]["binning"]
+
+                # make plots coarser
+                n_bins = n_bins//rebin
+                
                 x_axis_title = data_structure.plot_options[feature_name]["tex"]
 
                 if normalized: 

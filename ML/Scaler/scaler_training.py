@@ -15,6 +15,7 @@ import argparse
 argParser = argparse.ArgumentParser(description="Argument parser")
 argParser.add_argument('--overwrite', action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection", action="store", default="lowMT_VBFJet", help="Which selection?")
+argParser.add_argument("--process", action="store", default=None, help="Which proecss?")
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
 args = argParser.parse_args()
 
@@ -23,7 +24,8 @@ import common.datasets as datasets
 
 print("Scaler training for selection " + '\033[1m' + f"{args.selection}" + '\033[0m')
 
-scaler_name = f"Scaler_{args.selection}"
+subdirs = [arg for arg in [args.process, args.selection] if arg is not None]
+scaler_name = "Scaler_"+"_".join(subdirs)
 
 model_directory = os.path.join(common.user.model_directory, "Scaler")
 os.makedirs(model_directory, exist_ok=True)
@@ -43,8 +45,8 @@ if scaler is None or args.overwrite:
     time1 = time.time()
     scaler = Scaler()
 
-    scaler.load_training_data(datasets, args.selection)
-    scaler.train(datasets, args.selection, small=args.small)
+    scaler.load_training_data(datasets=datasets, selection=args.selection, process=args.process)
+    scaler.train(small=args.small)
 
     scaler.save(filename)
     print(f"Written {filename}")

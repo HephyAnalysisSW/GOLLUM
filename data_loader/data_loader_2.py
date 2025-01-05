@@ -130,6 +130,7 @@ if __name__=="__main__":
     # select only the "inclusive" selection
     for batch in data_loader_1:
         features1, weights1, labels1 = data_loader_1.split(selections.inclusive(batch))
+        break 
 
     # Example2 (equivalent): loop over selected data 
     data_loader_2 = H5DataLoader(

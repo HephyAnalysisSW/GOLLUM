@@ -9,11 +9,11 @@
 #python plot.py --selection ptH100
 #python plot.py --selection ptH200
 
-python plot.py --selection lowMT_VBFJet
-python plot.py --selection highMT_VBFJet
-python plot.py --selection lowMT_noVBFJet_ptH0to100
-python plot.py --selection lowMT_noVBFJet_ptH100to200
-python plot.py --selection lowMT_noVBFJet_ptH200
-python plot.py --selection highMT_noVBFJet_ptH0to100
-python plot.py --selection highMT_noVBFJet_ptH100to200
-python plot.py --selection highMT_noVBFJet_ptH200
+#python plot.py --selection lowMT_VBFJet
+#python plot.py --selection highMT_VBFJet
+#python plot.py --selection lowMT_noVBFJet_ptH0to100
+#python plot.py --selection lowMT_noVBFJet_ptH100
+#python plot.py --selection highMT_noVBFJet
+
+python plot.py --selection highMT
+python plot.py --selection GGHMVA_lowMT_noVBFJet_ptH0to100

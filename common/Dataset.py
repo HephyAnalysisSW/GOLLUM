@@ -95,6 +95,9 @@ def parse_filename(filename):
         elif sys_name == "met":
             values[2] = value
 
+    if process=="nominal":
+        process=None
+
     return process, tuple(values)
 
 #examples = [
