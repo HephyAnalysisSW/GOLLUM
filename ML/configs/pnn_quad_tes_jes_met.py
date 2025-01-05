@@ -9,9 +9,13 @@ sys.path.insert( 0, '.')
 # Always the same:
 from configs.common import *
 import common.data_structure as data_structure
+
+# Nuisance parameters
 parameters         = ['nu_tes', 'nu_jes', 'nu_met']
 # We learn a quadratic model for the nu_jes dependence in this config
-combinations       = [('nu_tes',),  ('nu_jes',), ('nu_met',), ('nu_tes', 'nu_tes'), ('nu_jes', 'nu_jes'), ('nu_met', 'nu_met'), ('nu_tes', 'nu_jes'), ('nu_tes', 'nu_met'), ('nu_jes', 'nu_met')]
+combinations       = [('nu_tes',),  ('nu_jes',), ('nu_met',), 
+                      ('nu_tes', 'nu_tes'), ('nu_jes', 'nu_jes'), ('nu_met', 'nu_met'), 
+                      ('nu_tes', 'nu_jes'), ('nu_tes', 'nu_met'), ('nu_jes', 'nu_met')]
 
 # Base point coordinates in tes/jes/met; Example: jes, where we have +/- 3 sigma in steps
 base_point_index = {

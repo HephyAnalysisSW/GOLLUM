@@ -72,7 +72,7 @@ def create_dataloader(file_path, dataset_names, batch_size, split_ratio=0.7, loa
     return train_loader, test_loader
 
 if __name__=="__main__":
-    l1, l2 = create_dataloader( '/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_1p01_jes_1p01_met_6.h5', ['data'], 1024)
+    l1, l2 = create_dataloader( '/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/met_1.h5', ['data'], 1024)
 
     for batch in l1:
         print(batch)
