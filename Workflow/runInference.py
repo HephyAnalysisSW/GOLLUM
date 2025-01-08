@@ -21,6 +21,7 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   infer = Inference(args.config)
+  configName = args.config.replace(".yaml", "")
   if args.save:
     infer.save(filename="test",isData=False)
   if args.predict:
@@ -33,13 +34,13 @@ if __name__ == '__main__':
     # Perform a likelihood scan over mu and store result in arrays
     if args.scan:
         deltaQ,muPoints = fit.scan(Npoints=20, mumin=0, mumax=2)
-        np.savez('likelihoodScan.npz', deltaQ=np.array(deltaQ), mu=np.array(muPoints))
+        np.savez('likelihoodScan.'+configName+'.npz', deltaQ=np.array(deltaQ), mu=np.array(muPoints))
     # Get constraints for all nuisances and store in a dictionary
     # For each parameter, there is a tuple with values (nu_mle, nu_lower, nu_upper)
     if args.impacts:
         postFitUncerts = fit.impacts()
         print(f"postFit parameter boundaries: {postFitUncerts}")
-        with open('postFitUncerts.pkl', 'wb') as file:
+        with open('postFitUncerts.'+configName+'.pkl', 'wb') as file:
             pickle.dump(postFitUncerts, file)
     infer.clossMLresults()
   # Below is the deprecated feature that calculates the ML prediction on the fly

@@ -1,6 +1,7 @@
 import ROOT
 import pickle
 import sys
+import argparse
 sys.path.insert(0, "..")
 import common.syncer
 import common.user as user
@@ -75,7 +76,14 @@ def getLines():
         l.SetLineWidth(2)
     return lines
 
-with open('postFitUncerts.pkl', 'rb') as file:
+
+parser = argparse.ArgumentParser(description="PostFit Uncertainty Plot.")
+parser.add_argument("-f","--file", help="Path to the file containing the uncertainties.")
+args = parser.parse_args()
+
+
+
+with open(args.file, 'rb') as file:
     postFitUncerts = pickle.load(file)
 
 
@@ -116,4 +124,4 @@ leg.AddEntry(g, "PostFit", "pl")
 leg.AddEntry(g_prefit, "PreFit", "f")
 leg.Draw()
 ROOT.gPad.RedrawAxis()
-c.Print(user.plot_directory+"/postFitUncerts.pdf")
+c.Print(user.plot_directory+"/"+args.file.replace(".pkl",".pdf"))
