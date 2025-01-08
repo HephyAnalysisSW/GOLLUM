@@ -24,6 +24,7 @@ class likelihoodFit:
         m = Minuit(self.function, mu=0.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
         m.limits["mu"] = (0.0, None)
         m.migrad()
+        print(m)
         return m.fval, m.values
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
@@ -42,6 +43,7 @@ class likelihoodFit:
             likelihood_fixedMu = lambda nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: self.function(fixed_mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
             m = Minuit(likelihood_fixedMu, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
             m.migrad()
+            print(m)
             qDeltas.append(m.fval-q_mle)
             if (i_mu+1)/len(muList)*100 >= 10*fmu:
                 print(f"Scaned {i_mu+1}/{len(muList)}")
@@ -87,12 +89,14 @@ class likelihoodFit:
             m_up = Minuit(nu_functions[nuname], **param_up)
             m_up.limits[nuname] = (parameters_mle[nuname], None)
             m_up.migrad()
+            print(m_up)
             upper = m_up.values[nuname]
 
             param_down = {nuname: parameters_mle[nuname] - 0.01}
             m_down = Minuit(nu_functions[nuname], **param_down)
             m_down.limits[nuname] = (None, parameters_mle[nuname])
             m_down.migrad()
+            print(m_down)
             lower = m_down.values[nuname]
             limits[nuname] = (parameters_mle[nuname], lower, upper)
         return limits
