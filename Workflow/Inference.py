@@ -21,6 +21,9 @@ class Inference:
     self.loadmodels()
     self.loaddata()
     self.h5s = {}
+    self.alpha_bkg = self.cfg['Parameters']['alpha_bkg']
+    self.alpha_tt = self.cfg['Parameters']['alpha_tt']
+    self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
 
   def loaddata(self):
     import common.datasets as datasets
@@ -79,14 +82,9 @@ class Inference:
       # to be implemented
 
       # RATES
-      # FIXME: hardcode alphas for now
-      alpha_bkg = 0.001
-      alpha_tt = 0.02
-      alpha_diboson = 0.25
-
-      f_bkg_rate = (1+alpha_bkg)**nu_bkg
-      f_tt_rate = (1+alpha_tt)**nu_tt
-      f_diboson_rate = (1+alpha_diboson)**nu_diboson
+      f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+      f_tt_rate = (1+self.alpha_tt)**nu_tt
+      f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
 
       #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
       return ((mu*p_mc[:,0] + p_mc[:,1]*f_bkg_rate + p_mc[:,2]*f_tt_rate*f_bkg_rate + p_mc[:,3]*f_diboson_rate*f_bkg_rate) / p_mc[:,:].sum(axis=1))*p_pnn_jes

@@ -22,3 +22,8 @@ JES:
   model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/lowMT_VBFJet/pnn_quad_jes/v3"
   save:
     - DeltaA
+
+Parameters:
+  alpha_bkg: 0.001
+  alpha_tt: 0.02
+  alpha_diboson: 0.25
