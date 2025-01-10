@@ -1,8 +1,13 @@
+import sys
+import os
+sys.path.insert( 0, '..')
+sys.path.insert( 0, '.')
 import importlib
 import yaml
 import h5py
 import numpy as np
 import networks.Models as ms
+from data_loader.data_loader_2 import H5DataLoader
 
 class Inference:
   def __init__(self,cfg_path):
@@ -13,13 +18,16 @@ class Inference:
     assert "Tasks" in self.cfg, "Section Tasks not defined in config!"
 
     self.data = {}
+    self.toys = {}
     self.models = {}
     self.teststat = {}
     self.selections = self.cfg['Data']['selections']
     self.n_split = self.cfg['Data']['n_split']
     self.max_n_batch = self.cfg['Data']['max_n_batch']
     self.loadmodels()
+    # FIXME: loading data and toys here might be a bit waste of memory...
     self.loaddata()
+    self.loadtoy()
     self.h5s = {}
 
   def loaddata(self):
@@ -27,6 +35,17 @@ class Inference:
     for s in self.selections:
       self.data[s] = datasets.get_data_loader( selection=s, n_split=self.n_split)
       print("Data loaded for selection: {}".format(s))
+
+  def loadtoy(self):
+    for s in self.selections:
+      toy_path = os.path.join(self.cfg['Data']['Toy']['dir'],s,self.cfg['Data']['Toy']['filename'])
+      self.toys[s] = H5DataLoader(
+          file_path          = toy_path, 
+          batch_size         = self.cfg['Data']['Toy']['batch_size'],
+          n_split            = self.cfg['Data']['Toy']['n_split'],
+          selection_function = None,
+      ) 
+      print("Toy loaded for selection {} from {}.".format(s,toy_path))
 
   def loadH5(self,filename):
     h5f = h5py.File(filename)
@@ -130,8 +149,9 @@ class Inference:
           h5f.attrs[t+"_module"] = self.cfg[t]["module"]
           h5f.attrs[t+"_model_path"] = self.cfg[t]["model_path"]
 
-        for i_batch, batch in enumerate(self.data[s]):
-          features, weights, labels = self.data[s].split(batch)
+        data_input = self.data[s] if not isData else self.toys[s]
+        for i_batch, batch in enumerate(data_input):
+          features, weights, labels = data_input.split(batch)
           if isData:
             nevts = features.shape[0]
             labels = np.array([-1]*nevts)
@@ -177,15 +197,16 @@ class Inference:
     penalty = self.penalty(nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
 
     # Handle toys
-    # FIXME: toys dataloader not implemented in the Inference. Need to modify this later.
     if isData:
       self.save("toy",isData)
       self.loadMLresults(name='toy',filename='toy')
+      weights_toy = self.h5s['toy'][selection]["Weight"]
       dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
     else:
       dSoDS_toy = dSoDS_sim
+      weights_toy = weights
 
-    uTerm = -2 *(incS+(weights[:]*np.log(dSoDS_toy)).sum())+penalty
+    uTerm = -2 *(incS+(weights_toy[:]*np.log(dSoDS_toy)).sum())+penalty
 
     return uTerm
 

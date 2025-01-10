@@ -7,6 +7,12 @@ Data:
     - "lowMT_VBFJet"
   n_split: 100
   max_n_batch: 1 # set to -1 as infinity
+  Toy:
+    dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
+    filename: "jes_0p99_met_2.h5"
+    n_split: 100
+    batch_size: 
+  
 
 Predict:
   sim_path: "test"
