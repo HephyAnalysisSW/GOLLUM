@@ -184,6 +184,11 @@ class Inference:
 
   def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
     self.loadMLresults(name='sim')
+    # Handle toys
+    if self.cfg['Predict']['use_toy']:
+      if not ('toy' in self.h5s):
+        self.save("toy",isData=True)
+        self.loadMLresults(name='toy',filename='toy')
 
     # perform the calculation
     uTerm = 0
@@ -195,8 +200,6 @@ class Inference:
 
       # Handle toys
       if self.cfg['Predict']['use_toy']:
-        self.save("toy",isData=True)
-        self.loadMLresults(name='toy',filename='toy')
         weights_toy = self.h5s['toy'][selection]["Weight"]
         dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
       else:

@@ -16,7 +16,7 @@ Data:
 
 Predict:
   sim_path: "test"
-  use_toy: False
+  use_toy: True
 
 MultiClassifier:
   module: "TFMC"
