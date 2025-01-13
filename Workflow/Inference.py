@@ -150,6 +150,7 @@ class Inference:
         data_input = self.data[s] if not isData else self.toys[s]
         for i_batch, batch in enumerate(data_input):
           features, weights, labels = data_input.split(batch)
+          # FIXME: For toys, it automatically sets the weights to 1, this does not work for weighted toys. Need to check the toys structure and modify 
           if isData:
             nevts = features.shape[0]
             labels = np.array([-1]*nevts)
@@ -183,23 +184,21 @@ class Inference:
 
   def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
     self.loadMLresults(name='sim')
-    # calculate the toy h5 file on the fly, commented out for now
-    #self.save("toy",isData)
 
     # perform the calculation
     uTerm = 0
     for selection in self.selections:
       weights = self.h5s['sim'][selection]["Weight"]
-      dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+      dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
       incS = (weights[:]*(1-dSoDS_sim)).sum()
-      penalty = self.penalty(nu_ztautau, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
+      penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
 
       # Handle toys
-      if isData:
-        self.save("toy",isData)
+      if self.cfg['Predict']['use_toy']:
+        self.save("toy",isData=True)
         self.loadMLresults(name='toy',filename='toy')
         weights_toy = self.h5s['toy'][selection]["Weight"]
-        dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_ztautau=nu_ztautau, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+        dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
       else:
         dSoDS_toy = dSoDS_sim
         weights_toy = weights
