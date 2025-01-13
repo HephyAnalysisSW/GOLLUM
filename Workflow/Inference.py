@@ -154,7 +154,7 @@ class Inference:
           if isData:
             nevts = features.shape[0]
             labels = np.array([-1]*nevts)
-            weights = np.array([1]*nevts)
+            #weights = np.array([1]*nevts)
 
           datasets["Label"].append(labels)
           datasets["Weight"].append(weights)
