@@ -89,8 +89,12 @@ class Inference:
       # Multiclassifier
       p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
 
-      # JES
-      DA_pnn_jes = self.h5s[name][selection]["JES_DeltaA"]
+      # JES # <= remove, should be htautau
+      DA_pnn_jes = self.h5s[name][selection]["JES_DeltaA"] 
+      # DA_pnn_htautau = self.h5s[name][selection]["DeltaA"] # <- this should be Nx9, 9 numbers per event
+
+      # nu_A = self.models['htautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+
       nu_A = self.models['JES'].nu_A((nu_jes,))
       p_pnn_jes = np.exp( np.dot(DA_pnn_jes, nu_A))
 
