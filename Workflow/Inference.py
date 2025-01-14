@@ -78,31 +78,29 @@ class Inference:
       print("Task {}: Module {} loaded with model path {}.".format(t,self.cfg[t]["module"],self.cfg[t]["model_path"]))
       #setattr(self,t,m.load(cfg[t]["model_path"]))
 
-  def dSigmaOverDSigmaSM( self, features, mu=1, nu_jes=0 ):
-      # FIXME: this ONLY works with multiclassifier and JES. Will make it more flexible when other uncertainties come
-      p_mc = self.models['MultiClassifier'].predict(features)
-      p_pnn_jes = self.models['JES'].predict(features, nu=(nu_jes,))
-      return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
-
   def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_jes=0, nu_tes=0, nu_met=0):
-      # FIXME: this ONLY works with multiclassifier and JES. Will make it more flexible when other uncertainties come
       # Multiclassifier
       p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
 
-      # JES # <= remove, should be htautau
-      DA_pnn_jes = self.h5s[name][selection]["JES_DeltaA"] 
-      # DA_pnn_htautau = self.h5s[name][selection]["DeltaA"] # <- this should be Nx9, 9 numbers per event
+      # htautau
+      DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
+      nu_A_htautau = self.models['htautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      p_pnn_htautau = np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
 
-      # nu_A = self.models['htautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      # ztautau
+      DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
+      nu_A_ztautau = self.models['ztautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      p_pnn_ztautau = np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
 
-      nu_A = self.models['JES'].nu_A((nu_jes,))
-      p_pnn_jes = np.exp( np.dot(DA_pnn_jes, nu_A))
+      # ttbar 
+      DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
+      nu_A_ttbar = self.models['ttbar'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      p_pnn_ttbar = np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
 
-      # TES
-      # to be implemented
-
-      # MET
-      # to be implemented
+      # diboson
+      DA_pnn_diboson = self.h5s[name][selection]["diboson_DeltaA"] # <- this should be Nx9, 9 numbers per event
+      nu_A_diboson = self.models['diboson'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      p_pnn_diboson= np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
 
       # RATES
       f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
@@ -110,7 +108,7 @@ class Inference:
       f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
 
       #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
-      return ((mu*p_mc[:,0] + p_mc[:,1]*f_bkg_rate + p_mc[:,2]*f_tt_rate*f_bkg_rate + p_mc[:,3]*f_diboson_rate*f_bkg_rate) / p_mc[:,:].sum(axis=1))*p_pnn_jes
+      return ((mu*p_mc[:,0]*p_pnn_htautau + p_mc[:,1]*f_bkg_rate*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*f_bkg_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*f_bkg_rate*p_pnn_diboson) / p_mc[:,:].sum(axis=1))
 
 
   def testStat(self, mu, nu_jes):

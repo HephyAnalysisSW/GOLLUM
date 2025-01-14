@@ -1,6 +1,9 @@
 Tasks:
   - MultiClassifier
-  - JES
+  - htautau
+  - ztautau
+  - ttbar
+  - diboson
 
 Data:
   selections:
@@ -20,13 +23,31 @@ Predict:
 
 MultiClassifier:
   module: "TFMC"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_5/v5"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6"
   save:
     - predict
 
-JES:
+htautau:
   module: "PNN"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/lowMT_VBFJet/pnn_quad_jes/v3"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  save:
+    - DeltaA
+
+ztautau:
+  module: "PNN"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  save:
+    - DeltaA
+
+ttbar:
+  module: "PNN"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  save:
+    - DeltaA
+
+diboson:
+  module: "PNN"
+  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 
