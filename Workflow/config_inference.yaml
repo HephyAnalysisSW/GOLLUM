@@ -13,24 +13,13 @@ Selections:
     #  - "highMT_noVBFJet"
     #  - "highMT_VBFJet"
 
-TrainingData:
-  n_split: 100
-  max_n_batch: 1 # set to -1 as infinity
-
-Toy:
-  dirs: 
-    - "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
-  filenames: 
-    - "jes_0p99_met_2.h5"
-  n_split: 100
-  batch_size: 
-  max_n_batch: 1
+Toy_name: "jes_0p99_met_2"
 
 Save:
   TrainingData: # pre-defined "TrainingData" used for training
     n_split: 100
     max_n_batch: 1 # set to -1 as infinity
-  jes_0p99_met_2: # toys, name can be changes
+  Toy: # toys, name can be changed
     dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
     filename: "jes_0p99_met_2.h5"
     n_split: 100
@@ -40,7 +29,6 @@ Save:
 Predict:
   use_toy: True
   TrainingData: "TrainingData"
-  Toy: "jes_0p99_met_2"
 
 MultiClassifier:
   lowMT_VBFJet:

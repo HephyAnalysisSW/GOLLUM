@@ -142,7 +142,10 @@ class Inference:
     """
     for s in self.selections:
       for obj in self.cfg['Save']:
-        with h5py.File(obj+s+'.h5', "w") as h5f:
+        obj_fn = obj+s+'.h5'
+        if obj == "Toy":
+          obj_fn = self.cfg['Toy_name']+s+'.h5'
+        with h5py.File(obj_fn, "w") as h5f:
           datasets = {
               "Label": [],
               "Weight": [],
@@ -163,7 +166,7 @@ class Inference:
           if obj=="TrainingData":
             data_input = self.load_training_data_file(s,self.cfg['Save'][obj]['n_split'])
           else:
-            toy_path = os.path.join(self.cfg['Save'][obj]['dir'],s,self.cfg['Save'][obj]['filename'])
+            toy_path = os.path.join(self.cfg['Save'][obj]['dir'],s,self.cfg['Toy_name']+'.h5')
             data_input = self.load_toy_file(toy_path,self.cfg['Save'][obj]['batch_size'],self.cfg['Save'][obj]['n_split'])
           for i_batch, batch in enumerate(data_input):
             features, weights, labels = data_input.split(batch)
@@ -193,7 +196,7 @@ class Inference:
           for ds in datasets:
             datasets[ds] = np.concatenate(datasets[ds],axis=0)
             h5f.create_dataset(ds, data=datasets[ds])
-          print("Saved ML results in {}".format(obj+s+'.h5'))
+          print("Saved ML results in {}".format(obj_fn))
 
   def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
@@ -210,7 +213,7 @@ class Inference:
 
       # Load ML result for toy
       if self.cfg['Predict']['use_toy']:
-        self.loadMLresults(name='Toy',filename=self.cfg['Predict']['Toy'],selection=selection)
+        self.loadMLresults(name='Toy',filename=self.cfg['Toy_name'],selection=selection)
 
       # dSoDS for training data
       weights = self.h5s['TrainingData'][selection]["Weight"]
