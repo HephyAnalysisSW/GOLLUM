@@ -14,69 +14,94 @@ class Inference:
     with open(cfg_path) as f:
       self.cfg = yaml.safe_load(f)
       print("Config loaded from {}".format(cfg_path))
-    assert "Data" in self.cfg, "Section Data not defined in config!"
     assert "Tasks" in self.cfg, "Section Tasks not defined in config!"
+    assert "Selections" in self.cfg, "Section Selections not defined in config!"
 
-    self.data = {}
+    self.training_data = {}
     self.toys = {}
     self.models = {}
     self.teststat = {}
-    self.selections = self.cfg['Data']['selections']
-    self.n_split = self.cfg['Data']['n_split']
-    self.max_n_batch = self.cfg['Data']['max_n_batch']
+    self.selections = self.cfg['Selections']
+    #self.n_split = self.cfg['Data']['n_split']
+    #self.max_n_batch = self.cfg['Data']['max_n_batch']
     self.loadmodels()
     # FIXME: loading data and toys here might be a bit waste of memory...
-    self.loaddata()
-    self.loadtoy()
+    #self.load_training_data()
+    #self.load_toy()
     self.h5s = {}
     self.alpha_bkg = self.cfg['Parameters']['alpha_bkg']
     self.alpha_tt = self.cfg['Parameters']['alpha_tt']
     self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
 
-  def loaddata(self):
-    import common.datasets as datasets
-    for s in self.selections:
-      self.data[s] = datasets.get_data_loader( selection=s, n_split=self.n_split)
-      print("Data loaded for selection: {}".format(s))
+  #def load_training_data(self):
+  #  import common.datasets as datasets
+  #  for s in self.selections:
+  #    self.training_data[s] = datasets.get_data_loader( selection=s, n_split=self.n_split)
+  #    print("Training data loaded for selection: {}".format(s))
 
-  def loadtoy(self):
-    for s in self.selections:
-      toy_path = os.path.join(self.cfg['Data']['Toy']['dir'],s,self.cfg['Data']['Toy']['filename'])
-      self.toys[s] = H5DataLoader(
-          file_path          = toy_path, 
-          batch_size         = self.cfg['Data']['Toy']['batch_size'],
-          n_split            = self.cfg['Data']['Toy']['n_split'],
+  def load_training_data_file(self,selection,n_split):
+      import common.datasets as datasets
+      d = datasets.get_data_loader( selection=selection, n_split=n_split)
+      print("Training data loaded for selection: {}".format(selection))
+      return d
+
+  #def load_toy(self):
+  #  #import common.selections
+  #  for s in self.selections:
+  #    toy_path = os.path.join(self.cfg['Data']['Toy']['dir'],s,self.cfg['Data']['Toy']['filename'])
+  #    self.toys[s] = H5DataLoader(
+  #        file_path          = toy_path, 
+  #        batch_size         = self.cfg['Data']['Toy']['batch_size'],
+  #        n_split            = self.cfg['Data']['Toy']['n_split'],
+  #        #selection_function = getattr(common.selections,s),
+  #        selection_function = None,
+  #    ) 
+  #    print("Toy loaded for selection {} from {}.".format(s,toy_path))
+
+  def load_toy_file(self,filename,batch_size,n_split):
+      assert os.path.exists(filename), "Toy file {} does not exist!".format(filename)
+      t = H5DataLoader(
+          file_path          = filename, 
+          batch_size         = batch_size,
+          n_split            = n_split,
+          #selection_function = getattr(common.selections,s),
           selection_function = None,
       ) 
-      print("Toy loaded for selection {} from {}.".format(s,toy_path))
+      print("Toy loaded from {}.".format(filename))
+      return t
 
-  def loadH5(self,filename):
+  def loadH5(self,filename,selection):
+    filename = filename+selection+'.h5'
+    assert os.path.exists(filename), "File {} does not exist! Trying running the save mode first.".format(filename)
     h5f = h5py.File(filename)
     # check whether the model path matches
     for t in self.cfg['Tasks']:
-      assert h5f.attrs[t+"_module"] == self.cfg[t]['module'], "Task {}: inconsistent module! H5: {} -- Config: {}".format(t,h5f.attrs[t+"_module"],self.cfg[t]['module'])
-      assert h5f.attrs[t+"_model_path"] == self.cfg[t]["model_path"], "Task {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t]["model_path"])
+      assert h5f.attrs[t+"_module"] == self.cfg[t][selection]['module'], "Task {} selection {}: inconsistent module! H5: {} -- Config: {}".format(t,selection,h5f.attrs[t+"_module"],self.cfg[t][s]['module'])
+      assert h5f.attrs[t+"_model_path"] == self.cfg[t][selection]["model_path"], "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t][s]["model_path"])
     return h5f
 
-  def loadMLresults(self,name,filename=None,ignore_done=False):
-    if (ignore_done) or (not name in self.h5s):
-      self.h5s[name] = {}
-      for s in self.selections:
-        if filename is None:
-          filename = self.cfg["Predict"]["sim_path"]
-        filename = filename+s+'.h5'
-        h5f = self.loadH5(filename)
-        self.h5s[name][s] = h5f
-        print("ML results loaded from {}".format(filename))
+  def loadMLresults(self,name,filename,selection,ignore_done=False):
+    if (not ignore_done) and (name in self.h5s) and (selection in self.h5s[name]):
+      #print("ML results {} with {} is already loaded. Skipping...".format(name,selection))
+      pass
+    else:
+      h5f = self.loadH5(filename,selection)
+      if not name in self.h5s:
+        self.h5s[name] = {}
+      self.h5s[name][selection] = h5f
+      print("ML results {} with {} loaded from {}".format(name,selection,filename+selection+'.h5'))
 
 
   def loadmodels(self):
     for t in self.cfg['Tasks']:
       assert t in self.cfg, "{t} not defined in config!"
-      m = ms.getModule(self.cfg[t]["module"])
-      self.models[t] = m.load(self.cfg[t]["model_path"])
-      print("Task {}: Module {} loaded with model path {}.".format(t,self.cfg[t]["module"],self.cfg[t]["model_path"]))
-      #setattr(self,t,m.load(cfg[t]["model_path"]))
+      self.models[t] = {}
+      for s in self.selections:
+        assert s in self.cfg[t], "{s} not define in {t} in the config!"
+        m = ms.getModule(self.cfg[t][s]["module"])
+        self.models[t][s] = m.load(self.cfg[t][s]["model_path"])
+        print("Task {} selection {}: Module {} loaded with model path {}.".format(t,s,self.cfg[t][s]["module"],self.cfg[t][s]["model_path"]))
+        #setattr(self,t,m.load(cfg[t]["model_path"]))
 
   def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_jes=0, nu_tes=0, nu_met=0):
       # Multiclassifier
@@ -84,22 +109,22 @@ class Inference:
 
       # htautau
       DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
-      nu_A_htautau = self.models['htautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      nu_A_htautau = self.models['htautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_htautau = np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
 
       # ztautau
       DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
-      nu_A_ztautau = self.models['ztautau'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      nu_A_ztautau = self.models['ztautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_ztautau = np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
 
       # ttbar 
       DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
-      nu_A_ttbar = self.models['ttbar'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      nu_A_ttbar = self.models['ttbar'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_ttbar = np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
 
       # diboson
       DA_pnn_diboson = self.h5s[name][selection]["diboson_DeltaA"] # <- this should be Nx9, 9 numbers per event
-      nu_A_diboson = self.models['diboson'].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
+      nu_A_diboson = self.models['diboson'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_diboson= np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
 
       # RATES
@@ -110,103 +135,97 @@ class Inference:
       #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
       return ((mu*p_mc[:,0]*p_pnn_htautau + p_mc[:,1]*f_bkg_rate*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*f_bkg_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*f_bkg_rate*p_pnn_diboson) / p_mc[:,:].sum(axis=1))
 
-
-  def testStat(self, mu, nu_jes):
-    for s in self.selections:
-      print("Calculating test statistics for selection {}".format(s))
-      self.teststat[s] = 0
-      for i_batch, batch in enumerate(self.data[s]):
-        features, _, _ = self.data[s].split(batch)
-        dSoDS = self.dSigmaOverDSigmaSM( features, mu=mu, nu_jes = nu_jes )
-        ts_batch = np.log(dSoDS).sum()
-        self.teststat[s] += ts_batch
-
-        if self.max_n_batch>-1 and i_batch>=self.max_n_batch:
-          break
-    return self.teststat
-
-  def save(self, filename, isData):
+  def save(self):
     """
     Save the ML prediction in a h5 file with the following information:
     Label, Weight, ML results (could be prediction from classifier or parameters from PNN)
-    filename: base name of the h5 file
-    isData: whether the events come from data. If set to True, will assign all lables to -1 and all weights to 1.
     """
     for s in self.selections:
-      with h5py.File(filename+s+'.h5', "w") as h5f:
-        datasets = {
-            "Label": [],
-            "Weight": [],
-            }
+      for obj in self.cfg['Save']:
+        with h5py.File(obj+s+'.h5', "w") as h5f:
+          datasets = {
+              "Label": [],
+              "Weight": [],
+              }
 
-        h5f.attrs["selection"] = s
-        for t in self.cfg['Tasks']:
-          if not "save" in self.cfg[t]:
-            continue
-          for obj in self.cfg[t]['save']:
-            datasets[t+'_'+obj] = []
-
-          h5f.attrs[t+"_module"] = self.cfg[t]["module"]
-          h5f.attrs[t+"_model_path"] = self.cfg[t]["model_path"]
-
-        data_input = self.data[s] if not isData else self.toys[s]
-        for i_batch, batch in enumerate(data_input):
-          features, weights, labels = data_input.split(batch)
-          # FIXME: For toys, it automatically sets the weights to 1, this does not work for weighted toys. Need to check the toys structure and modify 
-          if isData:
-            nevts = features.shape[0]
-            labels = np.array([-1]*nevts)
-            #weights = np.array([1]*nevts)
-
-          datasets["Label"].append(labels)
-          datasets["Weight"].append(weights)
-
+          # Save general information
+          h5f.attrs["selection"] = s
           for t in self.cfg['Tasks']:
             if not "save" in self.cfg[t]:
               continue
-            for obj in self.cfg[t]["save"]:
-              if obj=="predict":
-                pred = self.models[t].predict(features)
-                datasets[t+'_'+obj].append(pred)
-              elif obj=='DeltaA':
-                DA = self.models[t].get_DeltaA(features)
-                datasets[t+'_'+obj].append(DA)
-              else:
-                raise Exception("save type not recognized! Currently supported: predict, DeltaA")
-          if self.max_n_batch>-1 and i_batch>=self.max_n_batch:
-            break
+            for iobj in self.cfg[t]['save']:
+              datasets[t+'_'+iobj] = []
 
-        for obj in datasets:
-          datasets[obj] = np.concatenate(datasets[obj],axis=0)
-          h5f.create_dataset(obj, data=datasets[obj])
-        print("Saved ML results in {}".format(filename+s+'.h5'))
+            h5f.attrs[t+"_module"] = self.cfg[t][s]["module"]
+            h5f.attrs[t+"_model_path"] = self.cfg[t][s]["model_path"]
+
+          # Save ML results
+          if obj=="TrainingData":
+            data_input = self.load_training_data_file(s,self.cfg['Save'][obj]['n_split'])
+          else:
+            toy_path = os.path.join(self.cfg['Save'][obj]['dir'],s,self.cfg['Save'][obj]['filename'])
+            data_input = self.load_toy_file(toy_path,self.cfg['Save'][obj]['batch_size'],self.cfg['Save'][obj]['n_split'])
+          for i_batch, batch in enumerate(data_input):
+            features, weights, labels = data_input.split(batch)
+            if obj!="TrainingData":
+              nevts = features.shape[0]
+              labels = np.array([-1]*nevts)
+              #weights = np.array([1]*nevts)
+
+            datasets["Label"].append(labels)
+            datasets["Weight"].append(weights)
+
+            for t in self.cfg['Tasks']:
+              if not "save" in self.cfg[t]:
+                continue
+              for iobj in self.cfg[t]["save"]:
+                if iobj=="predict":
+                  pred = self.models[t][s].predict(features)
+                  datasets[t+'_'+iobj].append(pred)
+                elif iobj=='DeltaA':
+                  DA = self.models[t][s].get_DeltaA(features)
+                  datasets[t+'_'+iobj].append(DA)
+                else:
+                  raise Exception("save type not recognized! Currently supported: predict, DeltaA")
+            if self.cfg['Save'][obj]['max_n_batch']>-1 and i_batch>=self.cfg['Save'][obj]['max_n_batch']:
+              break
+
+          for ds in datasets:
+            datasets[ds] = np.concatenate(datasets[ds],axis=0)
+            h5f.create_dataset(ds, data=datasets[ds])
+          print("Saved ML results in {}".format(obj+s+'.h5'))
 
   def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
 
-  def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met, isData):
-    self.loadMLresults(name='sim')
-    # Handle toys
-    if self.cfg['Predict']['use_toy']:
-      if not ('toy' in self.h5s):
-        self.save("toy",isData=True)
-        self.loadMLresults(name='toy',filename='toy')
+  def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met ):
 
     # perform the calculation
     uTerm = 0
     for selection in self.selections:
-      weights = self.h5s['sim'][selection]["Weight"]
-      dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'sim',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
-      incS = (weights[:]*(1-dSoDS_sim)).sum()
-      penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
+      #print("Predicting for region {}".format(selection))
 
-      # Handle toys
+      # Load ML result for training data
+      self.loadMLresults(name='TrainingData',filename=self.cfg['Predict']['TrainingData'],selection=selection)
+
+      # Load ML result for toy
       if self.cfg['Predict']['use_toy']:
-        weights_toy = self.h5s['toy'][selection]["Weight"]
-        dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+        self.loadMLresults(name='Toy',filename=self.cfg['Predict']['Toy'],selection=selection)
+
+      # dSoDS for training data
+      weights = self.h5s['TrainingData'][selection]["Weight"]
+      dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
+      incS = (weights[:]*(1-dSoDS_sim)).sum()
+
+      # dSoDS for toys
+      if self.cfg['Predict']['use_toy']:
+        weights_toy = self.h5s['Toy'][selection]["Weight"]
+        dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met )
       else:
         dSoDS_toy = dSoDS_sim
         weights_toy = weights
+
+      penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
 
       uTerm += -2 *(incS+(weights_toy[:]*np.log(dSoDS_toy)).sum())+penalty
 

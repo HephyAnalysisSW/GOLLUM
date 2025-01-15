@@ -23,10 +23,10 @@ if __name__ == '__main__':
   infer = Inference(args.config)
   configName = args.config.replace(".yaml", "")
   if args.save:
-    infer.save(filename="test",isData=False)
+    infer.save()
   if args.predict:
     # Fit Asimov
-    function_asimov = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: infer.predict(mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met,False)
+    function_asimov = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: infer.predict(mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
     fit = likelihoodFit(function_asimov)
     q_mle, parameters_mle = fit.fit()
     print(f"q_mle = {q_mle}")

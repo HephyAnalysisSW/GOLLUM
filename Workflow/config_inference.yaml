@@ -5,49 +5,150 @@ Tasks:
   - ttbar
   - diboson
 
-Data:
-  selections:
-    - "lowMT_VBFJet"
+Selections:
+  - "lowMT_VBFJet"
+    #  - "lowMT_noVBFJet_ptH0to100"
+    #  - "lowMT_noVBFJet_ptH100"
+    #  - "highMT"
+    #  - "highMT_noVBFJet"
+    #  - "highMT_VBFJet"
+
+TrainingData:
   n_split: 100
   max_n_batch: 1 # set to -1 as infinity
-  Toy:
+
+Toy:
+  dirs: 
+    - "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
+  filenames: 
+    - "jes_0p99_met_2.h5"
+  n_split: 100
+  batch_size: 
+  max_n_batch: 1
+
+Save:
+  TrainingData: # pre-defined "TrainingData" used for training
+    n_split: 100
+    max_n_batch: 1 # set to -1 as infinity
+  jes_0p99_met_2: # toys, name can be changes
     dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
     filename: "jes_0p99_met_2.h5"
     n_split: 100
     batch_size: 
-  
+    max_n_batch: 1
 
 Predict:
-  sim_path: "test"
   use_toy: True
+  TrainingData: "TrainingData"
+  Toy: "jes_0p99_met_2"
 
 MultiClassifier:
-  module: "TFMC"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6"
+  lowMT_VBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6"
+  lowMT_noVBFJet_ptH0to100:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6"
+  lowMT_noVBFJet_ptH100:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH100/tfmc_2_reg/v6"
+  highMT:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT/tfmc_5/v6"
+  highMT_noVBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6"
+  highMT_VBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_VBFJet/tfmc_2_reg/v6"
   save:
     - predict
 
 htautau:
-  module: "PNN"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+  highMT:
+    module: "PNN"
+    model_path: ""
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 
 ztautau:
-  module: "PNN"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+  highMT:
+    module: "PNN"
+    model_path: ""
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 
 ttbar:
-  module: "PNN"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+  highMT:
+    module: "PNN"
+    model_path: ""
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 
 diboson:
-  module: "PNN"
-  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+  highMT:
+    module: "PNN"
+    model_path: ""
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/diboson/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 
