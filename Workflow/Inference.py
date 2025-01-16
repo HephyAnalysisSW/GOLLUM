@@ -75,8 +75,6 @@ class Inference:
       return t
 
   def loadH5(self,filename,selection):
-    filename = filename+selection+'.h5'
-    assert os.path.exists(filename), "File {} does not exist! Trying running the save mode first.".format(filename)
     h5f = h5py.File(filename)
     # check whether the model path matches
     for t in self.cfg['Tasks']:
@@ -84,17 +82,18 @@ class Inference:
       assert h5f.attrs[t+"_model_path"] == self.cfg[t][selection]["model_path"], "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t][s]["model_path"])
     return h5f
 
-  def loadMLresults(self,name,filename,selection,ignore_done=False):
+  def loadMLresults(self, name, filename, selection, ignore_done=False):
+    h5_filename = os.path.join( user.output_directory, 'tmp_data', filename+'_'+selection+'.h5')
+    assert os.path.exists(h5_filename), "File {} does not exist! Trying running the save mode first.".format(h5_filename)
     if (not ignore_done) and (name in self.h5s) and (selection in self.h5s[name]):
       #print("ML results {} with {} is already loaded. Skipping...".format(name,selection))
       pass
     else:
-      h5f = self.loadH5(filename,selection)
+      h5f = self.loadH5(h5_filename, selection)
       if not name in self.h5s:
         self.h5s[name] = {}
       self.h5s[name][selection] = h5f
-      print("ML results {} with {} loaded from {}".format(name,selection,filename+selection+'.h5'))
-
+      print("Temporary ML results {} with {} loaded from {}".format(name,selection, h5_filename) )
 
   def loadmodels(self):
     for t in self.cfg['Tasks']:
@@ -224,11 +223,11 @@ class Inference:
       #print("Predicting for region {}".format(selection))
 
       # Load ML result for training data
-      self.loadMLresults(name='TrainingData',filename=self.cfg['Predict']['TrainingData'],selection=selection)
+      self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
       # Load ML result for toy
       if self.cfg['Predict']['use_toy']:
-        self.loadMLresults(name='Toy',filename=self.cfg['Toy_name'],selection=selection)
+          self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
 
       # dSoDS for training data
       weights = self.h5s['TrainingData'][selection]["Weight"]
