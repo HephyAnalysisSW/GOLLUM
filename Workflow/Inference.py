@@ -54,23 +54,23 @@ class Inference:
   #  for s in self.selections:
   #    toy_path = os.path.join(self.cfg['Data']['Toy']['dir'],s,self.cfg['Data']['Toy']['filename'])
   #    self.toys[s] = H5DataLoader(
-  #        file_path          = toy_path, 
+  #        file_path          = toy_path,
   #        batch_size         = self.cfg['Data']['Toy']['batch_size'],
   #        n_split            = self.cfg['Data']['Toy']['n_split'],
   #        #selection_function = getattr(common.selections,s),
   #        selection_function = None,
-  #    ) 
+  #    )
   #    print("Toy loaded for selection {} from {}.".format(s,toy_path))
 
   def load_toy_file(self,filename,batch_size,n_split):
       assert os.path.exists(filename), "Toy file {} does not exist!".format(filename)
       t = H5DataLoader(
-          file_path          = filename, 
+          file_path          = filename,
           batch_size         = batch_size,
           n_split            = n_split,
           #selection_function = getattr(common.selections,s),
           selection_function = None,
-      ) 
+      )
       print("Toy loaded from {}.".format(filename))
       return t
 
@@ -92,8 +92,17 @@ class Inference:
       h5f = self.loadH5(h5_filename, selection)
       if not name in self.h5s:
         self.h5s[name] = {}
-      self.h5s[name][selection] = h5f
-      print("Temporary ML results {} with {} loaded from {}".format(name,selection, h5_filename) )
+      # self.h5s[name][selection] = h5f
+      self.h5s[name][selection] = {}
+      self.h5s[name][selection]["MultiClassifier_predict"] = h5f["MultiClassifier_predict"][:]
+      self.h5s[name][selection]["htautau_DeltaA"] = h5f["htautau_DeltaA"][:]
+      self.h5s[name][selection]["ztautau_DeltaA"] = h5f["ztautau_DeltaA"][:]
+      self.h5s[name][selection]["ttbar_DeltaA"] = h5f["ttbar_DeltaA"][:]
+      self.h5s[name][selection]["diboson_DeltaA"] = h5f["diboson_DeltaA"][:]
+      self.h5s[name][selection]["Weight"] = h5f["Weight"][:]
+      print("ML results {} with {} loaded from {}".format(name,selection,filename+selection+'.h5'))
+
+
 
   def loadmodels(self):
     for t in self.cfg['Tasks']:
@@ -120,7 +129,7 @@ class Inference:
       nu_A_ztautau = self.models['ztautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_ztautau = np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
 
-      # ttbar 
+      # ttbar
       DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
       nu_A_ttbar = self.models['ttbar'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
       p_pnn_ttbar = np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
@@ -209,14 +218,14 @@ class Inference:
                 h5f.create_dataset(ds, data=datasets[ds],
                     compression="gzip",  # Use gzip compression
                     compression_opts=4   # Compression level (1: fastest, 9: smallest))
-                )    
+                )
               print("Saved temporary results in {}".format(obj_fn))
 
   def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
 
   def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met ):
-
+    import time
     # perform the calculation
     uTerm = 0
     for selection in self.selections:
@@ -251,6 +260,6 @@ class Inference:
   def clossMLresults(self):
       for n in list(self.h5s):
         for s in list(self.h5s[n]):
-          self.h5s[n][s].close()
+          # self.h5s[n][s].close()
           del self.h5s[n][s]
         del self.h5s[n]

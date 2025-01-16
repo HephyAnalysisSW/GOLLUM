@@ -12,6 +12,18 @@ class likelihoodFit:
         else:
             self.function = function
 
+        self.parameterBoundaries = {
+            "mu": (0.0, None),
+            "nu_bkg": (-10., 10.),
+            "nu_tt": (-10., 10.),
+            "nu_diboson": (-4., 4.),
+            "nu_jes": (-10., 10.),
+            "nu_tes": (-10., 10.),
+            "nu_met": (0., 5.),
+        }
+
+        self.tolerance = 0.001
+
     def likelihood_function(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         # this defines the function that is minimized
         penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
@@ -21,8 +33,11 @@ class likelihoodFit:
         # function to find the global minimum, minimizing mu and nus
         print("Fit global minimum")
         errordef = Minuit.LEAST_SQUARES
-        m = Minuit(self.function, mu=0.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+        m = Minuit(self.function, mu=1.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
         m.limits["mu"] = (0.0, None)
+        for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
+            m.limits[nuname] = self.parameterBoundaries[nuname]
+        m.tol = self.tolerance
         m.migrad()
         print(m)
         return m.fval, m.values
@@ -42,6 +57,9 @@ class likelihoodFit:
             fixed_mu = mu
             likelihood_fixedMu = lambda nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: self.function(fixed_mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
             m = Minuit(likelihood_fixedMu, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+            for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
+                m.limits[nuname] = self.parameterBoundaries[nuname]
+            m.tol = self.tolerance
             m.migrad()
             print(m)
             qDeltas.append(m.fval-q_mle)
@@ -87,14 +105,24 @@ class likelihoodFit:
             # Use **kwargs in order to dynamically change the parameters
             param_up = {nuname: parameters_mle[nuname] + 0.01}
             m_up = Minuit(nu_functions[nuname], **param_up)
-            m_up.limits[nuname] = (parameters_mle[nuname], None)
+            for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
+                if nuname == nuname2:
+                    m_up.limits[nuname] = (parameters_mle[nuname], self.parameterBoundaries[nuname][1])
+                else:
+                    m_up.limits[nuname] = self.parameterBoundaries[nuname]
+            m_up.tol = self.tolerance
             m_up.migrad()
             print(m_up)
             upper = m_up.values[nuname]
 
             param_down = {nuname: parameters_mle[nuname] - 0.01}
             m_down = Minuit(nu_functions[nuname], **param_down)
-            m_down.limits[nuname] = (None, parameters_mle[nuname])
+            for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
+                if nuname == nuname2:
+                    m_down.limits[nuname] = (self.parameterBoundaries[nuname][0], parameters_mle[nuname])
+                else:
+                    m_down.limits[nuname] = self.parameterBoundaries[nuname]
+            m_down.tol = self.tolerance
             m_down.migrad()
             print(m_down)
             lower = m_down.values[nuname]
