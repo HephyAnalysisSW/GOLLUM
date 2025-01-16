@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 import networks.Models as ms
 from data_loader.data_loader_2 import H5DataLoader
+import common.user as user
 
 class Inference:
   def __init__(self,cfg_path):
@@ -28,10 +29,13 @@ class Inference:
     # FIXME: loading data and toys here might be a bit waste of memory...
     #self.load_training_data()
     #self.load_toy()
+
     self.h5s = {}
-    self.alpha_bkg = self.cfg['Parameters']['alpha_bkg']
-    self.alpha_tt = self.cfg['Parameters']['alpha_tt']
-    self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
+
+    # Loading cross section uncertainties
+    self.alpha_bkg      = self.cfg['Parameters']['alpha_bkg']
+    self.alpha_tt       = self.cfg['Parameters']['alpha_tt']
+    self.alpha_diboson  = self.cfg['Parameters']['alpha_diboson']
 
   #def load_training_data(self):
   #  import common.datasets as datasets
@@ -39,7 +43,7 @@ class Inference:
   #    self.training_data[s] = datasets.get_data_loader( selection=s, n_split=self.n_split)
   #    print("Training data loaded for selection: {}".format(s))
 
-  def load_training_data_file(self,selection,n_split):
+  def training_data_loader(self,selection,n_split):
       import common.datasets as datasets
       d = datasets.get_data_loader( selection=selection, n_split=n_split)
       print("Training data loaded for selection: {}".format(selection))
@@ -71,8 +75,6 @@ class Inference:
       return t
 
   def loadH5(self,filename,selection):
-    filename = filename+selection+'.h5'
-    assert os.path.exists(filename), "File {} does not exist! Trying running the save mode first.".format(filename)
     h5f = h5py.File(filename)
     # check whether the model path matches
     for t in self.cfg['Tasks']:
@@ -80,17 +82,18 @@ class Inference:
       assert h5f.attrs[t+"_model_path"] == self.cfg[t][selection]["model_path"], "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(t,h5f.attrs[t+"_model_path"],self.cfg[t][s]["model_path"])
     return h5f
 
-  def loadMLresults(self,name,filename,selection,ignore_done=False):
+  def loadMLresults(self, name, filename, selection, ignore_done=False):
+    h5_filename = os.path.join( user.output_directory, 'tmp_data', filename+'_'+selection+'.h5')
+    assert os.path.exists(h5_filename), "File {} does not exist! Trying running the save mode first.".format(h5_filename)
     if (not ignore_done) and (name in self.h5s) and (selection in self.h5s[name]):
       #print("ML results {} with {} is already loaded. Skipping...".format(name,selection))
       pass
     else:
-      h5f = self.loadH5(filename,selection)
+      h5f = self.loadH5(h5_filename, selection)
       if not name in self.h5s:
         self.h5s[name] = {}
       self.h5s[name][selection] = h5f
-      print("ML results {} with {} loaded from {}".format(name,selection,filename+selection+'.h5'))
-
+      print("Temporary ML results {} with {} loaded from {}".format(name,selection, h5_filename) )
 
   def loadmodels(self):
     for t in self.cfg['Tasks']:
@@ -140,63 +143,74 @@ class Inference:
     Save the ML prediction in a h5 file with the following information:
     Label, Weight, ML results (could be prediction from classifier or parameters from PNN)
     """
+
     for s in self.selections:
-      for obj in self.cfg['Save']:
-        obj_fn = obj+s+'.h5'
-        if obj == "Toy":
-          obj_fn = self.cfg['Toy_name']+s+'.h5'
-        with h5py.File(obj_fn, "w") as h5f:
-          datasets = {
-              "Label": [],
-              "Weight": [],
-              }
+        for obj in self.cfg['Save']:
 
-          # Save general information
-          h5f.attrs["selection"] = s
-          for t in self.cfg['Tasks']:
-            if not "save" in self.cfg[t]:
-              continue
-            for iobj in self.cfg[t]['save']:
-              datasets[t+'_'+iobj] = []
+            # The data we run on
+            if obj == "Toy":
+                os.makedirs( os.path.join(user.output_directory, 'tmp_data'), exist_ok=True)
+                obj_fn = os.path.join(user.output_directory, 'tmp_data', self.cfg['Toy_name']+'_'+s+'.h5')
+                if os.path.exists(obj_fn):
+                    print ("Warning! Temporary file %s exists. Will overwrite."%obj_fn )
+            else:
+                obj_fn = os.path.join(user.output_directory, 'tmp_data', obj+'_'+s+'.h5')
 
-            h5f.attrs[t+"_module"] = self.cfg[t][s]["module"]
-            h5f.attrs[t+"_model_path"] = self.cfg[t][s]["model_path"]
+            with h5py.File(obj_fn, "w") as h5f:
+              datasets = {
+                  "Label": [],
+                  "Weight": [],
+                  }
 
-          # Save ML results
-          if obj=="TrainingData":
-            data_input = self.load_training_data_file(s,self.cfg['Save'][obj]['n_split'])
-          else:
-            toy_path = os.path.join(self.cfg['Save'][obj]['dir'],s,self.cfg['Toy_name']+'.h5')
-            data_input = self.load_toy_file(toy_path,self.cfg['Save'][obj]['batch_size'],self.cfg['Save'][obj]['n_split'])
-          for i_batch, batch in enumerate(data_input):
-            features, weights, labels = data_input.split(batch)
-            if obj!="TrainingData":
-              nevts = features.shape[0]
-              labels = np.array([-1]*nevts)
-              #weights = np.array([1]*nevts)
+              # Save general information
+              h5f.attrs["selection"] = s
+              for t in self.cfg['Tasks']:
+                if not "save" in self.cfg[t]:
+                  continue
+                for iobj in self.cfg[t]['save']:
+                  datasets[t+'_'+iobj] = []
 
-            datasets["Label"].append(labels)
-            datasets["Weight"].append(weights)
+                h5f.attrs[t+"_module"] = self.cfg[t][s]["module"]
+                h5f.attrs[t+"_model_path"] = self.cfg[t][s]["model_path"]
 
-            for t in self.cfg['Tasks']:
-              if not "save" in self.cfg[t]:
-                continue
-              for iobj in self.cfg[t]["save"]:
-                if iobj=="predict":
-                  pred = self.models[t][s].predict(features)
-                  datasets[t+'_'+iobj].append(pred)
-                elif iobj=='DeltaA':
-                  DA = self.models[t][s].get_DeltaA(features)
-                  datasets[t+'_'+iobj].append(DA)
-                else:
-                  raise Exception("save type not recognized! Currently supported: predict, DeltaA")
-            if self.cfg['Save'][obj]['max_n_batch']>-1 and i_batch>=self.cfg['Save'][obj]['max_n_batch']:
-              break
+              # Save ML results
+              if obj=="TrainingData":
+                data_input = self.training_data_loader(s,self.cfg['Save'][obj]['n_split'])
+              else:
+                toy_path = os.path.join(self.cfg['Save'][obj]['dir'],s,self.cfg['Toy_name']+'.h5')
+                data_input = self.load_toy_file(toy_path,self.cfg['Save'][obj]['batch_size'],self.cfg['Save'][obj]['n_split'])
+              for i_batch, batch in enumerate(data_input):
+                features, weights, labels = data_input.split(batch)
+                if obj!="TrainingData":
+                  nevts = features.shape[0]
+                  labels = np.array([-1]*nevts)
+                  #weights = np.array([1]*nevts)
 
-          for ds in datasets:
-            datasets[ds] = np.concatenate(datasets[ds],axis=0)
-            h5f.create_dataset(ds, data=datasets[ds])
-          print("Saved ML results in {}".format(obj_fn))
+                datasets["Label"].append(labels)
+                datasets["Weight"].append(weights)
+
+                for t in self.cfg['Tasks']:
+                  if not "save" in self.cfg[t]:
+                    continue
+                  for iobj in self.cfg[t]["save"]:
+                    if iobj=="predict":
+                      pred = self.models[t][s].predict(features)
+                      datasets[t+'_'+iobj].append(pred)
+                    elif iobj=='DeltaA':
+                      DA = self.models[t][s].get_DeltaA(features)
+                      datasets[t+'_'+iobj].append(DA)
+                    else:
+                      raise Exception("save type not recognized! Currently supported: predict, DeltaA")
+                if self.cfg['Save'][obj]['max_n_batch']>-1 and i_batch>=self.cfg['Save'][obj]['max_n_batch']:
+                  break
+
+              for ds in datasets:
+                datasets[ds] = np.concatenate(datasets[ds],axis=0)
+                h5f.create_dataset(ds, data=datasets[ds],
+                    compression="gzip",  # Use gzip compression
+                    compression_opts=4   # Compression level (1: fastest, 9: smallest))
+                )    
+              print("Saved temporary results in {}".format(obj_fn))
 
   def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2
@@ -209,11 +223,11 @@ class Inference:
       #print("Predicting for region {}".format(selection))
 
       # Load ML result for training data
-      self.loadMLresults(name='TrainingData',filename=self.cfg['Predict']['TrainingData'],selection=selection)
+      self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
       # Load ML result for toy
       if self.cfg['Predict']['use_toy']:
-        self.loadMLresults(name='Toy',filename=self.cfg['Toy_name'],selection=selection)
+          self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
 
       # dSoDS for training data
       weights = self.h5s['TrainingData'][selection]["Weight"]
