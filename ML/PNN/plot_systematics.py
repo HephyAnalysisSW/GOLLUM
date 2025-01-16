@@ -84,50 +84,6 @@ for base_point, data_loader in data_loaders.items():
         if max_batch > 0 and i_batch + 1 >= max_batch:
             break
 
-## Plot histograms
-#print("Plotting histograms...")
-#for feature_name, options in data_structure.plot_options.items():
-#    n_bins, x_min, x_max = options['binning']
-#    x_axis_title = options['tex']
-#    logY = options['logY']
-#
-#    canvas = ROOT.TCanvas(f"c_{feature_name}", feature_name, 800, 600)
-#    if logY:
-#        canvas.SetLogy()
-#
-#    legend = ROOT.TLegend(0.7, 0.7, 0.9, 0.9)
-#    legend.SetBorderSize(0)
-#
-#    max_y = 0
-#    hists = []
-#    colors = [ROOT.kBlue, ROOT.kCyan, ROOT.kTeal-1, ROOT.kViolet, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kRed]
-#
-#    for i, (base_point, histogram) in enumerate(histograms[feature_name].items()):
-#        hist = ROOT.TH1F(f"h_{feature_name}_{i}", feature_name, n_bins, x_min, x_max)
-#        hist.GetXaxis().SetTitle(data_structure.plot_options[feature_name]['tex'])
-#        for bin_idx, value in enumerate(histogram):
-#            hist.SetBinContent(bin_idx + 1, value)
-#
-#        color = ROOT.kBlack if base_point == tuple(config.nominal_base_point) else colors[i % len(colors)]
-#        hist.SetLineColor(color)
-#        hist.SetLineWidth(2)
-#        hist.Draw("HIST SAME" if i > 0 else "HIST")
-#        legend_label = "#nu = " + ", ".join(map(str, base_point)) if base_point != tuple(config.nominal_base_point) else "Nominal"
-#        legend.AddEntry(hist, legend_label, "l")
-#
-#        hists.append(hist)
-#        max_y = max(max_y, hist.GetMaximum())
-#
-#    # Set Y-axis range
-#    for hist in hists:
-#        hist.GetYaxis().SetRangeUser(0.03 if logY else 0, 1.2 * max_y)
-#
-#    legend.Draw()
-#    canvas.SaveAs(os.path.join(plot_directory, f"{feature_name}.png"))
-#    print(f"Saved plot for {feature_name}.")
-#
-#print(f"All plots saved in {plot_directory}.")
-#common.syncer.sync()
 
 # Plot histograms with a ratio pad
 print("Plotting histograms...")

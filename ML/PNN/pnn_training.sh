@@ -42,7 +42,7 @@
 #python pnn_training.py --selection highMT_noVBFJet --config pnn_quad_tes_jes_met_fixed --training v1 --every 1
 
 #python pnn_training.py --process ztautau --selection lowMT_VBFJet --config pnn_quad_tes_jes_met --training v1 --every 1
-python pnn_training.py --process ztautau --selection lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --n_split 50 --training v1 --every 1
+#python pnn_training.py --process ztautau --selection lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --n_split 50 --training v1 --every 1
 #python pnn_training.py --process ztautau --selection lowMT_noVBFJet_ptH100 --config pnn_quad_tes_jes_met --training v1 --every 1
 #python pnn_training.py --process ztautau --selection highMT_VBFJet --config pnn_quad_tes_jes_met --training v1 --every 1
 #python pnn_training.py --process ztautau --selection highMT_noVBFJet --config pnn_quad_tes_jes_met --training v1 --every 1
@@ -64,3 +64,8 @@ python pnn_training.py --process ztautau --selection lowMT_noVBFJet_ptH0to100 --
 #python pnn_training.py --process diboson --rebin 5 --selection lowMT_noVBFJet_ptH100 --config pnn_quad_tes_jes_met --training v1 --every 1
 #python pnn_training.py --process diboson --rebin 5 --selection highMT_VBFJet --config pnn_quad_tes_jes_met --training v1 --every 1
 #python pnn_training.py --process diboson --rebin 5 --selection highMT_noVBFJet --config pnn_quad_tes_jes_met --training v1 --every 1
+
+python pnn_training.py --process ztautau --selection GGHMVA_lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --n_split 10 --training v1 --every 1
+python pnn_training.py --process htautau --selection GGHMVA_lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --n_split 10 --training v1 --every 1
+#python pnn_training.py --process ttbar   --selection GGHMVA_lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --training v1 --every 1
+#python pnn_training.py --process diboson --selection GGHMVA_lowMT_noVBFJet_ptH0to100 --config pnn_quad_tes_jes_met --training v1 --every 1
