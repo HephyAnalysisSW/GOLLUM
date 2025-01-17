@@ -21,8 +21,10 @@ class likelihoodFit:
             "nu_tes": (-10., 10.),
             "nu_met": (0., 5.),
         }
-
         self.tolerance = 0.001
+
+        self.q_mle = None
+        self.parameters_mle = None
 
     def likelihood_function(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
         # this defines the function that is minimized
@@ -40,13 +42,20 @@ class likelihoodFit:
         m.tol = self.tolerance
         m.migrad()
         print(m)
+        self.q_mle = m.fval
+        self.parameters_mle = m.values
         return m.fval, m.values
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
         # Scan over points of mu
         print("Scan signal strength")
         # First find global Min and store MLE values
-        q_mle, parameters_mle = self.fit()
+        if self.q_mle is None or self.parameters_mle is None:
+            q_mle, parameters_mle = self.fit()
+        else:
+            print("No need to re-run global fit, take existing results")
+            q_mle = self.q_mle
+            parameters_mle = self.parameters_mle
         # Now make scan over nu
         qDeltas = []
         muList = [mumin+i*(mumax-mumin)/Npoints for i in range(Npoints)]
@@ -71,7 +80,12 @@ class likelihoodFit:
     def impacts(self):
         print("Calculate impacts")
         # First find global Min and store MLE values
-        q_mle, parameters_mle = self.fit()
+        if self.q_mle is None or self.parameters_mle is None:
+            q_mle, parameters_mle = self.fit()
+        else:
+            print("No need to re-run global fit, take existing results")
+            q_mle = self.q_mle
+            parameters_mle = self.parameters_mle
         mu_mle = parameters_mle["mu"]
         nu_bkg_mle = parameters_mle["nu_bkg"]
         nu_tt_mle = parameters_mle["nu_tt"]
