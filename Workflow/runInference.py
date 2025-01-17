@@ -26,7 +26,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     infer = Inference(args.config)
-    configName = args.config.rstrip("\.yaml")
+    configName = args.config.replace(".yaml", "")
 
     # Save  the dataset
     if args.save:
