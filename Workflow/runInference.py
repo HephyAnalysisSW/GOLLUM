@@ -23,9 +23,11 @@ if __name__ == '__main__':
     parser.add_argument("-p","--predict", action="store_true", help="Whether to predict.")
     parser.add_argument("-i","--impacts", action="store_true", help="Whether to run postFit uncertainties.")
     parser.add_argument("-g","--scan", action="store_true", help="Whether to run likelihood scan.")
+    parser.add_argument("--small", action="store_true", help="Run a subset?")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite?")
     args = parser.parse_args()
 
-    infer = Inference(args.config)
+    infer = Inference(args.config, small=args.small, overwrite=args.overwrite)
     configName = args.config.replace(".yaml", "")
 
     # Save  the dataset
@@ -33,8 +35,8 @@ if __name__ == '__main__':
         infer.save()
 
     if args.predict:
-        likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met:\
-            infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_jes=nu_jes, nu_tes=nu_tes, nu_met=nu_met)
+        likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met:\
+            infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met)
 
         # Fit Asimov
         fit = likelihoodFit(likelihood_function)

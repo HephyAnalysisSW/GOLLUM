@@ -80,21 +80,34 @@ class InclusiveCrosssectionParametrization:
     def load_training_data( self, datasets, selection, process=None, n_split=10):
         self.training_data = {}
         for base_point in self.base_points:
-            base_point = tuple(base_point)
-            values = self.config.get_alpha(base_point)
+            base_point  = tuple(base_point)
+            values      = self.config.get_alpha(base_point)
             data_loader = datasets.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
-    def train( self, small=False):
-        self.yields = {}
-        for base_point, loader in self.training_data.items():
-            self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
+    def train( self, small=False, train_ratio=True, yields={}):
 
-        self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
+        # We might pass yields externally
+        self.yields = yields
+
+        # Fetch from data loader if not externally provided
+        if len(yields)==0:
+            for base_point, loader in self.training_data.items():
+                self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
+
+        # The default case: We devide by the nominal base-point yield and 
+        if train_ratio:
+            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)]))
+        # Parametrize including a constant offset
+        else:
+            if ( tuple() not in self.combinations ):
+                raise RuntimeError("We must have the constant term (an empty tuple) in the combinations unless we're training ratios. Please add it.")
+ 
+            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
     def __str__( self ):
-        return " ".join( [(f"{deltaA:+.1e}")+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+        return " ".join( [(f"{deltaA:+.1e}")+( "*"+c if c!="" else "") for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
 
     @classmethod
     def load(cls, filename):
