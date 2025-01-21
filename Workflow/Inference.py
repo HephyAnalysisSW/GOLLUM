@@ -541,8 +541,6 @@ class Inference:
       return uTerm
   
     def clossMLresults(self):
-        print("Warning. clossMLresults does nothing.")
-        return
         for n in list(self.h5s):
           for s in list(self.h5s[n]):
             # self.h5s[n][s].close()
