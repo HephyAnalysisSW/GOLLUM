@@ -41,10 +41,21 @@ if __name__ == '__main__':
         # Fit Asimov
         fit = likelihoodFit(likelihood_function)
         logger("Start global fit.")
-        q_mle, parameters_mle = fit.fit()
+        q_mle, parameters_mle, cov = fit.fit()
         logger("Fit done.")
         print(f"q_mle = {q_mle}")
         print(f"parameters = {parameters_mle}")
+        data_to_save = {
+            "q_mle": q_mle,
+            "mu_mle": parameters_mle["mu"],
+        }
+
+        for param1 in ["mu", "nu_tes", "nu_jes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]:
+            data_to_save[param1] = parameters_mle[param1]
+            for param2 in ["mu", "nu_tes", "nu_jes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]:
+                data_to_save["cov__"+param1+"__"+param2] = cov[param1, param2]
+        with open('fitResult.'+configName+'.pkl', 'wb') as file:
+            pickle.dump(data_to_save, file)
         # Perform a likelihood scan over mu and store result in arrays
         if args.scan:
             logger("Start scan.")

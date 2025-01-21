@@ -44,14 +44,14 @@ class likelihoodFit:
         print(m)
         self.q_mle = m.fval
         self.parameters_mle = m.values
-        return m.fval, m.values
+        return m.fval, m.values, m.covariance
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
         # Scan over points of mu
         print("Scan signal strength")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
-            q_mle, parameters_mle = self.fit()
+            q_mle, parameters_mle, cov = self.fit()
         else:
             print("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
@@ -81,7 +81,7 @@ class likelihoodFit:
         print("Calculate impacts")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
-            q_mle, parameters_mle = self.fit()
+            q_mle, parameters_mle, cov = self.fit()
         else:
             print("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
