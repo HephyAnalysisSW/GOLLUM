@@ -18,6 +18,8 @@ argParser.add_argument("--process",       action="store",      default=None,    
 argParser.add_argument("--config",        action="store",      default="icp_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument('--small',         action='store_true',                                   help="Only one batch, for debugging")
+argParser.add_argument("--train_absolute",  action="store_true", default=False,                    help="Fit the absolute value?")
+
 args = argParser.parse_args()
 
 # import the config
@@ -49,7 +51,7 @@ if icp is None or args.overwrite:
     icp = InclusiveCrosssectionParametrization( config = config )
 
     icp.load_training_data(datasets=datasets, selection=args.selection, process=args.process) 
-    icp.train             (small=args.small)
+    icp.train             (small=args.small, train_ratio = not args.train_absolute)
 
     icp.save(filename)
     print ("Written %s"%( filename ))
