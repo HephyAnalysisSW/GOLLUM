@@ -393,18 +393,31 @@ class Inference:
                         if isinstance(weight, list):
                             weight = np.concatenate(weight, axis=0)
 
-                        # Hardcode the 3D grid definition
-                        nu_tes_values = np.arange(-10, 11, 1)
-                        nu_jes_values = np.arange(-10, 11, 1)
-                        nu_met_values = np.arange(0, 6)
+                        # Hardcode the 3D grid definition with both coarse and finer spacing
+                        coarse_spacing = 1
+                        fine_spacing = 0.5
 
-                        # Create the grid
+                        # Coarse grid
+                        nu_tes_values_coarse = np.arange(-10, 11, coarse_spacing)
+                        nu_jes_values_coarse = np.arange(-10, 11, coarse_spacing)
+                        nu_met_values_coarse = np.arange(0, 6, coarse_spacing)
+
+                        # Fine grid (only within specified ranges)
+                        nu_tes_values_fine = np.arange(-3, 3 + fine_spacing, fine_spacing)
+                        nu_jes_values_fine = np.arange(-3, 3 + fine_spacing, fine_spacing)
+                        nu_met_values_fine = np.arange(0, 3 + fine_spacing, fine_spacing)
+
+                        # Combine coarse and fine grids, ensuring no duplicates
+                        nu_tes_values = np.unique(np.concatenate([nu_tes_values_coarse, nu_tes_values_fine]))
+                        nu_jes_values = np.unique(np.concatenate([nu_jes_values_coarse, nu_jes_values_fine]))
+                        nu_met_values = np.unique(np.concatenate([nu_met_values_coarse, nu_met_values_fine]))
+
+                        # Create the combined grid
                         grid_shape = (len(nu_tes_values), len(nu_jes_values), len(nu_met_values))
                         nu_tes_grid, nu_jes_grid, nu_met_grid = np.meshgrid(nu_tes_values, nu_jes_values, nu_met_values, indexing="ij")
 
                         # Flatten the grid for easier matrix operations
                         base_points_flat = np.stack([nu_tes_grid.ravel(), nu_jes_grid.ravel(), nu_met_grid.ravel()], axis=-1)
-
 
                         # Iterate over tasks and datasets
                         for i_t, t in enumerate(self.cfg['Tasks'][1:]):
@@ -457,9 +470,9 @@ class Inference:
                             print("CSI: Maximum ratio within training boundaries for %s %s: %3.2f" % (s, t, max_ratio))
                             # Save the CSI interpolator(s) to a pickle
 
-                            #for base_point in base_points_flat:
-                            #    index=list(map(tuple, base_points_flat)).index(tuple(base_point))
-                            #    print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
+                            for base_point in base_points_flat:
+                                index=list(map(tuple, base_points_flat)).index(tuple(base_point))
+                                print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
 
 
         if self.do_csis:
@@ -491,26 +504,28 @@ class Inference:
         weights = self.h5s['TrainingData'][selection]["Weight"]
         dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
         incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
-        incS_difference_parametrized = -self.incS_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met ) + self.incS_from_csis(selection) 
-        dd = incS_difference-incS_difference_parametrized
-        rel = (incS_difference-incS_difference_parametrized)/incS_difference
-        sm_value = weights[:].sum()
-        sm_value_param = self.incS_from_csis(selection)
-        print(
-            f"incS: mu {mu:6.4f} "
-            f"nu_bkg {nu_bkg:6.4f} "
-            f"nu_tt {nu_tt:6.4f} "
-            f"nu_diboson {nu_diboson:6.4f} "
-            f"nu_tes {nu_tes:6.4f} "
-            f"nu_jes {nu_jes:6.4f} "
-            f"nu_met {nu_met:6.4f} "
-            f"nom: {incS_difference:6.4f} "
-            f"param: {incS_difference_parametrized:6.4f} "
-            f"diff: {dd:6.4f} "
-            f"rel: {rel:6.4f} "
-            #f"SM {sm_value:6.2f} "
-            #f"SM param {sm_value_param:6.2f} "
-        ) 
+
+        if hasattr( self, "csis"):
+            incS_difference_parametrized = -self.incS_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met ) + self.incS_from_csis(selection) 
+            dd = incS_difference-incS_difference_parametrized
+            rel = (incS_difference-incS_difference_parametrized)/incS_difference
+            sm_value = weights[:].sum()
+            sm_value_param = self.incS_from_csis(selection)
+            print(
+                f"incS: mu {mu:6.4f} "
+                f"nu_bkg {nu_bkg:6.4f} "
+                f"nu_tt {nu_tt:6.4f} "
+                f"nu_diboson {nu_diboson:6.4f} "
+                f"nu_tes {nu_tes:6.4f} "
+                f"nu_jes {nu_jes:6.4f} "
+                f"nu_met {nu_met:6.4f} "
+                f"nom: {incS_difference:6.4f} "
+                f"param: {incS_difference_parametrized:6.4f} "
+                f"diff: {dd:6.4f} "
+                f"rel: {rel:6.4f} "
+                #f"SM {sm_value:6.2f} "
+                #f"SM param {sm_value_param:6.2f} "
+            ) 
         # dSoDS for toys
         if self.cfg['Predict']['use_toy']:
           weights_toy = self.h5s['Toy'][selection]["Weight"]
