@@ -25,7 +25,22 @@ if __name__ == '__main__':
     parser.add_argument("-g","--scan", action="store_true", help="Whether to run likelihood scan.")
     parser.add_argument("--small", action="store_true", help="Run a subset?")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite?")
+    parser.add_argument("--asimov_mu",          action="store", default=None, type=float, help="Modify the toy weights according to mu?")
+    parser.add_argument("--asimov_nu_bkg",      action="store", default=None, type=float, help="Modify the toy weights according to nu_bkg?")
+    parser.add_argument("--asimov_nu_ttbar",    action="store", default=None, type=float, help="Modify the toy weights according to nu_?")
+    parser.add_argument("--asimov_nu_diboson",  action="store", default=None, type=float, help="Modify the toy weights according to nu_bkg?")
+    
     args = parser.parse_args()
+
+    postfix=""
+    if args.asimov_mu is not None:
+        postfix += "mu_"+("%4.3f"%args.asimov_mu).replace("-", "m").replace(".", "p")
+    if args.asimov_nu_bkg is not None:
+        postfix += "nu_bkg_"+("%4.3f"%args.asimov_nu_bkg).replace("-", "m").replace(".", "p")
+    if args.asimov_nu_ttbar is not None:
+        postfix += "nu_ttbar_"+("%4.3f"%args.asimov_nu_ttbar).replace("-", "m").replace(".", "p")
+    if args.asimov_nu_diboson is not None:
+        postfix += "nu_diboson_"+("%4.3f"%args.asimov_nu_diboson).replace("-", "m").replace(".", "p")
 
     infer = Inference(args.config, small=args.small, overwrite=args.overwrite)
     configName = args.config.replace(".yaml", "")
@@ -36,7 +51,8 @@ if __name__ == '__main__':
 
     if args.predict:
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met:\
-            infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met)
+            infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met, 
+                asimov_mu=args.asimov_mu, asimov_nu_bkg=args.asimov_nu_bkg, asimov_nu_ttbar=args.asimov_nu_ttbar, asimov_nu_diboson=args.asimov_nu_diboson)
 
         # Fit Asimov
         fit = likelihoodFit(likelihood_function)
