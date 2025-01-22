@@ -17,6 +17,22 @@ will be synced.
 import os, uuid
 import subprocess 
 
+def has_kerberos_token():
+    try:
+        # Run the `klist` command
+        result = subprocess.run(['klist'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        # Check if the output contains "No credentials cache found"
+        if "No credentials cache found" in result.stderr:
+            return False
+        
+        # If there's no error, and the command executed successfully, a token is present
+        return result.returncode == 0
+    except FileNotFoundError:
+        # `klist` command is not available on the system
+        print("Error: `klist` command not found. Ensure Kerberos is installed.")
+        return False
+
 # Logger
 import logging
 logger = logging.getLogger(__name__)
@@ -157,6 +173,10 @@ def sync(gifs=False):
     if "CERN_USER" not in os.environ: 
         logger.info("To sync with CERN www directory, you need to set $CERN_USER")
         return
+
+    if not has_kerberos_token():
+        logger.info("No kerberos token. Do nothing.")
+        return 
     
     global file_sync_storage
     global gif_cmds 

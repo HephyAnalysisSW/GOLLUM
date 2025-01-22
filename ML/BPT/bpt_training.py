@@ -16,14 +16,18 @@ from BoostedParametricTree import BoostedParametricTree
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
+argParser.add_argument('--logLevel',      action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
 argParser.add_argument("--config",        action="store",      default="bpt_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
 argParser.add_argument("--n_split",       action="store",      default=10, type=int,             help="How many batches?")
 argParser.add_argument("--training",      action="store",      default="v3",                     help="Training version")
-argParser.add_argument('--small',        action='store_true',  help="Only one batch, for debugging")
+argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
 args = argParser.parse_args()
+
+# logger
+logger = get_logger(args.logLevel, logFile = None)
 
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
@@ -45,7 +49,7 @@ filename = os.path.join(model_directory, ('small_' if args.small else '')+bpt_na
 bpt = None
 if not args.overwrite:
     try:
-        print ("Trying to load %s from %s"%(bpt_name, filename))
+        logger.info ("Trying to load %s from %s"%(bpt_name, filename))
         bpt = BoostedParametricTree.load(filename)
     except (IOError, EOFError, ValueError):
         pass
@@ -53,7 +57,7 @@ if not args.overwrite:
 max_batch = 1     if args.small else -1
 n_split   = 10000 if args.small else args.n_split
 if bpt is None or args.overwrite:
-    print ("Training.")
+    logger.info ("Training.")
     time1 = time.time()
     bpt = BoostedParametricTree( config = config )
 
@@ -61,9 +65,9 @@ if bpt is None or args.overwrite:
     bpt.train             ()
 
     bpt.save(filename)
-    print ("Written %s"%( filename ))
+    logger.info ("Written %s"%( filename ))
 
     time2 = time.time()
     boosting_time = time2 - time1
-    print ("Boosting time: %.2f seconds" % boosting_time)
+    logger.info ("Boosting time: %.2f seconds" % boosting_time)
 

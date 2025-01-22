@@ -244,7 +244,7 @@ class Inference:
         # ----------------------------------------------------------
         # Create output directory
         # ----------------------------------------------------------
-        os.makedirs(cfg['tmp_path'], exist_ok=True)
+        os.makedirs(self.cfg['tmp_path'], exist_ok=True)
 
         # ----------------------------------------------------------
         # Loop over selections and Save items
@@ -254,9 +254,9 @@ class Inference:
 
                 # Figure out the HDF5 filename
                 if obj == "Toy":
-                    obj_fn = os.path.join(cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
+                    obj_fn = os.path.join(self.cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
                 else:
-                    obj_fn = os.path.join(cfg['tmp_path'], obj + '_' + s + '.h5')
+                    obj_fn = os.path.join(self.cfg['tmp_path'], obj + '_' + s + '.h5')
 
                 # Warn if the file already exists
                 if os.path.exists(obj_fn):

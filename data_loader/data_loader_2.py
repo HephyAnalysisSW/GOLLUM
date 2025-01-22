@@ -3,6 +3,9 @@ import numpy as np
 
 import sys
 sys.path.insert(0, '..')
+    
+import logging
+logger = logging.getLogger(__name__)
 
 import common.data_structure as data_structure
 
@@ -26,7 +29,7 @@ class H5DataLoader:
         try:
             self._init_dataset()
         except Exception as e:
-            print(f"Problem opening {self.file_path}")
+            logger.error(f"Problem opening {self.file_path}")
             raise e
 
     def _init_dataset(self):
@@ -39,7 +42,7 @@ class H5DataLoader:
             if self.n_split is None:
                 raise ValueError("Either batch_size or n_split must be provided.")
             self.batch_size = int(np.ceil(self.dataset_size / self.n_split))
-        print(f"data_loader_2: Initialize reading from {self.file_path}")
+        logger.info(f"data_loader_2: Initialize reading from {self.file_path}")
 
     def set_selection(self, selection_function):
         """
@@ -71,7 +74,7 @@ class H5DataLoader:
                 end = min(self.current_index + self.batch_size, self.dataset_size)
                 batch_data = f['data'][start:end]
         except Exception as e:
-            print(f"Problem in {self.file_path}")
+            logger.error(f"Problem in {self.file_path}")
             raise e
 
         # Apply the selection function if provided

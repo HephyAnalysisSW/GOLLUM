@@ -1,4 +1,0 @@
-
-
-
-# def getInteval(testStatistic, quantile):
