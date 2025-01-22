@@ -10,7 +10,9 @@ from tqdm import tqdm
 import networks.Models as ms
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
+import common.data_structure as data_structure
 import pickle
+import copy
 
 class Inference:
     def __init__(self, cfg_path, small=False, overwrite=False):
@@ -158,7 +160,8 @@ class Inference:
             "ztautau_DeltaA":          h5f["ztautau_DeltaA"][:],
             "ttbar_DeltaA":            h5f["ttbar_DeltaA"][:],
             "diboson_DeltaA":          h5f["diboson_DeltaA"][:],
-            "Weight":                  h5f["Weight"][:]
+            "Weight":                  h5f["Weight"][:],
+            "Label":                   h5f["Label"][:]
         }
         print("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
 
@@ -321,10 +324,11 @@ class Inference:
                     for i_batch, batch in enumerate(data_input):
                         features, weights, labels = data_input.split(batch)
 
-                        # For toy data, set labels to -1 (since real labels may not exist)
-                        if obj != "TrainingData":
-                            nevts = features.shape[0]
-                            labels = np.array([-1] * nevts)
+                        ## For toy data, set labels to -1 (since real labels may not exist)
+                        #if obj != "TrainingData":
+                        #    nevts = features.shape[0]
+                        #    labels = np.array([-1] * nevts)
+                        ## Robert: We need the labels to modify event weights for Asimov limits with modified nu_bkg etc.
 
                         # Store labels and weights
                         datasets["Label"].append(labels)
@@ -470,9 +474,9 @@ class Inference:
                             print("CSI: Maximum ratio within training boundaries for %s %s: %3.2f" % (s, t, max_ratio))
                             # Save the CSI interpolator(s) to a pickle
 
-                            for base_point in base_points_flat:
-                                index=list(map(tuple, base_points_flat)).index(tuple(base_point))
-                                print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
+                            #for base_point in base_points_flat:
+                            #    index=list(map(tuple, base_points_flat)).index(tuple(base_point))
+                            #    print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
 
 
         if self.do_csis:
@@ -483,7 +487,8 @@ class Inference:
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
           return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
   
-    def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met ):
+    def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met,\
+                      asimov_mu=None, asimov_nu_bkg=None, asimov_nu_ttbar=None, asimov_nu_diboson=None):
       import time
       # perform the calculation
       uTerm = 0
@@ -528,11 +533,28 @@ class Inference:
             ) 
         # dSoDS for toys
         if self.cfg['Predict']['use_toy']:
-          weights_toy = self.h5s['Toy'][selection]["Weight"]
           dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
+          weights_toy = copy.deepcopy(self.h5s['Toy'][selection]["Weight"])
         else:
           dSoDS_toy = dSoDS_sim
-          weights_toy = weights
+          weights_toy = copy.deepcopy(weights)
+
+        if asimov_mu is not None:
+            labels = self.h5s['Toy'][selection]["Label"]
+            weights_toy[labels==data_structure.label_encoding['htautau']] = weights_toy[labels==data_structure.label_encoding['htautau']]*asimov_mu
+            print( "Scaled labeled signal events by %4.3f" % asimov_mu )
+        if asimov_nu_bkg is not None:
+            labels = self.h5s['Toy'][selection]["Label"]
+            weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*asimov_nu_bkg
+            print( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
+        if asimov_nu_ttbar is not None:
+            labels = self.h5s['Toy'][selection]["Label"]
+            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*asimov_nu_ttbar
+            print( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
+        if asimov_nu_diboson is not None:
+            labels = self.h5s['Toy'][selection]["Label"]
+            weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*asimov_nu_diboson
+            print( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
   
         uTerm += -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
 
@@ -541,8 +563,10 @@ class Inference:
       return uTerm
   
     def clossMLresults(self):
-        for n in list(self.h5s):
-          for s in list(self.h5s[n]):
-            # self.h5s[n][s].close()
-            del self.h5s[n][s]
-          del self.h5s[n]
+        print( "Warning. clossMLresults does nothing" )
+        return
+        #for n in list(self.h5s):
+        #  for s in list(self.h5s[n]):
+        #    # self.h5s[n][s].close()
+        #    del self.h5s[n][s]
+        #  del self.h5s[n]
