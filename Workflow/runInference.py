@@ -103,7 +103,7 @@ if __name__ == '__main__':
         logger.info("Start global fit.")
         fit = likelihoodFit(likelihood_function)
         q_mle, parameters_mle, cov = fit.fit()
-        logger("Fit done.")
+        logger.info("Fit done.")
 
         logger.info(f"q_mle = {q_mle}")
         logger.info(f"parameters = {parameters_mle}")
