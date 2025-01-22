@@ -11,6 +11,7 @@ from common.likelihoodFit import likelihoodFit
 from common.LikelihoodScanPlotter import LikelihoodScanPlotter
 from Workflow.Inference import Inference
 import time
+import common.user as user
 
 def logger(message):
     formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -45,6 +46,11 @@ if __name__ == '__main__':
     infer = Inference(args.config, small=args.small, overwrite=args.overwrite)
     configName = args.config.replace(".yaml", "")
 
+    output_directory = os.path.join(user.output_directory,
+        os.path.basename( cfg_path ).replace(".yaml", ""),
+        'fit_data' + ('_small' if self.small else ''))
+
+    os.makedirs( output_directory, exist_ok=True)
     # Save  the dataset
     if args.save:
         infer.save()
@@ -70,7 +76,7 @@ if __name__ == '__main__':
             data_to_save[param1] = parameters_mle[param1]
             for param2 in ["mu", "nu_tes", "nu_jes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]:
                 data_to_save["cov__"+param1+"__"+param2] = cov[param1, param2]
-        with open('fitResult.'+configName+'.pkl', 'wb') as file:
+        with open(os.path.join( output_directory, 'fitResult.'+configName+('_'+postfix if postfix!="" else "")+'.pkl'), 'wb') as file:
             pickle.dump(data_to_save, file)
         # Perform a likelihood scan over mu and store result in arrays
         if args.scan:
@@ -85,7 +91,7 @@ if __name__ == '__main__':
             postFitUncerts = fit.impacts()
             logger("Impacts done.")
             print(f"postFit parameter boundaries: {postFitUncerts}")
-            with open('postFitUncerts.'+configName+'.pkl', 'wb') as file:
+            with open(os.path.join( output_directory, 'postFitUncerts.'+configName+('_'+postfix if postfix!="" else "")+'.pkl'), 'wb') as file:
                 pickle.dump(postFitUncerts, file)
         infer.clossMLresults()
     # Below is the deprecated feature that calculates the ML prediction on the fly
