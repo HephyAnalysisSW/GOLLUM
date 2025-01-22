@@ -8,11 +8,28 @@ import time
 from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
+import yaml
 
 # Logger function for timestamped messages
 def logger(message):
     formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     print(f"{formatted_time}: {message}")
+
+def update_dict(d, keys, value):
+    """Recursively update a nested dictionary."""
+    key = keys[0]
+    if len(keys) == 1:
+        # Convert value to appropriate type
+        if value.lower() in ["true", "false"]:
+            value = value.lower() == "true"
+        elif value.isdigit():
+            value = int(value)
+        elif value.replace(".", "", 1).isdigit():
+            value = float(value)
+        d[key] = value
+    else:
+        d = d.setdefault(key, {})
+        update_dict(d, keys[1:], value)
 
 if __name__ == '__main__':
     # Argument parser setup
@@ -28,6 +45,8 @@ if __name__ == '__main__':
     parser.add_argument("--asimov_nu_bkg", type=float, default=None, help="Modify toy weights according to nu_bkg.")
     parser.add_argument("--asimov_nu_ttbar", type=float, default=None, help="Modify toy weights according to nu_ttbar.")
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify toy weights according to nu_diboson.")
+    parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
+
 
     args = parser.parse_args()
 
@@ -42,17 +61,31 @@ if __name__ == '__main__':
     if args.asimov_nu_diboson is not None:
         postfix += f"nu_diboson_{args.asimov_nu_diboson:.3f}".replace("-", "m").replace(".", "p")
 
-    # Initialize inference object
-    infer = Inference(args.config, small=args.small, overwrite=args.overwrite)
-    config_name = args.config.replace(".yaml", "")
+    with open(args.config) as f:
+        cfg = yaml.safe_load(f)
+    print("Config loaded from {}".format(args.config))
+
+    # Process modifications
+    if args.modify:
+        for mod in args.modify:
+            if "=" not in mod:
+                raise ValueError(f"Invalid modify argument: {mod}. Must be in 'key=value' format.")
+            key, value = mod.split("=", 1)
+            key_parts = key.split(".")
+            update_dict(cfg, key_parts, value)
+            print( "Updating cfg with: %s=%r"%( key, value) )
 
     # Define output directory
-    output_directory = os.path.join(
-        user.output_directory,
-        os.path.basename(args.config).replace(".yaml", ""),
-        f"fit_data{'_small' if args.small else ''}"
-    )
-    os.makedirs(output_directory, exist_ok=True)
+    config_name = os.path.basename(args.config).replace(".yaml", "") 
+    output_directory = os.path.join ( user.output_directory, config_name)
+
+    fit_directory = os.path.join( output_directory, f"fit_data{'_small' if args.small else ''}" )
+    os.makedirs(fit_directory, exist_ok=True)
+    cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data{'_small' if args.small else ''}" )
+    os.makedirs(cfg['tmp_path'], exist_ok=True)
+
+    # Initialize inference object
+    infer = Inference(cfg, small=args.small, overwrite=args.overwrite)
 
     # Save the dataset if requested
     if args.save:

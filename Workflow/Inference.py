@@ -3,7 +3,6 @@ import os
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '.')
 import importlib
-import yaml
 import h5py
 import numpy as np
 from tqdm import tqdm
@@ -15,7 +14,7 @@ import pickle
 import copy
 
 class Inference:
-    def __init__(self, cfg_path, small=False, overwrite=False):
+    def __init__(self, cfg, small=False, overwrite=False):
         """
         Initialize the Inference object.
         Load configuration, models, and parameters.
@@ -24,9 +23,8 @@ class Inference:
             cfg_path (str): Path to the configuration file.
             small (bool): Whether to use a smaller dataset.
         """
-        with open(cfg_path) as f:
-            self.cfg = yaml.safe_load(f)
-        print("Config loaded from {}".format(cfg_path))
+        
+        self.cfg = cfg
 
         # Ensure required sections are defined in the config
         assert "Tasks" in self.cfg, "Section Tasks not defined in config!"
@@ -42,10 +40,6 @@ class Inference:
         self.overwrite     = overwrite
         self.h5s           = {}
 
-        self.output_directory = os.path.join(user.output_directory, 
-            os.path.basename( cfg_path ).replace(".yaml", ""), 
-            'tmp_data' + ('_small' if self.small else ''))
-
         # Load models and parameters
         self.load_models()
         self.alpha_bkg     = self.cfg['Parameters']['alpha_bkg']
@@ -55,10 +49,7 @@ class Inference:
         # ----------------------------------------------------------
         # Determine whether we do CSIs 
         # ----------------------------------------------------------
-        self.do_csis = self.cfg.get('CSI')
-        if self.do_csis is None:
-            self.do_csis = False
-        if self.do_csis:
+        if self.cfg.get('CSI') is not None:
             try:
                 self.load_csis()
                 print("Loaded existing CSIs.")
@@ -141,9 +132,7 @@ class Inference:
             selection (str): Selection criteria.
             ignore_done (bool): Whether to ignore already loaded results.
         """
-        h5_filename = os.path.join( self.output_directory,
-            filename + '_' + selection + '.h5'
-        )
+        h5_filename = os.path.join( self.cfg['tmp_path'], filename + '_' + selection + '.h5' )
         assert os.path.exists(h5_filename), "File {} does not exist! Try running the save mode first.".format(h5_filename)
 
         if not ignore_done and name in self.h5s and selection in self.h5s[name]:
@@ -189,7 +178,7 @@ class Inference:
         # Already loaded
         if hasattr( self, "csis" ): return
 
-        pkl_filename = os.path.join( self.output_directory, "CSI_TrainingData.pkl" )
+        pkl_filename = os.path.join( self.cfg['tmp_path'], "CSI_TrainingData.pkl" )
         assert os.path.exists(pkl_filename), "CSIs file {} does not exist!".format(pkl_filename)
 
         with open(pkl_filename, 'rb') as f:
@@ -255,7 +244,7 @@ class Inference:
         # ----------------------------------------------------------
         # Create output directory
         # ----------------------------------------------------------
-        os.makedirs(self.output_directory, exist_ok=True)
+        os.makedirs(cfg['tmp_path'], exist_ok=True)
 
         # ----------------------------------------------------------
         # Loop over selections and Save items
@@ -265,9 +254,9 @@ class Inference:
 
                 # Figure out the HDF5 filename
                 if obj == "Toy":
-                    obj_fn = os.path.join(self.output_directory, self.cfg['Toy_name'] + '_' + s + '.h5')
+                    obj_fn = os.path.join(cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
                 else:
-                    obj_fn = os.path.join(self.output_directory, obj + '_' + s + '.h5')
+                    obj_fn = os.path.join(cfg['tmp_path'], obj + '_' + s + '.h5')
 
                 # Warn if the file already exists
                 if os.path.exists(obj_fn):
@@ -378,7 +367,7 @@ class Inference:
                     # ------------------------------------------------------
                     # Build CSI interpolators if requested (for TrainingData)
                     # ------------------------------------------------------
-                    if self.do_csis and obj == "TrainingData":
+                    if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"] and obj == "TrainingData":
                         from scipy.interpolate import RegularGridInterpolator
 
                         # Access the multi-class classifier predictions
@@ -479,8 +468,8 @@ class Inference:
                             #    print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
 
 
-        if self.do_csis:
-            pkl_filename = os.path.join ( self.output_directory, "CSI_TrainingData.pkl" )
+        if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"]:
+            pkl_filename = os.path.join ( self.cfg['tmp_path'], "CSI_TrainingData.pkl" )
             pickle.dump(self.csis, open(pkl_filename, 'wb'))
             print("CSI: Written %s" % pkl_filename)
 
@@ -498,7 +487,7 @@ class Inference:
         self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
         # loading CSIs
-        if self.do_csis: 
+        if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]: 
             self.load_csis()
 
         # Load ML result for toy
@@ -507,30 +496,50 @@ class Inference:
   
         # dSoDS for training data
         weights = self.h5s['TrainingData'][selection]["Weight"]
-        dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
-        incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
+
+        if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
+            dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
+            incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
+        else:
+            incS_difference = None
 
         if hasattr( self, "csis"):
-            incS_difference_parametrized = -self.incS_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met ) + self.incS_from_csis(selection) 
-            dd = incS_difference-incS_difference_parametrized
-            rel = (incS_difference-incS_difference_parametrized)/incS_difference
-            sm_value = weights[:].sum()
-            sm_value_param = self.incS_from_csis(selection)
-            print(
-                f"incS: mu {mu:6.4f} "
-                f"nu_bkg {nu_bkg:6.4f} "
-                f"nu_tt {nu_tt:6.4f} "
-                f"nu_diboson {nu_diboson:6.4f} "
-                f"nu_tes {nu_tes:6.4f} "
-                f"nu_jes {nu_jes:6.4f} "
-                f"nu_met {nu_met:6.4f} "
-                f"nom: {incS_difference:6.4f} "
-                f"param: {incS_difference_parametrized:6.4f} "
-                f"diff: {dd:6.4f} "
-                f"rel: {rel:6.4f} "
-                #f"SM {sm_value:6.2f} "
-                #f"SM param {sm_value_param:6.2f} "
-            ) 
+            incS_difference_parametrized = -self.incS_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met ) + self.incS_from_csis(selection)
+
+            # If we have the standard x-sec, we let's print the difference.
+            if incS_difference is not None:
+                dd = incS_difference-incS_difference_parametrized
+                rel = (incS_difference-incS_difference_parametrized)/incS_difference
+                sm_value = weights[:].sum()
+                sm_value_param = self.incS_from_csis(selection)
+                print(
+                    f"incS: mu {mu:6.4f} "
+                    f"nu_bkg {nu_bkg:6.4f} "
+                    f"nu_tt {nu_tt:6.4f} "
+                    f"nu_diboson {nu_diboson:6.4f} "
+                    f"nu_tes {nu_tes:6.4f} "
+                    f"nu_jes {nu_jes:6.4f} "
+                    f"nu_met {nu_met:6.4f} "
+                    f"nom: {incS_difference:6.4f} "
+                    f"param: {incS_difference_parametrized:6.4f} "
+                    f"diff: {dd:6.4f} "
+                    f"rel: {rel:6.4f} "
+                    #f"SM {sm_value:6.2f} "
+                    #f"SM param {sm_value_param:6.2f} "
+                )
+            else:
+                incS_difference = incS_difference_parametrized
+                print(
+                    f"incS: mu {mu:6.4f} "
+                    f"nu_bkg {nu_bkg:6.4f} "
+                    f"nu_tt {nu_tt:6.4f} "
+                    f"nu_diboson {nu_diboson:6.4f} "
+                    f"nu_tes {nu_tes:6.4f} "
+                    f"nu_jes {nu_jes:6.4f} "
+                    f"nu_met {nu_met:6.4f} "
+                    f"param: {incS_difference_parametrized:6.4f} "
+                )
+ 
         # dSoDS for toys
         if self.cfg['Predict']['use_toy']:
           dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
