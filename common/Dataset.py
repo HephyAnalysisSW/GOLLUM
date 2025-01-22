@@ -2,6 +2,9 @@ import sys, os
 sys.path.insert( 0, "..")
 sys.path.insert( 0, "../..")
 
+import logging
+logger = logging.getLogger(__name__)
+
 import common.user   as user
 import common.data_structure as data_structure
 from   common.selections import selections
@@ -214,7 +217,7 @@ class Dataset:
         if not os.path.exists( self.file_path ):
             raise RuntimeError(f"File {self.file_path} not found!")
 
-        print(f"Loading from {self.file_path}")
+        logger.info(f"Loading from {self.file_path}")
 
     def get_data_loader( self, n_split = 100, batch_size=None, selection_function=None):
         

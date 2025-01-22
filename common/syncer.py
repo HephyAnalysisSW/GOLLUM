@@ -16,6 +16,7 @@ will be synced.
 
 import os, uuid
 import subprocess 
+
 # Logger
 import logging
 logger = logging.getLogger(__name__)
@@ -123,17 +124,17 @@ def write_sync_files_txt(output_filename = 'file_sync_storage.txt'):
                     outfile.write('{filename}\n'.format(filename=os.path.expanduser(os.path.expandvars(filename)).replace('www/','www/./')))
                     n_files+=1
                 else:
-                    print(("Will not sync %s" % filename))
-        print(("Analysis.Tools.syncer: Written %i files to %s for rsync." % (n_files, output_filename)))
+                    logger.info(("Will not sync %s" % filename))
+        logger.info(("Analysis.Tools.syncer: Written %i files to %s for rsync." % (n_files, output_filename)))
     return n_files
 
 gif_cmds = []
 def makeRemoteGif(directory, pattern, name, delay=50):
     if "CERN_USER" not in os.environ: 
-        print ("To sync with CERN www directory, you need to set $CERN_USER")
+        logger.info("To sync with CERN www directory, you need to set $CERN_USER")
         return
     if '/www/' not in directory:
-        print ("makeRemoteGif: /www/ not found. Do nothing.")
+        logger.info("makeRemoteGif: /www/ not found. Do nothing.")
         return
     directory_ = '/'+(directory.split('/www/')[-1])
     cern_user = os.environ["CERN_USER"]
@@ -145,7 +146,7 @@ def makeRemoteGif(directory, pattern, name, delay=50):
 def make_gifs( cmds=gif_cmds ):
     ret = []
     for cmd in cmds:
-        print ("make gif:", cmd )
+        logger.info("make gif:", cmd )
         output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         if error:
             ret.append(cmd)
@@ -154,14 +155,14 @@ def make_gifs( cmds=gif_cmds ):
 def sync(gifs=False):
 
     if "CERN_USER" not in os.environ: 
-        print ("To sync with CERN www directory, you need to set $CERN_USER")
+        logger.info("To sync with CERN www directory, you need to set $CERN_USER")
         return
     
     global file_sync_storage
     global gif_cmds 
 
     if len(file_sync_storage)==0:
-        print ("No files for syncing.")
+        logger.info("No files for syncing.")
         return
 
     filename = '/tmp/%s.txt'%uuid.uuid4()
@@ -169,7 +170,7 @@ def sync(gifs=False):
     if write_sync_files_txt(filename)==0: return 
 
     cmd = "rsync -avR  `cat %s` ${CERN_USER}@lxplus.cern.ch:/eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
-    print (cmd)
+    logger.info(cmd)
     output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
     #os.remove(filename)
     file_sync_storage = []

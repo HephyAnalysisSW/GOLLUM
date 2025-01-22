@@ -5,6 +5,9 @@ exchanged with any function that takes mu and nus as arguments.
 '''
 from iminuit import Minuit
 
+import logging
+logger = logging.getLogger(__name__)
+
 class likelihoodFit:
     def __init__(self, function=None):
         if function is None:
@@ -33,7 +36,7 @@ class likelihoodFit:
 
     def fit(self):
         # function to find the global minimum, minimizing mu and nus
-        print("Fit global minimum")
+        logger.info("Fit global minimum")
         errordef = Minuit.LEAST_SQUARES
         m = Minuit(self.function, mu=1.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
         m.limits["mu"] = (0.0, None)
@@ -48,12 +51,12 @@ class likelihoodFit:
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
         # Scan over points of mu
-        print("Scan signal strength")
+        logger.info("Scan signal strength")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
             q_mle, parameters_mle, cov = self.fit()
         else:
-            print("No need to re-run global fit, take existing results")
+            logger.info("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
             parameters_mle = self.parameters_mle
         # Now make scan over nu
@@ -73,17 +76,17 @@ class likelihoodFit:
             print(m)
             qDeltas.append(m.fval-q_mle)
             if (i_mu+1)/len(muList)*100 >= 10*fmu:
-                print(f"Scaned {i_mu+1}/{len(muList)}")
+                logger.info(f"Scanned {i_mu+1}/{len(muList)}")
                 fmu += 1
         return qDeltas, muList
 
     def impacts(self):
-        print("Calculate impacts")
+        logger.info("Calculate impacts")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
             q_mle, parameters_mle, cov = self.fit()
         else:
-            print("No need to re-run global fit, take existing results")
+            logger.info("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
             parameters_mle = self.parameters_mle
         mu_mle = parameters_mle["mu"]

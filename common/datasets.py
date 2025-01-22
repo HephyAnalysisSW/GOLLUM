@@ -4,6 +4,13 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 import glob
 
+if __name__=="__main__":
+    from common.logger import get_logger
+    logger = get_logger("INFO", logFile = None)
+else:
+    import logging
+    logger = logging.getLogger(__name__)
+
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
 
@@ -23,29 +30,29 @@ for subdir in subdirectories:
         #data[selection][filename] = process
 
 def print_all(specific_selection=None, verbose=False): 
-    print("All data sets I have:")
+    logger.info("All data sets I have:")
     for selection in selections.all_selections:
         if selection not in data: continue
         if specific_selection is not None and specific_selection!=selection: continue
         if verbose:
-            print( "selection: "+'\033[1m'+selection+'\033[0m')
+            logger.info( "selection: "+'\033[1m'+selection+'\033[0m')
             for (s, v), f in data[selection].items():
                 sstr = "  "+(s if s is not None else "combined")+" "+", ".join( [ data_structure.systematics[i_v]+"="+str(v) for i_v, v in enumerate( v )])
-                print(sstr.ljust(50), f)
+                logger.info(sstr.ljust(50), f)
         else:
             len_=len(data[selection])
-            print( "selection: "+'\033[1m'+selection+'\033[0m'+f" {len_} dataset(s) found")
-    print() 
+            logger.info( "selection: "+'\033[1m'+selection+'\033[0m'+f" {len_} dataset(s) found")
+    #print() 
 
 print_all()
 
 ## Initialize the data loader
 def get_data_loader( selection="inclusive", process=None, values=data_structure.default_values, n_split=10, batch_size=None, selection_function=None):
     if selection not in selections.all_selections:
-        print(f"I know nothing about selection {selection}")
+        logger.info(f"I know nothing about selection {selection}")
         selections.print_all()
     if (process, values) not in data[selection]:
-        print("I don't have the file for this choice: process: %s values:%r"%((process if process is not None else "combined"), values))
+        logger.warning("I don't have the file for this choice: process: %s values:%r"%((process if process is not None else "combined"), values))
         print_all(specific_selection=selection, verbose=True)
     return H5DataLoader(
         file_path          = data[selection][(process, values)], 

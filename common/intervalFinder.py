@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 class intervalFinder:
     def __init__(self, muValues, qValues, threshold=1.0):
         self.muValues = muValues
@@ -17,5 +20,5 @@ class intervalFinder:
     def getInterval(self):
         crossings = self.__findCrossings(self.muValues, self.qValues, self.threshold)
         if len(crossings) != 2:
-            print("[ERROR] Found", len(crossings), "point(s) where q = 1 in the mu range, should be 2! Please increase scan range.")
+            logger.error("[ERROR] Found", len(crossings), "point(s) where q = 1 in the mu range, should be 2! Please increase scan range.")
         return crossings

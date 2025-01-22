@@ -5,15 +5,11 @@ import numpy as np
 import pickle
 import argparse
 import time
+import yaml
 from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
-import yaml
-
-# Logger function for timestamped messages
-def logger(message):
-    formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    print(f"{formatted_time}: {message}")
+from common.logger import get_logger
 
 def update_dict(d, keys, value):
     """Recursively update a nested dictionary."""
@@ -34,6 +30,7 @@ def update_dict(d, keys, value):
 if __name__ == '__main__':
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
+    parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
     parser.add_argument("-c", "--config", help="Path to the config file.")
     parser.add_argument("-s", "--save", action="store_true", help="Save the ML predictions for the simulation.")
     parser.add_argument("-p", "--predict", action="store_true", help="Run predictions.")
@@ -47,8 +44,9 @@ if __name__ == '__main__':
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify toy weights according to nu_diboson.")
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
 
-
     args = parser.parse_args()
+
+    logger = get_logger(args.logLevel, logFile = None)
 
     # Construct postfix for filenames based on asimov parameters
     postfix = ""
@@ -63,7 +61,7 @@ if __name__ == '__main__':
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
-    print("Config loaded from {}".format(args.config))
+    logger.info("Config loaded from {}".format(args.config))
 
     # Process modifications
     if args.modify:
@@ -73,7 +71,7 @@ if __name__ == '__main__':
             key, value = mod.split("=", 1)
             key_parts = key.split(".")
             update_dict(cfg, key_parts, value)
-            print( "Updating cfg with: %s=%r"%( key, value) )
+            logger.warning( "Updating cfg with: %s=%r"%( key, value) )
 
     # Define output directory
     config_name = os.path.basename(args.config).replace(".yaml", "") 
@@ -102,13 +100,13 @@ if __name__ == '__main__':
                           asimov_nu_diboson=args.asimov_nu_diboson)
 
         # Perform global fit
-        logger("Start global fit.")
+        logger.info("Start global fit.")
         fit = likelihoodFit(likelihood_function)
         q_mle, parameters_mle, cov = fit.fit()
         logger("Fit done.")
 
-        print(f"q_mle = {q_mle}")
-        print(f"parameters = {parameters_mle}")
+        logger.info(f"q_mle = {q_mle}")
+        logger.info(f"parameters = {parameters_mle}")
 
         # Save fit results
         data_to_save = {"q_mle": q_mle, "mu_mle": parameters_mle["mu"]}
@@ -135,7 +133,7 @@ if __name__ == '__main__':
             postFitUncerts = fit.impacts()
             logger("Impacts done.")
 
-            print(f"postFit parameter boundaries: {postFitUncerts}")
+            logger.info(f"postFit parameter boundaries: {postFitUncerts}")
             impacts_file = os.path.join(output_directory, f"postFitUncerts.{config_name}{'_' + postfix if postfix else ''}.pkl")
             with open(impacts_file, 'wb') as file:
                 pickle.dump(postFitUncerts, file)
