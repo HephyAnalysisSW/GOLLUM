@@ -87,6 +87,7 @@ if __name__ == '__main__':
         result_file = os.path.join(output_directory, f"fitResult.{config_name}{'_' + postfix if postfix else ''}.pkl")
         with open(result_file, 'wb') as file:
             pickle.dump(data_to_save, file)
+        logger("Saved fit results: "+result_file)
 
         # Perform likelihood scan if requested
         if args.scan:
@@ -111,4 +112,3 @@ if __name__ == '__main__':
     # Deprecated feature (commented out for now)
     # r = infer.testStat(1, 0)
     # print(r)
-
