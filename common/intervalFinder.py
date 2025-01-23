@@ -1,5 +1,5 @@
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("UNC")
 
 class intervalFinder:
     def __init__(self, muValues, qValues, threshold=1.0):

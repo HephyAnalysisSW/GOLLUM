@@ -35,7 +35,7 @@ def has_kerberos_token():
 
 # Logger
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("UNC")
 
 # module singleton to keep track of files
 file_sync_storage = []

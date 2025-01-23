@@ -16,7 +16,7 @@ def get_logger(logLevel, logFile = None, add_sync_level = False):
     logging.Logger.sync = lambda inst, msg, *args, **kwargs: inst.log(logging.SYNC, msg, *args, **kwargs)
     logging.sync = lambda inst, msg, *args, **kwargs: inst.log(logging.SYNC, msg, *args, **kwargs)
 
-    logger = logging.getLogger('HEPHY-Unc')
+    logger = logging.getLogger('UNC')
 
 
     numeric_level = getattr(logging, logLevel.upper(), None)
@@ -27,7 +27,7 @@ def get_logger(logLevel, logFile = None, add_sync_level = False):
     if add_sync_level:
         formatter = logging.Formatter('%(message)s')
     else:
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     if logFile: 
       # create the logging file handler
       fileHandler = logging.FileHandler(logFile, mode='w')
@@ -36,11 +36,11 @@ def get_logger(logLevel, logFile = None, add_sync_level = False):
       logger.addHandler(fileHandler)
  
     # create console handler and set level to debug
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-
+    ch = logging.StreamHandler(stream=sys.stdout)
+    ch.setLevel(numeric_level)
     # add formatter to ch
     ch.setFormatter(formatter)
+    ch.flush = sys.stdout.flush 
 
     # add ch to logger
     logger.addHandler(ch)
@@ -53,9 +53,9 @@ def get_logger(logLevel, logFile = None, add_sync_level = False):
     return logger
 
 def add_fileHandler( logFile, logLevel ):
-    logger = logging.getLogger('Hephy-Unc')
+    logger = logging.getLogger('UNC')
     fileHandler = logging.FileHandler(logFile, mode='w')
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fileHandler.setFormatter(formatter)
     logger.addHandler(fileHandler)
 

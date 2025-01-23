@@ -1,5 +1,7 @@
 import sys
 sys.path.insert(0, "..")
+
+from common.logger import get_logger
 import os
 import numpy as np
 import pickle
@@ -9,7 +11,6 @@ import yaml
 from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
-from common.logger import get_logger
 
 def update_dict(d, keys, value):
     """Recursively update a nested dictionary."""
@@ -43,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument("--asimov_nu_ttbar", type=float, default=None, help="Modify toy weights according to nu_ttbar.")
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify toy weights according to nu_diboson.")
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
+    parser.add_argument("--CSI", nargs="+", default = [], help="Make only those CSIs")
 
     args = parser.parse_args()
 
@@ -87,7 +89,7 @@ if __name__ == '__main__':
 
     # Save the dataset if requested
     if args.save:
-        infer.save()
+        infer.save(restrict_csis = args.CSI)
 
     if args.predict:
         # Define the likelihood function
@@ -118,20 +120,20 @@ if __name__ == '__main__':
         result_file = os.path.join(output_directory, f"fitResult.{config_name}{'_' + postfix if postfix else ''}.pkl")
         with open(result_file, 'wb') as file:
             pickle.dump(data_to_save, file)
-        logger("Saved fit results: "+result_file)
+        logger.info("Saved fit results: "+result_file)
 
         # Perform likelihood scan if requested
         if args.scan:
-            logger("Start scan.")
+            logger.info("Start scan.")
             deltaQ, muPoints = fit.scan(Npoints=20, mumin=0, mumax=2)
-            logger("Scan done.")
+            logger.info("Scan done.")
             np.savez(f"likelihoodScan.{config_name}.npz", deltaQ=np.array(deltaQ), mu=np.array(muPoints))
 
         # Compute impacts if requested
         if args.impacts:
-            logger("Start impacts.")
+            logger.info("Start impacts.")
             postFitUncerts = fit.impacts()
-            logger("Impacts done.")
+            logger.info("Impacts done.")
 
             logger.info(f"postFit parameter boundaries: {postFitUncerts}")
             impacts_file = os.path.join(output_directory, f"postFitUncerts.{config_name}{'_' + postfix if postfix else ''}.pkl")

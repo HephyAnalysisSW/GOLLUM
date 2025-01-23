@@ -14,7 +14,7 @@ import pickle
 import copy
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('UNC')
 
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False):
@@ -180,14 +180,16 @@ class Inference:
         """
         # Already loaded
         if hasattr( self, "csis" ): return
+        self.csis = {}
+        for s in self.selections:
+            self.csis[s] = {}
+            for t in self.cfg['Tasks'][1:]:
+                pkl_filename = os.path.join( self.cfg['tmp_path'], "CSI_%s_%s_TrainingData.pkl"%(s,t) )
+                assert os.path.exists(pkl_filename), "CSIs file {} does not exist!".format(pkl_filename)
+                with open(pkl_filename, 'rb') as f:
+                    self.csis[s][t] = pickle.load(f)
 
-        pkl_filename = os.path.join( self.cfg['tmp_path'], "CSI_TrainingData.pkl" )
-        assert os.path.exists(pkl_filename), "CSIs file {} does not exist!".format(pkl_filename)
-
-        with open(pkl_filename, 'rb') as f:
-            self.csis = pickle.load(f)
-
-        logger.info(f"CSIs loaded from {pkl_filename}.")
+                logger.info(f"CSI loaded from {pkl_filename}.")
  
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
@@ -230,7 +232,7 @@ class Inference:
   
         return mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met))
 
-    def save(self):
+    def save(self, restrict_csis=[]):
         """
         Save the ML prediction to an HDF5 (.h5) file with:
           - Label (class label, if available)
@@ -254,7 +256,6 @@ class Inference:
         # ----------------------------------------------------------
         for s in self.selections:
             for obj in self.cfg['Save']:
-
                 # Figure out the HDF5 filename
                 if obj == "Toy":
                     obj_fn = os.path.join(self.cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
@@ -262,219 +263,187 @@ class Inference:
                     obj_fn = os.path.join(self.cfg['tmp_path'], obj + '_' + s + '.h5')
 
                 # Warn if the file already exists
+                create_file = True
                 if os.path.exists(obj_fn):
                     if self.overwrite:
                         logger.warning("Warning! Temporary file %s exists. It will be overwritten." % obj_fn)
+                        os.remove(obj_fn)  # Remove the file if overwriting is allowed
                     else:
                         logger.info("Temporary file %s exists. Continue." % obj_fn)
-                        continue
+                        create_file = False
 
-                # ------------------------------------------------------
                 # Create a new HDF5 file to store the data
-                # ------------------------------------------------------
-                with h5py.File(obj_fn, "w") as h5f:
-                    # Prepare dictionaries for storing data in memory before writing
-                    datasets = {
-                        "Label": [],
-                        "Weight": [],
-                    }
+                if create_file:
+                    if os.path.exists(obj_fn):  os.remove(obj_fn)
+                    with h5py.File(obj_fn, "w",libver='latest') as h5f:
+                        h5f.swmr_mode = True
+                        # Save some metadata (e.g., the selection) into HDF5 attributes
+                        h5f.attrs["selection"] = s
 
-                    # Save some metadata (e.g. the selection) into HDF5 attributes
-                    h5f.attrs["selection"] = s
+                        # Initialize HDF5 datasets with extendable dimensions
+                        datasets = {
+                            "Label": h5f.create_dataset("Label", (0,), maxshape=(None,), dtype=np.int32, compression="gzip", compression_opts=4),
+                            "Weight": h5f.create_dataset("Weight", (0,), maxshape=(None,), dtype=np.float32, compression="gzip", compression_opts=4),
+                        }
 
-                    # For each task, check what we need to save and store module/model path info
-                    for t in self.cfg['Tasks']:
-                        if "save" not in self.cfg[t]:
-                            continue
-                        # Initialize dataset(s) for whatever is under 'save'
-                        for iobj in self.cfg[t]['save']:
-                            datasets[t + '_' + iobj] = []
-
-                        # Save the module and model path in the HDF5 attributes
-                        h5f.attrs[t + "_module"] = self.cfg[t][s]["module"]
-                        h5f.attrs[t + "_model_path"] = self.cfg[t][s]["model_path"]
-
-                    # Decide how many events/batches to process
-                    n_split = self.cfg['Save'][obj]['n_split'] if not self.small else 100
-
-                    # ------------------------------------------------------
-                    # Decide how we get the data: from training or from a toy file
-                    # ------------------------------------------------------
-                    if obj == "TrainingData":
-                        data_input = self.training_data_loader(s, n_split)
-                    else:
-                        toy_path = os.path.join(self.cfg['Save'][obj]['dir'], s, self.cfg['Toy_name'] + '.h5')
-                        data_input = self.load_toy_file(
-                            toy_path,
-                            self.cfg['Save'][obj]['batch_size'],
-                            n_split
-                        )
-
-                    # ------------------------------------------------------
-                    # Loop over batches of data and store the results
-                    # ------------------------------------------------------
-                    for i_batch, batch in enumerate(data_input):
-                        features, weights, labels = data_input.split(batch)
-
-                        ## For toy data, set labels to -1 (since real labels may not exist)
-                        #if obj != "TrainingData":
-                        #    nevts = features.shape[0]
-                        #    labels = np.array([-1] * nevts)
-                        ## Robert: We need the labels to modify event weights for Asimov limits with modified nu_bkg etc.
-
-                        # Store labels and weights
-                        datasets["Label"].append(labels)
-                        datasets["Weight"].append(weights)
-
-                        # For each task, produce the predictions or DeltaA
+                        # For each task, check what we need to save and initialize datasets
                         for t in self.cfg['Tasks']:
                             if "save" not in self.cfg[t]:
                                 continue
+                            for iobj in self.cfg[t]['save']:
+                                ds_name = t + '_' + iobj
 
-                            for iobj in self.cfg[t]["save"]:
-                                if iobj == "predict":
-                                    pred = self.models[t][s].predict(features)
-                                    datasets[t + '_' + iobj].append(pred)
-                                elif iobj == "DeltaA":
-                                    DA = self.models[t][s].get_DeltaA(features)
-                                    datasets[t + '_' + iobj].append(DA)
+                                # Use output dimension from model
+                                if hasattr(self.models[t][s], "classes" ):
+                                    output_dim = len(self.models[t][s].classes) #TFMC case
                                 else:
-                                    raise Exception(
-                                        "Unsupported save type: '%s'. "
-                                        "Currently supported: 'predict', 'DeltaA'." % iobj
-                                    )
+                                    output_dim = len(self.models[t][s].combinations) #PNN case
 
-                        # If 'small' is True or we have reached a user-specified batch limit, break early
-                        if self.small or (
-                            self.cfg['Save'][obj]['max_n_batch'] > -1 and 
-                            i_batch >= self.cfg['Save'][obj]['max_n_batch']
-                        ):
-                            break
+                                datasets[ds_name] = h5f.create_dataset(
+                                    ds_name, (0, output_dim), maxshape=(None, output_dim), dtype=np.float32, compression="gzip", compression_opts=4
+                                )
 
-                    # ------------------------------------------------------
-                    # Concatenate all batches and write them to the HDF5 file
-                    # ------------------------------------------------------
-                    for ds_name, ds_content in datasets.items():
-                        # Ensure all datasets are concatenated to a single NumPy array
-                        ds_merged = np.concatenate(ds_content, axis=0)
-                        h5f.create_dataset(
-                            ds_name,
-                            data=ds_merged,
-                            compression="gzip",
-                            compression_opts=4  # 1=fastest, 9=smallest
-                        )
-                        datasets[ds_name]=ds_merged
+                            # Save the module and model path in the HDF5 attributes
+                            h5f.attrs[t + "_module"] = self.cfg[t][s]["module"]
+                            h5f.attrs[t + "_model_path"] = self.cfg[t][s]["model_path"]
 
-                    logger.info("Saved temporary results in {}".format(obj_fn))
+                        # Decide how many events/batches to process
+                        n_split = self.cfg['Save'][obj]['n_split'] if not self.small else 100
 
-                    # ------------------------------------------------------
-                    # Build CSI interpolators if requested (for TrainingData)
-                    # ------------------------------------------------------
-                    if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"] and obj == "TrainingData":
-                        from scipy.interpolate import RegularGridInterpolator
+                        # Decide how we get the data: from training or from a toy file
+                        if obj == "TrainingData":
+                            data_input = self.training_data_loader(s, n_split)
+                        else:
+                            toy_path = os.path.join(self.cfg['Save'][obj]['dir'], s, self.cfg['Toy_name'] + '.h5')
+                            data_input = self.load_toy_file(
+                                toy_path,
+                                self.cfg['Save'][obj]['batch_size'],
+                                n_split
+                            )
 
-                        # Access the multi-class classifier predictions
-                        gp     = datasets['MultiClassifier_predict']
-                        weight = datasets["Weight"]
+                        # Loop over batches of data and store the results incrementally
+                        with tqdm(total=len(data_input), desc="Processing batches") as pbar:
+                            for i_batch, batch in enumerate(data_input):
+                                features, weights, labels = data_input.split(batch)
 
-                        # We start computing csis
-                        if not hasattr( self, "csis" ):
-                            self.csis = {}
+                                # Append labels and weights to datasets
+                                datasets["Label"].resize(datasets["Label"].shape[0] + labels.shape[0], axis=0)
+                                datasets["Label"][-labels.shape[0]:] = labels
 
+                                datasets["Weight"].resize(datasets["Weight"].shape[0] + weights.shape[0], axis=0)
+                                datasets["Weight"][-weights.shape[0]:] = weights
+
+                                # For each task, produce predictions or DeltaA and write incrementally
+                                for t in self.cfg['Tasks']:
+                                    if "save" not in self.cfg[t]:
+                                        continue
+
+                                    for iobj in self.cfg[t]['save']:
+                                        ds_name = t + '_' + iobj
+
+                                        if iobj == "predict":
+                                            pred = self.models[t][s].predict(features)
+                                        elif iobj == "DeltaA":
+                                            pred = self.models[t][s].get_DeltaA(features)
+                                        else:
+                                            raise Exception(
+                                                f"Unsupported save type: '{iobj}'. "
+                                                "Currently supported: 'predict', 'DeltaA'."
+                                            )
+
+                                        # Resize and append predictions
+                                        datasets[ds_name].resize(datasets[ds_name].shape[0] + pred.shape[0], axis=0)
+                                        datasets[ds_name][-pred.shape[0]:] = pred
+
+                                # Check for early stopping conditions
+                                if self.small or (
+                                    self.cfg['Save'][obj]['max_n_batch'] > -1 and 
+                                    i_batch >= self.cfg['Save'][obj]['max_n_batch']
+                                ):
+                                    break
+
+                                pbar.update(1)
+
+                        logger.info("Saved temporary results in %s" % obj_fn)
+
+                # ------------------------------------------------------
+                # Build CSI interpolators if requested (for TrainingData)
+                # ------------------------------------------------------
+                if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"] and obj == "TrainingData":
+                    if any( [ _s in restrict_csis for _s in self.selections ] ):
+                        if s not in restrict_csis:
+                            logger.info("Selection %s not among those we compute CSIs for. Continue." % s)
+                            continue
+                        
+                    from scipy.interpolate import RegularGridInterpolator
+                    # Access the multi-class classifier predictions
+                    with h5py.File(obj_fn, "r", swmr=True) as h5f:
+                        gp = np.array(h5f['MultiClassifier_predict'])
+                        weight = np.array(h5f["Weight"])
+
+                        # Ensure DeltaA is a NumPy array
+                        self.csis = self.csis if hasattr(self, 'csis') else {}
                         self.csis[s] = {}
 
-                        # Ensure NumPy arrays
-                        if isinstance(gp, list):
-                            gp = np.concatenate(gp, axis=0)
-                        if isinstance(weight, list):
-                            weight = np.concatenate(weight, axis=0)
-
-                        # Hardcode the 3D grid definition with both coarse and finer spacing
+                        # Create the grid values for interpolation
                         coarse_spacing = 1
                         fine_spacing = 0.5
 
-                        # Coarse grid
-                        nu_tes_values_coarse = np.arange(-10, 11, coarse_spacing)
-                        nu_jes_values_coarse = np.arange(-10, 11, coarse_spacing)
-                        nu_met_values_coarse = np.arange(0, 6, coarse_spacing)
+                        nu_tes_values = np.unique(np.concatenate([
+                            np.arange(-10, 11, coarse_spacing),
+                            np.arange(-3, 3 + fine_spacing, fine_spacing)]))
+                        nu_jes_values = np.unique(np.concatenate([
+                            np.arange(-10, 11, coarse_spacing),
+                            np.arange(-3, 3 + fine_spacing, fine_spacing)]))
+                        nu_met_values = np.unique(np.concatenate([
+                            np.arange(0, 6, coarse_spacing),
+                            np.arange(0, 3 + fine_spacing, fine_spacing)]))
 
-                        # Fine grid (only within specified ranges)
-                        nu_tes_values_fine = np.arange(-3, 3 + fine_spacing, fine_spacing)
-                        nu_jes_values_fine = np.arange(-3, 3 + fine_spacing, fine_spacing)
-                        nu_met_values_fine = np.arange(0, 3 + fine_spacing, fine_spacing)
+                        grid_shape = (
+                            len(nu_tes_values), len(nu_jes_values), len(nu_met_values))
+                        base_points_flat = np.stack(
+                            np.meshgrid(nu_tes_values, nu_jes_values, nu_met_values, indexing="ij"),
+                            axis=-1).reshape(-1, 3)
 
-                        # Combine coarse and fine grids, ensuring no duplicates
-                        nu_tes_values = np.unique(np.concatenate([nu_tes_values_coarse, nu_tes_values_fine]))
-                        nu_jes_values = np.unique(np.concatenate([nu_jes_values_coarse, nu_jes_values_fine]))
-                        nu_met_values = np.unique(np.concatenate([nu_met_values_coarse, nu_met_values_fine]))
-
-                        # Create the combined grid
-                        grid_shape = (len(nu_tes_values), len(nu_jes_values), len(nu_met_values))
-                        nu_tes_grid, nu_jes_grid, nu_met_grid = np.meshgrid(nu_tes_values, nu_jes_values, nu_met_values, indexing="ij")
-
-                        # Flatten the grid for easier matrix operations
-                        base_points_flat = np.stack([nu_tes_grid.ravel(), nu_jes_grid.ravel(), nu_met_grid.ravel()], axis=-1)
-
-                        # Iterate over tasks and datasets
+                        # Iterate over tasks for CSI computation
                         for i_t, t in enumerate(self.cfg['Tasks'][1:]):
-                            # Precompute nu_A(base_points) for all base points
-                            nu_A_values = np.array([self.models[t][s].nu_A(base_point) for base_point in base_points_flat]) 
+                            if any( [ _t in restrict_csis for _t in self.cfg['Tasks'][1:] ]):
+                                if t not in restrict_csis:
+                                    logger.info("Task %s not among those we compute CSIs for. Continue." %t)
+                                    continue
+                                pkl_filename = os.path.join(
+                                    self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
+                                if os.path.exists( pkl_filename ) and not self.overwrite:
+                                    logger.info("Found %s. Continue." %pkl_filename)
+                                    continue
+                         
+                            nu_A_values = np.array([
+                                self.models[t][s].nu_A(bp) for bp in base_points_flat])
 
-                            # Ensure DeltaA is a NumPy array
-                            DeltaA = np.array(datasets[t + "_DeltaA"])  # Convert to NumPy array if it's a list
+                            DeltaA = np.array(h5f[t + "_DeltaA"])
+                            gp_t, gp_sum = gp[:, i_t], gp.sum(axis=1)
 
-                            gp_t   = gp[:, i_t]  # Shape: (172734,)
-                            gp_sum = gp[:,:].sum(axis=1)
+                            yield_values = np.zeros((nu_A_values.shape[0],))
+                            batch_size = 10**5
 
-                            # Dynamically determine batch size
-                            batch_size = 10**5 #max(1, int((DeltaA.shape[0] * nu_A_values.shape[0]) / 10**5))
-                            #print(f"Using batch size: {batch_size}")
-
-                            # Initialize yield_values to accumulate results
-                            yield_values = np.zeros((nu_A_values.shape[0],), dtype=float)  # Shape: (726,)
-
-                            # Process events in batches
-                            for start in tqdm(range(0, gp_t.shape[0], batch_size), desc="Processing batches", unit="batch"):
+                            for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
                                 end = min(start + batch_size, gp_t.shape[0])
+                                batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
+                                exp_batch = np.exp(np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                yield_values += np.dot(batch_weighted, exp_batch)
 
-                                # Slice the current batch
-                                gp_batch_weighted = weight[start:end]*(gp_t[start:end]/gp_sum[start:end])  # Shape: (batch_size,)
-                                #gp_batch_weighted = gp_t[start:end]  # Shape: (batch_size,)
-                                DeltaA_batch = DeltaA[start:end, :]  # Shape: (batch_size, <other_dimensions>)
-                                #print("DeltaA_batch shape:", DeltaA_batch.shape)
-                                #print("nu_A_values.T shape:", nu_A_values.T.shape)
-                                #print("gp_batch_weightd.shape:", gp_batch_weighted.shape)
-                                # Compute the dot product and exponentiation for the batch
-                                exp_values_batch = np.exp(np.dot(DeltaA_batch, nu_A_values.T))  # Shape: (batch_size, 726)
-
-                                # Weighted summation for the batch
-                                yield_values += np.dot(gp_batch_weighted, exp_values_batch)  # Shape: (726,)
-
-                            # Reshape yield values back into the grid
-                            data_cube = yield_values.reshape(grid_shape)  # Shape: (11, 11, 6)
-
-                            # Create the interpolator
+                            data_cube = yield_values.reshape(grid_shape)
                             self.csis[s][t] = RegularGridInterpolator(
-                                (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic",
-                            )
+                                (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic")
 
-                            # As a check, compute the max ratio w.r.t. (0,0,0)
-                            sm_index = list(map(tuple, base_points_flat)).index((0, 0, 0))
-                            max_ratio = max(
-                                abs(yield_values[i_bp] / yield_values[sm_index]) for i_bp in range(len(base_points_flat))
-                            )
-                            logger.info("CSI: Maximum ratio within training boundaries for %s %s: %3.2f" % (s, t, max_ratio))
-                            # Save the CSI interpolator(s) to a pickle
+                            sm_index = np.where((base_points_flat == [0, 0, 0]).all(axis=1))[0][0]
+                            max_ratio = (abs(yield_values / yield_values[sm_index])).max()
+                            logger.info(f"CSI max ratio for {s} {t}: {max_ratio:.2f}")
 
-                            for base_point in base_points_flat:
-                                index=list(map(tuple, base_points_flat)).index(tuple(base_point))
-                                print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
-
-
-        if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"]:
-            pkl_filename = os.path.join ( self.cfg['tmp_path'], "CSI_TrainingData.pkl" )
-            pickle.dump(self.csis, open(pkl_filename, 'wb'))
-            logger.info("CSI: Written %s" % pkl_filename)
+                            if self.cfg.get("CSI", {}).get("save", False):
+                                with open(pkl_filename, 'wb') as pkl_file:
+                                    pickle.dump(self.csis[s][t], pkl_file)
+                                logger.info(f"CSI saved: {pkl_filename}")
 
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
           return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
@@ -582,3 +551,115 @@ class Inference:
         #    # self.h5s[n][s].close()
         #    del self.h5s[n][s]
         #  del self.h5s[n]
+
+#                # Figure out the HDF5 filename
+#                if obj == "Toy":
+#                    obj_fn = os.path.join(self.cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
+#                else:
+#                    obj_fn = os.path.join(self.cfg['tmp_path'], obj + '_' + s + '.h5')
+#
+#                # Warn if the file already exists
+#                if os.path.exists(obj_fn):
+#                    if self.overwrite:
+#                        logger.warning("Warning! Temporary file %s exists. It will be overwritten." % obj_fn)
+#                    else:
+#                        logger.info("Temporary file %s exists. Continue." % obj_fn)
+#                        continue
+#
+#                # ------------------------------------------------------
+#                # Create a new HDF5 file to store the data
+#                # ------------------------------------------------------
+#                with h5py.File(obj_fn, "w") as h5f:
+#                    # Prepare dictionaries for storing data in memory before writing
+#                    datasets = {
+#                        "Label": [],
+#                        "Weight": [],
+#                    }
+#
+#                    # Save some metadata (e.g. the selection) into HDF5 attributes
+#                    h5f.attrs["selection"] = s
+#
+#                    # For each task, check what we need to save and store module/model path info
+#                    for t in self.cfg['Tasks']:
+#                        if "save" not in self.cfg[t]:
+#                            continue
+#                        # Initialize dataset(s) for whatever is under 'save'
+#                        for iobj in self.cfg[t]['save']:
+#                            datasets[t + '_' + iobj] = []
+#
+#                        # Save the module and model path in the HDF5 attributes
+#                        h5f.attrs[t + "_module"] = self.cfg[t][s]["module"]
+#                        h5f.attrs[t + "_model_path"] = self.cfg[t][s]["model_path"]
+#
+#                    # Decide how many events/batches to process
+#                    n_split = self.cfg['Save'][obj]['n_split'] if not self.small else 100
+#
+#                    # ------------------------------------------------------
+#                    # Decide how we get the data: from training or from a toy file
+#                    # ------------------------------------------------------
+#                    if obj == "TrainingData":
+#                        data_input = self.training_data_loader(s, n_split)
+#                    else:
+#                        toy_path = os.path.join(self.cfg['Save'][obj]['dir'], s, self.cfg['Toy_name'] + '.h5')
+#                        data_input = self.load_toy_file(
+#                            toy_path,
+#                            self.cfg['Save'][obj]['batch_size'],
+#                            n_split
+#                        )
+#
+#                    # ------------------------------------------------------
+#                    # Loop over batches of data and store the results
+#                    # ------------------------------------------------------
+#                    for i_batch, batch in enumerate(data_input):
+#                        features, weights, labels = data_input.split(batch)
+#
+#                        ## For toy data, set labels to -1 (since real labels may not exist)
+#                        #if obj != "TrainingData":
+#                        #    nevts = features.shape[0]
+#                        #    labels = np.array([-1] * nevts)
+#                        ## Robert: We need the labels to modify event weights for Asimov limits with modified nu_bkg etc.
+#
+#                        # Store labels and weights
+#                        datasets["Label"].append(labels)
+#                        datasets["Weight"].append(weights)
+#
+#                        # For each task, produce the predictions or DeltaA
+#                        for t in self.cfg['Tasks']:
+#                            if "save" not in self.cfg[t]:
+#                                continue
+#
+#                            for iobj in self.cfg[t]["save"]:
+#                                if iobj == "predict":
+#                                    pred = self.models[t][s].predict(features)
+#                                    datasets[t + '_' + iobj].append(pred)
+#                                elif iobj == "DeltaA":
+#                                    DA = self.models[t][s].get_DeltaA(features)
+#                                    datasets[t + '_' + iobj].append(DA)
+#                                else:
+#                                    raise Exception(
+#                                        "Unsupported save type: '%s'. "
+#                                        "Currently supported: 'predict', 'DeltaA'." % iobj
+#                                    )
+#
+#                        # If 'small' is True or we have reached a user-specified batch limit, break early
+#                        if self.small or (
+#                            self.cfg['Save'][obj]['max_n_batch'] > -1 and 
+#                            i_batch >= self.cfg['Save'][obj]['max_n_batch']
+#                        ):
+#                            break
+#
+#                    # ------------------------------------------------------
+#                    # Concatenate all batches and write them to the HDF5 file
+#                    # ------------------------------------------------------
+#                    for ds_name, ds_content in datasets.items():
+#                        # Ensure all datasets are concatenated to a single NumPy array
+#                        ds_merged = np.concatenate(ds_content, axis=0)
+#                        h5f.create_dataset(
+#                            ds_name,
+#                            data=ds_merged,
+#                            compression="gzip",
+#                            compression_opts=4  # 1=fastest, 9=smallest
+#                        )
+#                        datasets[ds_name]=ds_merged
+#
+#                    logger.info("Saved temporary results in {}".format(obj_fn))

@@ -9,7 +9,7 @@ if __name__=="__main__":
     logger = get_logger("INFO", logFile = None)
 else:
     import logging
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("UNC")
 
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user

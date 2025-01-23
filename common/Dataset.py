@@ -3,7 +3,7 @@ sys.path.insert( 0, "..")
 sys.path.insert( 0, "../..")
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('UNC')
 
 import common.user   as user
 import common.data_structure as data_structure

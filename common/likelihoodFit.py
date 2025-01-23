@@ -6,7 +6,7 @@ exchanged with any function that takes mu and nus as arguments.
 from iminuit import Minuit
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("UNC")
 
 class likelihoodFit:
     def __init__(self, function=None):
