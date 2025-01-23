@@ -13,6 +13,9 @@ import common.data_structure as data_structure
 import pickle
 import copy
 
+import logging
+logger = logging.getLogger(__name__)
+
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False):
         """
@@ -52,7 +55,7 @@ class Inference:
         if self.cfg.get('CSI') is not None:
             try:
                 self.load_csis()
-                print("Loaded existing CSIs.")
+                logger.info("Loaded existing CSIs.")
             except (IOError, AssertionError):
                 pass
 
@@ -70,7 +73,7 @@ class Inference:
         """
         import common.datasets as datasets
         d = datasets.get_data_loader(selection=selection, n_split=n_split)
-        print("Training data loaded for selection: {}".format(selection))
+        logger.info("Training data loaded for selection: {}".format(selection))
         return d
 
     def load_toy_file(self, filename, batch_size, n_split):
@@ -92,7 +95,7 @@ class Inference:
             n_split            = n_split,
             selection_function = None,
         )
-        print("Toy loaded from {}.".format(filename))
+        logger.info("Toy loaded from {}.".format(filename))
         return t
 
     def loadH5(self, filename, selection):
@@ -109,7 +112,7 @@ class Inference:
         try:
             h5f = h5py.File(filename)
         except BlockingIOError as e:
-            print(f"File {filename} blocked.")
+            logger.error(f"File {filename} blocked.")
             raise e
 
         # Validate the model path and module consistency
@@ -152,7 +155,7 @@ class Inference:
             "Weight":                  h5f["Weight"][:],
             "Label":                   h5f["Label"][:]
         }
-        print("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
+        logger.info("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
 
     def load_models(self):
         """
@@ -167,7 +170,7 @@ class Inference:
 
                 m = ms.getModule(self.cfg[t][s]["module"])
                 self.models[t][s] = m.load(self.cfg[t][s]["model_path"])
-                print("Task {} selection {}: Module {} loaded with model path {}.".format(
+                logger.info("Task {} selection {}: Module {} loaded with model path {}.".format(
                     t, s, self.cfg[t][s]["module"], self.cfg[t][s]["model_path"]))
 
     def load_csis(self):
@@ -184,7 +187,7 @@ class Inference:
         with open(pkl_filename, 'rb') as f:
             self.csis = pickle.load(f)
 
-        print(f"CSIs loaded from {pkl_filename}.")
+        logger.info(f"CSIs loaded from {pkl_filename}.")
  
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
@@ -261,9 +264,9 @@ class Inference:
                 # Warn if the file already exists
                 if os.path.exists(obj_fn):
                     if self.overwrite:
-                        print("Warning! Temporary file %s exists. It will be overwritten." % obj_fn)
+                        logger.warning("Warning! Temporary file %s exists. It will be overwritten." % obj_fn)
                     else:
-                        print("Temporary file %s exists. Continue." % obj_fn)
+                        logger.info("Temporary file %s exists. Continue." % obj_fn)
                         continue
 
                 # ------------------------------------------------------
@@ -362,7 +365,7 @@ class Inference:
                         )
                         datasets[ds_name]=ds_merged
 
-                    print("Saved temporary results in {}".format(obj_fn))
+                    logger.info("Saved temporary results in {}".format(obj_fn))
 
                     # ------------------------------------------------------
                     # Build CSI interpolators if requested (for TrainingData)
@@ -460,18 +463,18 @@ class Inference:
                             max_ratio = max(
                                 abs(yield_values[i_bp] / yield_values[sm_index]) for i_bp in range(len(base_points_flat))
                             )
-                            print("CSI: Maximum ratio within training boundaries for %s %s: %3.2f" % (s, t, max_ratio))
+                            logger.info("CSI: Maximum ratio within training boundaries for %s %s: %3.2f" % (s, t, max_ratio))
                             # Save the CSI interpolator(s) to a pickle
 
-                            #for base_point in base_points_flat:
-                            #    index=list(map(tuple, base_points_flat)).index(tuple(base_point))
-                            #    print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
+                            for base_point in base_points_flat:
+                                index=list(map(tuple, base_points_flat)).index(tuple(base_point))
+                                print( s,t,base_point, yield_values[index], self.csis[s][t](base_point) )
 
 
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["save"]:
             pkl_filename = os.path.join ( self.cfg['tmp_path'], "CSI_TrainingData.pkl" )
             pickle.dump(self.csis, open(pkl_filename, 'wb'))
-            print("CSI: Written %s" % pkl_filename)
+            logger.info("CSI: Written %s" % pkl_filename)
 
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
           return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
@@ -551,19 +554,19 @@ class Inference:
         if asimov_mu is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['htautau']] = weights_toy[labels==data_structure.label_encoding['htautau']]*asimov_mu
-            print( "Scaled labeled signal events by %4.3f" % asimov_mu )
+            logger.info( "Scaled labeled signal events by %4.3f" % asimov_mu )
         if asimov_nu_bkg is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*asimov_nu_bkg
-            print( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
+            logger.info( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
         if asimov_nu_ttbar is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*asimov_nu_ttbar
-            print( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
+            logger.info( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*asimov_nu_diboson
-            print( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
+            logger.info( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
   
         uTerm += -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
 
@@ -572,7 +575,7 @@ class Inference:
       return uTerm
   
     def clossMLresults(self):
-        print( "Warning. clossMLresults does nothing" )
+        logger.warning( "Warning. clossMLresults does nothing" )
         return
         #for n in list(self.h5s):
         #  for s in list(self.h5s[n]):

@@ -69,9 +69,9 @@ if __name__ == '__main__':
             if "=" not in mod:
                 raise ValueError(f"Invalid modify argument: {mod}. Must be in 'key=value' format.")
             key, value = mod.split("=", 1)
+            logger.warning( "Updating cfg with: %s=%r"%( key, value) )
             key_parts = key.split(".")
             update_dict(cfg, key_parts, value)
-            logger.warning( "Updating cfg with: %s=%r"%( key, value) )
 
     # Define output directory
     config_name = os.path.basename(args.config).replace(".yaml", "") 
