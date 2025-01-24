@@ -33,10 +33,6 @@ def has_kerberos_token():
         print("Error: `klist` command not found. Ensure Kerberos is installed.")
         return False
 
-# Logger
-import logging
-logger = logging.getLogger("UNC")
-
 # module singleton to keep track of files
 file_sync_storage = []
 
@@ -54,7 +50,7 @@ import ROOT
 
 _print = ROOT.TCanvas.Print 
 def myPrint( self, *args):
-    logger.debug( "Appending file %s", args[0] )
+    print( "Appending file %s"% args[0] )
     if not os.path.exists(os.path.dirname( args[0] ) ):
         os.makedirs( os.path.dirname( args[0] ) )
     file_sync_storage.append( args[0] )
@@ -65,7 +61,7 @@ ROOT.TCanvas.Print = myPrint
 
 _saveAs = ROOT.TCanvas.SaveAs 
 def mySaveAs( self, *args):
-    logger.debug( "Appending file %s", args[0] )
+    print( "Appending file %s"% args[0] )
     if not os.path.exists(os.path.dirname( args[0] ) ):
         os.makedirs( os.path.dirname( args[0] ) )
     file_sync_storage.append( args[0] )
@@ -140,17 +136,17 @@ def write_sync_files_txt(output_filename = 'file_sync_storage.txt'):
                     outfile.write('{filename}\n'.format(filename=os.path.expanduser(os.path.expandvars(filename)).replace('www/','www/./')))
                     n_files+=1
                 else:
-                    logger.info(("Will not sync %s" % filename))
-        logger.info(("Analysis.Tools.syncer: Written %i files to %s for rsync." % (n_files, output_filename)))
+                    print(("Will not sync %s" % filename))
+        print(("Analysis.Tools.syncer: Written %i files to %s for rsync." % (n_files, output_filename)))
     return n_files
 
 gif_cmds = []
 def makeRemoteGif(directory, pattern, name, delay=50):
     if "CERN_USER" not in os.environ: 
-        logger.info("To sync with CERN www directory, you need to set $CERN_USER")
+        print("To sync with CERN www directory, you need to set $CERN_USER")
         return
     if '/www/' not in directory:
-        logger.info("makeRemoteGif: /www/ not found. Do nothing.")
+        print("makeRemoteGif: /www/ not found. Do nothing.")
         return
     directory_ = '/'+(directory.split('/www/')[-1])
     cern_user = os.environ["CERN_USER"]
@@ -162,7 +158,7 @@ def makeRemoteGif(directory, pattern, name, delay=50):
 def make_gifs( cmds=gif_cmds ):
     ret = []
     for cmd in cmds:
-        logger.info("make gif:", cmd )
+        print("make gif:", cmd )
         output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         if error:
             ret.append(cmd)
@@ -171,18 +167,18 @@ def make_gifs( cmds=gif_cmds ):
 def sync(gifs=False):
 
     if "CERN_USER" not in os.environ: 
-        logger.info("To sync with CERN www directory, you need to set $CERN_USER")
+        print("To sync with CERN www directory, you need to set $CERN_USER")
         return
 
     if not has_kerberos_token():
-        logger.info("No kerberos token. Do nothing.")
+        print("No kerberos token. Do nothing.")
         return 
     
     global file_sync_storage
     global gif_cmds 
 
     if len(file_sync_storage)==0:
-        logger.info("No files for syncing.")
+        print("No files for syncing.")
         return
 
     filename = '/tmp/%s.txt'%uuid.uuid4()
@@ -190,7 +186,7 @@ def sync(gifs=False):
     if write_sync_files_txt(filename)==0: return 
 
     cmd = "rsync -avR  `cat %s` ${CERN_USER}@lxplus.cern.ch:/eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
-    logger.info(cmd)
+    print(cmd)
     output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
     #os.remove(filename)
     file_sync_storage = []

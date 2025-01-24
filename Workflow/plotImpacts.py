@@ -6,6 +6,7 @@ import numpy as np
 sys.path.insert(0, "..")
 import common.syncer
 import common.user as user
+import os
 
 xboundary = 0.7
 separation = 0.02
@@ -274,7 +275,7 @@ line.Draw("SAME")
 muresult = addText(0.2, 0.9, "#mu = %.2f #pm %.2f"%(fitResult["mu"], np.sqrt(fitResult["cov__mu__mu"])), font=43, size=16, color=ROOT.kBlack)
 muresult.Draw()
 
-c.Print(user.plot_directory+"/"+args.file.replace("fitResult.", "impacts.").replace(".pkl",".pdf"))
+c.Print(os.path.join( user.plot_directory, 'impacts', os.path.basename(args.file).replace("fitResult.", "impacts.").replace(".pkl",".pdf")))
 
 ################################################################################
 # Correlation
@@ -286,4 +287,4 @@ ROOT.gPad.SetRightMargin(0.15)
 ROOT.gPad.SetBottomMargin(0.07)
 h_cor = getCorrelations(fitResult, nuisanceList)
 h_cor.Draw("COLZ")
-c_cor.Print(user.plot_directory+"/"+args.file.replace("fitResult.", "correlations.").replace(".pkl",".pdf"))
+c_cor.Print(os.path.join( user.plot_directory, 'impacts', os.path.basename(args.file).replace("fitResult.", "correlations.").replace(".pkl",".pdf")))
