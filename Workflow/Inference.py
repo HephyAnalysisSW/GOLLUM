@@ -441,6 +441,8 @@ class Inference:
                             logger.info(f"CSI max ratio for {s} {t}: {max_ratio:.2f}")
 
                             if self.cfg.get("CSI", {}).get("save", False):
+                                pkl_filename = os.path.join(
+                                    self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
                                 with open(pkl_filename, 'wb') as pkl_file:
                                     pickle.dump(self.csis[s][t], pkl_file)
                                 logger.info(f"CSI saved: {pkl_filename}")
