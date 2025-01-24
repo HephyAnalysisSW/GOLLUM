@@ -23,6 +23,7 @@ argParser.add_argument("--selection", action="store", default="lowMT_VBFJet", he
 argParser.add_argument("--n_split", action="store", default=10, type=int, help="How many batches?")
 argParser.add_argument("--training", action="store", default="v1", help="Training version")
 argParser.add_argument("--config", action="store", default="xgb_v1", help="Which config?")
+argParser.add_argument("--every", action="store", default=5, type=int, help="Update plot at every 'every' iteration.")
 argParser.add_argument("--configDir", action="store", default="configs", help="Where is the config?")
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
 args = argParser.parse_args()
@@ -57,6 +58,8 @@ config.model_dir = model_directory
 plot_directory  = os.path.join(user.plot_directory,  "XGBMC", args.selection, args.config, args.training+("_small" if args.small else ""))
 helpers.copyIndexPHP(plot_directory)
 
+max_batch = 1 if args.small else -1
+
 # Initialize model
 if not args.overwrite:
     try:
@@ -86,4 +89,4 @@ xgbmc.start_epoch = last_epoch
 xgbmc.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
 
 # Train the model
-xgbmc.train()
+xgbmc.train(max_batch = max_batch, every=args.every, plot_directory=plot_directory)

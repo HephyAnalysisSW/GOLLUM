@@ -15,7 +15,7 @@ input_dim     = len(data_structure.feature_names)
 use_ic        = True
 use_scaler    = True
         
-learning_rate = 0.01  # Learning rate (eta)
+learning_rate = 0.2  # Learning rate (eta)
 max_depth = 6  # Maximum tree depth
 subsample = 0.8  # Fraction of samples for training each tree
 colsample_bytree = 0.8  # Fraction of features for training each tree
