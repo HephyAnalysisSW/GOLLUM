@@ -44,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument("--asimov_nu_ttbar", type=float, default=None, help="Modify toy weights according to nu_ttbar.")
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify toy weights according to nu_diboson.")
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
+    parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
     parser.add_argument("--CSI", nargs="+", default = [], help="Make only those CSIs")
 
     args = parser.parse_args()
@@ -51,15 +52,20 @@ if __name__ == '__main__':
     logger = get_logger(args.logLevel, logFile = None)
 
     # Construct postfix for filenames based on asimov parameters
-    postfix = ""
+    postfix = []
     if args.asimov_mu is not None:
-        postfix += f"mu_{args.asimov_mu:.3f}".replace("-", "m").replace(".", "p")
+        postfix.append(f"mu_{args.asimov_mu:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_bkg is not None:
-        postfix += f"nu_bkg_{args.asimov_nu_bkg:.3f}".replace("-", "m").replace(".", "p")
+        postfix.append(f"nu_bkg_{args.asimov_nu_bkg:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_ttbar is not None:
-        postfix += f"nu_ttbar_{args.asimov_nu_ttbar:.3f}".replace("-", "m").replace(".", "p")
+        postfix.append(f"nu_ttbar_{args.asimov_nu_ttbar:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_diboson is not None:
-        postfix += f"nu_diboson_{args.asimov_nu_diboson:.3f}".replace("-", "m").replace(".", "p")
+        postfix.append(f"nu_diboson_{args.asimov_nu_diboson:.3f}".replace("-", "m").replace(".", "p"))
+
+    if args.postfix is not None:
+        postfix.append( args.postfix )
+
+    postfix = "_".join( postfix )
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
