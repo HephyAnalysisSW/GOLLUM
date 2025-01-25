@@ -22,7 +22,7 @@ colsample_bytree = 0.8  # Fraction of features for training each tree
 l1_reg = 0.1  # L1 regularization (alpha)
 l2_reg = 0.05  # L2 regularization (lambda)
 #num_boost_round = 300  # Number of boosting rounds
-num_boost_round = 5  # Number of boosting rounds
+num_boost_round = 100  # Number of boosting rounds
 seed = 42  # Random seed for reproducibility
 verbose_eval = 10  # Frequency of logging during training
 

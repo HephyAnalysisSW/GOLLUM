@@ -64,7 +64,7 @@ max_batch = 1 if args.small else -1
 if not args.overwrite:
     try:
         print(f"Trying to load XGBMC from {model_directory}")
-        xgbmc, last_epoch = XGBMC.load(model_directory)
+        xgbmc, last_epoch = XGBMC.load(model_directory, return_epoch=True)
         if xgbmc is None:
             print("No checkpoint found. Starting from scratch.")
             config = importlib.import_module(f"{args.configDir}.{args.config}")

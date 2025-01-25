@@ -183,7 +183,7 @@ class XGBMC:
             raise Exception("Model is not trained yet!")
 
     @classmethod
-    def load(cls, model_dir):
+    def load(cls, model_dir, return_epoch=False):
         model_files = [f for f in os.listdir(model_dir) if f.startswith("model_") and f.endswith(".json")]
         if not model_files:
             return None, 0
@@ -204,7 +204,10 @@ class XGBMC:
         instance.weight_sums = metadata['weight_sums']
         instance.params = metadata['params']
         print(f"Model and metadata loaded from {model_path}, epoch {epoch}")
-        return instance, epoch
+        if return_epoch:
+            return instance, epoch
+        else:
+            return instance
 
     def plot_convergence_root(self, true_histograms, pred_histograms, epoch, plot_directory, feature_names):
         """

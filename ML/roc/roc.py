@@ -31,11 +31,17 @@ data_loader = datasets.get_data_loader(
 max_batch = 1 if args.small else -1
 
 # Load the TFMC models
-from TFMC import TFMC
-models = {model_dir: TFMC.load(model_dir) for model_dir in args.modelDirs}
+models = {}
+for model_dir in args.modelDirs:
+    if '/TFMC/' in model_dir:
+        from ML.TFMC.TFMC import TFMC
+        models[model_dir] = TFMC.load(model_dir)
+    elif '/XGBMC/' in model_dir:
+        from ML.XGBMC.XGBMC import XGBMC
+        models[model_dir] = XGBMC.load(model_dir)
 
 # Output directory for plots
-plot_directory = os.path.join(user.plot_directory, "TFMC", args.selection, "ROC_curves")
+plot_directory = os.path.join(user.plot_directory, "roc", args.selection, "ROC_curves")
 os.makedirs(plot_directory, exist_ok=True)
 helpers.copyIndexPHP(plot_directory)
 
@@ -139,39 +145,3 @@ print(f"Saved ROC curves to {output_file}")
 
 common.syncer.sync()
 
-## Plot ROC curves using ROOT
-#ROOT.gStyle.SetOptStat(0)
-#ROOT.gROOT.SetBatch(True)
-#colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta, ROOT.kCyan, ROOT.kPink]
-#
-#canvas = ROOT.TCanvas("c_ROC", "ROC Curves", 800, 600)
-#canvas.SetTicks(1, 1)
-#frame = ROOT.TH2F("frame", ";False Positive Rate;True Positive Rate", 100, 0, 1, 100, 0, 1)
-#frame.Draw()
-#
-#legend = ROOT.TLegend(0.4, 0.15, 0.85, 0.4)
-#legend.SetBorderSize(0)
-#legend.SetShadowColor(0)
-#stuff = []
-#for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
-#    graph = ROOT.TGraph(len(fpr), np.array(fpr, dtype=float), np.array(tpr, dtype=float))
-#    graph.SetLineColor(colors[i % len(colors)])
-#    graph.SetLineWidth(2)
-#    graph.Draw("L SAME")
-#    stuff.append(graph)
-#    auc = np.trapz(tpr, x=fpr)
-#    label = "/".join(model_name.rstrip("/").split("/")[-2:])
-#    legend.AddEntry(graph, f"{label} (AUC: {auc:.3f})", "l")
-#
-#
-#legend.Draw()
-#
-## Save the canvas
-#output_file = os.path.join(plot_directory, "ROC_curves.png")
-#canvas.SaveAs(output_file)
-#output_file = os.path.join(plot_directory, "ROC_curves.pdf")
-#canvas.SaveAs(output_file)
-#print(f"Saved ROC curves to {output_file}")
-#
-#common.syncer.sync()
-#
