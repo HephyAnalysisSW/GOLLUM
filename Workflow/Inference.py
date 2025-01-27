@@ -181,13 +181,15 @@ class Inference:
         # Already loaded
         if hasattr( self, "csis" ): return
         self.csis = {}
+        self.csis_const = {}
         for s in self.selections:
             self.csis[s] = {}
+            self.csis_const[s] = {}
             for t in self.cfg['Tasks'][1:]:
                 pkl_filename = os.path.join( self.cfg['tmp_path'], "CSI_%s_%s_TrainingData.pkl"%(s,t) )
                 assert os.path.exists(pkl_filename), "CSIs file {} does not exist!".format(pkl_filename)
                 with open(pkl_filename, 'rb') as f:
-                    self.csis[s][t] = pickle.load(f)
+                    self.csis[s][t], self.csis_const[s][t] = pickle.load(f)
 
                 logger.info(f"CSI loaded from {pkl_filename}.")
  
@@ -230,7 +232,11 @@ class Inference:
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
   
-        return mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met))
+        return \
+              mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
+            + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + (f_bkg_rate-1)*self.csis_const[selection]['ztautau'] \
+            + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + (f_tt_rate*f_bkg_rate-1)*self.csis_const[selection]['ttbar'] \
+            + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met)) + (f_diboson_rate*f_bkg_rate-1)*self.csis_const[selection]['diboson']
 
     def save(self, restrict_csis=[]):
         """
@@ -383,7 +389,9 @@ class Inference:
 
                         # Ensure DeltaA is a NumPy array
                         self.csis = self.csis if hasattr(self, 'csis') else {}
+                        self.csis_const = self.csis_const if hasattr(self, 'csis_const') else {}
                         self.csis[s] = {}
+                        self.csis_const[s] = {}
 
                         # Create the grid values for interpolation
                         coarse_spacing = 1
@@ -411,6 +419,7 @@ class Inference:
                                 if t not in restrict_csis:
                                     logger.info("Task %s not among those we compute CSIs for. Continue." %t)
                                     continue
+                                # Check whether we have it already
                                 pkl_filename = os.path.join(
                                     self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
                                 if os.path.exists( pkl_filename ) and not self.overwrite:
@@ -424,27 +433,29 @@ class Inference:
                             gp_t, gp_sum = gp[:, i_t], gp.sum(axis=1)
 
                             yield_values = np.zeros((nu_A_values.shape[0],))
+                            const_value  = 0 
                             batch_size = 10**5
 
                             for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
                                 end = min(start + batch_size, gp_t.shape[0])
                                 batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
-                                exp_batch = np.exp(np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                exp_batch = np.expm1(np.dot(DeltaA[start:end, :], nu_A_values.T))
                                 yield_values += np.dot(batch_weighted, exp_batch)
+                                const_value  += batch_weighted.sum() 
 
                             data_cube = yield_values.reshape(grid_shape)
                             self.csis[s][t] = RegularGridInterpolator(
                                 (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic")
-
+                            self.csis_const[s][t] = const_value 
                             sm_index = np.where((base_points_flat == [0, 0, 0]).all(axis=1))[0][0]
-                            max_ratio = (abs(yield_values / yield_values[sm_index])).max()
-                            logger.info(f"CSI max ratio for {s} {t}: {max_ratio:.2f}")
+                            max_ratio = (abs(yield_values/const_value )).max()
+                            logger.info(f"CSI max relative shift (1 means 100%) for {s} {t}: {max_ratio:.2f}")
 
                             if self.cfg.get("CSI", {}).get("save", False):
                                 pkl_filename = os.path.join(
                                     self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
                                 with open(pkl_filename, 'wb') as pkl_file:
-                                    pickle.dump(self.csis[s][t], pkl_file)
+                                    pickle.dump((self.csis[s][t], self.csis_const[s][t]), pkl_file)
                                 logger.info(f"CSI saved: {pkl_filename}")
 
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
@@ -491,7 +502,7 @@ class Inference:
                     f"nu_bkg={nu_bkg:6.4f}, "
                     f"nu_tt={nu_tt:6.4f}, "
                     f"nu_diboson={nu_diboson:6.4f}, "
-                    f"nu_tes={nu_tes:6.4f,} "
+                    f"nu_tes={nu_tes:6.4f}, "
                     f"nu_jes={nu_jes:6.4f}, "
                     f"nu_met={nu_met:6.4f}, "
                     f"nom: {incS_difference:6.4f} "
