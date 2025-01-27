@@ -16,4 +16,4 @@
 #
 #python roc.py --small --filename tfmc_lowMT_noVBFJet_ptH0to100_postproc_comp  --selection lowMT_noVBFJet_ptH0to100 --modelDirs /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg_preproc/v6 /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_postproc_lowMT_noVBFJet_ptH0to100/v6/ /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6
 
-python roc.py --small --filename tfmc_vs_xgbmc_lowMT_VBFJet              --selection lowMT_VBFJet              --modelDir /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6 /groups/hephy/cms/robert.schoefbeck/Challenge/models/XGBMC/lowMT_VBFJet/xgb_v1/v1
+python roc.py --filename tfmc_vs_xgbmc_lowMT_VBFJet              --selection lowMT_VBFJet              --modelDir /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6 /groups/hephy/cms/robert.schoefbeck/Challenge/models/XGBMC/lowMT_VBFJet/xgb_v1/v1 --test

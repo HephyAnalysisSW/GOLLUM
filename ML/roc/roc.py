@@ -13,16 +13,21 @@ import common.user as user
 import common.syncer
 import common.helpers as helpers
 import common.data_structure as data_structure
-import common.datasets as datasets
 # Parser
 import argparse
 argParser = argparse.ArgumentParser(description="Argument parser")
 argParser.add_argument("--selection", action="store", default="lowMT_VBFJet", help="Which selection?")
 argParser.add_argument("--n_split", action="store", default=10, type=int, help="How many batches?")
 argParser.add_argument("--modelDirs", nargs="+", required=True, help="Directories containing the trained TFMC models.")
-argParser.add_argument("--filename", default = "ROC",  help="Directories containing the trained TFMC models.")
+argParser.add_argument("--filename", default = "ROC",  help="The filename.")
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
+argParser.add_argument('--test', action='store_true', help="Test data?")
 args = argParser.parse_args()
+
+if args.test:
+    import common.test_datasets as datasets
+else:
+    import common.datasets as datasets
 
 # Load the data
 data_loader = datasets.get_data_loader(
@@ -136,10 +141,12 @@ for i, (model_name, (fpr, tpr)) in enumerate(roc_curves.items()):
 # Back to main canvas
 canvas.cd()
 
+postfix = "test" if args.test else "train"
+
 # Save the canvas
-output_file = os.path.join(plot_directory, f"{args.filename}.png")
+output_file = os.path.join(plot_directory, f"{args.filename}_{postfix}.png")
 canvas.SaveAs(output_file)
-output_file = os.path.join(plot_directory, f"{args.filename}.pdf")
+output_file = os.path.join(plot_directory, f"{args.filename}_{postfix}.pdf")
 canvas.SaveAs(output_file)
 print(f"Saved ROC curves to {output_file}")
 

@@ -18,7 +18,7 @@ import selections
 import Dataset
 import common.data_structure as data_structure
 
-subdirectories = glob.glob(os.path.join(user.derived_data_directory, "*/"))
+subdirectories = glob.glob(os.path.join(user.derived_test_data_directory, "*/"))
 data = {}
 for subdir in subdirectories:
     selection = os.path.basename(subdir.rstrip('/'))
@@ -61,13 +61,6 @@ def get_data_loader( selection="inclusive", process=None, values=data_structure.
         selection_function = selection_function,
     ) 
    
-#if __name__=="__main__":
-#    # Iterate through the dataset
-#    for batch in get_data_loader(n_split=100):
-#        data, weights, labels = H5DataLoader.split(batch)
-#        print(data.shape, weights.shape, labels.shape)
-#
-#        break
 if __name__=="__main__":
     import numpy as np
     # Iterate through the dataset

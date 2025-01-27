@@ -295,7 +295,7 @@ class Inference:
 
                                 # Use output dimension from model
                                 if hasattr(self.models[t][s], "classes" ):
-                                    output_dim = len(self.models[t][s].classes) #TFMC case
+                                    output_dim = len(self.models[t][s].classes) #TFMC or XGBMC cases
                                 else:
                                     output_dim = len(self.models[t][s].combinations) #PNN case
 
@@ -486,14 +486,14 @@ class Inference:
                 rel = (incS_difference-incS_difference_parametrized)/incS_difference
                 sm_value = weights[:].sum()
                 sm_value_param = self.incS_from_csis(selection)
-                print(
-                    f"incS: mu {mu:6.4f} "
-                    f"nu_bkg {nu_bkg:6.4f} "
-                    f"nu_tt {nu_tt:6.4f} "
-                    f"nu_diboson {nu_diboson:6.4f} "
-                    f"nu_tes {nu_tes:6.4f} "
-                    f"nu_jes {nu_jes:6.4f} "
-                    f"nu_met {nu_met:6.4f} "
+                logger.debug(
+                    f"incS: mu={mu:6.4f}, "
+                    f"nu_bkg={nu_bkg:6.4f}, "
+                    f"nu_tt={nu_tt:6.4f}, "
+                    f"nu_diboson={nu_diboson:6.4f}, "
+                    f"nu_tes={nu_tes:6.4f,} "
+                    f"nu_jes={nu_jes:6.4f}, "
+                    f"nu_met={nu_met:6.4f}, "
                     f"nom: {incS_difference:6.4f} "
                     f"param: {incS_difference_parametrized:6.4f} "
                     f"diff: {dd:6.4f} "
@@ -503,14 +503,14 @@ class Inference:
                 )
             else:
                 incS_difference = incS_difference_parametrized
-                print(
-                    f"incS: mu {mu:6.4f} "
-                    f"nu_bkg {nu_bkg:6.4f} "
-                    f"nu_tt {nu_tt:6.4f} "
-                    f"nu_diboson {nu_diboson:6.4f} "
-                    f"nu_tes {nu_tes:6.4f} "
-                    f"nu_jes {nu_jes:6.4f} "
-                    f"nu_met {nu_met:6.4f} "
+                logger.debug(
+                    f"incS: mu={mu:6.4f}, "
+                    f"nu_bkg={nu_bkg:6.4f}, "
+                    f"nu_tt={nu_tt:6.4f}, "
+                    f"nu_diboson={nu_diboson:6.4f}, "
+                    f"nu_tes={nu_tes:6.4f}, "
+                    f"nu_jes={nu_jes:6.4f}, "
+                    f"nu_met={nu_met:6.4f}, "
                     f"param: {incS_difference_parametrized:6.4f} "
                 )
  
@@ -525,19 +525,19 @@ class Inference:
         if asimov_mu is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['htautau']] = weights_toy[labels==data_structure.label_encoding['htautau']]*asimov_mu
-            logger.info( "Scaled labeled signal events by %4.3f" % asimov_mu )
+            logger.debug( "Scaled labeled signal events by %4.3f" % asimov_mu )
         if asimov_nu_bkg is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*asimov_nu_bkg
-            logger.info( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
+            logger.debug( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
         if asimov_nu_ttbar is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*asimov_nu_ttbar
-            logger.info( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
+            logger.debug( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*asimov_nu_diboson
-            logger.info( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
+            logger.debug( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
   
         uTerm += -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
 
