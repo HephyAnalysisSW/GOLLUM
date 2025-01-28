@@ -16,11 +16,9 @@ def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_
 
 
 class likelihoodFit:
-    def __init__(self, function=None):
-        if function is None:
-            self.function = likelihood_test_function
-        else:
-            self.function = function
+    def __init__(self, function):
+
+        self.function = function
 
         self.parameterBoundaries = {
             "mu": (0.0, None),
@@ -37,14 +35,18 @@ class likelihoodFit:
         self.parameters_mle = None
 
     def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
+
         # function to find the global minimum, minimizing mu and nus
         logger.info("Fit global minimum")
         errordef = Minuit.LEAST_SQUARES
+
         m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
+
         m.limits["mu"] = (0.0, None)
 
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]
+
         m.tol = self.tolerance
 
         for param in m.parameters:
@@ -52,7 +54,12 @@ class likelihoodFit:
         m.print_level = 2
 
         m.migrad()
+        logger.info("Before 'm.hesse()")
         print(m)
+        m.hesse()
+        logger.info("After 'm.hesse()")
+        print(m)
+
         self.q_mle = m.fval
         self.parameters_mle = m.values
         return m.fval, m.values, m.covariance
