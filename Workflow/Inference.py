@@ -35,7 +35,6 @@ class Inference:
 
         # Initialize attributes
         self.training_data = {}
-        self.toys          = {}
         self.models        = {}
         self.teststat      = {}
         self.selections    = self.cfg['Selections']
@@ -225,7 +224,7 @@ class Inference:
         #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
         return ((mu*p_mc[:,0]*p_pnn_htautau + p_mc[:,1]*f_bkg_rate*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*f_bkg_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*f_bkg_rate*p_pnn_diboson) / p_mc[:,:].sum(axis=1))
 
-    def incS_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
+    def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
   
         # RATES
         f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
@@ -489,14 +488,12 @@ class Inference:
             incS_difference = None
 
         if hasattr( self, "csis"):
-            incS_difference_parametrized = -self.incS_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met ) + self.incS_from_csis(selection)
+            incS_difference_parametrized = -self.incS_diff_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met) 
 
             # If we have the standard x-sec, we let's print the difference.
             if incS_difference is not None:
                 dd = incS_difference-incS_difference_parametrized
                 rel = (incS_difference-incS_difference_parametrized)/incS_difference
-                sm_value = weights[:].sum()
-                sm_value_param = self.incS_from_csis(selection)
                 logger.debug(
                     f"incS: mu={mu:6.4f}, "
                     f"nu_bkg={nu_bkg:6.4f}, "
@@ -509,8 +506,6 @@ class Inference:
                     f"param: {incS_difference_parametrized:6.4f} "
                     f"diff: {dd:6.4f} "
                     f"rel: {rel:6.4f} "
-                    #f"SM {sm_value:6.2f} "
-                    #f"SM param {sm_value_param:6.2f} "
                 )
             else:
                 incS_difference = incS_difference_parametrized
@@ -539,16 +534,16 @@ class Inference:
             logger.debug( "Scaled labeled signal events by %4.3f" % asimov_mu )
         if asimov_nu_bkg is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*asimov_nu_bkg
-            logger.debug( "Scaled labeled background events by %4.3f" % asimov_nu_bkg )
+            weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*(1+self.alpha_bkg)**asimov_nu_bkg
+            logger.debug( "Scaled labeled background events by (1+alpha_bkg)**asimov_nu_bkg with asimov_nu_bkg=%4.3f" % asimov_nu_bkg )
         if asimov_nu_ttbar is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*asimov_nu_ttbar
-            logger.debug( "Scaled labeled ttbar events by %4.3f" % asimov_ttbar )
+            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_ttbar)**asimov_nu_ttbar
+            logger.debug( "Scaled labeled ttbar events by (1+alpha_ttbar)**asimov_nu_ttbar with asimov_nu_ttbar=%4.3f" % asimov_nu_ttbar )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*asimov_nu_diboson
-            logger.debug( "Scaled labeled diboson events by %4.3f" % asimov_diboson )
+            weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
+            logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
   
         uTerm += -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
 
@@ -564,115 +559,3 @@ class Inference:
         #    # self.h5s[n][s].close()
         #    del self.h5s[n][s]
         #  del self.h5s[n]
-
-#                # Figure out the HDF5 filename
-#                if obj == "Toy":
-#                    obj_fn = os.path.join(self.cfg['tmp_path'], self.cfg['Toy_name'] + '_' + s + '.h5')
-#                else:
-#                    obj_fn = os.path.join(self.cfg['tmp_path'], obj + '_' + s + '.h5')
-#
-#                # Warn if the file already exists
-#                if os.path.exists(obj_fn):
-#                    if self.overwrite:
-#                        logger.warning("Warning! Temporary file %s exists. It will be overwritten." % obj_fn)
-#                    else:
-#                        logger.info("Temporary file %s exists. Continue." % obj_fn)
-#                        continue
-#
-#                # ------------------------------------------------------
-#                # Create a new HDF5 file to store the data
-#                # ------------------------------------------------------
-#                with h5py.File(obj_fn, "w") as h5f:
-#                    # Prepare dictionaries for storing data in memory before writing
-#                    datasets = {
-#                        "Label": [],
-#                        "Weight": [],
-#                    }
-#
-#                    # Save some metadata (e.g. the selection) into HDF5 attributes
-#                    h5f.attrs["selection"] = s
-#
-#                    # For each task, check what we need to save and store module/model path info
-#                    for t in self.cfg['Tasks']:
-#                        if "save" not in self.cfg[t]:
-#                            continue
-#                        # Initialize dataset(s) for whatever is under 'save'
-#                        for iobj in self.cfg[t]['save']:
-#                            datasets[t + '_' + iobj] = []
-#
-#                        # Save the module and model path in the HDF5 attributes
-#                        h5f.attrs[t + "_module"] = self.cfg[t][s]["module"]
-#                        h5f.attrs[t + "_model_path"] = self.cfg[t][s]["model_path"]
-#
-#                    # Decide how many events/batches to process
-#                    n_split = self.cfg['Save'][obj]['n_split'] if not self.small else 100
-#
-#                    # ------------------------------------------------------
-#                    # Decide how we get the data: from training or from a toy file
-#                    # ------------------------------------------------------
-#                    if obj == "TrainingData":
-#                        data_input = self.training_data_loader(s, n_split)
-#                    else:
-#                        toy_path = os.path.join(self.cfg['Save'][obj]['dir'], s, self.cfg['Toy_name'] + '.h5')
-#                        data_input = self.load_toy_file(
-#                            toy_path,
-#                            self.cfg['Save'][obj]['batch_size'],
-#                            n_split
-#                        )
-#
-#                    # ------------------------------------------------------
-#                    # Loop over batches of data and store the results
-#                    # ------------------------------------------------------
-#                    for i_batch, batch in enumerate(data_input):
-#                        features, weights, labels = data_input.split(batch)
-#
-#                        ## For toy data, set labels to -1 (since real labels may not exist)
-#                        #if obj != "TrainingData":
-#                        #    nevts = features.shape[0]
-#                        #    labels = np.array([-1] * nevts)
-#                        ## Robert: We need the labels to modify event weights for Asimov limits with modified nu_bkg etc.
-#
-#                        # Store labels and weights
-#                        datasets["Label"].append(labels)
-#                        datasets["Weight"].append(weights)
-#
-#                        # For each task, produce the predictions or DeltaA
-#                        for t in self.cfg['Tasks']:
-#                            if "save" not in self.cfg[t]:
-#                                continue
-#
-#                            for iobj in self.cfg[t]["save"]:
-#                                if iobj == "predict":
-#                                    pred = self.models[t][s].predict(features)
-#                                    datasets[t + '_' + iobj].append(pred)
-#                                elif iobj == "DeltaA":
-#                                    DA = self.models[t][s].get_DeltaA(features)
-#                                    datasets[t + '_' + iobj].append(DA)
-#                                else:
-#                                    raise Exception(
-#                                        "Unsupported save type: '%s'. "
-#                                        "Currently supported: 'predict', 'DeltaA'." % iobj
-#                                    )
-#
-#                        # If 'small' is True or we have reached a user-specified batch limit, break early
-#                        if self.small or (
-#                            self.cfg['Save'][obj]['max_n_batch'] > -1 and 
-#                            i_batch >= self.cfg['Save'][obj]['max_n_batch']
-#                        ):
-#                            break
-#
-#                    # ------------------------------------------------------
-#                    # Concatenate all batches and write them to the HDF5 file
-#                    # ------------------------------------------------------
-#                    for ds_name, ds_content in datasets.items():
-#                        # Ensure all datasets are concatenated to a single NumPy array
-#                        ds_merged = np.concatenate(ds_content, axis=0)
-#                        h5f.create_dataset(
-#                            ds_name,
-#                            data=ds_merged,
-#                            compression="gzip",
-#                            compression_opts=4  # 1=fastest, 9=smallest
-#                        )
-#                        datasets[ds_name]=ds_merged
-#
-#                    logger.info("Saved temporary results in {}".format(obj_fn))

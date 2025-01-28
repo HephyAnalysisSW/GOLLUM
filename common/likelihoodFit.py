@@ -8,10 +8,17 @@ from iminuit import Minuit
 import logging
 logger = logging.getLogger("UNC")
 
+def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+    # this defines the function that is minimized
+    logger.warning( "Using likelihood_test_function! Result will not depend on data!" )
+    penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
+    return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2*penalty
+
+
 class likelihoodFit:
     def __init__(self, function=None):
         if function is None:
-            self.function = self.likelihood_function
+            self.function = likelihood_test_function
         else:
             self.function = function
 
@@ -24,25 +31,26 @@ class likelihoodFit:
             "nu_tes": (-10., 10.),
             "nu_met": (0., 5.),
         }
-        self.tolerance = 0.001
-
+        self.tolerance = 0.1 # default 0.1
+        self.eps = 0.1 # default 
         self.q_mle = None
         self.parameters_mle = None
 
-    def likelihood_function(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
-        # this defines the function that is minimized
-        penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
-        return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2*penalty
-
-    def fit(self):
+    def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
         # function to find the global minimum, minimizing mu and nus
         logger.info("Fit global minimum")
         errordef = Minuit.LEAST_SQUARES
-        m = Minuit(self.function, mu=1.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+        m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
         m.limits["mu"] = (0.0, None)
+
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]
         m.tol = self.tolerance
+
+        for param in m.parameters:
+            m.errors[param] = self.eps  # Set the step size for all parameters
+        m.print_level = 2
+
         m.migrad()
         print(m)
         self.q_mle = m.fval
