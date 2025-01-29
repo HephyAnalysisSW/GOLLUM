@@ -464,7 +464,8 @@ class Inference:
                       asimov_mu=None, asimov_nu_bkg=None, asimov_nu_ttbar=None, asimov_nu_diboson=None):
       import time
       # perform the calculation
-      uTerm = 0
+      uTerm = {}
+
       for selection in self.selections:
   
         # Load ML result for training data
@@ -545,11 +546,15 @@ class Inference:
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
   
-        uTerm += -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
+        uTerm[selection] = -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
 
-      uTerm += self.penalty(nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met)
+      penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met)
 
-      return uTerm
+      uTerm_total = penalty + sum( uTerm.values() )      
+
+      logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections ] ) ) 
+
+      return uTerm_total 
   
     def clossMLresults(self):
         logger.warning( "Warning. clossMLresults does nothing" )
