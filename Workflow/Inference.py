@@ -55,7 +55,8 @@ class Inference:
             try:
                 self.load_csis()
                 logger.info("Loaded existing CSIs.")
-            except (IOError, AssertionError):
+            except (IOError, AssertionError, TypeError):
+                logger.info("Error loading CSIs. Will proceed.")
                 pass
 
 
