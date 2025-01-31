@@ -18,15 +18,6 @@ def clamp_value(v, bound):
     return max(low, min(v, high))
 
 
-def likelihood_test_function(mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
-    """
-    A simple test function.
-    """
-    logger.warning("Using likelihood_test_function! Result does not depend on real data.")
-    penalty = 0.5 * (nu_bkg**2 + nu_tt**2 + nu_diboson**2 + nu_jes**2 + nu_tes**2 + nu_met**2)
-    return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2 * penalty
-
-
 class likelihoodFit:
     """
     A class to perform likelihood fits using SciPy's L-BFGS-B minimizer.
@@ -424,6 +415,14 @@ class likelihoodFit:
         return self.q_mle, values_dict, cov_dict
 
         #return self.q_mle, self.parameters_mle, self.covariance
+
+def likelihood_test_function(mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+    """
+    A simple test function.
+    """
+    logger.warning("Using likelihood_test_function! Result does not depend on real data.")
+    penalty = 0.5 * (nu_bkg**2 + nu_tt**2 + nu_diboson**2 + nu_jes**2 + nu_tes**2 + nu_met**2)
+    return (mu-2.5)**2 + 2*penalty 
 
 if __name__ == "__main__":
     from common.logger import get_logger

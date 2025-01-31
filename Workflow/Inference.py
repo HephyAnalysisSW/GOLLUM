@@ -491,7 +491,7 @@ class Inference:
                 f"nu_diboson={nu_diboson:6.4f}, "
                 f"nu_tes={nu_tes:6.4f}, "
                 f"nu_jes={nu_jes:6.4f}, "
-                f"nu_met={nu_met:6.4f}, "
+                f"nu_met={nu_met:6.4f} "
             )
       for selection in self.selections:
   
