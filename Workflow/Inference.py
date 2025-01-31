@@ -485,7 +485,7 @@ class Inference:
       # perform the calculation
       uTerm = {}
 
-      logger.debug( f"Evaluate at"
+      logger.debug( f"Evaluate at "
                 f"nu_bkg={nu_bkg:6.4f}, "
                 f"nu_tt={nu_tt:6.4f}, "
                 f"nu_diboson={nu_diboson:6.4f}, "
