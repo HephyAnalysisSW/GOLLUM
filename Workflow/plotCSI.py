@@ -63,7 +63,7 @@ if __name__ == '__main__':
     # Asimov parameters (fixed or optional if needed)
     parser.add_argument("--asimov_mu", type=float, default=None, help="Fix asimov mu for the scan.")
     parser.add_argument("--asimov_nu_bkg", type=float, default=None, help="Fix asimov nu_bkg.")
-    parser.add_argument("--asimov_nu_ttbar", type=float, default=None, help="Fix asimov nu_ttbar.")
+    parser.add_argument("--asimov_nu_tt", type=float, default=None, help="Fix asimov nu_ttbar.")
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Fix asimov nu_diboson.")
 
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
@@ -79,8 +79,8 @@ if __name__ == '__main__':
         postfix.append(f"mu_{args.asimov_mu:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_bkg is not None:
         postfix.append(f"nu_bkg_{args.asimov_nu_bkg:.3f}".replace("-", "m").replace(".", "p"))
-    if args.asimov_nu_ttbar is not None:
-        postfix.append(f"nu_ttbar_{args.asimov_nu_ttbar:.3f}".replace("-", "m").replace(".", "p"))
+    if args.asimov_nu_tt is not None:
+        postfix.append(f"nu_ttbar_{args.asimov_nu_tt:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_diboson is not None:
         postfix.append(f"nu_diboson_{args.asimov_nu_diboson:.3f}".replace("-", "m").replace(".", "p"))
     if args.postfix is not None:

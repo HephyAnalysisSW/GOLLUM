@@ -222,9 +222,26 @@ class Inference:
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
   
-        #return (mu*p_mc[:,0]/(p_mc[:,1:].sum(axis=1)) + 1)*p_pnn_jes
         return ((mu*p_mc[:,0]*p_pnn_htautau + p_mc[:,1]*f_bkg_rate*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*f_bkg_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*f_bkg_rate*p_pnn_diboson) / p_mc[:,:].sum(axis=1))
 
+        ## Compute all terms in numerator
+        #term1 = mu * p_mc[:, 0] * p_pnn_htautau
+        #term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
+        #term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
+        #term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
+
+        ## Find the dominant term for each event
+        #denominator = p_mc.sum(axis=1)
+        #max_term = np.maximum.reduce([term1, term2, term3, term4])
+
+        ## Normalize numerator and denominator
+        #numerator = (term1 + term2 + term3 + term4) / max_term
+        #denominator = denominator / max_term
+
+        #return numerator / denominator
+        ## Now rewrite the return using log1p
+        ##result = np.log1p(numerator / denominator - 1)
+ 
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
   
         # RATES
@@ -244,7 +261,7 @@ class Inference:
           - Label (class label, if available)
           - Weight (event weights)
           - ML results (e.g. classifier predictions or parameters from PNN)
-        If CSI (cubic spline interpolation) is configured, it will also
+        If CSI (spline interpolation) is configured, it will also
         prepare interpolators for cross-section parameterization.
 
         Args:
@@ -445,6 +462,7 @@ class Inference:
 
                             data_cube = yield_values.reshape(grid_shape)
                             self.csis[s][t] = RegularGridInterpolator(
+                                #(nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="cubic") # Doesn't work
                                 (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic")
                             self.csis_const[s][t] = const_value 
                             sm_index = np.where((base_points_flat == [0, 0, 0]).all(axis=1))[0][0]
@@ -462,7 +480,7 @@ class Inference:
           return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
   
     def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met,\
-                      asimov_mu=None, asimov_nu_bkg=None, asimov_nu_ttbar=None, asimov_nu_diboson=None):
+                      asimov_mu=None, asimov_nu_bkg=None, asimov_nu_tt=None, asimov_nu_diboson=None):
       import time
       # perform the calculation
       uTerm = {}
@@ -538,16 +556,19 @@ class Inference:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*(1+self.alpha_bkg)**asimov_nu_bkg
             logger.debug( "Scaled labeled background events by (1+alpha_bkg)**asimov_nu_bkg with asimov_nu_bkg=%4.3f" % asimov_nu_bkg )
-        if asimov_nu_ttbar is not None:
+        if asimov_nu_tt is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_ttbar)**asimov_nu_ttbar
-            logger.debug( "Scaled labeled ttbar events by (1+alpha_ttbar)**asimov_nu_ttbar with asimov_nu_ttbar=%4.3f" % asimov_nu_ttbar )
+            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_ttbar)**asimov_nu_tt
+            logger.debug( "Scaled labeled ttbar events by (1+alpha_ttbar)**asimov_nu_tt with asimov_nu_tt=%4.3f" % asimov_nu_tt )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
-  
-        uTerm[selection] = -2 *(incS_difference+(weights_toy[:]*np.log(dSoDS_toy)).sum())
+ 
+        #uTerm[selection] = -2 *(incS_difference+(weights_toy[:]*np.log1p(dSoDS_toy-1)).sum())
+        log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
+        uTerm[selection] = -2 *(incS_difference+log_term)
+        logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" ) 
 
       penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met)
 

@@ -8,7 +8,7 @@ import pickle
 import argparse
 import time
 import yaml
-from common.likelihoodFit import likelihoodFit
+#from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
 
@@ -38,11 +38,12 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--impacts", action="store_true", help="Run post-fit uncertainties.")
     parser.add_argument("-g", "--scan", action="store_true", help="Run likelihood scan.")
     parser.add_argument("--small", action="store_true", help="Run a subset.")
+    parser.add_argument("--minimizer", action="store", default="minuit", values=["minuit", "bfgs"], help="Which minimizer?")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--asimov_mu", type=float, default=None, help="Modify asimov weights according to mu.")
     parser.add_argument("--start_mu", type=float, default=1.0, help="Modify asimov weights according to mu.")
     parser.add_argument("--asimov_nu_bkg", type=float, default=None, help="Modify asimov weights according to nu_bkg.")
-    parser.add_argument("--asimov_nu_ttbar", type=float, default=None, help="Modify asimov weights according to nu_ttbar.")
+    parser.add_argument("--asimov_nu_tt", type=float, default=None, help="Modify asimov weights according to nu_ttbar.")
     parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify asimov weights according to nu_diboson.")
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
     parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
@@ -58,8 +59,8 @@ if __name__ == '__main__':
         postfix.append(f"mu_{args.asimov_mu:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_bkg is not None:
         postfix.append(f"nu_bkg_{args.asimov_nu_bkg:.3f}".replace("-", "m").replace(".", "p"))
-    if args.asimov_nu_ttbar is not None:
-        postfix.append(f"nu_ttbar_{args.asimov_nu_ttbar:.3f}".replace("-", "m").replace(".", "p"))
+    if args.asimov_nu_tt is not None:
+        postfix.append(f"nu_ttbar_{args.asimov_nu_tt:.3f}".replace("-", "m").replace(".", "p"))
     if args.asimov_nu_diboson is not None:
         postfix.append(f"nu_diboson_{args.asimov_nu_diboson:.3f}".replace("-", "m").replace(".", "p"))
 
@@ -91,6 +92,12 @@ if __name__ == '__main__':
     cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data{'_small' if args.small else ''}" )
     os.makedirs(cfg['tmp_path'], exist_ok=True)
 
+
+    if args.minimizer=="bfgs":
+        from common.likelihoodFit_BFGS import likelihoodFit
+    else:
+        from common.likelihoodFit import likelihoodFit
+
     # Initialize inference object
     infer = Inference(cfg, small=args.small, overwrite=args.overwrite)
 
@@ -105,7 +112,7 @@ if __name__ == '__main__':
                           nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met, \
                           asimov_mu=args.asimov_mu, \
                           asimov_nu_bkg=args.asimov_nu_bkg, \
-                          asimov_nu_ttbar=args.asimov_nu_ttbar, \
+                          asimov_nu_tt=args.asimov_nu_tt, \
                           asimov_nu_diboson=args.asimov_nu_diboson)
 
         # Perform global fit
