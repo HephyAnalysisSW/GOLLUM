@@ -44,7 +44,7 @@ class likelihoodFit:
         }
 
         # Tolerance for the minimizer -- sets 'ftol' in SciPy
-        self.tolerance = 0.1  
+        self.tolerance = 0.001  
         # Step size for finite differences in L-BFGS-B
         self.eps = 0.1        
         # Separate step for Hessian approximation

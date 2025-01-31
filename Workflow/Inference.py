@@ -218,11 +218,12 @@ class Inference:
         p_pnn_diboson= np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
   
         # RATES
-        f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
   
-        return ((mu*p_mc[:,0]*p_pnn_htautau + p_mc[:,1]*f_bkg_rate*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*f_bkg_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*f_bkg_rate*p_pnn_diboson) / p_mc[:,:].sum(axis=1))
+        return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
         ## Compute all terms in numerator
         #term1 = mu * p_mc[:, 0] * p_pnn_htautau
@@ -239,13 +240,15 @@ class Inference:
         #denominator = denominator / max_term
 
         #return numerator / denominator
-        ## Now rewrite the return using log1p
-        ##result = np.log1p(numerator / denominator - 1)
+        ### Now rewrite the return using log1p
+        ###result = np.log1p(numerator / denominator - 1)
  
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
   
         # RATES
-        f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
+
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
   
@@ -486,6 +489,7 @@ class Inference:
       uTerm = {}
 
       logger.debug( f"Evaluate at "
+                f"mu={mu:6.4f}, "
                 f"nu_bkg={nu_bkg:6.4f}, "
                 f"nu_tt={nu_tt:6.4f}, "
                 f"nu_diboson={nu_diboson:6.4f}, "
@@ -494,7 +498,9 @@ class Inference:
                 f"nu_met={nu_met:6.4f} "
             )
       for selection in self.selections:
-  
+ 
+        #if not selection == "lowMT_VBFJet": continue
+ 
         # Load ML result for training data
         self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
@@ -570,7 +576,7 @@ class Inference:
 
       uTerm_total = penalty + sum( uTerm.values() )      
 
-      logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections ] ) ) 
+      logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) ) 
 
       return uTerm_total 
   
