@@ -485,6 +485,14 @@ class Inference:
       # perform the calculation
       uTerm = {}
 
+      logger.debug( f"Evaluate at"
+                f"nu_bkg={nu_bkg:6.4f}, "
+                f"nu_tt={nu_tt:6.4f}, "
+                f"nu_diboson={nu_diboson:6.4f}, "
+                f"nu_tes={nu_tes:6.4f}, "
+                f"nu_jes={nu_jes:6.4f}, "
+                f"nu_met={nu_met:6.4f}, "
+            )
       for selection in self.selections:
   
         # Load ML result for training data
@@ -516,12 +524,6 @@ class Inference:
                 rel = (incS_difference-incS_difference_parametrized)/incS_difference
                 logger.debug(
                     f"incS: mu={mu:6.4f}, "
-                    f"nu_bkg={nu_bkg:6.4f}, "
-                    f"nu_tt={nu_tt:6.4f}, "
-                    f"nu_diboson={nu_diboson:6.4f}, "
-                    f"nu_tes={nu_tes:6.4f}, "
-                    f"nu_jes={nu_jes:6.4f}, "
-                    f"nu_met={nu_met:6.4f}, "
                     f"nom: {incS_difference:6.4f} "
                     f"param: {incS_difference_parametrized:6.4f} "
                     f"diff: {dd:6.4f} "
@@ -531,12 +533,6 @@ class Inference:
                 incS_difference = incS_difference_parametrized
                 logger.debug(
                     f"incS: mu={mu:6.4f}, "
-                    f"nu_bkg={nu_bkg:6.4f}, "
-                    f"nu_tt={nu_tt:6.4f}, "
-                    f"nu_diboson={nu_diboson:6.4f}, "
-                    f"nu_tes={nu_tes:6.4f}, "
-                    f"nu_jes={nu_jes:6.4f}, "
-                    f"nu_met={nu_met:6.4f}, "
                     f"param: {incS_difference_parametrized:6.4f} "
                 )
  
