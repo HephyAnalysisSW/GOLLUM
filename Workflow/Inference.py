@@ -223,25 +223,25 @@ class Inference:
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
   
-        return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
+        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
-        ## Compute all terms in numerator
-        #term1 = mu * p_mc[:, 0] * p_pnn_htautau
-        #term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
-        #term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
-        #term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
+        # Compute all terms in numerator
+        term1 = mu * p_mc[:, 0] * p_pnn_htautau
+        term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
+        term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
+        term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
 
-        ## Find the dominant term for each event
-        #denominator = p_mc.sum(axis=1)
-        #max_term = np.maximum.reduce([term1, term2, term3, term4])
+        # Find the dominant term for each event
+        denominator = p_mc.sum(axis=1)
+        max_term = np.maximum.reduce([term1, term2, term3, term4])
 
-        ## Normalize numerator and denominator
-        #numerator = (term1 + term2 + term3 + term4) / max_term
-        #denominator = denominator / max_term
+        # Normalize numerator and denominator
+        numerator = (term1 + term2 + term3 + term4) / max_term
+        denominator = denominator / max_term
 
-        #return numerator / denominator
-        ### Now rewrite the return using log1p
-        ###result = np.log1p(numerator / denominator - 1)
+        return numerator / denominator
+        ## Now rewrite the return using log1p
+        ##result = np.log1p(numerator / denominator - 1)
  
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
   
@@ -488,8 +488,8 @@ class Inference:
       # perform the calculation
       uTerm = {}
 
-      logger.debug( f"Evaluate at "
-                f"mu={mu:6.4f}, "
+      logger.debug( f"\033[1mEvaluate at "
+                f"mu={mu:6.4f}\033[0m, "
                 f"nu_bkg={nu_bkg:6.4f}, "
                 f"nu_tt={nu_tt:6.4f}, "
                 f"nu_diboson={nu_diboson:6.4f}, "
@@ -567,8 +567,8 @@ class Inference:
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
  
-        #uTerm[selection] = -2 *(incS_difference+(weights_toy[:]*np.log1p(dSoDS_toy-1)).sum())
-        log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
+        log_term         = (weights_toy[:]*np.log1p(dSoDS_toy-1)).sum()
+        #log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
         uTerm[selection] = -2 *(incS_difference+log_term)
         logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" ) 
 
