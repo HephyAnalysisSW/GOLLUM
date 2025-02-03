@@ -139,7 +139,7 @@ if __name__ == '__main__':
         # Perform likelihood scan if requested
         if args.scan:
             logger.info("Start scan.")
-            deltaQ, muPoints = fit.scan(Npoints=20, mumin=0, mumax=2)
+            deltaQ, muPoints = fit.scan(Npoints=20, mumin=0, mumax=3)
             logger.info("Scan done.")
             np.savez(f"likelihoodScan.{config_name}.npz", deltaQ=np.array(deltaQ), mu=np.array(muPoints))
 
