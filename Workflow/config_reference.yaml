@@ -28,7 +28,9 @@ Save:
     max_n_batch: -1
 
 # Cubic spline interpolation for inclusive cross section
-CSI: False
+CSI: 
+    save: True
+    use: False
 
 Predict:
   use_toy: True
@@ -96,7 +98,8 @@ ztautau:
     model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
   highMT_VBFJet:
     module: "PNN"
-    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    #model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 

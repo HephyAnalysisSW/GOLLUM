@@ -3,6 +3,7 @@ import os
 # default
 data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
 derived_data_directory = "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
+derived_test_data_directory = "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/test_data/"
 tmp_mem_directory      = "/dev/shm/%s/"%(os.environ['USER'])
 
 if os.environ['USER'] in ['robert.schoefbeck']:
@@ -10,7 +11,7 @@ if os.environ['USER'] in ['robert.schoefbeck']:
     plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/Challenge/"
     # For model output:
     model_directory        = "/groups/hephy/cms/robert.schoefbeck/Challenge/models/"
-    output_directory       = "/groups/hephy/cms/robert.schoefbeck/Challenge/output/"
+    output_directory       = "/scratch-cbe/users/robert.schoefbeck/Challenge/output/"
 
 elif os.environ['USER'] in ['dennis.schwarz']:
     plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"

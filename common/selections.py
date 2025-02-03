@@ -12,9 +12,9 @@ SLJ_ind = data_structure.feature_names.index("PRI_jet_subleading_pt")
 ptH_ind = data_structure.feature_names.index("DER_pt_h")
 
 
-from ML.TFMC.TFMC import TFMC
-# https://schoef.web.cern.ch/schoef/Challenge/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/predicted_probabilities/predicted_class_htautau.png
-tfmc = TFMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6")
+#from ML.TFMC.TFMC import TFMC
+## https://schoef.web.cern.ch/schoef/Challenge/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/predicted_probabilities/predicted_class_htautau.png
+#tfmc = TFMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6")
 
 # Put the elements of your selections here, i.e., cuts you want to apply
 selections = {
@@ -29,7 +29,7 @@ selections = {
         "ptH100to200" : lambda data: data[(100<=data[:,ptH_ind]) & (data[:,ptH_ind]<200)],
         "ptH100"      : lambda data: data[ 100<=data[:,ptH_ind]],
         "ptH200"      : lambda data: data[ 200<=data[:,ptH_ind]],
-        "GGHMVA"      : lambda data: data[ tfmc.predict(data[:,:28], ic_scaling=False)[:, 0]>0.5 ],
+#        "GGHMVA"      : lambda data: data[ tfmc.predict(data[:,:28], ic_scaling=False)[:, 0]>0.5 ],
     }
 
 # Define all the selections here
@@ -44,7 +44,7 @@ for s in [
     "highMT_noVBFJet_ptH0to100",
     "highMT_noVBFJet_ptH100",
     "highMT",          
-    "GGHMVA_lowMT_noVBFJet_ptH0to100",
+#    "GGHMVA_lowMT_noVBFJet_ptH0to100",
 # other selections:
     #"lowMT_noVBFJet_ptH0to50",
     #"lowMT_noVBFJet_ptH50to100",

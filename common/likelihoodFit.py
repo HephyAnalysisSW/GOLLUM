@@ -5,12 +5,20 @@ exchanged with any function that takes mu and nus as arguments.
 '''
 from iminuit import Minuit
 
+import logging
+logger = logging.getLogger("UNC")
+
+def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
+    # this defines the function that is minimized
+    logger.warning( "Using likelihood_test_function! Result will not depend on data!" )
+    penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
+    return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2*penalty
+
+
 class likelihoodFit:
-    def __init__(self, function=None):
-        if function is None:
-            self.function = self.likelihood_function
-        else:
-            self.function = function
+    def __init__(self, function):
+
+        self.function = function
 
         self.parameterBoundaries = {
             "mu": (0.0, None),
@@ -21,39 +29,49 @@ class likelihoodFit:
             "nu_tes": (-10., 10.),
             "nu_met": (0., 5.),
         }
-        self.tolerance = 0.001
-
+        self.tolerance = 0.1 # default 0.1
+        self.eps = 0.1 # default 
         self.q_mle = None
         self.parameters_mle = None
 
-    def likelihood_function(self, mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
-        # this defines the function that is minimized
-        penalty = 0.5*(nu_bkg**2+nu_tt**2+nu_diboson**2+nu_jes**2+nu_tes**2+nu_met**2)
-        return (mu - 1.1**nu_bkg)**2 + (mu + 2.1**nu_tt)**2 + mu * mu + 2*penalty
+    def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
 
-    def fit(self):
         # function to find the global minimum, minimizing mu and nus
-        print("Fit global minimum")
+        logger.info("Fit global minimum")
         errordef = Minuit.LEAST_SQUARES
-        m = Minuit(self.function, mu=1.0, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+
+        m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
+
         m.limits["mu"] = (0.0, None)
+
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]
+
         m.tol = self.tolerance
+
+        for param in m.parameters:
+            m.errors[param] = self.eps  # Set the step size for all parameters
+        m.print_level = 2
+
         m.migrad()
+        logger.info("Before 'm.hesse()")
         print(m)
+        m.hesse()
+        logger.info("After 'm.hesse()")
+        print(m)
+
         self.q_mle = m.fval
         self.parameters_mle = m.values
         return m.fval, m.values, m.covariance
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
         # Scan over points of mu
-        print("Scan signal strength")
+        logger.info("Scan signal strength")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
             q_mle, parameters_mle, cov = self.fit()
         else:
-            print("No need to re-run global fit, take existing results")
+            logger.info("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
             parameters_mle = self.parameters_mle
         # Now make scan over nu
@@ -73,17 +91,17 @@ class likelihoodFit:
             print(m)
             qDeltas.append(m.fval-q_mle)
             if (i_mu+1)/len(muList)*100 >= 10*fmu:
-                print(f"Scaned {i_mu+1}/{len(muList)}")
+                logger.info(f"Scanned {i_mu+1}/{len(muList)}")
                 fmu += 1
         return qDeltas, muList
 
     def impacts(self):
-        print("Calculate impacts")
+        logger.info("Calculate impacts")
         # First find global Min and store MLE values
         if self.q_mle is None or self.parameters_mle is None:
             q_mle, parameters_mle, cov = self.fit()
         else:
-            print("No need to re-run global fit, take existing results")
+            logger.info("No need to re-run global fit, take existing results")
             q_mle = self.q_mle
             parameters_mle = self.parameters_mle
         mu_mle = parameters_mle["mu"]

@@ -13,6 +13,8 @@ import operator
 import functools
 import Node
 from tqdm import tqdm
+import logging
+logger = logging.getLogger(__name__)
 
 from data_loader.data_loader_2 import H5DataLoader
 
@@ -91,7 +93,7 @@ class BoostedParametricTree:
                 selection_function=None,
                 n_split=n_split
             )
-            print(
+            logger.info(
                 f"ICP training data: Base point nu = {base_point}, alpha = {values}, file = {data_loader.file_path}"
             )
 
@@ -220,8 +222,8 @@ class BoostedParametricTree:
                 pass
 
         sys.stdout.write("]\n") # this ends the progress bar
-        print ("weak learner time: %.2f" % weak_learner_time)
-        print ("update time: %.2f" % update_time)
+        logger.info ("weak learner time: %.2f" % weak_learner_time)
+        logger.info ("update time: %.2f" % update_time)
        
         # purge training data
         del self.enumeration
