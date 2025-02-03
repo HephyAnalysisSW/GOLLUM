@@ -219,38 +219,41 @@ class Inference:
   
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        #f_tt_rate = (1+self.alpha_tt)**nu_tt
+        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = (1+self.alpha_tt)**nu_tt
-        f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
+        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
+        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
   
-        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
+        return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
-        # Compute all terms in numerator
-        term1 = mu * p_mc[:, 0] * p_pnn_htautau
-        term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
-        term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
-        term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
+        ## Compute all terms in numerator
+        #term1 = mu * p_mc[:, 0] * p_pnn_htautau
+        #term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
+        #term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
+        #term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
 
-        # Find the dominant term for each event
-        denominator = p_mc.sum(axis=1)
-        max_term = np.maximum.reduce([term1, term2, term3, term4])
+        ## Find the dominant term for each event
+        #denominator = p_mc.sum(axis=1)
+        #max_term = np.maximum.reduce([term1, term2, term3, term4])
 
-        # Normalize numerator and denominator
-        numerator = (term1 + term2 + term3 + term4) / max_term
-        denominator = denominator / max_term
+        ## Normalize numerator and denominator
+        #numerator = (term1 + term2 + term3 + term4) / max_term
+        #denominator = denominator / max_term
 
-        return numerator / denominator
-        ## Now rewrite the return using log1p
-        ##result = np.log1p(numerator / denominator - 1)
+        #return numerator / denominator
+        ### Now rewrite the return using log1p
+        ###result = np.log1p(numerator / denominator - 1)
  
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
   
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
+        #f_tt_rate = (1+self.alpha_tt)**nu_tt
+        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-
-        f_tt_rate = (1+self.alpha_tt)**nu_tt
-        f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
+        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
+        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
   
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
