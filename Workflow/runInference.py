@@ -48,6 +48,7 @@ if __name__ == '__main__':
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
     parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
     parser.add_argument("--CSI", nargs="+", default = [], help="Make only those CSIs")
+    parser.add_argument("--toy", default = None, type=str,  help="Specify toy with path to h5 file.")
 
     args = parser.parse_args()
 
@@ -84,7 +85,7 @@ if __name__ == '__main__':
             update_dict(cfg, key_parts, value)
 
     # Define output directory
-    config_name = os.path.basename(args.config).replace(".yaml", "") 
+    config_name = os.path.basename(args.config).replace(".yaml", "")
     output_directory = os.path.join ( user.output_directory, config_name)
 
     fit_directory = os.path.join( output_directory, f"fit_data{'_small' if args.small else ''}" )
@@ -99,7 +100,7 @@ if __name__ == '__main__':
         from common.likelihoodFit import likelihoodFit
 
     # Initialize inference object
-    infer = Inference(cfg, small=args.small, overwrite=args.overwrite)
+    infer = Inference(cfg, small=args.small, overwrite=args.overwrite, toy_from_path=args.toy)
 
     # Save the dataset if requested
     if args.save:

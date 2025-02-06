@@ -10,6 +10,7 @@ import networks.Models as ms
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
 import common.data_structure as data_structure
+import common.selections as selections
 import pickle
 import copy
 
@@ -17,16 +18,16 @@ import logging
 logger = logging.getLogger('UNC')
 
 class Inference:
-    def __init__(self, cfg, small=False, overwrite=False):
+    def __init__(self, cfg, small=False, overwrite=False, toy_from_path=None):
         """
         Initialize the Inference object.
         Load configuration, models, and parameters.
-        
+
         Args:
             cfg_path (str): Path to the configuration file.
             small (bool): Whether to use a smaller dataset.
         """
-        
+
         self.cfg = cfg
 
         # Ensure required sections are defined in the config
@@ -41,6 +42,11 @@ class Inference:
         self.small         = small
         self.overwrite     = overwrite
         self.h5s           = {}
+        self.toy_from_path = toy_from_path
+        if toy_from_path is not None:
+            if "Toy" in self.cfg["Save"]:
+                del self.cfg["Save"]["Toy"]
+                logger.info("Specified toy from path, remove toy from config")
 
         # Load models and parameters
         self.load_models()
@@ -49,7 +55,7 @@ class Inference:
         self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
 
         # ----------------------------------------------------------
-        # Determine whether we do CSIs 
+        # Determine whether we do CSIs
         # ----------------------------------------------------------
         if self.cfg.get('CSI') is not None:
             try:
@@ -63,7 +69,7 @@ class Inference:
     def training_data_loader(self, selection, n_split):
         """
         Load training data for a given selection.
-        
+
         Args:
             selection (str): Selection criteria.
             n_split (int): Number of splits for the dataset.
@@ -76,10 +82,10 @@ class Inference:
         logger.info("Training data loaded for selection: {}".format(selection))
         return d
 
-    def load_toy_file(self, filename, batch_size, n_split):
+    def load_toy_file(self, filename, batch_size, n_split, selection_function=None):
         """
         Load a toy dataset from an HDF5 file.
-        
+
         Args:
             filename (str): Path to the toy file.
             batch_size (int): Batch size for loading.
@@ -93,7 +99,7 @@ class Inference:
             file_path          = filename,
             batch_size         = batch_size,
             n_split            = n_split,
-            selection_function = None,
+            selection_function = selection_function,
         )
         logger.info("Toy loaded from {}.".format(filename))
         return t
@@ -101,7 +107,7 @@ class Inference:
     def loadH5(self, filename, selection):
         """
         Load an HDF5 file and validate its consistency with the configuration.
-        
+
         Args:
             filename (str): Path to the HDF5 file.
             selection (str): Selection criteria.
@@ -128,7 +134,7 @@ class Inference:
     def loadMLresults(self, name, filename, selection, ignore_done=False):
         """
         Load machine learning results from an HDF5 file.
-        
+
         Args:
             name (str): Name of the results.
             filename (str): Base name of the HDF5 file.
@@ -157,6 +163,84 @@ class Inference:
         }
         logger.info("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
 
+    def loadToyFromPath(self, filename, selection, ignore_done=False):
+        """
+        Load toy directly from raw -h5 file
+        We calculate the arrays with the ML ntuple informations on the fly,
+        do not write an output file and store the arrays in the corresponding self.h5s["Toy"]
+        Args:
+            filename (str): Path of the toy.
+            selection (str): Selection criteria.
+            ignore_done (bool): Whether to ignore already loaded results.
+        """
+
+        assert os.path.exists(filename), "Toy file {} does not exist!".format(filename)
+
+        if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
+            return  # Results already loaded, skip
+
+        # Load h5 file
+        rawToy = self.load_toy_file(
+            filename = filename,
+            batch_size = None,
+            n_split = 1,
+            selection_function = selections.selections[selection]
+        )
+
+        # Check if the dict already exists, otherwise create it
+        if "Toy" not in self.h5s:
+            self.h5s["Toy"] = {}
+        if selection not in self.h5s["Toy"]:
+            self.h5s["Toy"][selection] = {}
+
+        # Load features, weight, labels and convert to ML scores/DeltaAs
+        with tqdm(total=len(rawToy), desc="Processing batches") as pbar:
+            for i_batch, batch in enumerate(rawToy):
+                features, weights, labels = rawToy.split(batch)
+                # --------------------------------------------------------------
+                # TODO: add check for number of features here and add derived features if those do not exist
+                # TODO: add check if weight exist and put them to 1.0 else
+                # TODO: add check if labels exist and put them to -1 else
+                # --------------------------------------------------------------
+                MLpredictions = {}
+                for t in self.cfg['Tasks']:
+                    if "save" not in self.cfg[t]:
+                        continue
+
+                    for iobj in self.cfg[t]['save']:
+                        ds_name = t + '_' + iobj
+
+                        if iobj == "predict":
+                            pred = self.models[t][selection].predict(features)
+                        elif iobj == "DeltaA":
+                            pred = self.models[t][selection].get_DeltaA(features)
+                        else:
+                            raise Exception(
+                                f"Unsupported save type: '{iobj}'. "
+                                "Currently supported: 'predict', 'DeltaA'."
+                            )
+                        MLpredictions[ds_name] = pred
+
+                # Save in dict
+                if i_batch == 0:
+                    self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
+                    self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
+                    self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
+                    self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
+                    self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
+                    self.h5s["Toy"][selection]["Weight"] = weights[:]
+                    self.h5s["Toy"][selection]["Label"] = labels[:]
+                else:
+                    self.h5s["Toy"][selection]["MultiClassifier_predict"] = np.append(self.h5s["Toy"][selection]["MultiClassifier_predict"], MLpredictions["MultiClassifier_predict"][:])
+                    self.h5s["Toy"][selection]["htautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["htautau_DeltaA"], MLpredictions["htautau_DeltaA"][:])
+                    self.h5s["Toy"][selection]["ztautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["ztautau_DeltaA"], MLpredictions["ztautau_DeltaA"][:])
+                    self.h5s["Toy"][selection]["ttbar_DeltaA"] = np.append(self.h5s["Toy"][selection]["ttbar_DeltaA"], MLpredictions["ttbar_DeltaA"][:])
+                    self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
+                    self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
+                    self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
+
+        logger.info("Toy with {} loaded from {}".format(selection, filename))
+
     def load_models(self):
         """
         Load models for all tasks and selections defined in the configuration.
@@ -176,7 +260,7 @@ class Inference:
     def load_csis(self):
         """
         Load the csis (interpolators).
-        
+
         """
         # Already loaded
         if hasattr( self, "csis" ): return
@@ -192,37 +276,37 @@ class Inference:
                     self.csis[s][t], self.csis_const[s][t] = pickle.load(f)
 
                 logger.info(f"CSI loaded from {pkl_filename}.")
- 
+
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
         p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
-  
+
         # htautau
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_htautau = self.models['htautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
         p_pnn_htautau = np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
-  
+
         # ztautau
         DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ztautau = self.models['ztautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
         p_pnn_ztautau = np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
-  
+
         # ttbar
         DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ttbar = self.models['ttbar'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
         p_pnn_ttbar = np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
-  
+
         # diboson
         DA_pnn_diboson = self.h5s[name][selection]["diboson_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_diboson = self.models['diboson'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
         p_pnn_diboson= np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
-  
+
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-  
+
         #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
         # Compute all terms in numerator
@@ -242,16 +326,16 @@ class Inference:
         return numerator / denominator
         ## Now rewrite the return using log1p
         ##result = np.log1p(numerator / denominator - 1)
- 
+
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
-  
+
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
 
         f_tt_rate = (1+self.alpha_tt)**nu_tt
         f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-  
+
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
             + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + (f_bkg_rate-1)*self.csis_const[selection]['ztautau'] \
@@ -342,9 +426,9 @@ class Inference:
                         else:
                             toy_path = os.path.join(self.cfg['Save'][obj]['dir'], s, self.cfg['Toy_name'] + '.h5')
                             data_input = self.load_toy_file(
-                                toy_path,
-                                self.cfg['Save'][obj]['batch_size'],
-                                n_split
+                                filename = toy_path,
+                                batch_size = self.cfg['Save'][obj]['batch_size'],
+                                n_split = n_split
                             )
 
                         # Loop over batches of data and store the results incrementally
@@ -383,7 +467,7 @@ class Inference:
 
                                 # Check for early stopping conditions
                                 if self.small or (
-                                    self.cfg['Save'][obj]['max_n_batch'] > -1 and 
+                                    self.cfg['Save'][obj]['max_n_batch'] > -1 and
                                     i_batch >= self.cfg['Save'][obj]['max_n_batch']
                                 ):
                                     break
@@ -400,7 +484,7 @@ class Inference:
                         if s not in restrict_csis:
                             logger.info("Selection %s not among those we compute CSIs for. Continue." % s)
                             continue
-                        
+
                     from scipy.interpolate import RegularGridInterpolator
                     # Access the multi-class classifier predictions
                     with h5py.File(obj_fn, "r", swmr=True) as h5f:
@@ -445,7 +529,7 @@ class Inference:
                                 if os.path.exists( pkl_filename ) and not self.overwrite:
                                     logger.info("Found %s. Continue." %pkl_filename)
                                     continue
-                         
+
                             nu_A_values = np.array([
                                 self.models[t][s].nu_A(bp) for bp in base_points_flat])
 
@@ -453,7 +537,7 @@ class Inference:
                             gp_t, gp_sum = gp[:, i_t], gp.sum(axis=1)
 
                             yield_values = np.zeros((nu_A_values.shape[0],))
-                            const_value  = 0 
+                            const_value  = 0
                             batch_size = 10**5
 
                             for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
@@ -461,13 +545,13 @@ class Inference:
                                 batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
                                 exp_batch = np.expm1(np.dot(DeltaA[start:end, :], nu_A_values.T))
                                 yield_values += np.dot(batch_weighted, exp_batch)
-                                const_value  += batch_weighted.sum() 
+                                const_value  += batch_weighted.sum()
 
                             data_cube = yield_values.reshape(grid_shape)
                             self.csis[s][t] = RegularGridInterpolator(
                                 #(nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="cubic") # Doesn't work
                                 (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic")
-                            self.csis_const[s][t] = const_value 
+                            self.csis_const[s][t] = const_value
                             sm_index = np.where((base_points_flat == [0, 0, 0]).all(axis=1))[0][0]
                             max_ratio = (abs(yield_values/const_value )).max()
                             logger.info(f"CSI max relative shift (1 means 100%) for {s} {t}: {max_ratio:.2f}")
@@ -481,7 +565,7 @@ class Inference:
 
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
           return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
-  
+
     def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met,\
                       asimov_mu=None, asimov_nu_bkg=None, asimov_nu_tt=None, asimov_nu_diboson=None):
       import time
@@ -498,20 +582,23 @@ class Inference:
                 f"nu_met={nu_met:6.4f} "
             )
       for selection in self.selections:
- 
+
         #if not selection == "lowMT_VBFJet": continue
- 
+
         # Load ML result for training data
         self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
         # loading CSIs
-        if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]: 
+        if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
             self.load_csis()
 
         # Load ML result for toy
-        if self.cfg['Predict']['use_toy']:
-            self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
-  
+        if self.toy_from_path is not None:
+            self.loadToyFromPath(filename=self.toy_from_path, selection=selection)
+        else:
+            if self.cfg['Predict']['use_toy']:
+                self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
+
         # dSoDS for training data
         weights = self.h5s['TrainingData'][selection]["Weight"]
 
@@ -522,7 +609,7 @@ class Inference:
             incS_difference = None
 
         if hasattr( self, "csis"):
-            incS_difference_parametrized = -self.incS_diff_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met) 
+            incS_difference_parametrized = -self.incS_diff_from_csis( selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met)
 
             # If we have the standard x-sec, we let's print the difference.
             if incS_difference is not None:
@@ -541,7 +628,7 @@ class Inference:
                     f"incS: mu={mu:6.4f}, "
                     f"param: {incS_difference_parametrized:6.4f} "
                 )
- 
+
         # dSoDS for toys
         if self.cfg['Predict']['use_toy']:
           dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
@@ -566,20 +653,20 @@ class Inference:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
- 
+
         log_term         = (weights_toy[:]*np.log1p(dSoDS_toy-1)).sum()
         #log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
         uTerm[selection] = -2 *(incS_difference+log_term)
-        logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" ) 
+        logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" )
 
       penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met)
 
-      uTerm_total = penalty + sum( uTerm.values() )      
+      uTerm_total = penalty + sum( uTerm.values() )
 
-      logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) ) 
+      logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) )
 
-      return uTerm_total 
-  
+      return uTerm_total
+
     def clossMLresults(self):
         logger.warning( "Warning. clossMLresults does nothing" )
         return
