@@ -8,6 +8,7 @@ import argparse
 import time
 import yaml
 from Workflow.Inference import Inference
+from common.likelihoodFit import likelihoodFit
 import common.user as user
 
 class Model:
