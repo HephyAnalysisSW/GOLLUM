@@ -36,6 +36,7 @@ class Inference:
 
         # Require toy origin to be defined
         assert toy_origin in ["config", "path", "memory"], "toy_origin is not well defined!"
+        logger.info("Load toy from {}.".format(toy_origin))
 
         # Initialize attributes
         self.training_data = {}
@@ -204,6 +205,8 @@ class Inference:
         with tqdm(total=len(rawToy), desc="Processing batches") as pbar:
             for i_batch, batch in enumerate(rawToy):
                 features, weights, labels = rawToy.split(batch)
+                print("Features:", features.shape)
+                print("Weights:", weights.shape)
                 # --------------------------------------------------------------
                 # TODO: add check for number of features here and add derived features if those do not exist
                 # TODO: add check if weight exist and put them to 1.0 else
@@ -261,17 +264,56 @@ class Inference:
             self.h5s["Toy"][selection] = {}
 
         # Load self.toy_from_memory
+        # - here they give us dictionaries
+
         # Convert into our format
+        # - after conversion, we have a (N, 30) array where the last two entries are weights and labels (which are set to -1)
+
         # Make event selection
+        selection_function = selections.selections[selection]
+        selected_data = selection_function(data)
+        # Split into features and weights:
+        features = selected_data[:, :len(data_structure.feature_names)]
+        weights  = selected_data[:, data_structure.weight_index]
+        labels   = selected_data[:, data_structure.label_index]
+
         # Get ML info from features
-        # Write in dict
-        self.h5s["Toy"][selection]["MultiClassifier_predict"] = None
-        self.h5s["Toy"][selection]["htautau_DeltaA"] = None
-        self.h5s["Toy"][selection]["ztautau_DeltaA"] = None
-        self.h5s["Toy"][selection]["ttbar_DeltaA"] = None
-        self.h5s["Toy"][selection]["diboson_DeltaA"] = None
-        self.h5s["Toy"][selection]["Weight"] = None
-        self.h5s["Toy"][selection]["Label"] = None
+        MLpredictions = {}
+        for t in self.cfg['Tasks']:
+            if "save" not in self.cfg[t]:
+                continue
+
+            for iobj in self.cfg[t]['save']:
+                ds_name = t + '_' + iobj
+
+                if iobj == "predict":
+                    pred = self.models[t][selection].predict(features)
+                elif iobj == "DeltaA":
+                    pred = self.models[t][selection].get_DeltaA(features)
+                else:
+                    raise Exception(
+                        f"Unsupported save type: '{iobj}'. "
+                        "Currently supported: 'predict', 'DeltaA'."
+                    )
+                MLpredictions[ds_name] = pred
+
+        # Save in dict
+        if i_batch == 0:
+            self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
+            self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
+            self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
+            self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
+            self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
+            self.h5s["Toy"][selection]["Weight"] = weights[:]
+            self.h5s["Toy"][selection]["Label"] = labels[:]
+        else:
+            self.h5s["Toy"][selection]["MultiClassifier_predict"] = np.append(self.h5s["Toy"][selection]["MultiClassifier_predict"], MLpredictions["MultiClassifier_predict"][:])
+            self.h5s["Toy"][selection]["htautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["htautau_DeltaA"], MLpredictions["htautau_DeltaA"][:])
+            self.h5s["Toy"][selection]["ztautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["ztautau_DeltaA"], MLpredictions["ztautau_DeltaA"][:])
+            self.h5s["Toy"][selection]["ttbar_DeltaA"] = np.append(self.h5s["Toy"][selection]["ttbar_DeltaA"], MLpredictions["ttbar_DeltaA"][:])
+            self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
+            self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
+            self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
         logger.info("Toy with {} loaded from memory".format(selection))
 
 
