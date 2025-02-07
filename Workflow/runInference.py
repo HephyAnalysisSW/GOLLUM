@@ -100,7 +100,14 @@ if __name__ == '__main__':
         from common.likelihoodFit import likelihoodFit
 
     # Initialize inference object
-    infer = Inference(cfg, small=args.small, overwrite=args.overwrite, toy_from_path=args.toy)
+    toy_origin = "config"
+    toy_path = None
+    toy_from_memory = None
+    if args.toy is not None:
+        toys_origin = "path"
+        toy_path = args.toy
+
+    infer = Inference(cfg, small=args.small, overwrite=args.overwrite, toy_origin=toy_origin, toy_path=toy_path, toy_from_memory=toy_from_memory)
 
     # Save the dataset if requested
     if args.save:

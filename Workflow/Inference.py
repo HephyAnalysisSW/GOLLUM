@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger('UNC')
 
 class Inference:
-    def __init__(self, cfg, small=False, overwrite=False, toy_from_path=None):
+    def __init__(self, cfg, small=False, overwrite=False, toy_origin="config", toy_path=None, toy_from_memory=None):
         """
         Initialize the Inference object.
         Load configuration, models, and parameters.
@@ -34,6 +34,9 @@ class Inference:
         assert "Tasks" in self.cfg, "Section Tasks not defined in config!"
         assert "Selections" in self.cfg, "Section Selections not defined in config!"
 
+        # Require toy origin to be defined
+        assert toy_origin in ["config", "path", "memory"], "toy_origin is not well defined!"
+
         # Initialize attributes
         self.training_data = {}
         self.models        = {}
@@ -42,11 +45,15 @@ class Inference:
         self.small         = small
         self.overwrite     = overwrite
         self.h5s           = {}
-        self.toy_from_path = toy_from_path
-        if toy_from_path is not None:
+        self.toy_origin    = toy_origin
+        self.toy_path      = toy_path
+        self.toy_from_memory = toy_from_memory
+
+        # Delete toy from config if not needed
+        if toy_origin != "config":
             if "Toy" in self.cfg["Save"]:
                 del self.cfg["Save"]["Toy"]
-                logger.info("Specified toy from path, remove toy from config")
+                logger.info("Specified toy from path or memory, remove toy from config")
 
         # Load models and parameters
         self.load_models()
@@ -240,6 +247,33 @@ class Inference:
                     self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
 
         logger.info("Toy with {} loaded from {}".format(selection, filename))
+
+    def loadToyFromMemory(self, selection):
+        assert self.toy_from_memory is not None, "Toy not defined!"
+
+        if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
+            return  # Results already loaded, skip
+
+        # Check if the dict already exists, otherwise create it
+        if "Toy" not in self.h5s:
+            self.h5s["Toy"] = {}
+        if selection not in self.h5s["Toy"]:
+            self.h5s["Toy"][selection] = {}
+
+        # Load self.toy_from_memory
+        # Convert into our format
+        # Make event selection
+        # Get ML info from features
+        # Write in dict
+        self.h5s["Toy"][selection]["MultiClassifier_predict"] = None
+        self.h5s["Toy"][selection]["htautau_DeltaA"] = None
+        self.h5s["Toy"][selection]["ztautau_DeltaA"] = None
+        self.h5s["Toy"][selection]["ttbar_DeltaA"] = None
+        self.h5s["Toy"][selection]["diboson_DeltaA"] = None
+        self.h5s["Toy"][selection]["Weight"] = None
+        self.h5s["Toy"][selection]["Label"] = None
+        logger.info("Toy with {} loaded from memory".format(selection))
+
 
     def load_models(self):
         """
@@ -593,11 +627,13 @@ class Inference:
             self.load_csis()
 
         # Load ML result for toy
-        if self.toy_from_path is not None:
-            self.loadToyFromPath(filename=self.toy_from_path, selection=selection)
-        else:
+        if self.toy_origin == "path":
+            self.loadToyFromPath(filename=self.toy_path, selection=selection)
+        elif self.toy_origin == "config":
             if self.cfg['Predict']['use_toy']:
                 self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
+        elif self.toy_origin == "memory":
+            self.loadToyFromMemory()
 
         # dSoDS for training data
         weights = self.h5s['TrainingData'][selection]["Weight"]
