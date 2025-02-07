@@ -7,18 +7,19 @@ import yaml
 from Workflow.Inference import Inference
 from common.likelihoodFit import likelihoodFit
 import common.user as user
+from common.logger import get_logger
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference.yaml" ) )
+        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference_CSI.yaml" ) )
 
         # TODO: Set tmp_path for ML ntuples an CSI stuff
-        output_directory = os.path.join( user.output_directory, "config_reference")
+        output_directory = os.path.join( user.output_directory, "config_reference_CSI")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
 
 
     def predict(self, test_set):
-
+        logger = get_logger("INFO", logFile = None)
         # Initialize inference object
         infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=test_set)
 
@@ -33,7 +34,7 @@ class Model:
 
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
-        q_mle, parameters_mle, cov = fit.fit(start_mu=args.start_mu)
+        q_mle, parameters_mle, cov = fit.fit(start_mu=1.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
