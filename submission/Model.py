@@ -12,7 +12,7 @@ from common.logger import get_logger
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
         self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference_CSI.yaml" ) )
-
+        self.calibrate = True
         # TODO: Set tmp_path for ML ntuples an CSI stuff
         output_directory = os.path.join( user.output_directory, "config_reference_CSI")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
@@ -42,24 +42,18 @@ class Model:
         p84 = mu + delta_mu
 
         # Calibrate mu?
-        # from common.muCalibrator import muCalibrator
-        # calibration_file = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/calibration.pkl"
-        # calibrator = muCalibrator(calibration_file)
-        # mu = calibrator.getMu( \
-        #     mu=mu, \
-        #     nu_jes=parameters_mle["nu_jes"], \
-        #     nu_tes=parameters_mle["nu_tes"], \
-        #     nu_met=parameters_mle["nu_met"])
-        # mu = calibrator.getMu( \
-        #     mu=p16, \
-        #     nu_jes=parameters_mle["nu_jes"], \
-        #     nu_tes=parameters_mle["nu_tes"], \
-        #     nu_met=parameters_mle["nu_met"])
-        # mu = calibrator.getMu( \
-        #     mu=p84, \
-        #     nu_jes=parameters_mle["nu_jes"], \
-        #     nu_tes=parameters_mle["nu_tes"], \
-        #     nu_met=parameters_mle["nu_met"])
+        if self.calibrate:
+            from common.muCalibrator import muCalibrator
+            calibration_file = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/calibration.pkl"
+            calibrator = muCalibrator(calibration_file)
+            correction = calibrator.getCorrection( \
+                mu=mu, \
+                nu_jes=parameters_mle["nu_jes"], \
+                nu_tes=parameters_mle["nu_tes"], \
+                nu_met=parameters_mle["nu_met"])
+            mu += correction
+            p16 += correction
+            p84 += correction
 
         # Check mu boundaries
         if p16 < 0.0:

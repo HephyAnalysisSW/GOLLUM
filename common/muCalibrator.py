@@ -21,3 +21,8 @@ class muCalibrator:
         point = np.array([[mu, nu_jes, nu_tes, nu_met]])
         muCorrection = self.interpolator(point)[0]
         return mu+muCorrection
+
+    def getCorrection(self, mu, nu_jes, nu_tes, nu_met):
+        point = np.array([[mu, nu_jes, nu_tes, nu_met]])
+        muCorrection = self.interpolator(point)[0]
+        return muCorrection
