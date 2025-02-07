@@ -4,6 +4,7 @@ sys.path.insert( 0, '..')
 sys.path.insert( 0, '.')
 import importlib
 import h5py
+import io
 import numpy as np
 from tqdm import tqdm
 import networks.Models as ms
@@ -251,6 +252,24 @@ class Inference:
 
         logger.info("Toy with {} loaded from {}".format(selection, filename))
 
+    def convertToyToDataStruct(self):
+        """
+        Convert toy dataset into HDF5 format and store it in memory before event selection.
+        """
+        assert self.toy_from_memory is not None, "Toy dataset not defined!"
+
+        features = self.toy_from_memory["data"]  # (N, 28)
+        weights = self.toy_from_memory["weights"].reshape(-1, 1)  # (N, 1)
+        labels = np.full((features.shape[0], 1), -1)  # (N, 1), all -1
+
+        # Convert into our format
+        combined_data = np.hstack((features, weights, labels))
+        h5_buffer = io.BytesIO()
+        with h5py.File(h5_buffer, "w") as hf:
+            hf.create_dataset("data", data=combined_data)
+        self.toy_from_memory = h5_buffer
+        print("Toy dataset saved in memory as HDF5.")
+
     def loadToyFromMemory(self, selection):
         assert self.toy_from_memory is not None, "Toy not defined!"
 
@@ -263,19 +282,16 @@ class Inference:
         if selection not in self.h5s["Toy"]:
             self.h5s["Toy"][selection] = {}
 
-        # Load self.toy_from_memory
-        # - here they give us dictionaries
-
-        # Convert into our format
-        # - after conversion, we have a (N, 30) array where the last two entries are weights and labels (which are set to -1)
+        # convert toy in our data format
+        self.convertToyToDataStruct()
 
         # Make event selection
         selection_function = selections.selections[selection]
-        selected_data = selection_function(data)
+        selected_toy_data = selection_function(self.toy_from_memory)
         # Split into features and weights:
-        features = selected_data[:, :len(data_structure.feature_names)]
-        weights  = selected_data[:, data_structure.weight_index]
-        labels   = selected_data[:, data_structure.label_index]
+        features = selected_toy_data[:, :len(data_structure.feature_names)]
+        weights  = selected_toy_data[:, data_structure.weight_index]
+        labels   = selected_toy_data[:, data_structure.label_index]
 
         # Get ML info from features
         MLpredictions = {}
