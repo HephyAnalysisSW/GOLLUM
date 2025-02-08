@@ -62,7 +62,8 @@ class likelihoodFit:
 
         self.q_mle = m.fval
         self.parameters_mle = m.values
-        return m.fval, m.values, m.covariance
+        limits = None
+        return m.fval, m.values, m.covariance, limits
 
     def scan(self, Npoints=100, mumin=-5, mumax=5):
         # Scan over points of mu
