@@ -37,7 +37,6 @@ class Inference:
 
         # Require toy origin to be defined
         assert toy_origin in ["config", "path", "memory"], "toy_origin is not well defined!"
-        logger.info("Load toy from {}.".format(toy_origin))
 
         # Initialize attributes
         self.training_data = {}
@@ -206,6 +205,11 @@ class Inference:
         with tqdm(total=len(rawToy), desc="Processing batches") as pbar:
             for i_batch, batch in enumerate(rawToy):
                 features, weights, labels = rawToy.split(batch)
+                # --------------------------------------------------------------
+                # TODO: add check for number of features here and add derived features if those do not exist
+                # TODO: add check if weight exist and put them to 1.0 else
+                # TODO: add check if labels exist and put them to -1 else
+                # --------------------------------------------------------------
                 MLpredictions = {}
                 for t in self.cfg['Tasks']:
                     if "save" not in self.cfg[t]:
@@ -245,7 +249,7 @@ class Inference:
 
         logger.info("Toy with {} loaded from {}".format(selection, filename))
 
-    def convertToyToDataStruct(self):
+    def saveToyToMemory(self):
         """
         Convert toy dataset into HDF5 format and store it in memory before event selection.
         """
@@ -256,11 +260,14 @@ class Inference:
         labels = np.full((features.shape[0], 1), -1)  # (N, 1), all -1
 
         # Convert into our format
-        converted_data = np.hstack((features, weights, labels))
+        combined_data = np.hstack((features, weights, labels))
+        h5_buffer = io.BytesIO()
+        with h5py.File(h5_buffer, "w") as hf:
+            hf.create_dataset("data", data=combined_data)
+        self.toy_from_memory = h5_buffer
+        print("Toy dataset saved in memory as HDF5.")
 
-        return converted_data
-
-    def loadToyFromMemory(self, selection, ignore_done=False):
+    def loadToyFromMemory(self, selection):
         assert self.toy_from_memory is not None, "Toy not defined!"
 
         if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
@@ -272,49 +279,22 @@ class Inference:
         if selection not in self.h5s["Toy"]:
             self.h5s["Toy"][selection] = {}
 
-        # convert toy in our data format and load data
-        toy_data = self.convertToyToDataStruct()
+        # Load self.toy_from_memory
+        self.toy_from_memory.seek(0)   # Reset the buffer pointer
+        with h5py.File(self.toy_from_memory, "r") as hf:
+            toy_data = hf["data"][:]  # read HDF5 file with shape of (N, 30)
 
         # Make event selection
-        selection_function = selections.selections[selection]
-        selected_toy_data = selection_function(toy_data)
-
-        # Split into features and weights:
-        features = selected_toy_data[:, :len(data_structure.feature_names)]
-        weights  = selected_toy_data[:, data_structure.weight_index]
-        labels   = selected_toy_data[:, data_structure.label_index]
-
         # Get ML info from features
-        MLpredictions = {}
-        for t in self.cfg['Tasks']:
-            if "save" not in self.cfg[t]:
-                continue
-
-            for iobj in self.cfg[t]['save']:
-                ds_name = t + '_' + iobj
-
-                if iobj == "predict":
-                    pred = self.models[t][selection].predict(features)
-                elif iobj == "DeltaA":
-                    pred = self.models[t][selection].get_DeltaA(features)
-                else:
-                    raise Exception(
-                        f"Unsupported save type: '{iobj}'. "
-                        "Currently supported: 'predict', 'DeltaA'."
-                    )
-                MLpredictions[ds_name] = pred
-
-        # Save in dict
-        self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
-        self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
-        self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
-        self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
-        self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
-        self.h5s["Toy"][selection]["Weight"] = weights[:]
-        self.h5s["Toy"][selection]["Label"] = labels[:]
-
+        # Write in dict
+        self.h5s["Toy"][selection]["MultiClassifier_predict"] = None
+        self.h5s["Toy"][selection]["htautau_DeltaA"] = None
+        self.h5s["Toy"][selection]["ztautau_DeltaA"] = None
+        self.h5s["Toy"][selection]["ttbar_DeltaA"] = None
+        self.h5s["Toy"][selection]["diboson_DeltaA"] = None
+        self.h5s["Toy"][selection]["Weight"] = None
+        self.h5s["Toy"][selection]["Label"] = None
         logger.info("Toy with {} loaded from memory".format(selection))
-
 
     def load_models(self):
         """
@@ -378,42 +358,39 @@ class Inference:
 
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
-  
-        return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
+        f_tt_rate = (1+self.alpha_tt)**nu_tt
+        f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
 
-        ## Compute all terms in numerator
-        #term1 = mu * p_mc[:, 0] * p_pnn_htautau
-        #term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
-        #term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
-        #term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
+        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
-        ## Find the dominant term for each event
-        #denominator = p_mc.sum(axis=1)
-        #max_term = np.maximum.reduce([term1, term2, term3, term4])
+        # Compute all terms in numerator
+        term1 = mu * p_mc[:, 0] * p_pnn_htautau
+        term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
+        term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
+        term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
 
-        ## Normalize numerator and denominator
-        #numerator = (term1 + term2 + term3 + term4) / max_term
-        #denominator = denominator / max_term
+        # Find the dominant term for each event
+        denominator = p_mc.sum(axis=1)
+        max_term = np.maximum.reduce([term1, term2, term3, term4])
 
-        #return numerator / denominator
-        ### Now rewrite the return using log1p
-        ###result = np.log1p(numerator / denominator - 1)
- 
+        # Normalize numerator and denominator
+        numerator = (term1 + term2 + term3 + term4) / max_term
+        denominator = denominator / max_term
+
+        return numerator / denominator
+        ## Now rewrite the return using log1p
+        ##result = np.log1p(numerator / denominator - 1)
+
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
 
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
         f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
-  
+
+        f_tt_rate = (1+self.alpha_tt)**nu_tt
+        f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
+
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
             + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + (f_bkg_rate-1)*self.csis_const[selection]['ztautau'] \
@@ -677,7 +654,7 @@ class Inference:
             if self.cfg['Predict']['use_toy']:
                 self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
         elif self.toy_origin == "memory":
-            self.loadToyFromMemory(selection=selection)
+            self.loadToyFromMemory()
 
         # dSoDS for training data
         weights = self.h5s['TrainingData'][selection]["Weight"]

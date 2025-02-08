@@ -30,7 +30,7 @@ class likelihoodFit:
             "nu_met": (0., 5.),
         }
         self.tolerance = 0.1 # default 0.1
-        self.eps = 0.1 # default 
+        self.eps = 0.1 # default
         self.q_mle = None
         self.parameters_mle = None
 
@@ -38,9 +38,9 @@ class likelihoodFit:
 
         # function to find the global minimum, minimizing mu and nus
         logger.info("Fit global minimum")
-        errordef = Minuit.LEAST_SQUARES
 
         m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
+        m.errordef = Minuit.LIKELIHOOD
 
         m.limits["mu"] = (0.0, None)
 
@@ -78,13 +78,13 @@ class likelihoodFit:
         # Now make scan over nu
         qDeltas = []
         muList = [mumin+i*(mumax-mumin)/Npoints for i in range(Npoints)]
-        errordef = Minuit.LEAST_SQUARES
         fmu = 1
         for i_mu, mu in enumerate(muList):
             # Create a function that fixes mu and only uses the nu as arguments
             fixed_mu = mu
             likelihood_fixedMu = lambda nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met: self.function(fixed_mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met)
             m = Minuit(likelihood_fixedMu, nu_bkg=0.0, nu_tt=0.0, nu_diboson=0.0, nu_jes=0.0, nu_tes=0.0, nu_met=0.0)
+            m.errordef = Minuit.LIKELIHOOD
             for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
                 m.limits[nuname] = self.parameterBoundaries[nuname]
             m.tol = self.tolerance
@@ -138,6 +138,8 @@ class likelihoodFit:
             # Use **kwargs in order to dynamically change the parameters
             param_up = {nuname: parameters_mle[nuname] + 0.01}
             m_up = Minuit(nu_functions[nuname], **param_up)
+            m_up.errordef = Minuit.LEAST_SQUARES
+
             for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
                 if nuname == nuname2:
                     m_up.limits[nuname] = (parameters_mle[nuname], self.parameterBoundaries[nuname][1])
@@ -150,6 +152,7 @@ class likelihoodFit:
 
             param_down = {nuname: parameters_mle[nuname] - 0.01}
             m_down = Minuit(nu_functions[nuname], **param_down)
+            m_down.errordef = Minuit.LEAST_SQUARES
             for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
                 if nuname == nuname2:
                     m_down.limits[nuname] = (self.parameterBoundaries[nuname][0], parameters_mle[nuname])

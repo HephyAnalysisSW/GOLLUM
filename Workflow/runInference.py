@@ -48,6 +48,7 @@ if __name__ == '__main__':
     parser.add_argument("--modify", nargs="+", help="Key-value pairs to modify, e.g., CSI.save=true.")
     parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
     parser.add_argument("--CSI", nargs="+", default = [], help="Make only those CSIs")
+    parser.add_argument("--toy", default = None, type=str,  help="Specify toy with path to h5 file.")
 
     args = parser.parse_args()
 
@@ -84,7 +85,7 @@ if __name__ == '__main__':
             update_dict(cfg, key_parts, value)
 
     # Define output directory
-    config_name = os.path.basename(args.config).replace(".yaml", "") 
+    config_name = os.path.basename(args.config).replace(".yaml", "")
     output_directory = os.path.join ( user.output_directory, config_name)
 
     fit_directory = os.path.join( output_directory, f"fit_data{'_small' if args.small else ''}" )
@@ -101,7 +102,14 @@ if __name__ == '__main__':
         from common.likelihoodFit import likelihoodFit
 
     # Initialize inference object
-    infer = Inference(cfg, small=args.small, overwrite=args.overwrite)
+    toy_origin = "config"
+    toy_path = None
+    toy_from_memory = None
+    if args.toy is not None:
+        toy_origin = "path"
+        toy_path = args.toy
+
+    infer = Inference(cfg, small=args.small, overwrite=args.overwrite, toy_origin=toy_origin, toy_path=toy_path, toy_from_memory=toy_from_memory)
 
     # Save the dataset if requested
     if args.save:
@@ -143,7 +151,7 @@ if __name__ == '__main__':
         # Perform likelihood scan if requested
         if args.scan:
             logger.info("Start scan.")
-            deltaQ, muPoints = fit.scan(Npoints=20, mumin=0, mumax=2)
+            deltaQ, muPoints = fit.scan(Npoints=20, mumin=0, mumax=3)
             logger.info("Scan done.")
             np.savez(f"likelihoodScan.{config_name}.npz", deltaQ=np.array(deltaQ), mu=np.array(muPoints))
 
