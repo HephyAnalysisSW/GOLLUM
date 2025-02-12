@@ -28,9 +28,9 @@ Save:
     max_n_batch: -1
 
 # Cubic spline interpolation for inclusive cross section
-CSI: 
+CSI:
     save: True
-    use: False
+    use: True
 
 Predict:
   use_toy: True
