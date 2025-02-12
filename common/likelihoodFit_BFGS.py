@@ -163,7 +163,8 @@ class likelihoodFit:
                 for j, name_j in enumerate(param_names):
                     cov_dict[(name_i, name_j)] = self.covariance[i, j]
 
-        return self.q_mle, values_dict, cov_dict
+        limits = None
+        return self.q_mle, values_dict, cov_dict, limits
 
         #return self.q_mle, self.parameters_mle, self.covariance
 

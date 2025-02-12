@@ -138,15 +138,16 @@ if __name__ == '__main__':
                           asimov_nu_tt=args.asimov_nu_tt,
                           asimov_nu_diboson=args.asimov_nu_diboson)
 
-    # Best-fit dictionary (one example)
+    # Best-fit dictionary /scratch/robert.schoefbeck/batch_output/batch.13392608.out
+
     best_fit = {
-        'mu': 2.7942,
-        'nu_bkg': -0.03206,
-        'nu_tt': -0.01999,
-        'nu_diboson': -0.02554,
-        'nu_tes': -0.00952,
-        'nu_jes': -0.00209,
-        'nu_met': 0.00131,
+        'mu': 2.790832418674728,
+        'nu_bkg': -0.035687869355687206,
+        'nu_tt': -0.01529719518782724,
+        'nu_diboson': -0.027784415682560314,
+        'nu_tes': -0.00971769862493762,
+        'nu_jes': -0.002120059893820499,
+        'nu_met': 0.028296744776968728,
     }
 
     #-------------------------------------------------------
