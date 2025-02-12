@@ -11,7 +11,7 @@ Selections:
   - "lowMT_noVBFJet_ptH100"
     #  - "highMT"
     #  - "highMT_noVBFJet"
-    #  - "highMT_VBFJet"
+     - "highMT_VBFJet"
 
 Toy_name: "jes_0p99_met_2"
 
@@ -25,13 +25,13 @@ Save:
     filename: "jes_0p99_met_2.h5"
 #    filename: "nominal.h5"
     n_split: 1
-    batch_size: 
+    batch_size:
     max_n_batch: -1
 
 # Cubic spline interpolation for inclusive cross section
-CSI: 
+CSI:
     save: True
-    use: False
+    use: True
 
 Predict:
   use_toy: True

@@ -11,27 +11,24 @@ from common.logger import get_logger
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference_CSI.yaml" ) )
+        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference.yaml" ) )
         self.calibrate = True
         # TODO: Set tmp_path for ML ntuples an CSI stuff
-        output_directory = os.path.join( user.output_directory, "config_reference_CSI")
+        output_directory = os.path.join( user.output_directory, "config_reference")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
-
+        logger = get_logger("INFO", logFile = None)
 
     def predict(self, test_set):
-        logger = get_logger("INFO", logFile = None)
         # Initialize inference object
         infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=test_set)
-
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
             infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
-                          nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met, \
-                          asimov_mu=None, \
-                          asimov_nu_bkg=None, \
-                          asimov_nu_tt=None, \
-                          asimov_nu_diboson=None)
-
+            nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met, \
+            asimov_mu=None, \
+            asimov_nu_bkg=None, \
+            asimov_nu_tt=None, \
+            asimov_nu_diboson=None)
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
         q_mle, parameters_mle, cov = fit.fit(start_mu=1.0)
@@ -51,21 +48,19 @@ class Model:
                 nu_jes=parameters_mle["nu_jes"], \
                 nu_tes=parameters_mle["nu_tes"], \
                 nu_met=parameters_mle["nu_met"])
-            mu += correction
-            p16 += correction
-            p84 += correction
 
         # Check mu boundaries
         if p16 < 0.0:
-            p16 = 0.0
+            p16 = -0.01
         if p84 > 3.0:
-            p84 = 3.0
+            p84 = 3.01
 
         return {
             "mu_hat": mu,
             "delta_mu_hat": delta_mu,
             "p16": p16,
             "p84": p84,
+            "correction": correction, # TO BE REMOVED
         }
 
 
