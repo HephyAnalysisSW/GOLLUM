@@ -56,8 +56,8 @@ class XGBMC:
         if not hasattr( self, "params" ):
             self.params = {
                 'objective': 'multi:softprob',  # Multiclass classification with soft probabilities
-                'num_class': self.num_classes,  # Number of classes
-                'eta': self.config.learning_rate,  # Learning rate
+                    'num_class': self.num_classes,  # Number of classes
+                    'eta': self.config.learning_rate,  # Learning rate
                 'max_depth': self.config.max_depth,  # Max depth of trees
                 'subsample': self.config.subsample,  # Fraction of samples per tree
                 'colsample_bytree': self.config.colsample_bytree,  # Fraction of features per tree
