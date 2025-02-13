@@ -38,3 +38,37 @@ def copyIndexPHP( directory ):
     index_php = os.path.join( directory, 'index.php' )
     if not os.path.exists( directory ): os.makedirs( directory )
     shutil.copyfile( os.path.join(os.path.dirname(__file__), 'scripts/php/index.php'), index_php )
+
+def coveragePenalty(coverage, Ntoys):
+    sigma_68 = np.sqrt( (1-0.6827)*0.6827/Ntoys)
+    if coverage < 0.6827 - 2*sigma_68:
+        f_penalty = 1 + ( (coverage - (0.6827-2*sigma_68))/sigma_68 )**4
+    elif coverage > 0.6827 + 2*sigma_68:
+        f_penalty = 1 + ( (coverage - (0.6827+2*sigma_68))/sigma_68 )**3
+    else:
+        f_penalty = 1
+    return f_penalty
+
+def calculateScore(mu_true, mu_down, mu_up):
+    width_sum = 0
+    c_sum = 0
+    Ntoys = 0
+    Ntoys = len(mu_true)
+    if len(mu_up) != Ntoys:
+        print("[ERROR] upper limits have different length than true mu" )
+        return None
+    if len(mu_down) != Ntoys:
+        print("[ERROR] lower limits have different length than true mu" )
+        return None
+    for i in range(len(mu_true)):
+        width_sum += mu_up[i] - mu_down[i]
+        if mu_true[i] > mu_down[i] and mu_true[i] < mu_up[i]:
+            c_sum += 1
+
+    # Calculate the score
+    average_width = width_sum/Ntoys
+    coverage = c_sum/Ntoys
+    f_penalty = coveragePenalty(coverage, Ntoys)
+    epsilon = 0.01
+    score = -np.log( (average_width+epsilon)*f_penalty )
+    return score

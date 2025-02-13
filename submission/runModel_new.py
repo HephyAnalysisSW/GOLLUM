@@ -2,7 +2,7 @@ from Model import Model
 import h5py
 import pandas as pd
 import numpy as np
-from toy_generator import run_pseudo_experiments 
+from toy_generator import run_pseudo_experiments
 
 test_toy, pkl_toy = run_pseudo_experiments(
     tes=None,
@@ -11,7 +11,7 @@ test_toy, pkl_toy = run_pseudo_experiments(
     ttbar_scale=None,
     diboson_scale=None,
     bkg_scale=None,
-    num_pseudo_experiments=100,
+    num_pseudo_experiments=1,
     num_of_sets=1,
     ground_truth_mus=[2.0],
 )

@@ -11,7 +11,7 @@ from common.logger import get_logger
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/config_reference.yaml" ) )
+        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/configs/config_reference.yaml" ) )
         self.calibrate = True
         # TODO: Set tmp_path for ML ntuples an CSI stuff
         output_directory = os.path.join( user.output_directory, "config_reference")
@@ -31,7 +31,7 @@ class Model:
             asimov_nu_diboson=None)
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
-        q_mle, parameters_mle, cov = fit.fit(start_mu=1.0)
+        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=0.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
@@ -50,10 +50,10 @@ class Model:
                 nu_met=parameters_mle["nu_met"])
 
         # Check mu boundaries
-        if p16 < 0.0:
-            p16 = -0.01
-        if p84 > 3.0:
-            p84 = 3.01
+        # if p16 < 0.0:
+        #     p16 = -0.01
+        # if p84 > 3.0:
+        #     p84 = 3.01
 
         return {
             "mu_hat": mu,
