@@ -312,7 +312,7 @@ class PNN:
         else:
             bias_factor = 1
 
-        print( "bias_factor", bias_factor )
+        #print( "bias_factor", bias_factor )
 
         DeltaA = self.model( tf.convert_to_tensor(
             (features - self.feature_means) / np.sqrt(self.feature_variances), dtype=tf.float32), training=False)
