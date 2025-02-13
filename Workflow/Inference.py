@@ -655,7 +655,7 @@ class Inference:
                             for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
                                 end = min(start + batch_size, gp_t.shape[0])
                                 batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
-                                exp_batch = icp_factor*np.expm1(np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                exp_batch = np.expm1(np.log(icp_factor)+np.dot(DeltaA[start:end, :], nu_A_values.T))
                                 #print( "exp_batch", exp_batch.shape)
                                 yield_values += np.dot(batch_weighted, exp_batch)
                                 const_value  += batch_weighted.sum()
@@ -664,10 +664,14 @@ class Inference:
                             self.csis[s][t] = RegularGridInterpolator(
                                 #(nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="cubic") # Doesn't work
                                 (nu_tes_values, nu_jes_values, nu_met_values), data_cube, method="quintic")
+
                             self.csis_const[s][t] = const_value
                             sm_index = np.where((base_points_flat == [0, 0, 0]).all(axis=1))[0][0]
                             max_ratio = (abs(yield_values/const_value )).max()
                             logger.info(f"CSI max relative shift (1 means 100%) for {s} {t}: {max_ratio:.2f}")
+
+                            #for bp, val in zip( base_points_flat, yield_values ):
+                            #    print(t, s, bp, val, self.csis[s][t](bp) ) 
 
                             if self.cfg.get("CSI", {}).get("save", False):
                                 pkl_filename = os.path.join(
