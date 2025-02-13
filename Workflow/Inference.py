@@ -373,27 +373,34 @@ class Inference:
         # Multiclassifier
         p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
 
+        # Multiply the ICP to the CSI
+        icp_factor = {}
+        for t in ['htautau', 'ztautau', 'ttbar', 'diboson']:
+            if t in self.icps and selection in self.icps[t]:
+                icp_factor[t] = self.icps[t][selection].predict((nu_tes, nu_jes, nu_met))
+            else:
+                icp_factor[t] = 1 
+        logger.debug( "icp_factor %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_factor[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
+
         # htautau
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_htautau = self.models['htautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_htautau = np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
-        # Multiply with ICP
-        # p_pnn_htautau *= self.icps['htautau'][selection].predict((nu_tes,nu_jes,nu_met)) 
+        p_pnn_htautau = icp_factor['htautau']*np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
 
         # ztautau
         DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ztautau = self.models['ztautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_ztautau = np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
+        p_pnn_ztautau = icp_factor['ztautau']*np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
 
         # ttbar
         DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ttbar = self.models['ttbar'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_ttbar = np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
+        p_pnn_ttbar = icp_factor['ttbar']*np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
 
         # diboson
         DA_pnn_diboson = self.h5s[name][selection]["diboson_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_diboson = self.models['diboson'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_diboson= np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
+        p_pnn_diboson= icp_factor['diboson']*np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
 
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
@@ -711,7 +718,7 @@ class Inference:
         weights = self.h5s['TrainingData'][selection]["Weight"]
 
         if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
-            dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
+            dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
             incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
         else:
             incS_difference = None
@@ -739,7 +746,7 @@ class Inference:
 
         # dSoDS for toys
         if self.cfg['Predict']['use_toy']:
-          dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy',selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
+          dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
           weights_toy = copy.deepcopy(self.h5s['Toy'][selection]["Weight"])
         else:
           dSoDS_toy = dSoDS_sim
