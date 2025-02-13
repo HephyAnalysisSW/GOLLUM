@@ -59,6 +59,8 @@ class Inference:
 
         # Load models and parameters
         self.load_models()
+        self.load_icps()
+
         self.alpha_bkg     = self.cfg['Parameters']['alpha_bkg']
         self.alpha_tt      = self.cfg['Parameters']['alpha_tt']
         self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
@@ -73,7 +75,6 @@ class Inference:
             except (IOError, AssertionError, TypeError):
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
-
 
     def training_data_loader(self, selection, n_split):
         """
@@ -139,6 +140,22 @@ class Inference:
                 "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(
                     t, selection, h5f.attrs[t + "_model_path"], self.cfg[t][selection]['model_path'])
         return h5f
+
+    def load_icps( self ):
+        logger.info("Loading ICPs.")
+        self.icps={}
+        counter = {}
+        for t in self.cfg['Tasks']:
+            if t=='MultiClassifier': continue
+            counter[t]=0
+            for s in self.cfg["Selections"]:
+                if s in self.cfg[t] and 'icp_file' in self.cfg[t][s]:
+                    if t not in self.icps:
+                        self.icps[t] = {}
+                    self.icps[t][s] = ms.InclusiveCrosssectionParametrization.load(self.cfg[t][s]['icp_file'])
+                    counter[t]+=1
+
+        logger.info( "Loaded ICPs: "+" ".join( ["%s: %i"%(t,counter[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
     def loadMLresults(self, name, filename, selection, ignore_done=False):
         """
@@ -360,6 +377,8 @@ class Inference:
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_htautau = self.models['htautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
         p_pnn_htautau = np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
+        # Multiply with ICP
+        # p_pnn_htautau *= self.icps['htautau'][selection].predict((nu_tes,nu_jes,nu_met)) 
 
         # ztautau
         DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
@@ -618,10 +637,19 @@ class Inference:
                             const_value  = 0
                             batch_size = 10**5
 
+                            # Multiply the ICP to the CSI
+                            if t in self.icps and s in self.icps[t]:
+                                icp_factor = np.array([self.icps[t][s].predict(tuple(bp)) for bp in base_points_flat] )
+                            else:
+                                icp_factor = np.ones(len(base_points_flat)) 
+
+                            #print( "icp_factor", icp_factor, base_points_flat)
+
                             for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
                                 end = min(start + batch_size, gp_t.shape[0])
                                 batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
-                                exp_batch = np.expm1(np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                exp_batch = icp_factor*np.expm1(np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                #print( "exp_batch", exp_batch.shape)
                                 yield_values += np.dot(batch_weighted, exp_batch)
                                 const_value  += batch_weighted.sum()
 
