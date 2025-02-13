@@ -11,8 +11,11 @@ import common.user as user
 from common.muCalibrator import muCalibrator
 from common.calibrationPlotter import calibrationPlotter
 from helpers import calculateScore
-
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
+
+parser = argparse.ArgumentParser(description="ML inference.")
+parser.add_argument("--inflate", type=float, default=None)
+args = parser.parse_args()
 
 scoreFiles = [
     "output_mu_1p0_20250212_181138_896c164cf7934cdab3b20bd50656d439.npz",
@@ -39,10 +42,18 @@ for i,file in enumerate(scoreFiles):
         mu_measured_down = np.append(mu_measured_down, data["mu_measured_down"] )
         toypaths = np.append(toypaths, data["toypaths"])
 
+if args.inflate is not None:
+    uncert_factor = args.inflate
+    for i in range(len(mu_measured)):
+        mu_measured_up[i] = mu_measured[i] + uncert_factor * (mu_measured_up[i]-mu_measured[i])
+        mu_measured_down[i] = mu_measured[i] - uncert_factor * (mu_measured[i]-mu_measured_down[i])
+
 output_name = os.path.join( user.plot_directory, "ClosureTests", "Toys.pdf" )
 p = calibrationPlotter(output_name)
 p.setMus(mu_true, mu_measured, mu_measured_down, mu_measured_up)
 p.draw()
 
-score = calculateScore(mu_true, mu_measured_down, mu_measured_up)
-print(score)
+score, average_width, coverage = calculateScore(mu_true, mu_measured_down, mu_measured_up)
+print("SCORE =", score)
+print("AVG. WIDTH =", average_width)
+print("COVERAGE =", coverage)

@@ -49,11 +49,13 @@ class Model:
                 nu_tes=parameters_mle["nu_tes"], \
                 nu_met=parameters_mle["nu_met"])
 
+        # TODO SET HARD CODED BOUNDARIES?
         # Check mu boundaries
         # if p16 < 0.0:
         #     p16 = -0.01
         # if p84 > 3.0:
         #     p84 = 3.01
+        # if we do boundaries, we can also adjust deltaMu
 
         return {
             "mu_hat": mu,

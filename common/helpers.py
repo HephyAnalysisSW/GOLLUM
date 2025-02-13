@@ -71,4 +71,4 @@ def calculateScore(mu_true, mu_down, mu_up):
     f_penalty = coveragePenalty(coverage, Ntoys)
     epsilon = 0.01
     score = -np.log( (average_width+epsilon)*f_penalty )
-    return score
+    return score, average_width, coverage
