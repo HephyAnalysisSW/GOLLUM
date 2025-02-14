@@ -6,32 +6,31 @@ Tasks:
   - diboson
 
 Selections:
-  #- "lowMT_VBFJet"
+  - "lowMT_VBFJet"
     #  - "lowMT_noVBFJet_ptH0to100"
-  #- "lowMT_noVBFJet_ptH100"
+  - "lowMT_noVBFJet_ptH100"
     #  - "highMT"
-      - "highMT_noVBFJet"
-    #  - "highMT_VBFJet"
+    #  - "highMT_noVBFJet"
+  #- "highMT_VBFJet"
 
-Toy_name: "jes_0p99_met_2"
+Toy_name: "nominal"
 
 Save:
   TrainingData: # pre-defined "TrainingData" used for training
-    n_split: 1
+    n_split: 100
     max_n_batch: -1 # set to -1 as infinity
 
   Toy: # toys, name can be changed
     dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
-    filename: "jes_0p99_met_2.h5"
-#    filename: "nominal.h5"
-    n_split: 1
-    batch_size: 
+    #filename: "nominal.h5"
+    n_split: 100
+    batch_size:
     max_n_batch: -1
 
 # Cubic spline interpolation for inclusive cross section
-CSI: 
+CSI:
     save: True
-    use: False
+    use: True
 
 Predict:
   use_toy: True
@@ -99,7 +98,8 @@ ztautau:
     model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
   highMT_VBFJet:
     module: "PNN"
-    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1" #FIXME
+    #model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
   save:
     - DeltaA
 

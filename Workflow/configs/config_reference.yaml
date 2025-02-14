@@ -22,7 +22,7 @@ Save:
 
   Toy: # toys, name can be changed
     dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
-    filename: "nominal.h5"
+    #filename: "nominal.h5"
     n_split: 100
     batch_size:
     max_n_batch: -1
@@ -62,6 +62,8 @@ htautau:
   lowMT_VBFJet:
     module: "PNN"
     model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+  #  module: "ICP"
+  #  model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_lowMT_VBFJet_icp_quad_tes_jes_met.pkl"
   lowMT_noVBFJet_ptH0to100:
     module: "PNN"
     model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
