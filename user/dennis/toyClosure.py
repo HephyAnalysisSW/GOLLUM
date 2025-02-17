@@ -10,20 +10,28 @@ import common.syncer
 import common.user as user
 from common.muCalibrator import muCalibrator
 from common.calibrationPlotter import calibrationPlotter
-from helpers import calculateScore
+from helpers import calculateScore,alphaToNu
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
+
+
+def getKey(uncert):
+    key = uncert
+    if uncert == "met":
+        key = "soft_met"
+    if uncert in ["ttbar", "diboson", "bkg"]:
+        key = uncert + "_scale"
+    return key
 
 parser = argparse.ArgumentParser(description="ML inference.")
 parser.add_argument("--inflate", type=float, default=None)
 args = parser.parse_args()
 
 scoreFiles = [
-    "output_mu_1p0_20250212_181138_896c164cf7934cdab3b20bd50656d439.npz",
-    "output_mu_1p0_20250213_033645_ac060cc2f3474e9a9f26c611ad1da8e4.npz",
-    "output_mu_2p0_20250213_034434_731c2aca64744360a8ea7772f37a8bff.npz",
-    "output_mu_3p0_20250213_032018_8f033bf3f1394ceea97960506e898da9.npz",
-    "output_mu_4p0_20250213_032219_f20b152540d34d96bcc79fc0e5e80a98.npz",
-    "output_mu_5p0_20250213_032050_a0b98b55010d4899a29616cf5d950e51.npz",
+    "output_mu_1p0_20250214_011402_753c05fb35cd4f4e87782411806b1272.npz",
+    "output_mu_2p0_20250214_011402_ff80ed0186f44e14a47281945e8d3d96.npz",
+    "output_mu_3p0_20250214_005716_b07d81d119364b27a44dc5b1b3e6d179.npz",
+    "output_mu_4p0_20250214_011504_83c48a5c3dc6481ca1c302ba37c5e001.npz",
+    "output_mu_5p0_20250214_005726_638acd3908ae41959262f6b6c47e066a.npz",
 ]
 
 for i,file in enumerate(scoreFiles):
@@ -57,3 +65,38 @@ score, average_width, coverage = calculateScore(mu_true, mu_measured_down, mu_me
 print("SCORE =", score)
 print("AVG. WIDTH =", average_width)
 print("COVERAGE =", coverage)
+print("-------------------------")
+print("now colour points")
+
+# sigma_binning = [
+#     (-10, -3, ROOT.kRed),
+#     ( -3, -2, ROOT.kRed)-1, 0, 1, 2, 3, 10]
+
+for uncert in ["jes", "tes", "met", "bkg", "ttbar", "diboson"]:
+    graph1D = ROOT.TGraph(len(mu_measured))
+    graph2D = ROOT.TGraph2D(len(mu_measured))
+    for i in range(len(mu_measured)):
+        with open(toypaths[i].replace(".h5", ".pkl"), 'rb') as file:
+            trueValues = pickle.load(file)
+        alpha = trueValues[getKey(uncert)]
+        sigma = alphaToNu(alpha, uncert)
+        graph2D.SetPoint(i, mu_true[i], mu_measured[i], sigma)
+        graph1D.SetPoint(i, sigma, mu_measured[i]-mu_true[i])
+
+    c = ROOT.TCanvas("c","",0,0,600,400)
+    # c.SetTheta(90.);
+    # c.SetPhi(0.);
+    ROOT.gStyle.SetPalette(1)
+    graph2D.SetMarkerStyle(20)
+    graph2D.Draw("pcol")
+    plotname2d = os.path.join( user.plot_directory, "ClosureTests", f"Toys_2D_{uncert}.pdf" )
+    c.Print(plotname2d)
+
+    c = ROOT.TCanvas("c","",0,0,600,400)
+    ROOT.gStyle.SetPalette(1)
+    graph1D.SetMarkerStyle(20)
+    graph1D.Draw("AP")
+    graph1D.GetXaxis().SetTitle("#sigma_{"+uncert+"}")
+    graph1D.GetYaxis().SetTitle("#mu_{measured} - #mu_{true}")
+    plotname1d = os.path.join( user.plot_directory, "ClosureTests", f"Toys_1D_{uncert}.pdf" )
+    c.Print(plotname1d)

@@ -72,3 +72,25 @@ def calculateScore(mu_true, mu_down, mu_up):
     epsilon = 0.01
     score = -np.log( (average_width+epsilon)*f_penalty )
     return score, average_width, coverage
+
+
+def alphaToNu(alpha, uncert):
+    sigma = {
+        "jes": 0.01,
+        "tes": 0.01,
+        "met": 1.0,
+        "bkg": 0.001,
+        "ttbar": 0.02,
+        "diboson": 0.25,
+    }
+    mean = {
+        "jes": 1.0,
+        "tes": 1.0,
+        "met": 0.0,
+        "bkg": 1.0,
+        "ttbar": 1.0,
+        "diboson": 1.0,
+    }
+
+    nu = (alpha-mean[uncert])/sigma[uncert]
+    return nu
