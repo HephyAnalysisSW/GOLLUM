@@ -374,52 +374,57 @@ class Inference:
         p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
 
         # Multiply the ICP to the CSI
-        icp_factor = {}
+        icp_summand = {}
         for t in ['htautau', 'ztautau', 'ttbar', 'diboson']:
             if t in self.icps and selection in self.icps[t]:
-                icp_factor[t] = self.icps[t][selection].predict((nu_tes, nu_jes, nu_met))
+                icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
-                icp_factor[t] = 1 
-        logger.debug( "icp_factor %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_factor[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
+                icp_summand[t] = 1 
+        logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_htautau = self.models['htautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_htautau = icp_factor['htautau']*np.exp( np.dot(DA_pnn_htautau, nu_A_htautau))
+        log_p_pnn_htautau = icp_summand['htautau'] + np.dot(DA_pnn_htautau, nu_A_htautau)
 
         # ztautau
         DA_pnn_ztautau = self.h5s[name][selection]["ztautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ztautau = self.models['ztautau'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_ztautau = icp_factor['ztautau']*np.exp( np.dot(DA_pnn_ztautau, nu_A_ztautau))
+        log_p_pnn_ztautau = icp_summand['ztautau'] + np.dot(DA_pnn_ztautau, nu_A_ztautau)
 
         # ttbar
         DA_pnn_ttbar = self.h5s[name][selection]["ttbar_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_ttbar = self.models['ttbar'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_ttbar = icp_factor['ttbar']*np.exp( np.dot(DA_pnn_ttbar, nu_A_ttbar))
+        log_p_pnn_ttbar = icp_summand['ttbar'] + np.dot(DA_pnn_ttbar, nu_A_ttbar)
 
         # diboson
         DA_pnn_diboson = self.h5s[name][selection]["diboson_DeltaA"] # <- this should be Nx9, 9 numbers per event
         nu_A_diboson = self.models['diboson'][selection].nu_A((nu_tes,nu_jes,nu_met)) # <- use this
-        p_pnn_diboson= icp_factor['diboson']*np.exp( np.dot(DA_pnn_diboson, nu_A_diboson))
+        log_p_pnn_diboson= icp_summand['diboson'] + np.dot(DA_pnn_diboson, nu_A_diboson)
 
         # RATES
         #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
+        #f_tt_rate = (1+self.alpha_tt)**nu_tt 
         #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-        f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
+        #f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
+        #f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
+        #f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
+        log_f_bkg_rate = nu_bkg*np.log1p(self.alpha_bkg)
+        log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
+        log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
   
-        return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
+        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
-        ## Compute all terms in numerator
-        #term1 = mu * p_mc[:, 0] * p_pnn_htautau
-        #term2 = p_mc[:, 1] * f_bkg_rate * p_pnn_ztautau
-        #term3 = p_mc[:, 2] * f_tt_rate * f_bkg_rate * p_pnn_ttbar
-        #term4 = p_mc[:, 3] * f_diboson_rate * f_bkg_rate * p_pnn_diboson
+        # Compute all terms in numerator
+        denominator = p_mc.sum(axis=1)
+        term1 = mu*(p_mc[:, 0]/denominator)*np.exp(log_p_pnn_htautau)
+        term2 = (p_mc[:, 1]/denominator)*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
+        #print( p_mc[:, 1]/denominator,  f_bkg_rate, p_pnn_ztautau)
+        term3 = (p_mc[:, 2]/denominator)*np.exp(log_f_tt_rate + log_f_bkg_rate + log_p_pnn_ttbar)
+        term4 = (p_mc[:, 3]/denominator)*np.exp(log_f_diboson_rate + log_f_bkg_rate + log_p_pnn_diboson)
+        return term1 + term2 + term3 + term4
 
         ## Find the dominant term for each event
-        #denominator = p_mc.sum(axis=1)
         #max_term = np.maximum.reduce([term1, term2, term3, term4])
 
         ## Normalize numerator and denominator
@@ -427,8 +432,8 @@ class Inference:
         #denominator = denominator / max_term
 
         #return numerator / denominator
-        ### Now rewrite the return using log1p
-        ###result = np.log1p(numerator / denominator - 1)
+        #### Now rewrite the return using log1p
+        ####result = np.log1p(numerator / denominator - 1)
  
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
 
@@ -646,16 +651,16 @@ class Inference:
 
                             # Multiply the ICP to the CSI
                             if t in self.icps and s in self.icps[t]:
-                                icp_factor = np.array([self.icps[t][s].predict(tuple(bp)) for bp in base_points_flat] )
+                                icp_summand = np.array([self.icps[t][s].predict(tuple(bp)) for bp in base_points_flat] )
                             else:
-                                icp_factor = np.ones(len(base_points_flat)) 
+                                icp_summand = np.ones(len(base_points_flat)) 
 
-                            #print( "icp_factor", icp_factor, base_points_flat)
+                            #print( "icp_summand", icp_summand, base_points_flat)
 
                             for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
                                 end = min(start + batch_size, gp_t.shape[0])
                                 batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
-                                exp_batch = np.expm1(np.log(icp_factor)+np.dot(DeltaA[start:end, :], nu_A_values.T))
+                                exp_batch = np.expm1(np.log(icp_summand)+np.dot(DeltaA[start:end, :], nu_A_values.T))
                                 #print( "exp_batch", exp_batch.shape)
                                 yield_values += np.dot(batch_weighted, exp_batch)
                                 const_value  += batch_weighted.sum()
