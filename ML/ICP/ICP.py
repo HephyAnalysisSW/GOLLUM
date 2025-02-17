@@ -147,8 +147,11 @@ class InclusiveCrosssectionParametrization:
     def nu_A(self, nu):
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
+    def log_predict( self, nu):
+        return np.dot( self.nu_A(nu), self.DeltaA )
+
     def predict( self, nu):
-        return np.exp(np.dot( self.nu_A(nu), self.DeltaA ))
+        return np.exp( self.log_predict(nu) )
 
     # Predictor of log-DCR for usage in PNN
     def get_predictor( self ):
