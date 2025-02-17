@@ -57,7 +57,6 @@ parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL'
 parser.add_argument("-c", "--config", help="Path to the config file.")
 parser.add_argument("--small", action="store_true", help="Run a subset.")
 parser.add_argument("--asimov_mu", type=float, default=None, help="Modify asimov weights according to mu.")
-parser.add_argument("--start_mu", type=float, default=1.0, help="Modify asimov weights according to mu.")
 parser.add_argument("--asimov_nu_bkg", type=float, default=None, help="Modify asimov weights according to nu_bkg.")
 parser.add_argument("--asimov_nu_tt", type=float, default=None, help="Modify asimov weights according to nu_ttbar.")
 parser.add_argument("--asimov_nu_diboson", type=float, default=None, help="Modify asimov weights according to nu_diboson.")
@@ -71,7 +70,7 @@ parser.add_argument("--var1",
                     type=str,
                     default="mu",
                     choices=["mu","nu_bkg","nu_tt","nu_diboson","nu_tes","nu_jes","nu_met"],
-                    help="Which parameter to vary (except asimov_mu).")
+                    help="Which parameter to vary.")
 parser.add_argument("--range1",
                     nargs=3,
                     type=float,
@@ -81,7 +80,7 @@ parser.add_argument("--var2",
                     type=str,
                     default="nu_tes",
                     choices=["mu","nu_bkg","nu_tt","nu_diboson","nu_tes","nu_jes","nu_met"],
-                    help="Which parameter to vary (except asimov_mu).")
+                    help="Which parameter to vary.")
 parser.add_argument("--range2",
                     nargs=3,
                     type=float,
