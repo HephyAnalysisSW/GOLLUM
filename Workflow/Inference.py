@@ -380,7 +380,7 @@ class Inference:
                 icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
                 icp_summand[t] = 1 
-        logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
+        #logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
@@ -403,12 +403,6 @@ class Inference:
         log_p_pnn_diboson= icp_summand['diboson'] + np.dot(DA_pnn_diboson, nu_A_diboson)
 
         # RATES
-        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt 
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-        #f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        #f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        #f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
         log_f_bkg_rate = nu_bkg*np.log1p(self.alpha_bkg)
         log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
@@ -438,18 +432,18 @@ class Inference:
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
 
         # RATES
-        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-        f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
+        f_bkg_rate_m1 = np.expm1(nu_bkg * np.log1p(self.alpha_bkg))
+        f_tt_rate_m1 = np.expm1(nu_tt * np.log1p(self.alpha_tt))
+        f_diboson_rate_m1 = np.expm1(nu_diboson * np.log1p(self.alpha_diboson))
+        f_bkg_rate = f_bkg_rate_m1 + 1 
+        f_tt_rate = f_tt_rate_m1 + 1 
+        f_diboson_rate = f_diboson_rate_m1 + 1 
   
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
-            + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + (f_bkg_rate-1)*self.csis_const[selection]['ztautau'] \
-            + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + (f_tt_rate*f_bkg_rate-1)*self.csis_const[selection]['ttbar'] \
-            + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met)) + (f_diboson_rate*f_bkg_rate-1)*self.csis_const[selection]['diboson']
+            + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate_m1*self.csis_const[selection]['ztautau'] \
+            + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + (f_tt_rate_m1+f_bkg_rate_m1+f_tt_rate_m1*f_bkg_rate_m1)*self.csis_const[selection]['ttbar'] \
+            + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met)) + (f_diboson_rate_m1+f_bkg_rate_m1+f_diboson_rate_m1*f_bkg_rate_m1)*self.csis_const[selection]['diboson']
 
     def save(self, restrict_csis=[]):
         """
@@ -767,19 +761,21 @@ class Inference:
             logger.debug( "Scaled labeled signal events by %4.3f" % asimov_mu )
         if asimov_nu_bkg is not None:
             labels = self.h5s['Toy'][selection]["Label"]
+            #before = weights_toy[labels!=data_structure.label_encoding['htautau']].sum()
             weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*(1+self.alpha_bkg)**asimov_nu_bkg
+            #after = weights_toy[labels!=data_structure.label_encoding['htautau']].sum()
             logger.debug( "Scaled labeled background events by (1+alpha_bkg)**asimov_nu_bkg with asimov_nu_bkg=%4.3f" % asimov_nu_bkg )
+            #logger.debug( "Before %6.5f After %6.5f", before, after )
         if asimov_nu_tt is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_ttbar)**asimov_nu_tt
-            logger.debug( "Scaled labeled ttbar events by (1+alpha_ttbar)**asimov_nu_tt with asimov_nu_tt=%4.3f" % asimov_nu_tt )
+            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_tt)**asimov_nu_tt
+            logger.debug( "Scaled labeled ttbar events by (1+alpha_tt)**asimov_nu_tt with asimov_nu_tt=%4.3f" % asimov_nu_tt )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
 
         log_term         = (weights_toy[:]*np.log1p(dSoDS_toy-1)).sum()
-        #log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
         uTerm[selection] = -2 *(incS_difference+log_term)
         logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" )
 
