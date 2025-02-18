@@ -110,7 +110,7 @@ class TFMC:
         total = sum(self.class_weights)
         self.class_weights = np.array([total/self.class_weights[i] for i in range(len(self.class_weights))])
         
-        print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.class_weights[i]) for i in range( self.num_classes)]) )
+        #print("Will scale with these factors: "+" ".join( ["%s: %3.2f"%( self.classes[i], self.class_weights[i]) for i in range( self.num_classes)]) )
 
     def _build_model(self):
         """Build a simple neural network for classification with L1/L2 regularization and dropout."""

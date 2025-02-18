@@ -26,8 +26,8 @@ for batch in loader:
     print(" class probabilities from TFMC")
     prob = tfmc.predict(data, ic_scaling = False)
     print(prob)
-    print(" class probabilities from XGBMC")
-    prob=xgbmc.predict(data, ic_scaling = False)
-    print(prob)
+    #print(" class probabilities from XGBMC")
+    #prob=xgbmc.predict(data, ic_scaling = False)
+    #print(prob)
 
     break
