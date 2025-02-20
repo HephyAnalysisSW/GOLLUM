@@ -106,6 +106,8 @@ class TFMC:
             self.feature_variances = np.array([1 for i in range(len(data_structure.feature_names))])
 
         # Scale cross sections to the same integral
+
+        # Class weights are sigma(total)/sigma(class)
         self.class_weights = [ self.weight_sums[data_structure.label_encoding[label]] for label in self.config.classes ]
         total = sum(self.class_weights)
         self.class_weights = np.array([total/self.class_weights[i] for i in range(len(self.class_weights))])

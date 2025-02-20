@@ -113,6 +113,10 @@ import common.data_structure as data_structure
 import common.selections as selections
 import common.datasets as datasets
 
+# Calibrate DCR or Prob?
+dcr = True
+nbins = 100
+
 from ML.TFMC.TFMC import TFMC
 tfmc = TFMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6")
 
@@ -125,16 +129,10 @@ for batch in loader:
     data, weights, labels = loader.split(batch)
     print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )
 
-    #print(" class probabilities from TFMC")
-    prob_tf = tfmc.predict(data, ic_scaling = False)
-    #print(prob)
-    #print(" class probabilities from XGBMC")
-    prob_xgb = xgbmc.predict(data, ic_scaling = False)
-    #print(prob)
+    prob_tf = tfmc.predict(data, ic_scaling = dcr)
+    prob_xgb = xgbmc.predict(data, ic_scaling = dcr)
 
     break
-
-nbins = 100
 
 # Create a canvas with 2x2 pads
 c = ROOT.TCanvas("c", "Calibration Plots", 1200, 900)
@@ -144,11 +142,13 @@ c.Divide(2, 2)
 graphs_tf  = []
 graphs_xgb = []
 
-# probability calibration
-weights[labels==0]/=np.sum(weights[labels==0])
-weights[labels==1]/=np.sum(weights[labels==1])
-weights[labels==2]/=np.sum(weights[labels==2])
-weights[labels==3]/=np.sum(weights[labels==3])
+if not dcr:
+    # probability calibration
+    weights[labels==0]/=np.sum(weights[labels==0])
+    weights[labels==1]/=np.sum(weights[labels==1])
+    weights[labels==2]/=np.sum(weights[labels==2])
+    weights[labels==3]/=np.sum(weights[labels==3])
+
 stuff = []
 for j in range(4):
     # Go to pad j+1
@@ -202,7 +202,7 @@ for j in range(4):
 
 c.Update()
 # You can save the canvas as an image/PDF:
-c.Print(os.path.join(user.plot_directory, "calib", "calib_prob.png"))
-c.Print(os.path.join(user.plot_directory, "calib", "calib_prob.png"))
+c.Print(os.path.join(user.plot_directory, "calib", "calib_prob.pdf" if not dcr else "calib_dcr.pdf"))
+c.Print(os.path.join(user.plot_directory, "calib", "calib_prob.png" if not dcr else "calib_dcr.png"))
 
 common.syncer.sync()

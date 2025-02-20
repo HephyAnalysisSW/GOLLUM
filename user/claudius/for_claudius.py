@@ -18,7 +18,7 @@ xgbmc = XGBMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/XGBMC/l
 
 
 # Iterate through the dataset
-loader = datasets.get_data_loader(selection="lowMT_VBFJet", n_split=100)
+loader = datasets.get_data_loader(selection="lowMT_VBFJet", n_split=1)
 for batch in loader:
     data, weights, labels = loader.split(batch)
     print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )

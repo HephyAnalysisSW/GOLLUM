@@ -556,6 +556,7 @@ class Inference:
 
                                         if iobj == "predict":
                                             pred = self.models[t][s].predict(features)
+                                            #print("class_weights", self.models[t][s].class_weights, "weight_sums", self.models[t][s].weight_sums)
                                         elif iobj == "DeltaA":
                                             pred = self.models[t][s].get_DeltaA(features)
                                         else:
