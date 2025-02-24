@@ -18,6 +18,12 @@ import copy
 import logging
 logger = logging.getLogger('UNC')
 
+################################################################################
+# Calibration
+from sklearn.isotonic import IsotonicRegression
+import pickle
+################################################################################
+
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False, toy_origin="config", toy_path=None, toy_from_memory=None):
         """
@@ -65,6 +71,15 @@ class Inference:
         self.alpha_tt      = self.cfg['Parameters']['alpha_tt']
         self.alpha_diboson = self.cfg['Parameters']['alpha_diboson']
 
+        self.float_parameters = {
+            "nu_tes":False,
+            "nu_jes":False,
+            "nu_met":False,
+            "nu_bkg":False,
+            "nu_tt":False,
+            "nu_diboson":False,
+        }
+
         # ----------------------------------------------------------
         # Determine whether we do CSIs
         # ----------------------------------------------------------
@@ -75,6 +90,22 @@ class Inference:
             except (IOError, AssertionError, TypeError):
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
+
+        from common.classifierCalibration import calibration
+        self.MC_calibration = calibration
+
+        with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
+            self.calibrator = pickle.load(file)
+
+    def calibrate_dcr(self, input_dcr):
+        """
+        calibrates the input (in DCR space) based on the loaded calibrator
+        """
+        output_dcr = input_dcr.copy() # to be overwritten below
+        calibrated_0_dcr = self.calibrator.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
+        output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
+        output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
+        return output_dcr
 
     def training_data_loader(self, selection, n_split):
         """
@@ -369,6 +400,14 @@ class Inference:
 
                 logger.info(f"CSI loaded from {pkl_filename}.")
 
+    def floatParameters(self, paramlist):
+        for p in paramlist:
+            if p not in self.float_parameters:
+                logger.info(f"Float parameter {p} not known.")
+            self.float_parameters[p] = True
+            logger.info(f"Float parameter {p}.")
+
+
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
         p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
@@ -380,7 +419,7 @@ class Inference:
                 icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
                 icp_summand[t] = 1 
-        #logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
+        logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
         DA_pnn_htautau = self.h5s[name][selection]["htautau_DeltaA"] # <- this should be Nx9, 9 numbers per event
@@ -406,17 +445,26 @@ class Inference:
         log_f_bkg_rate = nu_bkg*np.log1p(self.alpha_bkg)
         log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
-  
-        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
 
-        # Compute all terms in numerator
-        denominator = p_mc.sum(axis=1)
-        term1 = mu*(p_mc[:, 0]/denominator)*np.exp(log_p_pnn_htautau)
-        term2 = (p_mc[:, 1]/denominator)*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
-        #print( p_mc[:, 1]/denominator,  f_bkg_rate, p_pnn_ztautau)
-        term3 = (p_mc[:, 2]/denominator)*np.exp(log_f_tt_rate + log_f_bkg_rate + log_p_pnn_ttbar)
-        term4 = (p_mc[:, 3]/denominator)*np.exp(log_f_diboson_rate + log_f_bkg_rate + log_p_pnn_diboson)
+        p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
+        p_mc_dcr_calibrated = self.calibrate_dcr(p_mc_dcr)
+        # print("===============================================================")
+        # print("p_mc")
+        # print(p_mc)
+        # print("----------")
+        # print("p_mc_dcr")
+        # print(p_mc_dcr)
+        # print("----------")
+        # print("p_mc_dcr_calibrated")
+        # print(p_mc_dcr_calibrated)
+
+
+        term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
+        term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
+        term3 = (p_mc_dcr_calibrated[:, 2])*np.exp(log_f_tt_rate + log_f_bkg_rate + log_p_pnn_ttbar)
+        term4 = (p_mc_dcr_calibrated[:, 3])*np.exp(log_f_diboson_rate + log_f_bkg_rate + log_p_pnn_diboson)
         return term1 + term2 + term3 + term4
+
 
         ## Find the dominant term for each event
         #max_term = np.maximum.reduce([term1, term2, term3, term4])
@@ -428,7 +476,7 @@ class Inference:
         #return numerator / denominator
         #### Now rewrite the return using log1p
         ####result = np.log1p(numerator / denominator - 1)
- 
+
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
 
         # RATES
@@ -648,7 +696,7 @@ class Inference:
                             if t in self.icps and s in self.icps[t]:
                                 icp_summand = np.array([self.icps[t][s].predict(tuple(bp)) for bp in base_points_flat] )
                             else:
-                                icp_summand = np.ones(len(base_points_flat)) 
+                                icp_summand = np.ones(len(base_points_flat))
 
                             #print( "icp_summand", icp_summand, base_points_flat)
 
@@ -671,7 +719,7 @@ class Inference:
                             logger.info(f"CSI max relative shift (1 means 100%) for {s} {t}: {max_ratio:.2f}")
 
                             #for bp, val in zip( base_points_flat, yield_values ):
-                            #    print(t, s, bp, val, self.csis[s][t](bp) ) 
+                            #    print(t, s, bp, val, self.csis[s][t](bp) )
 
                             if self.cfg.get("CSI", {}).get("save", False):
                                 pkl_filename = os.path.join(
@@ -681,7 +729,20 @@ class Inference:
                                 logger.info(f"CSI saved: {pkl_filename}")
 
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
-          return nu_bkg**2+nu_tt**2+nu_diboson**2+nu_tes**2+nu_jes**2+nu_met**2
+        penalty_term = 0
+        if not self.float_parameters["nu_tes"]:
+            penalty_term += nu_tes**2
+        if not self.float_parameters["nu_jes"]:
+            penalty_term += nu_jes**2
+        if not self.float_parameters["nu_met"]:
+            penalty_term += nu_met**2
+        if not self.float_parameters["nu_bkg"]:
+            penalty_term += nu_bkg**2
+        if not self.float_parameters["nu_tt"]:
+            penalty_term += nu_tt**2
+        if not self.float_parameters["nu_diboson"]:
+            penalty_term += nu_diboson**2
+        return penalty_term
 
     def predict(self, mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met,\
                       asimov_mu=None, asimov_nu_bkg=None, asimov_nu_tt=None, asimov_nu_diboson=None):

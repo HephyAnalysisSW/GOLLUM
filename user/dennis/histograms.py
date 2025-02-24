@@ -9,7 +9,7 @@ import common.data_structure as data_structure
 
 npHistograms = {}
 processes = ["htautau", "ztautau", "ttbar", "diboson"]
-for process in processes+["test", "nominal"]:
+for process in processes+["test", "nominal", "toy"]:
     npHistograms[process] = {}
     for feature in data_structure.feature_names:
         nBins, lower, upper = data_structure.plot_options[feature]['binning']
