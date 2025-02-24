@@ -413,7 +413,6 @@ class Inference:
         if hasattr( self, "calibrations" ): return
         self.calibrations = {}
         for s in self.selections:
-            self.calibrations[s] = {}
             if 'calibration' in self.cfg['MultiClassifier'][s]:
                 pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
                 assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
@@ -470,15 +469,15 @@ class Inference:
         p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
         p_mc_dcr_calibrated = self.calibrate_dcr(selection, p_mc_dcr)
 
-        print("===============================================================")
-        print("p_mc")
-        print(p_mc)
-        print("----------")
-        print("p_mc_dcr")
-        print(p_mc_dcr)
-        print("----------")
-        print("p_mc_dcr_calibrated")
-        print(p_mc_dcr_calibrated)
+        #print("===============================================================")
+        #print("p_mc")
+        #print(p_mc)
+        #print("----------")
+        #print("p_mc_dcr")
+        #print(p_mc_dcr)
+        #print("----------")
+        #print("p_mc_dcr_calibrated")
+        #print(p_mc_dcr_calibrated)
 
         term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
         term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
