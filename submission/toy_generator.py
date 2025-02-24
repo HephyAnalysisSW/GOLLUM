@@ -21,6 +21,7 @@ def run_pseudo_experiments(
     num_pseudo_experiments,
     num_of_sets,
     ground_truth_mus,
+    seed_input = None
 ):
     """
     Simplified interface for generating pseudo experiments.
@@ -63,5 +64,8 @@ def run_pseudo_experiments(
     }
 
     # 调用生成函数
-    test_set, pkl_data = generate_pseudo_experiments(test_settings, full_test_set)
-    return test_set, pkl_data 
+    if seed_input is not None:
+        test_set, pkl_data = generate_pseudo_experiments(test_settings, full_test_set, initial_seed=seed_input)
+    else:
+        test_set, pkl_data = generate_pseudo_experiments(test_settings, full_test_set, initial_seed=31415)
+    return test_set, pkl_data

@@ -15,33 +15,33 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INGESTION_SEED = 31415
+# DEFAULT_INGESTION_SEED = 31415
 
 def process_final_data(final_data):
     # 指定列的排列顺序
     column_order = [
         'PRI_lep_pt', 'PRI_lep_eta', 'PRI_lep_phi', 'PRI_had_pt', 'PRI_had_eta', 'PRI_had_phi',
         'PRI_jet_leading_pt', 'PRI_jet_leading_eta', 'PRI_jet_leading_phi', 'PRI_jet_subleading_pt',
-        'PRI_jet_subleading_eta', 'PRI_jet_subleading_phi', 'PRI_n_jets', 'PRI_jet_all_pt', 
-        'PRI_met', 'PRI_met_phi', 'DER_mass_transverse_met_lep', 'DER_mass_vis', 'DER_pt_h', 
-        'DER_deltaeta_jet_jet', 'DER_mass_jet_jet', 'DER_prodeta_jet_jet', 'DER_deltar_had_lep', 
+        'PRI_jet_subleading_eta', 'PRI_jet_subleading_phi', 'PRI_n_jets', 'PRI_jet_all_pt',
+        'PRI_met', 'PRI_met_phi', 'DER_mass_transverse_met_lep', 'DER_mass_vis', 'DER_pt_h',
+        'DER_deltaeta_jet_jet', 'DER_mass_jet_jet', 'DER_prodeta_jet_jet', 'DER_deltar_had_lep',
         'DER_pt_tot', 'DER_sum_pt', 'DER_pt_ratio_lep_had', 'DER_met_phi_centrality', 'DER_lep_eta_centrality'
     ]
-    
+
     # 检查final_data是否包含所需列
     if not all(col in final_data.columns for col in column_order):
         missing_cols = [col for col in column_order if col not in final_data.columns]
         raise ValueError(f"Missing columns in final_data: {missing_cols}")
-    
+
     # 按顺序重新排列列
     ordered_data = final_data[column_order].copy()
     ordered_data.insert(len(column_order), 'Constant_1', 1)
-    
+
     # 转换为 NumPy 数组并返回
     data_array = ordered_data.to_numpy()
     return {'data': data_array}
 
-def _generate_pseudo_exp_data(data, set_mu=1, tes=1.0, jes=1.0, soft_met=0.0, ttbar_scale=None, diboson_scale=None, bkg_scale=None):
+def _generate_pseudo_exp_data(data, set_mu=1, tes=1.0, jes=1.0, soft_met=0.0, ttbar_scale=None, diboson_scale=None, bkg_scale=None, seed=31415):
     from systematics import get_bootstrapped_dataset, get_systematics_dataset
     pseudo_exp_data = get_bootstrapped_dataset(
         data,
@@ -49,6 +49,7 @@ def _generate_pseudo_exp_data(data, set_mu=1, tes=1.0, jes=1.0, soft_met=0.0, tt
         ttbar_scale=ttbar_scale,
         diboson_scale=diboson_scale,
         bkg_scale=bkg_scale,
+        seed = seed,
     )
     pseudo_exp_data = {'data': pseudo_exp_data}
     syst_test_set = get_systematics_dataset(
@@ -57,15 +58,16 @@ def _generate_pseudo_exp_data(data, set_mu=1, tes=1.0, jes=1.0, soft_met=0.0, tt
         jes=jes,
         soft_met=soft_met,
         dopostprocess=True,
-        save_to_hdf5=False,  
+        save_to_hdf5=False,
+        seed = seed,
     )
     final_data = syst_test_set['data'].copy()
-    
+
     # 调用处理函数
     processed_data = process_final_data(final_data)
     return processed_data
 
-def generate_pseudo_experiments(test_settings, full_test_set, initial_seed=DEFAULT_INGESTION_SEED):
+def generate_pseudo_experiments(test_settings, full_test_set, initial_seed):
     """
     Args:
         test_settings (dict): The test settings.
@@ -139,8 +141,9 @@ def generate_pseudo_experiments(test_settings, full_test_set, initial_seed=DEFAU
             ttbar_scale=ttbar_scale,
             diboson_scale=diboson_scale,
             bkg_scale=bkg_scale,
+            seed = initial_seed
         )
-        full_data = full_data["data"] 
+        full_data = full_data["data"]
         test_data = pd.DataFrame(full_data[:, :28])  # (N, 28)
         test_weights = full_data[:, 28]  # (N,)
         test_set = {
@@ -159,5 +162,3 @@ def generate_pseudo_experiments(test_settings, full_test_set, initial_seed=DEFAU
         }
 
         return test_set, pkl_data
-
-

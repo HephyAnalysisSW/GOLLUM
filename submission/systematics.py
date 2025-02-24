@@ -294,7 +294,7 @@ def diboson_bkg_weight_norm(weights, detailedlabel, systBkgNorm):
         * detailedlabel (array-like): The detailed labels
         * systBkgNorm (float): The scaling factor
 
-    
+
     Returns:
         array-like: The scaled weights
 
@@ -420,7 +420,7 @@ def mom4_manipulate(data, systTauEnergyScale, systJetEnergyScale, soft_met, seed
             logger.info("Applied jet1 scaling and updated vmet")
         except Exception as e:
             logger.error(f"Error during jet1 scaling and updating vmet: {e}")
-        try:	
+        try:
             eta = data["PRI_jet_subleading_eta"].where(data["PRI_n_jets"] > 1, other=0.0)
             eta = np.clip(eta, -10, 10)
             vj2 = V4()
@@ -532,7 +532,7 @@ def postprocess(data):
     """
     # apply higher threshold on had pt (dropping events)
     data = data.drop(data[data.PRI_had_pt < 26].index)
-    
+
     #need to reindex
     data.reset_index(drop=True, inplace=True)
 
@@ -597,7 +597,7 @@ def systematics(
         elif isinstance(value, np.ndarray):
             logger.info(f"Numpy array '{key}' - Dtype: {value.dtype}, Shape: {value.shape}")
 
-    # modify primary features according to tes, jes softmet  
+    # modify primary features according to tes, jes softmet
     logger.info("Calling mom4_manipulate to apply systematic variations to primary features.")
     data_syst = data_set["data"].copy()
 
@@ -613,7 +613,7 @@ def systematics(
     except Exception as e:
         logger.error(f"Error applying systematic variations with mom4_manipulate: {e}")
         raise
-   
+
     if dopostprocess:
         logger.info("Postprocessing the dataset (applying thresholds and possibly removing events).")
         try:
@@ -629,7 +629,7 @@ def systematics(
         if key not in ["data","settings"]:
             data_syst_set[key] = data_syst.pop(key)
             logger.info(f"Moved key '{key}' from data_syst to data_syst_set.")
-    # compute DERived features  
+    # compute DERived features
     logger.info("Calculating derived features using DER_data.")
     try:
         data_syst_set["data"] = DER_data(data_syst)
@@ -737,7 +737,8 @@ def get_systematics_dataset(
     soft_met=0.0,
     dopostprocess=False,
     save_to_hdf5=False,
-    hdf5_filename=None
+    hdf5_filename=None,
+    seed = 31415,
 ):
     from systematics import systematics
     logger.info("Entered get_syst_train_set function.")
@@ -747,7 +748,7 @@ def get_systematics_dataset(
     if isinstance(data_set['data'], np.ndarray):
         logger.info("Converting train_set['data'] to DataFrame.")
         data_set['data'] = pd.DataFrame(data_set['data'], columns=columns)
-    
+
     # Call systematics function
     syst_test_set = systematics(
         data_set,
@@ -755,8 +756,9 @@ def get_systematics_dataset(
         jes,
         soft_met,
         dopostprocess=dopostprocess,
+        seed = seed,
     )
-            
+
     # Save to HDF5 files if required
     if save_to_hdf5:
         # Extract all data, labels, detailed_labels, and weights
