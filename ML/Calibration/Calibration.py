@@ -29,26 +29,27 @@ import common.datasets as datasets
 
 class Calibration:
 
-    def __init__( self, yaml_config, selection, n_split=10, small=False):
+    def __init__( self, yaml_config=None, selection=None, n_split=10, small=False):
 
         self.selection   = selection
         self.n_split     = n_split if not small else 100
         self.small = small
 
-        with open(yaml_config) as f:
-            cfg_ = yaml.safe_load(f)
-            self.cfg = cfg_['MultiClassifier'][selection]
+        if yaml_config is not None:
+            with open(yaml_config) as f:
+                cfg_ = yaml.safe_load(f)
+                self.cfg = cfg_['MultiClassifier'][selection]
 
-        logger.info("Config loaded from Workflow/configs/{}".format(args.config))
+            logger.info("Config loaded from Workflow/configs/{}".format(args.config))
 
-        if self.cfg['module']=='TFMC':
-            from ML.TFMC.TFMC import TFMC
-            self.classifier = TFMC.load(self.cfg['model_path'])
-        elif self.cfg['module']=='XGBMC':
-            from ML.XGBMC.XGBMC import XGBMC
-            self.classifier = XGBMC.load(self.cfg['model_path'])
-        else:
-            raise NotImplementedError
+            if self.cfg['module']=='TFMC':
+                from ML.TFMC.TFMC import TFMC
+                self.classifier = TFMC.load(self.cfg['model_path'])
+            elif self.cfg['module']=='XGBMC':
+                from ML.XGBMC.XGBMC import XGBMC
+                self.classifier = XGBMC.load(self.cfg['model_path'])
+            else:
+                raise NotImplementedError
 
     def train( self ):
         logger.info(f"Training: Load data for {self.selection}")
@@ -76,6 +77,8 @@ class Calibration:
         all_weights = np.concatenate(all_weights, axis=0)
         all_labels = np.concatenate(all_labels, axis=0)
 
+        all_prob/=all_prob.sum(axis=1, keepdims=True)
+
         truth       = (all_labels == 0).astype(float) # get truth label
         logger.info( "Training IsotonicRegression." ) 
         self.iso_reg = IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, 0], truth, sample_weight=all_weights)
@@ -86,6 +89,14 @@ class Calibration:
             pickle.dump(self.iso_reg, file)
 
         logger.info(f"Written {filename}")
+
+    @classmethod
+    def load( cls, file_name ):
+        new_instance = cls()
+        with open(filename, 'rb') as file:
+            new_instance.iso_reg = pickle.load(file)
+
+        logger.info(f"Loaded Calibration {filename}")
 
 if __name__=="__main__":
     import argparse

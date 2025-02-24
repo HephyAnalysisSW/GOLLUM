@@ -91,18 +91,22 @@ class Inference:
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
 
-        from common.classifierCalibration import calibration
-        self.MC_calibration = calibration
+        self.load_calibrations()
 
-        with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
-            self.calibrator = pickle.load(file)
+        #from common.classifierCalibration import calibration
+        #self.MC_calibration = calibration
+        #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
+        #    self.calibrator = pickle.load(file)
 
-    def calibrate_dcr(self, input_dcr):
+    def calibrate_dcr(self, selection, input_dcr):
         """
         calibrates the input (in DCR space) based on the loaded calibrator
         """
+        if selection not in self.calibrations:
+            return input_dcr
+
         output_dcr = input_dcr.copy() # to be overwritten below
-        calibrated_0_dcr = self.calibrator.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
+        calibrated_0_dcr = self.calibrations[selection].predict(input_dcr[:, 0]) # changes DCR value of class 0 only
         output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
         output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
         return output_dcr
@@ -400,13 +404,30 @@ class Inference:
 
                 logger.info(f"CSI loaded from {pkl_filename}.")
 
+    def load_calibrations(self):
+        """
+        Load the calibrations.
+
+        """
+        # Already loaded
+        if hasattr( self, "calibrations" ): return
+        self.calibrations = {}
+        for s in self.selections:
+            self.calibrations[s] = {}
+            if 'calibration' in self.cfg['MultiClassifier'][s]:
+                pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
+                assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
+                with open(pkl_filename, 'rb') as f:
+                    self.calibrations[s] = pickle.load(f)
+
+                logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
+
     def floatParameters(self, paramlist):
         for p in paramlist:
             if p not in self.float_parameters:
                 logger.info(f"Float parameter {p} not known.")
             self.float_parameters[p] = True
             logger.info(f"Float parameter {p}.")
-
 
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
@@ -447,17 +468,17 @@ class Inference:
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
 
         p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
-        p_mc_dcr_calibrated = self.calibrate_dcr(p_mc_dcr)
-        # print("===============================================================")
-        # print("p_mc")
-        # print(p_mc)
-        # print("----------")
-        # print("p_mc_dcr")
-        # print(p_mc_dcr)
-        # print("----------")
-        # print("p_mc_dcr_calibrated")
-        # print(p_mc_dcr_calibrated)
+        p_mc_dcr_calibrated = self.calibrate_dcr(selection, p_mc_dcr)
 
+        print("===============================================================")
+        print("p_mc")
+        print(p_mc)
+        print("----------")
+        print("p_mc_dcr")
+        print(p_mc_dcr)
+        print("----------")
+        print("p_mc_dcr_calibrated")
+        print(p_mc_dcr_calibrated)
 
         term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
         term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
@@ -643,6 +664,12 @@ class Inference:
                         gp = np.array(h5f['MultiClassifier_predict'])
                         weight = np.array(h5f["Weight"])
 
+                        #Calibrate DCR 
+                        dcr_raw = gp / gp.sum(axis=1, keepdims=True) # First divide toget DCR
+                        dcr_calibrated = self.calibrate_dcr(s, dcr_raw)
+                        #print("dcr_raw", dcr_raw)
+                        #print("dcr_calibrated", dcr_calibrated)
+
                         # Ensure DeltaA is a NumPy array
                         self.csis = self.csis if hasattr(self, 'csis') else {}
                         self.csis_const = self.csis_const if hasattr(self, 'csis_const') else {}
@@ -686,7 +713,7 @@ class Inference:
                                 self.models[t][s].nu_A(bp) for bp in base_points_flat])
 
                             DeltaA = np.array(h5f[t + "_DeltaA"])
-                            gp_t, gp_sum = gp[:, i_t], gp.sum(axis=1)
+                            dcr_calibrated_t = dcr_calibrated[:, i_t]
 
                             yield_values = np.zeros((nu_A_values.shape[0],))
                             const_value  = 0
@@ -700,11 +727,13 @@ class Inference:
 
                             #print( "icp_summand", icp_summand, base_points_flat)
 
-                            for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
-                                end = min(start + batch_size, gp_t.shape[0])
-                                batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
+                            for start in tqdm(range(0, dcr_calibrated_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
+                                end = min(start + batch_size, dcr_calibrated_t.shape[0])
+
+                                #batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
+                                batch_weighted = weight[start:end] * dcr_calibrated_t[start:end]
+
                                 exp_batch = np.expm1(np.log(icp_summand)+np.dot(DeltaA[start:end, :], nu_A_values.T))
-                                #print( "exp_batch", exp_batch.shape)
                                 yield_values += np.dot(batch_weighted, exp_batch)
                                 const_value  += batch_weighted.sum()
 
