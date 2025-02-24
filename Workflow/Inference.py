@@ -18,6 +18,12 @@ import copy
 import logging
 logger = logging.getLogger('UNC')
 
+################################################################################
+# Calibration
+from sklearn.isotonic import IsotonicRegression
+import pickle
+################################################################################
+
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False, toy_origin="config", toy_path=None, toy_from_memory=None):
         """
@@ -84,6 +90,22 @@ class Inference:
             except (IOError, AssertionError, TypeError):
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
+
+        from common.classifierCalibration import calibration
+        self.MC_calibration = calibration
+
+        with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
+            self.calibrator = pickle.load(file)
+
+    def calibrate_dcr(self, input_dcr):
+        """
+        calibrates the input (in DCR space) based on the loaded calibrator
+        """
+        output_dcr = input_dcr.copy() # to be overwritten below
+        calibrated_0_dcr = self.calibrator.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
+        output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
+        output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
+        return output_dcr
 
     def training_data_loader(self, selection, n_split):
         """
@@ -430,16 +452,25 @@ class Inference:
         log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
 
-        #return ((mu*p_mc[:,0]*p_pnn_htautau + f_bkg_rate*(p_mc[:,1]*p_pnn_ztautau + p_mc[:,2]*f_tt_rate*p_pnn_ttbar + p_mc[:,3]*f_diboson_rate*p_pnn_diboson)) / p_mc[:,:].sum(axis=1))
+        p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
+        p_mc_dcr_calibrated = self.calibrate_dcr(p_mc_dcr)
+        # print("===============================================================")
+        # print("p_mc")
+        # print(p_mc)
+        # print("----------")
+        # print("p_mc_dcr")
+        # print(p_mc_dcr)
+        # print("----------")
+        # print("p_mc_dcr_calibrated")
+        # print(p_mc_dcr_calibrated)
 
-        # Compute all terms in numerator
-        denominator = p_mc.sum(axis=1)
-        term1 = mu*(p_mc[:, 0]/denominator)*np.exp(log_p_pnn_htautau)
-        term2 = (p_mc[:, 1]/denominator)*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
-        #print( p_mc[:, 1]/denominator,  f_bkg_rate, p_pnn_ztautau)
-        term3 = (p_mc[:, 2]/denominator)*np.exp(log_f_tt_rate + log_f_bkg_rate + log_p_pnn_ttbar)
-        term4 = (p_mc[:, 3]/denominator)*np.exp(log_f_diboson_rate + log_f_bkg_rate + log_p_pnn_diboson)
+
+        term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
+        term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
+        term3 = (p_mc_dcr_calibrated[:, 2])*np.exp(log_f_tt_rate + log_f_bkg_rate + log_p_pnn_ttbar)
+        term4 = (p_mc_dcr_calibrated[:, 3])*np.exp(log_f_diboson_rate + log_f_bkg_rate + log_p_pnn_diboson)
         return term1 + term2 + term3 + term4
+
 
         ## Find the dominant term for each event
         #max_term = np.maximum.reduce([term1, term2, term3, term4])
