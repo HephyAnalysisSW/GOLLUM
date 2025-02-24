@@ -7,6 +7,7 @@ class calibrationPlotter:
         self.xmax = 6.
         self.ymin = 0.
         self.ymax = 6.
+        self.addGraphs = []
 
     def setMus(self, mu_true, mu_measured, mu_measured_down, mu_measured_up):
         if len(mu_true) != len(mu_measured):
@@ -19,6 +20,15 @@ class calibrationPlotter:
         self.mu_measured = mu_measured
         self.mu_measured_down = mu_measured_down
         self.mu_measured_up = mu_measured_up
+
+    def addGraph(self, graph, markerstyle=20, color=ROOT.kRed):
+        g_add = graph.Clone()
+        g_add.SetMarkerStyle(markerstyle)
+        g_add.SetMarkerColor(color)
+        g_add.SetLineColor(color)
+        self.addGraphs.append(g_add)
+
+
 
 
     def getDummy(self, xtitle, ytitle, xmin, xmax, ymin, ymax, factor=1.0):
@@ -68,4 +78,6 @@ class calibrationPlotter:
             graph.SetPointError(i, 0.0, 0.0, self.mu_measured[i]-self.mu_measured_down[i], self.mu_measured_up[i]-self.mu_measured[i])
         graph.SetMarkerStyle(20)
         graph.Draw("P SAME")
+        for g in self.addGraphs:
+            g.Draw("P SAME")
         c.Print(self.name)
