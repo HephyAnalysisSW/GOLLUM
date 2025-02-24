@@ -20,6 +20,7 @@ base_point_index = {
     0 : (  0., ),
     1 : (  1., ),  
     2 : (  2., ),
+    3 : (  3., ),
 }
  
 # translate nuisances to alpha values
@@ -30,16 +31,10 @@ def get_alpha( base_point ):
 base_point_index.update ({val:key for key, val in base_point_index.items()})
  
 # Make a matrix
-base_points        = [ base_point_index[i] for i in [0,1,2] ]
+base_points        = [ base_point_index[i] for i in [0,1,2,3] ]
 
 # Pick out the "SM" base point
 nominal_base_point = base_point_index[0]
-
-# Number of epochs
-n_epochs = 100
-
-# Learning rate 
-learning_rate = 0.001
 
 # input dimensions
 input_dim     = len(data_structure.feature_names)
@@ -47,6 +42,24 @@ input_dim     = len(data_structure.feature_names)
 # First learn the global parametrization?
 use_scaler    = True
 use_icp       = False
+icp = None
 
 # hidden layers
-hidden_layers = [64, 32] 
+hidden_layers = [128, 128]
+
+# activation function
+activation    = 'relu'
+
+# Number of epochs
+n_epochs           = 200
+n_epochs_phaseout  = 50
+
+# Learning rate 
+learning_rate = 0.001
+
+# Regularization
+#l1_reg          = 0.01
+#l2_reg          = 0.01
+#dropout         = 0.2
+initialize_zero = True
+

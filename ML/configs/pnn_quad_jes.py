@@ -17,20 +17,14 @@ parameters         = ['nu_jes']
 combinations       = [('nu_jes',),  ('nu_jes', 'nu_jes'), ] 
 
 # Base point coordinates in tes/jes/met; Example: jes, where we have +/- 3 sigma in steps
-#base_point_index = {
-#    0 : ( -3., ),
-#    1 : ( -2., ),
-#    2 : ( -1., ),
-#    3 : (  0., ),
-#    4 : (  1., ),
-#    5 : (  2., ),
-#    6 : (  3., ),
-#}
-
 base_point_index = {
-    0 : ( -1., ),
-    1 : (  0., ),
-    2 : (  1., ),
+    0 : ( -3., ),
+    1 : ( -2., ),
+    2 : ( -1., ),
+    3 : (  0., ),
+    4 : (  1., ),
+    5 : (  2., ),
+    6 : (  3., ),
 }
 
 # translate nuisances to alpha values
@@ -41,18 +35,10 @@ def get_alpha( base_point ):
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 # Make a matrix
-#base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
-base_points        = [ base_point_index[i] for i in [0,1,2] ] 
+base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
 
 # Pick out the "SM" base point
-#nominal_base_point = base_point_index[3]
-nominal_base_point = base_point_index[1]
-
-# Number of epochs
-n_epochs = 200
-
-# Learning rate 
-learning_rate = 0.001
+nominal_base_point = base_point_index[3]
 
 # input dimensions
 input_dim     = len(data_structure.feature_names)
@@ -60,7 +46,24 @@ input_dim     = len(data_structure.feature_names)
 # Scale external scaler (features)?
 use_scaler    = True
 # Use external inclusive xsec dependence? (Default: None)
-icp           = None #"icp_quad_jes"
+icp           = "icp_quad_jes"
 
 # hidden layers
-hidden_layers = [64, 32] 
+hidden_layers = [128, 128]
+
+# activation function
+activation    = 'relu'
+
+# Number of epochs
+n_epochs           = 200
+n_epochs_phaseout  = 50
+
+# Learning rate 
+learning_rate = 0.001
+
+# Regularization
+#l1_reg          = 0.01
+#l2_reg          = 0.01
+#dropout         = 0.2
+initialize_zero = True
+                                 
