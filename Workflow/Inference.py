@@ -91,18 +91,22 @@ class Inference:
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
 
-        from common.classifierCalibration import calibration
-        self.MC_calibration = calibration
+        self.load_calibrations()
 
-        with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
-            self.calibrator = pickle.load(file)
+        #from common.classifierCalibration import calibration
+        #self.MC_calibration = calibration
+        #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
+        #    self.calibrator = pickle.load(file)
 
-    def calibrate_dcr(self, input_dcr):
+    def calibrate_dcr(self, selection, input_dcr):
         """
         calibrates the input (in DCR space) based on the loaded calibrator
         """
+        if selection not in self.calibrations:
+            return input_dcr
+
         output_dcr = input_dcr.copy() # to be overwritten below
-        calibrated_0_dcr = self.calibrator.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
+        calibrated_0_dcr = self.calibrations[selection].predict(input_dcr[:, 0]) # changes DCR value of class 0 only
         output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
         output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
         return output_dcr
@@ -400,13 +404,29 @@ class Inference:
 
                 logger.info(f"CSI loaded from {pkl_filename}.")
 
+    def load_calibrations(self):
+        """
+        Load the calibrations.
+
+        """
+        # Already loaded
+        if hasattr( self, "calibrations" ): return
+        self.calibrations = {}
+        for s in self.selections:
+            if 'calibration' in self.cfg['MultiClassifier'][s]:
+                pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
+                assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
+                with open(pkl_filename, 'rb') as f:
+                    self.calibrations[s] = pickle.load(f)
+
+                logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
+
     def floatParameters(self, paramlist):
         for p in paramlist:
             if p not in self.float_parameters:
                 logger.info(f"Float parameter {p} not known.")
             self.float_parameters[p] = True
             logger.info(f"Float parameter {p}.")
-
 
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
@@ -418,7 +438,7 @@ class Inference:
             if t in self.icps and selection in self.icps[t]:
                 icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
-                icp_summand[t] = 1
+                icp_summand[t] = 1 
         logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
@@ -442,28 +462,22 @@ class Inference:
         log_p_pnn_diboson= icp_summand['diboson'] + np.dot(DA_pnn_diboson, nu_A_diboson)
 
         # RATES
-        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-        #f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        #f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        #f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
         log_f_bkg_rate = nu_bkg*np.log1p(self.alpha_bkg)
         log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
 
         p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
-        p_mc_dcr_calibrated = self.calibrate_dcr(p_mc_dcr)
-        # print("===============================================================")
-        # print("p_mc")
-        # print(p_mc)
-        # print("----------")
-        # print("p_mc_dcr")
-        # print(p_mc_dcr)
-        # print("----------")
-        # print("p_mc_dcr_calibrated")
-        # print(p_mc_dcr_calibrated)
+        p_mc_dcr_calibrated = self.calibrate_dcr(selection, p_mc_dcr)
 
+        #print("===============================================================")
+        #print("p_mc")
+        #print(p_mc)
+        #print("----------")
+        #print("p_mc_dcr")
+        #print(p_mc_dcr)
+        #print("----------")
+        #print("p_mc_dcr_calibrated")
+        #print(p_mc_dcr_calibrated)
 
         term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
         term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
@@ -486,18 +500,18 @@ class Inference:
     def incS_diff_from_csis( self, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
 
         # RATES
-        #f_bkg_rate = (1+self.alpha_bkg)**nu_bkg
-        #f_tt_rate = (1+self.alpha_tt)**nu_tt
-        #f_diboson_rate = (1+self.alpha_diboson)**nu_diboson
-        f_bkg_rate = np.expm1(nu_bkg * np.log1p(self.alpha_bkg)) + 1.
-        f_tt_rate = np.expm1(nu_tt * np.log1p(self.alpha_tt)) + 1.
-        f_diboson_rate = np.expm1(nu_diboson * np.log1p(self.alpha_diboson)) + 1.
-
+        f_bkg_rate_m1 = np.expm1(nu_bkg * np.log1p(self.alpha_bkg))
+        f_tt_rate_m1 = np.expm1(nu_tt * np.log1p(self.alpha_tt))
+        f_diboson_rate_m1 = np.expm1(nu_diboson * np.log1p(self.alpha_diboson))
+        f_bkg_rate = f_bkg_rate_m1 + 1 
+        f_tt_rate = f_tt_rate_m1 + 1 
+        f_diboson_rate = f_diboson_rate_m1 + 1 
+  
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
-            + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + (f_bkg_rate-1)*self.csis_const[selection]['ztautau'] \
-            + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + (f_tt_rate*f_bkg_rate-1)*self.csis_const[selection]['ttbar'] \
-            + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met)) + (f_diboson_rate*f_bkg_rate-1)*self.csis_const[selection]['diboson']
+            + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate_m1*self.csis_const[selection]['ztautau'] \
+            + f_tt_rate*f_bkg_rate*self.csis[selection]['ttbar']((nu_tes,nu_jes,nu_met)) + (f_tt_rate_m1+f_bkg_rate_m1+f_tt_rate_m1*f_bkg_rate_m1)*self.csis_const[selection]['ttbar'] \
+            + f_diboson_rate*f_bkg_rate*self.csis[selection]['diboson']((nu_tes,nu_jes,nu_met)) + (f_diboson_rate_m1+f_bkg_rate_m1+f_diboson_rate_m1*f_bkg_rate_m1)*self.csis_const[selection]['diboson']
 
     def save(self, restrict_csis=[]):
         """
@@ -610,6 +624,7 @@ class Inference:
 
                                         if iobj == "predict":
                                             pred = self.models[t][s].predict(features)
+                                            #print("class_weights", self.models[t][s].class_weights, "weight_sums", self.models[t][s].weight_sums)
                                         elif iobj == "DeltaA":
                                             pred = self.models[t][s].get_DeltaA(features)
                                         else:
@@ -647,6 +662,12 @@ class Inference:
                     with h5py.File(obj_fn, "r", swmr=True) as h5f:
                         gp = np.array(h5f['MultiClassifier_predict'])
                         weight = np.array(h5f["Weight"])
+
+                        #Calibrate DCR 
+                        dcr_raw = gp / gp.sum(axis=1, keepdims=True) # First divide toget DCR
+                        dcr_calibrated = self.calibrate_dcr(s, dcr_raw)
+                        #print("dcr_raw", dcr_raw)
+                        #print("dcr_calibrated", dcr_calibrated)
 
                         # Ensure DeltaA is a NumPy array
                         self.csis = self.csis if hasattr(self, 'csis') else {}
@@ -691,7 +712,7 @@ class Inference:
                                 self.models[t][s].nu_A(bp) for bp in base_points_flat])
 
                             DeltaA = np.array(h5f[t + "_DeltaA"])
-                            gp_t, gp_sum = gp[:, i_t], gp.sum(axis=1)
+                            dcr_calibrated_t = dcr_calibrated[:, i_t]
 
                             yield_values = np.zeros((nu_A_values.shape[0],))
                             const_value  = 0
@@ -705,11 +726,13 @@ class Inference:
 
                             #print( "icp_summand", icp_summand, base_points_flat)
 
-                            for start in tqdm(range(0, gp_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
-                                end = min(start + batch_size, gp_t.shape[0])
-                                batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
+                            for start in tqdm(range(0, dcr_calibrated_t.shape[0], batch_size), desc=f"CSI {s} {t}"):
+                                end = min(start + batch_size, dcr_calibrated_t.shape[0])
+
+                                #batch_weighted = weight[start:end] * (gp_t[start:end] / gp_sum[start:end])
+                                batch_weighted = weight[start:end] * dcr_calibrated_t[start:end]
+
                                 exp_batch = np.expm1(np.log(icp_summand)+np.dot(DeltaA[start:end, :], nu_A_values.T))
-                                #print( "exp_batch", exp_batch.shape)
                                 yield_values += np.dot(batch_weighted, exp_batch)
                                 const_value  += batch_weighted.sum()
 
@@ -828,19 +851,21 @@ class Inference:
             logger.debug( "Scaled labeled signal events by %4.3f" % asimov_mu )
         if asimov_nu_bkg is not None:
             labels = self.h5s['Toy'][selection]["Label"]
+            #before = weights_toy[labels!=data_structure.label_encoding['htautau']].sum()
             weights_toy[labels!=data_structure.label_encoding['htautau']] = weights_toy[labels!=data_structure.label_encoding['htautau']]*(1+self.alpha_bkg)**asimov_nu_bkg
+            #after = weights_toy[labels!=data_structure.label_encoding['htautau']].sum()
             logger.debug( "Scaled labeled background events by (1+alpha_bkg)**asimov_nu_bkg with asimov_nu_bkg=%4.3f" % asimov_nu_bkg )
+            #logger.debug( "Before %6.5f After %6.5f", before, after )
         if asimov_nu_tt is not None:
             labels = self.h5s['Toy'][selection]["Label"]
-            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_ttbar)**asimov_nu_tt
-            logger.debug( "Scaled labeled ttbar events by (1+alpha_ttbar)**asimov_nu_tt with asimov_nu_tt=%4.3f" % asimov_nu_tt )
+            weights_toy[labels==data_structure.label_encoding['ttbar']] = weights_toy[labels==data_structure.label_encoding['ttbar']]*(1+self.alpha_tt)**asimov_nu_tt
+            logger.debug( "Scaled labeled ttbar events by (1+alpha_tt)**asimov_nu_tt with asimov_nu_tt=%4.3f" % asimov_nu_tt )
         if asimov_nu_diboson is not None:
             labels = self.h5s['Toy'][selection]["Label"]
             weights_toy[labels==data_structure.label_encoding['diboson']] = weights_toy[labels==data_structure.label_encoding['diboson']]*(1+self.alpha_diboson)**asimov_nu_diboson
             logger.debug( "Scaled labeled diboson events by (1+alpha_diboson)**asimov_nu_diboson with asimov_nu_diboson=%4.3f" % asimov_nu_diboson )
 
         log_term         = (weights_toy[:]*np.log1p(dSoDS_toy-1)).sum()
-        #log_term         = (weights_toy[:]*np.log(dSoDS_toy)).sum()
         uTerm[selection] = -2 *(incS_difference+log_term)
         logger.debug( f"uTerm: {selection} incS_difference: {-2*incS_difference} log_term: {-2*log_term} uTerm: {uTerm[selection]}" )
 

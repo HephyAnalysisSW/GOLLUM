@@ -13,8 +13,8 @@ import common.data_structure as data_structure
 
 parameters         = ['nu_tes']
 
-# We learn a quadratic model for the nu_tes dependence in this config
-combinations       = [('nu_tes',), ] 
+# We learn a quadratic model for the nu_jes dependence in this config
+combinations       = [('nu_tes',),  ] 
 
 # Base point coordinates in tes/jes/met; Example: jes, where we have +/- 3 sigma in steps
 #base_point_index = {
@@ -28,11 +28,13 @@ combinations       = [('nu_tes',), ]
 #}
 
 base_point_index = {
-    0 : ( -2., ),
-    1 : ( -1., ),
-    2 : (  0., ),
-    3 : (  1., ),
-    4 : (  2., ),
+    0 : ( -3., ),
+    1 : ( -2., ),
+    2 : ( -1., ),
+    3 : (  0., ),
+    4 : (  1., ),
+    5 : (  2., ),
+    6 : (  3., ),
 }
 
 # translate nuisances to alpha values
@@ -43,12 +45,10 @@ def get_alpha( base_point ):
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 # Make a matrix
-#base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
-base_points        = [ base_point_index[i] for i in [0,1,2,3,4] ] 
+base_points        = [ base_point_index[i] for i in [0,1,2,3,4,5,6] ] 
 
 # Pick out the "SM" base point
-#nominal_base_point = base_point_index[3]
-nominal_base_point = base_point_index[2]
+nominal_base_point = base_point_index[3]
 
 # input dimensions
 input_dim     = len(data_structure.feature_names)
@@ -57,10 +57,10 @@ input_dim     = len(data_structure.feature_names)
 use_scaler    = True
 
 # Use external inclusive xsec dependence? (Default: None)
-icp           = "icp_quad_tes"
+icp           = "icp_lin_tes"
 
 # hidden layers
-hidden_layers = [64, 64]
+hidden_layers = [128, 128]
 # activation function
 activation    = 'relu' 
 
