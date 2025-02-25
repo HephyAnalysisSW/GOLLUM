@@ -34,7 +34,9 @@ elif os.environ['USER'] in ['lisa.benato']:
     output_directory       = "/groups/hephy/cms/lisa.benato/HiggsChallenge/output/"
 
 elif os.environ['USER'] in ['claudius.krause']:
-    raise RuntimeError( "Hello Claudius. Specify your directories in common/user.py." )
+    plot_directory         = "/groups/hephy/mlearning/HiggsChallenge/claudius/plots/"
+    model_directory        = "/groups/hephy/mlearning/HiggsChallenge/claudius/models/"
+    output_directory       = "/groups/hephy/mlearning/HiggsChallenge/claudius/output/"
 
 else:
 
