@@ -57,6 +57,8 @@ class Inference:
         self.toy_path      = toy_path
         self.toy_from_memory = toy_from_memory
 
+        self.ignore_check = False
+
         # Delete toy from config if not needed
         if toy_origin != "config":
             if "Toy" in self.cfg["Save"]:
@@ -97,6 +99,13 @@ class Inference:
         #self.MC_calibration = calibration
         #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
         #    self.calibrator = pickle.load(file)
+
+    def ignore_loading_check(self):
+        """
+        ignores the checks on whether the paths of ML models are consistent
+        when loading H5 files
+        """
+        self.ignore_check=True
 
     def calibrate_dcr(self, selection, input_dcr):
         """
@@ -167,13 +176,14 @@ class Inference:
             raise e
 
         # Validate the model path and module consistency
-        for t in self.cfg['Tasks']:
-            assert h5f.attrs[t + "_module"] == self.cfg[t][selection]['module'], \
-                "Task {} selection {}: inconsistent module! H5: {} -- Config: {}".format(
-                    t, selection, h5f.attrs[t + "_module"], self.cfg[t][selection]['module'])
-            assert h5f.attrs[t + "_model_path"] == self.cfg[t][selection]['model_path'], \
-                "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(
-                    t, selection, h5f.attrs[t + "_model_path"], self.cfg[t][selection]['model_path'])
+        if not self.ignore_check:
+            for t in self.cfg['Tasks']:
+                assert h5f.attrs[t + "_module"] == self.cfg[t][selection]['module'], \
+                    "Task {} selection {}: inconsistent module! H5: {} -- Config: {}".format(
+                        t, selection, h5f.attrs[t + "_module"], self.cfg[t][selection]['module'])
+                assert h5f.attrs[t + "_model_path"] == self.cfg[t][selection]['model_path'], \
+                    "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(
+                        t, selection, h5f.attrs[t + "_model_path"], self.cfg[t][selection]['model_path'])
         return h5f
 
     def load_icps( self ):
