@@ -27,11 +27,11 @@ parser.add_argument("--inflate", type=float, default=None)
 args = parser.parse_args()
 
 scoreFiles = [
-    "output_mu_1p0_20250217_184059_cf51c989dc0640a1b0b8501aedc8ee8a.npz",
-    "output_mu_2p0_20250217_184606_66b7dba84928488f98a1d8c4c01575b3.npz",
-    "output_mu_3p0_20250217_183437_b08a7960adce404eb6e7b19926981cf7.npz",
-    "output_mu_4p0_20250217_183522_e2f58a6535dd4fcaa8e59f5cbc62225b.npz",
-    "output_mu_5p0_20250217_183522_5d6ac929b48a433c9cd1f7554c4dc8b5.npz",
+    "output_mu_1p0_20250225_000140_346c491bff12493b8b49ec68f6448fd0.npz",
+    "output_mu_2p0_20250224_235602_59ea42a54eb74e19b29761511510072f.npz",
+    "output_mu_3p0_20250225_000405_aa3073c529db447cb1a100e2be79632d.npz",
+    "output_mu_4p0_20250225_001222_1fa31543bc244edc8be4e957f6d2d092.npz",
+    "output_mu_5p0_20250225_001222_b521241ec2014d54976a39761a275759.npz",
 ]
 
 for i,file in enumerate(scoreFiles):
@@ -96,7 +96,7 @@ for uncert in ["jes", "tes", "met", "bkg", "ttbar", "diboson"]:
     ROOT.gStyle.SetPalette(1)
     graph1D.SetMarkerStyle(20)
     graph1D.Draw("AP")
-    graph1D.GetXaxis().SetTitle("#sigma_{"+uncert+"}")
+    graph1D.GetXaxis().SetTitle("True #nu_{"+uncert+"}")
     graph1D.GetYaxis().SetTitle("#mu_{measured} - #mu_{true}")
     plotname1d = os.path.join( user.plot_directory, "ClosureTests", f"Toys_1D_{uncert}.pdf" )
     c.Print(plotname1d)
