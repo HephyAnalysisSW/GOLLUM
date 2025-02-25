@@ -2,6 +2,7 @@ import os,glob
 from common.logger import get_logger
 import yaml
 import shutil
+import subprocess
 
 import argparse
 
@@ -71,3 +72,6 @@ if __name__ == '__main__':
     yaml.dump(cfg_new, yaml_file, default_flow_style=False)
 
   logger.info("config_submission.yaml saved.")
+
+  logger.info("Now tar the whole directory ;)")
+  subprocess.call(['tar', '-czf', '../submission.tar', '.'])
