@@ -13,10 +13,12 @@ class Model:
     def __init__(self, get_train_set=None, systematics=None):
         self.cfg = self.loadConfig( os.path.join( os.getcwd(), "config_submission.yaml" ) )
         self.calibrate = True
-        # TODO: Set tmp_path for ML ntuples an CSI stuff
         output_directory = os.path.join( os.getcwd(), "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
         logger = get_logger("INFO", logFile = None)
+
+    def fit(self):
+        pass
 
     def predict(self, test_set):
         # Initialize inference object
@@ -63,9 +65,7 @@ class Model:
             "delta_mu_hat": delta_mu,
             "p16": p16,
             "p84": p84,
-            #"correction": correction, # TO BE REMOVED
         }
-
 
 
     def loadConfig(self, config_path):

@@ -32,16 +32,27 @@ if __name__ == '__main__':
       original_model_path = cfg[t][s]['model_path']
       new_model_path = os.path.join('models',t,s,'model_path')
       model_file_list = glob.glob(os.path.join(original_model_path,'*.index'))
-      model_index_list = [os.path.basename(imodel).replace('.index','') for imodel in model_file_list]
+      model_index_list = [int(os.path.basename(imodel).replace('.index','')) for imodel in model_file_list]
       latest_model_idx = max(model_index_list)
-      logger.info("Copying {} to {}".format(os.path.join(original_model_path,latest_model_idx+'.index'),new_model_path))
-      shutil.copyfile(os.path.join(original_model_path,latest_model_idx+'.index'),os.path.join(new_model_path,latest_model_idx+'.index'))
-      logger.info("Copying {} to {}".format(os.path.join(original_model_path,latest_model_idx+'.data-00000-of-00001'),new_model_path))
-      shutil.copyfile(os.path.join(original_model_path,latest_model_idx+'.data-00000-of-00001'),os.path.join(new_model_path,latest_model_idx+'.data-00000-of-00001'))
+      logger.info("ML model for {} {}: Latest index {}".format(t,s,latest_model_idx))
+
+      # copy the .index
+      logger.info("Copying {} to {}".format(os.path.join(original_model_path,str(latest_model_idx)+'.index'),new_model_path))
+      shutil.copyfile(os.path.join(original_model_path,str(latest_model_idx)+'.index'),os.path.join(new_model_path,str(latest_model_idx)+'.index'))
+
+      # copy the .data
+      logger.info("Copying {} to {}".format(os.path.join(original_model_path,str(latest_model_idx)+'.data-00000-of-00001'),new_model_path))
+      shutil.copyfile(os.path.join(original_model_path,str(latest_model_idx)+'.data-00000-of-00001'),os.path.join(new_model_path,str(latest_model_idx)+'.data-00000-of-00001'))
+
+      # copy the config.pkl
       logger.info("Copying {} to {}".format(os.path.join(original_model_path,'config.pkl'),new_model_path))
       shutil.copyfile(os.path.join(original_model_path,'config.pkl'),os.path.join(new_model_path,'config.pkl'))
+
+      # copy the checkpoint
       logger.info("Copying {} to {}".format(os.path.join(original_model_path,'checkpoint'),new_model_path))
       shutil.copyfile(os.path.join(original_model_path,'checkpoint'),os.path.join(new_model_path,'checkpoint'))
+
+      # update the new config with the local paths
       cfg_new[t][s]['model_path'] = new_model_path
 
       # copy the calibration
@@ -49,8 +60,11 @@ if __name__ == '__main__':
         os.makedirs(os.path.join('models',t,s,'calibration'))
         original_cal_path = cfg[t][s]['calibration']
         new_cal_path = os.path.join('models',t,s,'calibration')
+
         logger.info("Copying {} to {}".format(original_cal_path,new_cal_path))
         shutil.copyfile(original_cal_path,os.path.join(new_cal_path,os.path.basename(original_cal_path)))
+
+        # update the new config with the local paths
         cfg_new[t][s]['calibration'] = os.path.join(new_cal_path,os.path.basename(original_cal_path))
 
       # copy the icp file
@@ -58,14 +72,19 @@ if __name__ == '__main__':
         os.makedirs(os.path.join('models',t,s,'icp_file'))
         original_icp_path = cfg[t][s]['icp_file']
         new_icp_path = os.path.join('models',t,s,'icp_file')
+
         logger.info("Copying {} to {}".format(original_icp_path,new_icp_path))
         shutil.copyfile(original_icp_path,os.path.join(new_icp_path,os.path.basename(original_icp_path)))
+
+        # update the new config with the local paths
         cfg_new[t][s]['icp_file'] = os.path.join(new_icp_path,os.path.basename(original_icp_path))
 
-  # copy the pre-saved ntuples and CSI files
-  os.makedirs("data")
-  logger.info("Copying {} to {}".format(args.ntuple,"data"))
-  shutil.copytree(args.ntuple,"data/tmp_data")
+  # copy the CSI files
+  os.makedirs("data/tmp_data")
+  CSI_list = glob.glob(os.path.join(args.ntuple,'*.pkl'))
+  for icsi in CSI_list:
+    logger.info("Copying {} to {}".format(icsi,"data/tmp_data"))
+    shutil.copyfile(icsi,os.path.join("data/tmp_data",os.path.basename(icsi)))
 
   # save the new config file
   with open('config_submission.yaml', 'w') as yaml_file:

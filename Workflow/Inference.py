@@ -801,8 +801,6 @@ class Inference:
 
         #if not selection == "lowMT_VBFJet": continue
 
-        # Load ML result for training data
-        self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
         # loading CSIs
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
@@ -817,10 +815,13 @@ class Inference:
         elif self.toy_origin == "memory":
             self.loadToyFromMemory(selection=selection)
 
-        # dSoDS for training data
-        weights = self.h5s['TrainingData'][selection]["Weight"]
-
         if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
+            # Load ML result for training data
+            self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
+
+            # dSoDS for training data
+            weights = self.h5s['TrainingData'][selection]["Weight"]
+
             dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
             incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
         else:
