@@ -17,7 +17,15 @@ if __name__ == '__main__':
 
   logger = get_logger(args.logLevel, logFile = None)
 
-  logger.warning("Please make sure to execute this script directly under HEPHY-uncertainty folder.")
+  logger.warning("Please make sure to execute this script directly under main HEPHY-uncertainty folder. Excuting this in subfolders will not work.")
+
+  # copy the Model.py
+  logger.info("Copying {} to {}".format("submission/Model.py","Model.py"))
+  shutil.copyfile("submission/Model.py","Model.py")
+
+  # copy the example.py
+  logger.info("Copying {} to {}".format("submission/example.py","example.py"))
+  shutil.copyfile("submission/example.py","example.py")
 
   with open(args.config) as f:
     cfg = yaml.safe_load(f)
@@ -31,26 +39,34 @@ if __name__ == '__main__':
       # copy the model
       original_model_path = cfg[t][s]['model_path']
       new_model_path = os.path.join('models',t,s,'model_path')
-      model_file_list = glob.glob(os.path.join(original_model_path,'*.index'))
-      model_index_list = [int(os.path.basename(imodel).replace('.index','')) for imodel in model_file_list]
-      latest_model_idx = max(model_index_list)
-      logger.info("ML model for {} {}: Latest index {}".format(t,s,latest_model_idx))
+      with open(os.path.join(original_model_path,"checkpoint")) as ckpf:
+        ckp_path = yaml.safe_load(ckpf)['model_checkpoint_path']
+
+      #model_file_list = glob.glob(os.path.join(original_model_path,'*.index'))
+      #model_index_list = [int(os.path.basename(imodel).replace('.index','')) for imodel in model_file_list]
+      #latest_model_idx = max(model_index_list)
+      #logger.info("ML model for {} {}: Latest index {}".format(t,s,latest_model_idx))
+
+      logger.info("ML model for {} {}: copying from {}".format(t,s,ckp_path))
+      latest_model_idx = os.path.basename(ckp_path)
 
       # copy the .index
-      logger.info("Copying {} to {}".format(os.path.join(original_model_path,str(latest_model_idx)+'.index'),new_model_path))
-      shutil.copyfile(os.path.join(original_model_path,str(latest_model_idx)+'.index'),os.path.join(new_model_path,str(latest_model_idx)+'.index'))
+      logger.info("Copying {} to {}".format(ckp_path+'.index',new_model_path))
+      shutil.copyfile(ckp_path+'.index',os.path.join(new_model_path,str(latest_model_idx)+'.index'))
 
       # copy the .data
-      logger.info("Copying {} to {}".format(os.path.join(original_model_path,str(latest_model_idx)+'.data-00000-of-00001'),new_model_path))
-      shutil.copyfile(os.path.join(original_model_path,str(latest_model_idx)+'.data-00000-of-00001'),os.path.join(new_model_path,str(latest_model_idx)+'.data-00000-of-00001'))
+      logger.info("Copying {} to {}".format(ckp_path+'.data-00000-of-00001',new_model_path))
+      shutil.copyfile(ckp_path+'.data-00000-of-00001',os.path.join(new_model_path,str(latest_model_idx)+'.data-00000-of-00001'))
 
       # copy the config.pkl
       logger.info("Copying {} to {}".format(os.path.join(original_model_path,'config.pkl'),new_model_path))
       shutil.copyfile(os.path.join(original_model_path,'config.pkl'),os.path.join(new_model_path,'config.pkl'))
 
-      # copy the checkpoint
-      logger.info("Copying {} to {}".format(os.path.join(original_model_path,'checkpoint'),new_model_path))
+      # write the new checkpoint metadata
+      logger.info("Creating checkpoint in {}".format(new_model_path))
       shutil.copyfile(os.path.join(original_model_path,'checkpoint'),os.path.join(new_model_path,'checkpoint'))
+      with open(os.path.join(new_model_path,"checkpoint"), "w") as ckpf_new:
+        ckpf_new.write('model_checkpoint_path: "{}"\n'.format(str(latest_model_idx)))
 
       # update the new config with the local paths
       cfg_new[t][s]['model_path'] = new_model_path
