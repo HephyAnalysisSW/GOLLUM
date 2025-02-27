@@ -57,6 +57,8 @@ class Inference:
         self.toy_path      = toy_path
         self.toy_from_memory = toy_from_memory
 
+        self.ignore_check = False
+
         # Delete toy from config if not needed
         if toy_origin != "config":
             if "Toy" in self.cfg["Save"]:
@@ -97,6 +99,13 @@ class Inference:
         #self.MC_calibration = calibration
         #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
         #    self.calibrator = pickle.load(file)
+
+    def ignore_loading_check(self):
+        """
+        ignores the checks on whether the paths of ML models are consistent
+        when loading H5 files
+        """
+        self.ignore_check=True
 
     def calibrate_dcr(self, selection, input_dcr):
         """
@@ -167,13 +176,14 @@ class Inference:
             raise e
 
         # Validate the model path and module consistency
-        for t in self.cfg['Tasks']:
-            assert h5f.attrs[t + "_module"] == self.cfg[t][selection]['module'], \
-                "Task {} selection {}: inconsistent module! H5: {} -- Config: {}".format(
-                    t, selection, h5f.attrs[t + "_module"], self.cfg[t][selection]['module'])
-            assert h5f.attrs[t + "_model_path"] == self.cfg[t][selection]['model_path'], \
-                "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(
-                    t, selection, h5f.attrs[t + "_model_path"], self.cfg[t][selection]['model_path'])
+        if not self.ignore_check:
+            for t in self.cfg['Tasks']:
+                assert h5f.attrs[t + "_module"] == self.cfg[t][selection]['module'], \
+                    "Task {} selection {}: inconsistent module! H5: {} -- Config: {}".format(
+                        t, selection, h5f.attrs[t + "_module"], self.cfg[t][selection]['module'])
+                assert h5f.attrs[t + "_model_path"] == self.cfg[t][selection]['model_path'], \
+                    "Task {} selection {}: inconsistent model path! H5 {} -- Config {}".format(
+                        t, selection, h5f.attrs[t + "_model_path"], self.cfg[t][selection]['model_path'])
         return h5f
 
     def load_icps( self ):
@@ -791,8 +801,6 @@ class Inference:
 
         #if not selection == "lowMT_VBFJet": continue
 
-        # Load ML result for training data
-        self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
 
         # loading CSIs
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
@@ -807,10 +815,13 @@ class Inference:
         elif self.toy_origin == "memory":
             self.loadToyFromMemory(selection=selection)
 
-        # dSoDS for training data
-        weights = self.h5s['TrainingData'][selection]["Weight"]
-
         if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
+            # Load ML result for training data
+            self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
+
+            # dSoDS for training data
+            weights = self.h5s['TrainingData'][selection]["Weight"]
+
             dSoDS_sim = self.dSigmaOverDSigmaSM_h5( 'TrainingData', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
             incS_difference = (weights[:]*(1-dSoDS_sim)).sum()
         else:

@@ -11,19 +11,16 @@ from common.logger import get_logger
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "config_submission.yaml" ) )
+        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "../Workflow/configs/config_reference_v2_sr.yaml" ) )
         self.calibrate = True
-        output_directory = os.path.join( os.getcwd(), "data")
+        # TODO: Set tmp_path for ML ntuples an CSI stuff
+        output_directory = os.path.join( user.output_directory, "config_reference_v2_sr")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
         logger = get_logger("INFO", logFile = None)
-
-    def fit(self):
-        pass
 
     def predict(self, test_set):
         # Initialize inference object
         infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=test_set)
-        infer.ignore_loading_check()
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
             infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
@@ -34,26 +31,40 @@ class Model:
             asimov_nu_diboson=None)
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
-        fit.parameterBoundaries["mu"] = (0.1, 3.0)
-        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=1.0)
+        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=0.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
         p16 = mu - delta_mu
         p84 = mu + delta_mu
 
+        # Calibrate mu?
+        if self.calibrate:
+            from common.muCalibrator import muCalibrator
+            calibration_file = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/calibration.pkl"
+            calibrator = muCalibrator(calibration_file)
+            correction = calibrator.getCorrection( \
+                mu=mu, \
+                nu_jes=parameters_mle["nu_jes"], \
+                nu_tes=parameters_mle["nu_tes"], \
+                nu_met=parameters_mle["nu_met"])
+
+        # TODO SET HARD CODED BOUNDARIES?
         # Check mu boundaries
-        if p16 < 0.1:
-            p16 = 0.09
-        if p84 > 3.0:
-            p84 = 3.01
+        # if p16 < 0.0:
+        #     p16 = -0.01
+        # if p84 > 3.0:
+        #     p84 = 3.01
+        # if we do boundaries, we can also adjust deltaMu
 
         return {
             "mu_hat": mu,
             "delta_mu_hat": delta_mu,
             "p16": p16,
             "p84": p84,
+            "correction": correction, # TO BE REMOVED
         }
+
 
 
     def loadConfig(self, config_path):
@@ -66,7 +77,6 @@ class Model:
     def predict_allParam(self, test_set, limits=None):
         # Initialize inference object
         infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=test_set)
-        infer.ignore_loading_check()
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
             infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
@@ -80,18 +90,12 @@ class Model:
         if limits is not None:
             for p in limits.keys():
                 fit.parameterBoundaries[p] = limits[p]
-        fit.parameterBoundaries["mu"] = (0.1, 3.0)
-        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=1.0)
+        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=0.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
         p16 = mu - delta_mu
         p84 = mu + delta_mu
-
-        if p16 < 0.1:
-            p16 = 0.09
-        if p84 > 3.0:
-            p84 = 3.01
 
         return {
             "mu_hat": mu,
