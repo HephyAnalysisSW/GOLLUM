@@ -165,9 +165,3 @@ if __name__ == '__main__':
             impacts_file = os.path.join(output_directory, f"postFitUncerts.{config_name}{'_' + postfix if postfix else ''}.pkl")
             with open(impacts_file, 'wb') as file:
                 pickle.dump(postFitUncerts, file)
-
-        infer.clossMLresults()
-
-    # Deprecated feature (commented out for now)
-    # r = infer.testStat(1, 0)
-    # print(r)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 sys.path.insert(0, "..")
+sys.path.insert(0, "../..")
 import copy
 import numpy as np
 import pickle
@@ -139,7 +140,7 @@ if __name__ == '__main__':
                           asimov_nu_diboson=args.asimov_nu_diboson)
 
     best_fit = {
-        'mu': 2.7890366325750544,
+        'mu': 2.5,
         'nu_bkg': -0.01870050364302638,
         'nu_tt': -0.02033470695759596,
         'nu_diboson': -0.014087646147647227,
