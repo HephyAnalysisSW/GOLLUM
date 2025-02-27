@@ -93,10 +93,9 @@ class Calibration:
         logger.info(f"Written {filename}")
 
     @classmethod
-    def load( cls, file_name ):
-        new_instance = cls()
+    def load( self, file_name ):
         with open(filename, 'rb') as file:
-            new_instance.iso_reg = pickle.load(file)
+            self.iso_reg = pickle.load(file)
 
         logger.info(f"Loaded Calibration {filename}")
 
