@@ -83,6 +83,7 @@ class Calibration:
         truth       = (all_labels == 0).astype(float) # get truth label
         logger.info( "Training IsotonicRegression." ) 
         self.iso_reg = IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, 0], truth, sample_weight=all_weights)
+        self.data_for_plot = {"prob": all_prob, "weight": all_weights, "label": all_labels}
         logger.info( "Done." ) 
         
     def save( self, file_name ):
@@ -111,11 +112,55 @@ class Calibration:
         return output_dcr
 
     def plot_calibration(self, file_name):
-        pass
+        logger.info(f"started plotting calibration")
+        fig, axs = plt.subplots(2, 2)
+        for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
+            uncalib_pred = self.data_for_plot['prob'][:, idx]
+            truth = (self.data_for_plot['label'] == idx).astype(float)
+            calib_pred = self.predict(self.data_for_plot['prob'])[:, idx]
+            prob_true_uncalib, prob_pred_uncalib = weighted_calibration(truth, 
+                                                                        uncalib_pred, 
+                                                                        nbins=10, 
+                                                                        weights = self.data_for_plot['weight'])
+            prob_true_calib, prob_pred_calib = weighted_calibration(truth, 
+                                                                    calib_pred, 
+                                                                    nbins=10, 
+                                                                    weights = self.data_for_plot['weight'])
+            mask_uncalib = (prob_pred_uncalib == 0.) & (prob_true_uncalib == 0.)
+            mask_calib = (prob_pred_calib == 0.) & (prob_true_calib == 0.)
+
+
+            axs[loc].plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axs[loc].plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+            axs[loc].plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
+            axs[loc].set_title(f"class {idx} calibration")
+            axx = axs[loc].inset_axes([0.625, 0.175, 0.3, 0.3])
+            axx.plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axx.plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+
+            axx.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
+            axx.set(xlim=(0,0.2), ylim=(0,0.2))
+            
+            if idx == 0:
+                axs[loc].legend(loc='upper left')
+    
+        for ax in axs.flat:
+            ax.set(xlabel='predicted DCR', ylabel='true DCR', xlim=(-0.05,1.05), ylim=(-0.05,1.05))
+            ax.label_outer()
+        
+        plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved calibration plot to {file_name}")
+
 
     def plot_IsotonicRegression(self, file_name):
         # assume for now that calibrator was trained / loaded
         # TO-DO: check if calibrator exists and train/load otherwise
+        logger.info(f"Started isotonic regression plot")
         x_scan = np.linspace(0., 1., 1001)
         plt.plot(x_scan, self.iso_reg.predict(x_scan), label="Isotonic Regression Calibrator")
         plt.plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
@@ -129,6 +174,8 @@ class Calibration:
         plt.xlim(0., .2)
         plt.ylim(0., .2)
         plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved isotonic regression plot to {file_name}")
 
 
 class MultiClassCalibration:
@@ -189,6 +236,7 @@ class MultiClassCalibration:
             logger.info( f"Training IsotonicRegression for class {class_id}." ) 
             self.iso_reg.append(IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, class_id], truth, sample_weight=all_weights))
             logger.info( f"Isotonic Regressions of class {class_id} done." ) 
+        self.data_for_plot = {"prob": all_prob, "weight": all_weights, "label": all_labels}
         logger.info( "All Isotonic Regressions Done." ) 
         
     def save( self, file_name ):
@@ -218,9 +266,52 @@ class MultiClassCalibration:
         return calibrated_dcr
 
     def plot_calibration(self, file_name):
-        pass
+        logger.info(f"started plotting calibration")
+        fig, axs = plt.subplots(2, 2)
+        for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
+            uncalib_pred = self.data_for_plot['prob'][:, idx]
+            truth = (self.data_for_plot['label'] == idx).astype(float)
+            calib_pred = self.predict(self.data_for_plot['prob'])[:, idx]
+            prob_true_uncalib, prob_pred_uncalib = weighted_calibration(truth, 
+                                                                        uncalib_pred, 
+                                                                        nbins=10, 
+                                                                        weights = self.data_for_plot['weight'])
+            prob_true_calib, prob_pred_calib = weighted_calibration(truth, 
+                                                                    calib_pred, 
+                                                                    nbins=10, 
+                                                                    weights = self.data_for_plot['weight'])
+            mask_uncalib = (prob_pred_uncalib == 0.) & (prob_true_uncalib == 0.)
+            mask_calib = (prob_pred_calib == 0.) & (prob_true_calib == 0.)
+
+
+            axs[loc].plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axs[loc].plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+            axs[loc].plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
+            axs[loc].set_title(f"class {idx} calibration")
+            axx = axs[loc].inset_axes([0.625, 0.175, 0.3, 0.3])
+            axx.plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axx.plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+
+            axx.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
+            axx.set(xlim=(0,0.2), ylim=(0,0.2))
+            
+            if idx == 0:
+                axs[loc].legend(loc='upper left')
+    
+        for ax in axs.flat:
+            ax.set(xlabel='predicted DCR', ylabel='true DCR', xlim=(-0.05,1.05), ylim=(-0.05,1.05))
+            ax.label_outer()
+        
+        plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved calibration plot to {file_name}")
 
     def plot_IsotonicRegression(self, file_name):
+        logger.info(f"Started isotonic regression plot")
         fig, axs = plt.subplots(2, 2)
         for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
             x_scan = np.linspace(0., 1., 1001)
@@ -239,6 +330,8 @@ class MultiClassCalibration:
             axx.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
             axx.set(xlim=(0,0.2), ylim=(0,0.2))
         plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved isotonic regression plot to {file_name}")
 
 
 def weighted_calibration(true_label, pred_output, nbins=10, weights=None):
