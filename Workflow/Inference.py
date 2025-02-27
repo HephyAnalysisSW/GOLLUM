@@ -11,7 +11,7 @@ import networks.Models as ms
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
 import common.data_structure as data_structure
-import common.selections as selections
+from common.selections import selections
 import pickle
 import copy
 
@@ -23,6 +23,14 @@ logger = logging.getLogger('UNC')
 from sklearn.isotonic import IsotonicRegression
 import pickle
 ################################################################################
+
+# A functor to make MVA based selections for Poisson regions
+def makeMVAselector( class_name, lower, upper, selection_mva): 
+    def _selector( data, class_name=class_name, lower=lower, upper=upper, selection_mva=selection_mva):
+        pred = selection_mva.predict(data[:28])[:,data_structure.labels.index(class_name)]
+        mask = (pred >= lower ) & (pred < upper)
+        return data[mask]
+    return _selector 
 
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False, toy_origin="config", toy_path=None, toy_from_memory=None):
@@ -92,11 +100,7 @@ class Inference:
                 pass
 
         self.load_calibrations()
-
-        #from common.classifierCalibration import calibration
-        #self.MC_calibration = calibration
-        #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
-        #    self.calibrator = pickle.load(file)
+        self.load_Poisson_data()
 
     def calibrate_dcr(self, selection, input_dcr):
         """
@@ -245,7 +249,7 @@ class Inference:
             filename = filename,
             batch_size = None,
             n_split = 1,
-            selection_function = selections.selections[selection]
+            selection_function = selections[selection]
         )
 
         # Check if the dict already exists, otherwise create it
@@ -328,7 +332,7 @@ class Inference:
         toy_data = self.convertToyToDataStruct()
 
         # Make event selection
-        selection_function = selections.selections[selection]
+        selection_function = selections[selection]
         selected_toy_data = selection_function(toy_data)
 
         # Split into features and weights:
@@ -366,7 +370,6 @@ class Inference:
         self.h5s["Toy"][selection]["Label"] = labels[:]
 
         logger.info("Toy with {} loaded from memory".format(selection))
-
 
     def load_models(self):
         """
@@ -420,6 +423,27 @@ class Inference:
                     self.calibrations[s] = pickle.load(f)
 
                 logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
+
+    def load_Poisson_data(self):
+        self.poisson={}
+        if "Poisson" not in self.cfg:
+            return
+
+        for name, poisson_cfg in self.cfg["Poisson"].items():
+            logger.info(f"Loading data for Poisson region: {name}")
+            poisson = { 
+                'preselector': selections[poisson_cfg['preselection']], # functor to apply the pre-selection
+                'IC'         : ms.InclusiveCrosssection.load( poisson_cfg['IC'] ), # the inclusive cross sections per process in the selection identified by 'name'
+                'ICP'        : { ms.InclusiveCrosssectionParametrization.load( poisson_cfg['ICP'][process]) for process in data_structure.labels }, # systematics dependence 
+                'observation': None,    # The observation never changes. We need to compute it from the toy.
+                } 
+            self.poisson[name] = poisson
+            poisson["mva_selectors"] = []
+            if 'mva_selection' in poisson_cfg:
+                m = ms.getModule(poisson_cfg["module"])
+                poisson['selection_mva'] = m.load(poisson_cfg["model_path"])
+                for class_name, lower, upper in poisson_cfg['mva_selection']: 
+                    poisson["mva_selectors"].append( makeMVAselector( class_name, lower, upper, selection_mva=poisson['selection_mva'] ) ) 
 
     def floatParameters(self, paramlist):
         for p in paramlist:
@@ -756,6 +780,25 @@ class Inference:
                                     pickle.dump((self.csis[s][t], self.csis_const[s][t]), pkl_file)
                                 logger.info(f"CSI saved: {pkl_filename}")
 
+        # Compute poisson observations
+        if "Poisson" in self.cfg and self.cfg["save"]:
+            from functools import reduce
+            for name, poisson_data in self.poisson.items():
+                logger.info(f"Computing Poisson observation for {name}")
+                data_input = self.training_data_loader(poisson_data["preselection"], n_split=100)
+                with tqdm(total=len(data_input), desc="Processing batches") as pbar:
+                    for i_batch, batch in enumerate(data_input):
+                        # Apply MVA cuts
+                        before = batch.shape(0)
+                        batch = reduce( lambda acc, f: f(acc), poisson_data['mva_selectors'], batch )
+                        after = batch.shape(0)
+                        logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
+                        _, weights, labels = data_input.split(batch)
+                        if poisson_data['observation'] is None:
+                            poisson_data['observation']=weights.sum()
+                        else:
+                            poisson_data['observation']+=weights.sum()
+            
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
         penalty_term = 0
         if not self.float_parameters["nu_tes"]:
@@ -872,6 +915,8 @@ class Inference:
       penalty = self.penalty(nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met)
 
       uTerm_total = penalty + sum( uTerm.values() )
+
+      logger.debug("Working on Poisson terms.")
 
       logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) )
 
