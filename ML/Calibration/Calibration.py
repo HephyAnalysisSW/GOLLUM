@@ -304,7 +304,11 @@ if __name__=="__main__":
     
     calib.save(model_directory)
 
-    calib.plot_calibration(os.path.join( model_directory, 
+    # where to store plots
+    plot_directory = os.path.join(user.plot_directory, "Calibration", *subdirs,  args.config, args.selection)
+    os.makedirs(plot_directory, exist_ok=True)
+    
+    calib.plot_calibration(os.path.join( plot_directory, 
                                          f'calibrator_validation_calibration{"_multi" if args.multiclass else ""}.png'))
-    calib.plot_IsotonicRegression(os.path.join( model_directory, 
+    calib.plot_IsotonicRegression(os.path.join( plot_directory, 
                                                 f'calibrator_validation_IsoReg{"_multi" if args.multiclass else ""}.png'))
