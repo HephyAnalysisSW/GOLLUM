@@ -1,6 +1,7 @@
 import sys
 sys.path.insert(0, "..")
 
+import inspect
 import os
 import numpy as np
 import yaml
@@ -10,11 +11,13 @@ import common.user as user
 from common.logger import get_logger
 from common.intervalFinder import intervalFinder
 
+
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.cfg = self.loadConfig( os.path.join( os.getcwd(), "config_submission.yaml" ) )
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.cfg = self.loadConfig( os.path.join( self.script_dir, "config_submission.yaml" ) )
         self.calibrate = True
-        output_directory = os.path.join( os.getcwd(), "data")
+        output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
         logger = get_logger("INFO", logFile = None)
 
@@ -40,8 +43,8 @@ class Model:
 
         mu_mle = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
-        p16 = mu - delta_mu
-        p84 = mu + delta_mu
+        p16 = mu_mle - delta_mu
+        p84 = mu_mle + delta_mu
 
         # Now do NON-PROFILED scan
         Npoints = 21
@@ -86,4 +89,10 @@ class Model:
         assert os.path.exists(config_path), "Config does not exist: {}".format(config_path)
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
+
+        for task in cfg["Tasks"]:
+            for selection in cfg["Selections"]:
+                for item in ["calibration", "icp_file", "model_path"]:
+                    if item in cfg[task][selection]:
+                        cfg[task][selection][item] = os.path.join(self.script_dir, cfg[task][selection][item])
         return cfg
