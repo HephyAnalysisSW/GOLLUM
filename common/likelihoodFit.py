@@ -42,7 +42,7 @@ class likelihoodFit:
         m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
         m.errordef = Minuit.LIKELIHOOD
 
-        m.limits["mu"] = (0.0, None)
+        m.limits["mu"] = self.parameterBoundaries["mu"]
 
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]

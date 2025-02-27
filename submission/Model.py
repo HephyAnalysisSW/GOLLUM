@@ -34,31 +34,19 @@ class Model:
             asimov_nu_diboson=None)
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
-        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=0.0)
+        fit.parameterBoundaries["mu"] = (0.1, 3.0)
+        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=1.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
         p16 = mu - delta_mu
         p84 = mu + delta_mu
 
-        # Calibrate mu?
-        if self.calibrate:
-            from common.muCalibrator import muCalibrator
-            calibration_file = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/calibration.pkl"
-            calibrator = muCalibrator(calibration_file)
-            correction = calibrator.getCorrection( \
-                mu=mu, \
-                nu_jes=parameters_mle["nu_jes"], \
-                nu_tes=parameters_mle["nu_tes"], \
-                nu_met=parameters_mle["nu_met"])
-
-        # TODO SET HARD CODED BOUNDARIES?
         # Check mu boundaries
-        # if p16 < 0.0:
-        #     p16 = -0.01
-        # if p84 > 3.0:
-        #     p84 = 3.01
-        # if we do boundaries, we can also adjust deltaMu
+        if p16 < 0.1:
+            p16 = 0.09
+        if p84 > 3.0:
+            p84 = 3.01
 
         return {
             "mu_hat": mu,
@@ -92,12 +80,18 @@ class Model:
         if limits is not None:
             for p in limits.keys():
                 fit.parameterBoundaries[p] = limits[p]
-        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=0.0)
+        fit.parameterBoundaries["mu"] = (0.1, 3.0)
+        q_mle, parameters_mle, cov, limits = fit.fit(start_mu=1.0)
 
         mu = parameters_mle["mu"]
         delta_mu = np.sqrt(cov["mu", "mu"])
         p16 = mu - delta_mu
         p84 = mu + delta_mu
+
+        if p16 < 0.1:
+            p16 = 0.09
+        if p84 > 3.0:
+            p84 = 3.01
 
         return {
             "mu_hat": mu,
