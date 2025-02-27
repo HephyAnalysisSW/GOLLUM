@@ -91,6 +91,18 @@ class Inference:
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
 
+        # Determine if we calibrate multiclass or binary
+        # Robert TODO: propagete this to config files!!!
+        if self.cfg.get('calibration_type') is in ['multiclass']:
+            logger.info("using multiclass calibration.")
+            import ML.Calibration.MulticlassCalibration as Calibration
+            Calibrator = Calibration.MultiClassCalibration
+        elif self.cfg.get('calibration_type') is in ['binary']:
+            logger.info("using binary calibration.")
+            import ML.Calibration.Calibration as Calibration
+            Calibrator = Calibration.Calibration
+        else:
+            logger.info("using no calibration.")
         self.load_calibrations()
 
         #from common.classifierCalibration import calibration
@@ -104,12 +116,16 @@ class Inference:
         """
         if selection not in self.calibrations:
             return input_dcr
+        else:
+            output_dcr_new = self.calibrations[selection].predict(input_dcr)
 
         output_dcr = input_dcr.copy() # to be overwritten below
         calibrated_0_dcr = self.calibrations[selection].predict(input_dcr[:, 0]) # changes DCR value of class 0 only
         output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
         output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
-        return output_dcr
+        print(output_dcr[:10])
+        print(output_dcr_new[:10])
+        return output_dcr_new
 
     def training_data_loader(self, selection, n_split):
         """
@@ -416,9 +432,8 @@ class Inference:
             if 'calibration' in self.cfg['MultiClassifier'][s]:
                 pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
                 assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
-                with open(pkl_filename, 'rb') as f:
-                    self.calibrations[s] = pickle.load(f)
-
+                self.calibrations[s] = Calibrator(self.cfg, s)
+                self.calibrations[s].load(pkl_filename)
                 logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
 
     def floatParameters(self, paramlist):
