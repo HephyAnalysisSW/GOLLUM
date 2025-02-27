@@ -27,7 +27,7 @@ import pickle
 # A functor to make MVA based selections for Poisson regions
 def makeMVAselector( class_name, lower, upper, selection_mva): 
     def _selector( data, class_name=class_name, lower=lower, upper=upper, selection_mva=selection_mva):
-        pred = selection_mva.predict(data[:28])[:,data_structure.labels.index(class_name)]
+        pred = selection_mva.predict(data[:, :28], ic_scaling=False)[:,data_structure.labels.index(class_name)]
         mask = (pred >= lower ) & (pred < upper)
         return data[mask]
     return _selector 
@@ -308,6 +308,8 @@ class Inference:
                     self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
                     self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
                     self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
+                
+                pbar.update(1)
 
         logger.info("Toy with {} loaded from {}".format(selection, filename))
 
@@ -791,23 +793,42 @@ class Inference:
                                 logger.info(f"CSI saved: {pkl_filename}")
 
         # Compute poisson observations
-        if "Poisson" in self.cfg and self.cfg["save"]:
-            from functools import reduce
+        if "Poisson" in self.cfg:# and self.cfg["save"]:
             for name, poisson_data in self.poisson.items():
+                # Check whether we have it already
+                pkl_filename = os.path.join(
+                    self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
+                if os.path.exists( pkl_filename ) and not self.overwrite:
+                    logger.info("Found %s. Loading the Poisson observation." %pkl_filename)
+                    with open(pkl_filename, 'rb') as pkl_file:
+                        poisson_data['observation'] = pickle.load(pkl_file)
+                    continue
+
                 logger.info(f"Computing Poisson observation for {name}")
-                data_input = self.training_data_loader(poisson_data["preselection"], n_split=100)
-                with tqdm(total=len(data_input), desc="Processing batches") as pbar:
-                    for i_batch, batch in enumerate(data_input):
-                        # Apply MVA cuts
-                        before = batch.shape(0)
-                        batch = reduce( lambda acc, f: f(acc), poisson_data['mva_selectors'], batch )
-                        after = batch.shape(0)
-                        logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
-                        _, weights, labels = data_input.split(batch)
-                        if poisson_data['observation'] is None:
-                            poisson_data['observation']=weights.sum()
-                        else:
-                            poisson_data['observation']+=weights.sum()
+                data_input = self.training_data_loader(self.cfg["Poisson"][name]["preselection"], n_split=100)
+                poisson_data['observation'] = self.Poisson_observation( data_input = data_input, selectors = poisson_data['mva_selectors'])
+                with open(pkl_filename, 'wb') as pkl_file:
+                    pickle.dump(poisson_data['observation'], pkl_file)
+                    logger.info(f"Written Poisson observation to {pkl_filename}.")
+
+    def Poisson_observation( self, data_input, selectors=[]):
+        from functools import reduce
+        with tqdm(total=len(data_input), desc="Processing batches") as pbar:
+            result=0.
+            for i_batch, batch in enumerate(data_input):
+                features, weights, labels = data_input.split(batch)
+                data = np.column_stack( (features, weights, labels) )
+                # Apply MVA cuts
+                before = data.shape[0]
+                data = reduce( lambda acc, f: f(acc), selectors, data )
+                after = data.shape[0]
+                #logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
+                weights = data[:, data_structure.weight_index]
+                result+=weights.sum()
+                #print( weights.sum(), poisson_data )
+                pbar.update(1)
+                if self.small: break
+        return result
             
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
         penalty_term = 0
@@ -841,9 +862,6 @@ class Inference:
                 f"nu_met={nu_met:6.4f} "
             )
       for selection in self.selections:
-
-        #if not selection == "lowMT_VBFJet": continue
-
 
         # loading CSIs
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
@@ -930,6 +948,10 @@ class Inference:
       logger.debug("Working on Poisson terms.")
 
       logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) )
+
+      if "Poisson" in self.cfg:
+        for name, poisson_data in self.cfg["Poisson"]:
+            print(name)
 
       return uTerm_total
 
