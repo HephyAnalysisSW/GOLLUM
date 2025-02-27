@@ -237,6 +237,8 @@ class Inference:
         if name!="TrainingData" and "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
                 # Check whether we have it already
+                if poisson_data['observation'] is not None:
+                    continue
                 pkl_filename = os.path.join(
                     self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
                 if not os.path.exists(pkl_filename):
@@ -1001,7 +1003,7 @@ class Inference:
                 -2*poisson_data['observation']*np.log( 
                     mu*S_h*sigma_SM_h/sigma_SM_tot + f_bkg_rate*(S_z*sigma_SM_z/sigma_SM_tot + f_tt_rate*S_tt*sigma_SM_tt/sigma_SM_tot + f_diboson_rate*S_db*sigma_SM_db/sigma_SM_tot)
                     )
-            logger.debug( f"Poisson term name: -2 log (P( N={poisson_data['observation']:.3f} | lambda={sigma_SM_tot:.3f})/P(...|SM)) = {poisson_term[name]:.3f}" ) 
+            logger.debug( f"Poisson term {name}: -2 log (P( N={poisson_data['observation']:.3f} | lambda={sigma_SM_tot:.3f})/P(...|SM)) = {poisson_term[name]:.3f}" ) 
    
         if self.small:
           logger.warning( "Skip Poisson term with --small." ) 
