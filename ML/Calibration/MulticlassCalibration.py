@@ -28,7 +28,7 @@ import common.datasets as datasets
 #
 #    break
 
-class Calibration:
+class MultiClassCalibration:
 
     def __init__( self, yaml_config=None, selection=None, n_split=10, small=False):
 
@@ -80,11 +80,14 @@ class Calibration:
 
         all_prob/=all_prob.sum(axis=1, keepdims=True)
 
-        truth       = (all_labels == 0).astype(float) # get truth label
-        logger.info( "Training IsotonicRegression." ) 
-        self.iso_reg = IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, 0], truth, sample_weight=all_weights)
+        self.iso_reg = []
+        for class_id in range(4):
+            truth       = (all_labels == class_id).astype(float) # get truth label
+            logger.info( f"Training IsotonicRegression for class {class_id}." ) 
+            self.iso_reg.append(IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, class_id], truth, sample_weight=all_weights))
+            logger.info( f"Isotonic Regressions of class {class_id} done." ) 
         self.data_for_plot = {"prob": all_prob, "weight": all_weights, "label": all_labels}
-        logger.info( "Done." ) 
+        logger.info( "All Isotonic Regressions Done." ) 
         
     def save( self, file_name ):
         with open(filename, 'wb') as file:
@@ -92,24 +95,25 @@ class Calibration:
 
         logger.info(f"Written {filename}")
 
-    @classmethod
-    def load( cls, file_name ):
-        new_instance = cls()
+    def load( self, file_name ):
         with open(filename, 'rb') as file:
-            new_instance.iso_reg = pickle.load(file)
-
+            self.iso_reg = pickle.load(file)
         logger.info(f"Loaded Calibration {filename}")
 
 
     def predict(self, input_dcr):
         # assume for now that calibrator was trained / loaded
         # TO-DO: check if calibrator exists and train/load otherwise
+
+        calibrated_dcr = np.zeros_like(input_dcr)
+        for class_id in range(4):
+            calibrated_dcr[:, class_id] = self.iso_reg[class_id].predict(input_dcr[:,class_id])
+            # rescale each class independly based on the independenly trained calibrator
+
+        # keep 0 (signal) at its value and rescale the other 3 such that the 4 sum to 1. 
+        calibrated_dcr[:, 1:] = calibrated_dcr[:, 1:] * ((1.-calibrated_dcr[:, 0])/(calibrated_dcr[:, 1:].sum(axis=-1))).reshape(-1,1)
         
-        output_dcr = input_dcr.copy() # to be overwritten below
-        calibrated_0_dcr = self.iso_reg.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
-        output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
-        output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
-        return output_dcr
+        return calibrated_dcr
 
     def plot_calibration(self, file_name):
         logger.info(f"started plotting calibration")
@@ -156,23 +160,25 @@ class Calibration:
         plt.close()
         logger.info(f"Saved calibration plot to {file_name}")
 
-
     def plot_IsotonicRegression(self, file_name):
-        # assume for now that calibrator was trained / loaded
-        # TO-DO: check if calibrator exists and train/load otherwise
         logger.info(f"Started isotonic regression plot")
-        x_scan = np.linspace(0., 1., 1001)
-        plt.plot(x_scan, self.iso_reg.predict(x_scan), label="Isotonic Regression Calibrator")
-        plt.plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
-        plt.xlim(0., 1.)
-        plt.ylim(0., 1.)
-        plt.legend(loc="upper left")
-        plt.gcf().add_axes([0.575, 0.175, 0.3, 0.3])
-        x_scan = np.linspace(0., .2, 201)
-        plt.plot(x_scan, self.iso_reg.predict(x_scan), label="Isotonic Regression Calibrator")
-        plt.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
-        plt.xlim(0., .2)
-        plt.ylim(0., .2)
+        fig, axs = plt.subplots(2, 2)
+        for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
+            x_scan = np.linspace(0., 1., 1001)
+            axs[loc].plot(x_scan, self.iso_reg[idx].predict(x_scan))
+            axs[loc].plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
+            axs[loc].set_title(f"class {idx} calibration")
+    
+        for ax in axs.flat:
+            ax.set(xlabel='dcr_input', ylabel='dcr_output', xlim=(0,1), ylim=(0,1))
+            ax.label_outer()
+    
+        for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
+            axx = axs[loc].inset_axes([0.625, 0.175, 0.3, 0.3])
+            x_scan = np.linspace(0., .2, 201)
+            axx.plot(x_scan, self.iso_reg[idx].predict(x_scan))
+            axx.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
+            axx.set(xlim=(0,0.2), ylim=(0,0.2))
         plt.savefig(file_name)
         plt.close()
         logger.info(f"Saved isotonic regression plot to {file_name}")
@@ -222,7 +228,7 @@ if __name__=="__main__":
     # Where to store the training
     model_directory = os.path.join(user.model_directory, "Calibration", *subdirs,  args.config, args.selection)
     os.makedirs(model_directory, exist_ok=True)
-    filename = os.path.join( model_directory, f'calibrator.pkl')
+    filename = os.path.join( model_directory, f'calibrator_multi.pkl')
 
     if os.path.exists( filename ) and not args.overwrite:
         logger.info(f"Found {filename}. Do nothing")
@@ -230,7 +236,7 @@ if __name__=="__main__":
     elif os.path.exists( filename ) and args.overwrite:
         logger.warning(f"Will overwrite {filename}")    
 
-    calib = Calibration( os.path.join( os.path.abspath('../../Workflow/configs'), args.config) +".yaml", selection=args.selection, small=args.small)
+    calib = MultiClassCalibration( os.path.join( os.path.abspath('../../Workflow/configs'), args.config) +".yaml", selection=args.selection, small=args.small)
 
     calib.train()
     
@@ -241,6 +247,6 @@ if __name__=="__main__":
     os.makedirs(plot_directory, exist_ok=True)
     
     calib.plot_calibration(os.path.join( plot_directory, 
-                                         f'calibrator_validation_calibration.png'))
+                                         f'calibrator_validation_calibration_multi.png'))
     calib.plot_IsotonicRegression(os.path.join( plot_directory, 
-                                                f'calibrator_validation_IsoReg.png'))
+                                                f'calibrator_validation_IsoReg_multi.png'))
