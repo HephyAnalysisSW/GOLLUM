@@ -1,7 +1,6 @@
 import sys
 sys.path.insert(0, "..")
 
-import inspect
 import os
 import numpy as np
 import yaml
