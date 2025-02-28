@@ -100,7 +100,7 @@ class Model:
             try:
                 import yaml
                 use_yaml = True
-            except
+            except:
                 import pickle
                 use_yaml = False
                 config_path = config_path.replace(".yaml", ".pkl")
