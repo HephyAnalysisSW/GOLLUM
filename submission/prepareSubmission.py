@@ -3,14 +3,27 @@ from common.logger import get_logger
 import yaml
 import shutil
 import subprocess
+import sys
 
 import argparse
+
+def copyAndReplaceOffsetInflate(original_file, new_file, offset, inflate):
+    with open(original_file, "r") as src, open(new_file, "w") as dest:
+        for line in src:
+            if "####REPLACEOFFSET####" in line:
+                line = line.replace("####REPLACEOFFSET####", f"offset = {offset}")
+            if "####REPLACEINFLATE####" in line:
+                line = line.replace("####REPLACEINFLATE####", f"inflate = {inflate}")
+            dest.write(line)
 
 if __name__ == '__main__':
   # Argument parser setup
   parser = argparse.ArgumentParser(description="Prepare for submission.")
   parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
   parser.add_argument("-c", "--config", help="Path to the config file.")
+  parser.add_argument("--offset", type=float, default=0.0)
+  parser.add_argument("--inflate", type=float, default=1.0)
+  parser.add_argument("--version", type=str, default="v0")
   parser.add_argument("--ntuple", help="Path to the pre-saved ntuples.")
 
   args = parser.parse_args()
@@ -21,7 +34,9 @@ if __name__ == '__main__':
 
   # copy the Model.py
   logger.info("Copying {} to {}".format("submission/Model.py","Model.py"))
-  shutil.copyfile("submission/Model.py","Model.py")
+  # shutil.copyfile("submission/Model.py","Model.py")
+  logger.info("Set offset = {}, inflate = {}".format(args.offset, args.inflate))
+  copyAndReplaceOffsetInflate(original_file="submission/Model.py", new_file="Model.py", offset=args.offset, inflate=args.inflate)
 
   # copy the example.py
   logger.info("Copying {} to {}".format("submission/example.py","example.py"))
@@ -108,5 +123,22 @@ if __name__ == '__main__':
 
   logger.info("config_submission.yaml saved.")
 
-  logger.info("Now tar the whole directory ;)")
-  subprocess.call(['tar', '-czf', '../submission.tar', '.'])
+  # logger.info("Now tar the whole directory ;)")
+  # subprocess.call(['tar', '-czf', '../submission.tar', '.'])
+  zip_path = f'../submission_{args.version}.zip'
+  if os.path.isfile(zip_path):
+    logger.info(f"[ERROR] ZIP already exists: {zip_path}")
+    logger.info(f"Do nothing and quit.")
+    sys.exit()
+
+  logger.info("Now zip the whole directory ;)")
+  subprocess.call(['zip', '-r', zip_path, '.'])
+
+  txt_path = zip_path.replace(".zip", ".txt")
+  with open(zip_path, "w") as f:
+    f.write(f"config = {args.config}\n")
+    f.write(f"offset = {args.offset}\n")
+    f.write(f"inflate = {args.inflate}\n")
+
+  logger.info(f"ZIP: {zip_path}")
+  logger.info(f"TXT: {txt_path}")

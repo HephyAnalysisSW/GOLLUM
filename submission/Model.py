@@ -72,6 +72,8 @@ class Model:
         # inflate and offset
         offset = 0.0
         inflate = 1.0
+        ####REPLACEOFFSET####
+        ####REPLACEINFLATE####
         p_16 = mu_mle - inflate*(mu_mle-p_16) + offset
         p_84 = mu_mle + inflate*(p_84-mu_mle) + offset
         mu_mle = mu_mle + offset
