@@ -237,7 +237,7 @@ class Inference:
         if name!="TrainingData" and "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
                 # Check whether we have it already
-                if poisson_data['observation'] is not None:
+                if poisson_data['observation'] is not None or poisson_data['ignore']:
                     continue
                 pkl_filename = os.path.join(
                     self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
@@ -324,6 +324,7 @@ class Inference:
             # Poisson data
             if "Poisson" in self.cfg:
                 for name, poisson_data in self.poisson.items():
+                    if self.cfg['Poisson'][name]["ignore"]: continue
                     poisson_rawToy = self.load_toy_file( filename = filename, batch_size = None, n_split = 1, selection_function = selections[self.cfg["Poisson"][name]["preselection"]])
                     poisson_data['observation'] = self.Poisson_observation( data_input = poisson_rawToy, selectors = poisson_data['mva_selectors'], small=False)
                     logger.info(f"loadToyFromPath: Computed Poisson observation {name}: {poisson_data['observation']}")
@@ -402,6 +403,7 @@ class Inference:
         # Poisson data
         if "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
+                if self.cfg['Poisson'][name]["ignore"]: continue
                 # convert toy in our data format and load data
                 toy_data = self.convertToyToDataStruct()
 
@@ -469,6 +471,7 @@ class Inference:
             return
 
         for name, poisson_cfg in self.cfg["Poisson"].items():
+            if poisson_cfg["ignore"]: continue
             logger.info(f"Loading data for Poisson region: {name}")
             poisson = { 
                 'preselector': selections[poisson_cfg['preselection']], # functor to apply the pre-selection
@@ -825,6 +828,7 @@ class Inference:
         # Save Poisson observations for toy from yaml
         if "Poisson" in self.cfg:# and self.cfg["save"]:
             for name, poisson_data in self.poisson.items():
+                if self.cfg["Poisson"][name]["ignore"]: continue
                 # Check whether we have it already
                 pkl_filename = os.path.join(
                     self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
@@ -984,6 +988,7 @@ class Inference:
         f_tt_rate   = np.exp(nu_tt*np.log1p(self.alpha_tt))
         f_diboson_rate = np.exp(nu_diboson*np.log1p(self.alpha_diboson))
         for name, poisson_data in self.poisson.items():
+            if self.cfg["Poisson"][name]["ignore"]: continue
             sigma_SM_h  = poisson_data['IC'].predict('htautau')
             sigma_SM_z  = poisson_data['IC'].predict('ztautau')
             sigma_SM_tt = poisson_data['IC'].predict('ttbar')
