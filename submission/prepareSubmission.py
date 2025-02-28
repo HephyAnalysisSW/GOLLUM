@@ -36,7 +36,7 @@ if __name__ == '__main__':
   logger.info("Copying {} to {}".format("submission/Model.py","Model.py"))
   # shutil.copyfile("submission/Model.py","Model.py")
   logger.info("Set offset = {}, inflate = {}".format(args.offset, args.inflate))
-  copyAndReplaceOffsetInflate(original_file="submission/Model.py", new_file="Model.py", offset=args.offset, inflate=args.inflate)
+  copyAndReplaceOffsetInflate(original_file="submission/Model.py", new_file="model.py", offset=args.offset, inflate=args.inflate)
 
   # copy the example.py
   logger.info("Copying {} to {}".format("submission/example.py","example.py"))
