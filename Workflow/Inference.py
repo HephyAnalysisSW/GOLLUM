@@ -211,12 +211,12 @@ class Inference:
             ignore_done (bool): Whether to ignore already loaded results.
         """
         for selection in self.selections:
+            if not ignore_done and name in self.h5s and selection in self.h5s[name]:
+                continue  # Results already loaded, skip
+
             logger.debug( f"Loading ML results for {name} in selection {selection}" )
             h5_filename = os.path.join( self.cfg['tmp_path'], filename + '_' + selection + '.h5' )
             assert os.path.exists(h5_filename), "File {} does not exist! Try running the save mode first.".format(h5_filename)
-
-            if not ignore_done and name in self.h5s and selection in self.h5s[name]:
-                continue  # Results already loaded, skip
 
             h5f = self.loadH5(h5_filename, selection)
             if name not in self.h5s:
