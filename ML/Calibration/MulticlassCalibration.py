@@ -90,15 +90,15 @@ class MultiClassCalibration:
         logger.info( "All Isotonic Regressions Done." ) 
         
     def save( self, file_name ):
-        with open(filename, 'wb') as file:
+        with open(file_name, 'wb') as file:
             pickle.dump(self.iso_reg, file)
 
-        logger.info(f"Written {filename}")
+        logger.info(f"Written {file_name}")
 
     def load( self, file_name ):
-        with open(filename, 'rb') as file:
+        with open(file_name, 'rb') as file:
             self.iso_reg = pickle.load(file)
-        logger.info(f"Loaded Calibration {filename}")
+        #logger.info(f"Loaded Calibration {file_name}") #breaks loading from inference.py
 
 
     def predict(self, input_dcr):
@@ -240,7 +240,7 @@ if __name__=="__main__":
 
     calib.train()
     
-    calib.save(model_directory)
+    calib.save(filename)
 
     # where to store plots
     plot_directory = os.path.join(user.plot_directory, "Calibration", *subdirs,  args.config, args.selection)
