@@ -1,7 +1,6 @@
 import sys
 sys.path.insert(0, "..")
 
-import inspect
 import os
 import numpy as np
 import yaml
@@ -68,6 +67,16 @@ class Model:
                 p16 = b
             if b > mu_mle:
                 p84 = b
+
+
+        # inflate and offset
+        offset = 0.0
+        inflate = 1.0
+        offset = 0.3
+        inflate = 2.0
+        p_16 = mu_mle - inflate*(mu_mle-p_16) + offset
+        p_84 = mu_mle + inflate*(p_84-mu_mle) + offset
+        mu_mle = mu_mle + offset
 
         # Check mu boundaries
         if p16 < 0.1:
