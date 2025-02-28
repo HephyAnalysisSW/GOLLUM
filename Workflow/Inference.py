@@ -96,18 +96,6 @@ class Inference:
                 logger.info("Error loading CSIs. Will proceed.")
                 pass
 
-        # Determine if we calibrate multiclass or binary
-        # Robert TODO: propagete this properly to config files!!!
-        if self.cfg["MultiClassifier"].get('calibration_type') in ['multiclass']:
-            logger.info("using multiclass calibration.")
-            import ML.Calibration.MulticlassCalibration as Calibration
-            self.Calibrator = Calibration.MultiClassCalibration
-        elif self.cfg["MultiClassifier"].get('calibration_type') in ['binary']:
-            logger.info("using binary calibration.")
-            import ML.Calibration.Calibration as Calibration
-            self.Calibrator = Calibration.Calibration
-        else:
-            logger.info("using no calibration.")
         self.load_calibrations()
         self.load_Poisson_predictions()
 
@@ -247,7 +235,7 @@ class Inference:
         if name!="TrainingData" and "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
                 # Check whether we have it already
-                if poisson_data['observation'] is not None or poisson_data['ignore']:
+                if poisson_data['observation'] is not None or ( 'ignore' in poisson_data and poisson_data['ignore']):
                     continue
                 pkl_filename = os.path.join(
                     self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
@@ -463,6 +451,7 @@ class Inference:
         Load the calibrations.
 
         """
+
         # Already loaded
         if hasattr( self, "calibrations" ): return
         self.calibrations = {}
@@ -470,9 +459,10 @@ class Inference:
             if 'calibration' in self.cfg['MultiClassifier'][s]:
                 pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
                 assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
-                self.calibrations[s] = self.Calibrator() # since we dont train, we dont need the config and selection
-                self.calibrations[s].load(pkl_filename)
-                logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
+
+                calib_class = self.cfg['MultiClassifier'][s]["calibration_module"] if "calibration_module" in self.cfg['MultiClassifier'][s] else "Calibration"
+                self.calibrations[s] = ms.getModule( calib_class ).load( pkl_filename ) 
+                logger.info(f"Calibration {calib_class} loaded for {s} from {pkl_filename}.")
 
     def load_Poisson_predictions(self):
         self.poisson={}
@@ -480,7 +470,7 @@ class Inference:
             return
 
         for name, poisson_cfg in self.cfg["Poisson"].items():
-            if poisson_cfg["ignore"]: continue
+            if "ignore" in poisson_cfg and poisson_cfg["ignore"]: continue
             logger.info(f"Loading data for Poisson region: {name}")
             poisson = { 
                 'preselector': selections[poisson_cfg['preselection']], # functor to apply the pre-selection
@@ -837,7 +827,7 @@ class Inference:
         # Save Poisson observations for toy from yaml
         if "Poisson" in self.cfg:# and self.cfg["save"]:
             for name, poisson_data in self.poisson.items():
-                if self.cfg["Poisson"][name]["ignore"]: continue
+                if "ignore" in self.cfg["Poisson"][name] and self.cfg["Poisson"][name]["ignore"]: continue
                 # Check whether we have it already
                 pkl_filename = os.path.join(
                     self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
@@ -997,7 +987,7 @@ class Inference:
         f_tt_rate   = np.exp(nu_tt*np.log1p(self.alpha_tt))
         f_diboson_rate = np.exp(nu_diboson*np.log1p(self.alpha_diboson))
         for name, poisson_data in self.poisson.items():
-            if self.cfg["Poisson"][name]["ignore"]: continue
+            if "ignore" in self.cfg["Poisson"][name] and self.cfg["Poisson"][name]["ignore"]: continue
             sigma_SM_h  = poisson_data['IC'].predict('htautau')
             sigma_SM_z  = poisson_data['IC'].predict('ztautau')
             sigma_SM_tt = poisson_data['IC'].predict('ttbar')

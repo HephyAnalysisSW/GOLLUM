@@ -7,6 +7,8 @@ from tqdm import tqdm
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '../..')
 
+import common.syncer
+
 from common.logger import get_logger
 
 import numpy as np
@@ -95,11 +97,12 @@ class MultiClassCalibration:
 
         logger.info(f"Written {file_name}")
 
-    def load( self, file_name ):
+    @classmethod
+    def load( cls, file_name ):
+        new_instance = cls()
         with open(file_name, 'rb') as file:
-            self.iso_reg = pickle.load(file)
-        #logger.info(f"Loaded Calibration {file_name}") #breaks loading from inference.py
-
+            new_instance.iso_reg = pickle.load(file)
+        return new_instance
 
     def predict(self, input_dcr):
         # assume for now that calibrator was trained / loaded
@@ -250,3 +253,5 @@ if __name__=="__main__":
                                          f'calibrator_validation_calibration_multi.png'))
     calib.plot_IsotonicRegression(os.path.join( plot_directory, 
                                                 f'calibrator_validation_IsoReg_multi.png'))
+
+common.syncer.sync()
