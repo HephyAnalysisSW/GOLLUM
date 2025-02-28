@@ -111,8 +111,8 @@ class Model:
             with open(config_path) as f:
                 cfg = yaml.safe_load(f)
         else:
-            with open(config_path) as f:
-                cfg = pickle.load(f, 'rb')
+            with open(config_path, 'rb') as f:
+                cfg = pickle.load(f)
 
         for task in cfg["Tasks"]:
             for selection in cfg["Selections"]:

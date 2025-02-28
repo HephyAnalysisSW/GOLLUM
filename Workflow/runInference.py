@@ -7,7 +7,6 @@ import numpy as np
 import pickle
 import argparse
 import time
-import yaml
 #from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
@@ -70,9 +69,25 @@ if __name__ == '__main__':
 
     postfix = "_".join( postfix )
 
-    with open(args.config) as f:
-        cfg = yaml.safe_load(f)
-    logger.info("Config loaded from {}".format(args.config))
+    if args.config.endswith(".pkl"):
+        use_yaml = False
+    else:
+        try:
+            import yaml
+            use_yaml = True
+        except:
+            import pickle
+            use_yaml = False
+            args.config = args.config.replace(".yaml", ".pkl")
+
+    assert os.path.exists(args.config), "Config does not exist: {}".format(args.config)
+
+    if use_yaml:
+        with open(args.config) as f:
+            cfg = yaml.safe_load(f)
+    else:
+        with open(args.config, 'rb') as f:
+            cfg = pickle.load(f)
 
     # Process modifications
     if args.modify:
@@ -85,7 +100,7 @@ if __name__ == '__main__':
             update_dict(cfg, key_parts, value)
 
     # Define output directory
-    config_name = os.path.basename(args.config).replace(".yaml", "")
+    config_name = os.path.basename(args.config).replace(".yaml", "").replace(".pkl", "")
     output_directory = os.path.join ( user.output_directory, config_name)
 
     fit_directory = os.path.join( output_directory, f"fit_data{'_small' if args.small else ''}" )
