@@ -27,11 +27,7 @@ parser.add_argument("--inflate", type=float, default=None)
 args = parser.parse_args()
 
 scoreFiles = [
-    "output_mu_1p0_20250225_000140_346c491bff12493b8b49ec68f6448fd0.npz",
-    "output_mu_2p0_20250224_235602_59ea42a54eb74e19b29761511510072f.npz",
-    "output_mu_3p0_20250225_000405_aa3073c529db447cb1a100e2be79632d.npz",
-    "output_mu_4p0_20250225_001222_1fa31543bc244edc8be4e957f6d2d092.npz",
-    "output_mu_5p0_20250225_001222_b521241ec2014d54976a39761a275759.npz",
+
 ]
 
 for i,file in enumerate(scoreFiles):
