@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
-from Workflow.networks.StartingKit import Model
 from ML.BPT.BoostedParametricTree import BoostedParametricTree
-from ML.ICP.ICP import ICP
-from ML.IC.IC import IC
+from ML.ICP.ICP import InclusiveCrosssectionParametrization
+from ML.IC.IC import InclusiveCrosssection
+from ML.PNN.PNN import PNN
+from ML.TFMC.TFMC import TFMC
+from ML.XGBMC.XGBMC import XGBMC
+from ML.Calibration.Calibration import Calibration
 
 def getModule(name):
   return eval(name)

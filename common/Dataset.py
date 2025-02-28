@@ -2,6 +2,9 @@ import sys, os
 sys.path.insert( 0, "..")
 sys.path.insert( 0, "../..")
 
+import logging
+logger = logging.getLogger('UNC')
+
 import common.user   as user
 import common.data_structure as data_structure
 from   common.selections import selections
@@ -58,8 +61,11 @@ def parse_filename(filename):
         - process (str or None): The process name or None for nominal cases.
         - values (tuple): A tuple of three numerical values for 'tes', 'jes', and 'met' in that order.
     """
+    #FIXME: Remove this line: process_pattern = r"^(?!tes|jes|met)(.*?)_"  # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
     # Regex to match process and systematics
-    process_pattern = r"^(?!tes|jes|met)(.*?)_"  # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
+    process_pattern = r"^(?!tes|jes|met)(.*?)(?:_|$)" # Matches the process name at the start, avoiding 'tes', 'jes', 'met'
+
+
     systematic_pattern = r"(tes|jes|met)_(\d+p\d+|\d+)"  # Matches systematics like 'tes_3p99', 'jes_1p01'
 
     # Remove the '.h5' extension
@@ -91,6 +97,9 @@ def parse_filename(filename):
             values[1] = value
         elif sys_name == "met":
             values[2] = value
+
+    if process=="nominal":
+        process=None
 
     return process, tuple(values)
 
@@ -208,7 +217,7 @@ class Dataset:
         if not os.path.exists( self.file_path ):
             raise RuntimeError(f"File {self.file_path} not found!")
 
-        print(f"Loading from {self.file_path}")
+        logger.info(f"Loading from {self.file_path}")
 
     def get_data_loader( self, n_split = 100, batch_size=None, selection_function=None):
         

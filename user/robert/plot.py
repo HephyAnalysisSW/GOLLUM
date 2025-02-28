@@ -300,12 +300,15 @@ def parse_arguments():
     parser.add_argument("--selection", type=str, default="inclusive", help="Event selection")
     parser.add_argument("--plot_directory", type=str, default="v3", help="Plot directory")
     parser.add_argument("--small", action="store_true" )
+    parser.add_argument("--test",  action="store_true", help="test data?" )
 
     return parser.parse_args()
 
 args = parse_arguments()
-
-import common.datasets as datasets
+if args.test:
+    import common.test_datasets as datasets
+else:
+    import common.datasets as datasets
 
 data_loader = datasets.get_data_loader( 
     n_split=10, 
@@ -313,7 +316,7 @@ data_loader = datasets.get_data_loader(
     selection_function=None, 
     )
 
-output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else ""))
+output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else "")+("_test" if args.test else ""))
 os.makedirs(output_path, exist_ok=True)
 
 # Accumulate histograms

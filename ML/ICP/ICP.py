@@ -2,8 +2,8 @@
 # Standard imports
 import cProfile
 import sys
-#sys.path.insert( 0, '..')
-#sys.path.insert( 0, '.')
+sys.path.insert( 0, '..')
+sys.path.insert( 0, '../..')
 import time
 import pickle
 import copy
@@ -14,8 +14,8 @@ import functools
 
 from data_loader.data_loader_2 import H5DataLoader
 
-class ICP:
-    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None, **kwargs ):
+class InclusiveCrosssectionParametrization:
+    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None):
 
         if config is not None:
             self.config      = config
@@ -67,7 +67,7 @@ class ICP:
 
         self.CInv = np.linalg.inv(C)
 
-        # Compute matrix Mkk from non-nominal base_points
+        # Compute matrix VkA from non-nominal base_points
         self._VKA = np.zeros( (len(self.masked_base_points), len(self.combinations)) )
         for i_base_point, base_point in enumerate(self.masked_base_points):
             for i_combination, combination in enumerate(self.combinations):
@@ -77,128 +77,98 @@ class ICP:
 
                 self._VKA[i_base_point, i_combination ] = res
 
-    def load_training_data( self, datasets, selection, n_split=10):
+    def load_training_data( self, datasets, selection, process=None, n_split=10):
         self.training_data = {}
         for base_point in self.base_points:
-            base_point = tuple(base_point)
-            values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, selection_function=None, n_split=n_split)
+            base_point  = tuple(base_point)
+            values      = self.config.get_alpha(base_point)
+            data_loader = datasets.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
+    def train( self, small=False, train_ratio=True, yields={}):
 
-    def train( self, datasets, selection, small=False):
-        self.load_training_data(datasets, selection)
-        self.yields = {}
-        for base_point, loader in self.training_data.items():
-            self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
+        # We might pass yields externally
+        self.yields = yields
 
-        self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
+        # Fetch from data loader if not externally provided
+        if len(yields)==0:
+            for base_point, loader in self.training_data.items():
+                self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
+
+        # The default case: We devide by the nominal base-point yield and 
+        if train_ratio:
+            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)]))
+        # Parametrize including a constant offset
+        else:
+            if ( tuple() not in self.combinations ):
+                raise RuntimeError("We must have the constant term (an empty tuple) in the combinations unless we're training ratios. Please add it.")
+ 
+            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
     def __str__( self ):
-        return " ".join( [("%+2.3f"%deltaA)+"*"+c for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+        return " ".join( [(f"{deltaA:+.1e}")+( "*"+c if c!="" else "") for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
 
     @classmethod
-    def load(cls, save_dir):
-        """
-        Class method to load a saved TFMC instance from the latest checkpoint.
+    def load(cls, filename):
+        with open(filename,'rb') as file_:
+            import importlib
+            old_instance = pickle.load(file_)
+            if old_instance.config_name is not None:
+                config_ = importlib.import_module(old_instance.config_name) 
+                new_instance = cls(   
+                        config               = config_,
+                        )
+            else:
+                new_instance = cls(   
+                        nominal_base_point  = old_instance.nominal_base_point,
+                        parameters          = old_instance.parameters,
+                        combinations        = old_instance.combinations,
+                        base_points         = old_instance.base_points,
+                        )
 
-        Parameters:
-        - save_dir: str, directory where checkpoints are stored (e.g., 'models/test').
+            # Everything we need for prediction should come from the old instance, not the config
+            new_instance.DeltaA         = old_instance.DeltaA
+            new_instance.combinations   = old_instance.combinations
+            new_instance.parameters     = old_instance.parameters
 
-        Returns:
-        - TFMC instance loaded with the latest checkpoint.
-        """
-        if not os.path.isdir(save_dir):
-            raise FileNotFoundError(f"Checkpoint directory not found: {save_dir}")
+            return new_instance  
 
-        # Load the configuration module name
-        config_path = os.path.join(save_dir, "config.pkl")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found in directory: {save_dir}")
-
-        import pickle
-        with open(config_path, "rb") as f:
-            config_name = pickle.load(f)
-
-        # Dynamically import the configuration module
-        config = importlib.import_module(config_name)
-
-        # Find the latest checkpoint
-        latest_checkpoint = tf.train.latest_checkpoint(save_dir)
-        if not latest_checkpoint:
-            raise FileNotFoundError(f"No checkpoint found in directory: {save_dir}")
-
-        # Create a new TFMC instance
-        instance = cls(config=config)
-
-        # Restore the model and optimizer state
-        instance.checkpoint.restore(latest_checkpoint).expect_partial()
-        print(f"Model checkpoint loaded from {latest_checkpoint}. Configuration: {config_name}")
-
-        return instance
-
-#    @classmethod
-#    def load(cls, filename):
-#        with open(filename,'rb') as file_:
-#            import importlib
-#            old_instance = pickle.load(file_)
-#            if old_instance.config_name is not None:
-#                config_ = importlib.import_module(old_instance.config_name) 
-#                #new_instance.config = config_
-#                new_instance = cls(   
-#                        config               = config_,
-#                        )
-#            else:
-#                new_instance = cls(   
-#                        nominal_base_point  = old_instance.nominal_base_point,
-#                        parameters          = old_instance.parameters,
-#                        combinations        = old_instance.combinations,
-#                        base_points         = old_instance.base_points,
-#                        )
-#
-#            new_instance.DeltaA         = old_instance.DeltaA
-#
-#            return new_instance  
+    def save(self, filename):
+        _config = self.config
+        self.config=None
+        with open(filename,'wb') as file_:
+            pickle.dump( self, file_ )
+        self.config = _config
 
     def __setstate__(self, state):
         self.__dict__ = state
 
-#    def save(self, filename):
-#        _config = self.config
-#        self.config=None
-#        with open(filename,'wb') as file_:
-#            pickle.dump( self, file_ )
-#        self.config = _config
-
-    def save(self, save_dir, epoch):
-        """
-        Save the model, optimizer state, and configuration to a file.
-
-        Parameters:
-        - save_dir: str, directory to save the checkpoints (e.g., 'models/test').
-        - epoch: int, the current epoch number (used as the checkpoint filename).
-        """
-        os.makedirs(save_dir, exist_ok=True)  # Ensure the directory exists
-
-        # Save model and optimizer state
-        checkpoint_path = os.path.join(save_dir, str(epoch))
-        self.checkpoint.write(checkpoint_path)
-
-        # Save configuration module name
-        config_path = os.path.join(save_dir, "config.pkl")
-        with open(config_path, "wb") as f:
-            import pickle
-            pickle.dump(self.config_name, f)
-
-        # Manually create the 'checkpoint' metadata file
-        with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
-            f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
-
-        print(f"Model checkpoint and config saved for epoch {epoch} in {checkpoint_path}.")
-
     def nu_A(self, nu):
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
+    def log_predict( self, nu):
+        return np.dot( self.nu_A(nu), self.DeltaA )
+
     def predict( self, nu):
-        return np.exp(np.dot( self.nu_A(nu), self.DeltaA ))
+        return np.exp( self.log_predict(nu) )
+
+    # Predictor of log-DCR for usage in PNN
+    def get_predictor( self ):
+
+        def predictor(  DeltaA=self.DeltaA, parameters=self.parameters, combinations=self.combinations, **kwargs,):
+            
+            nu = [ 0 for _ in range(3)]
+
+            for p in parameters:
+                if p not in kwargs:
+                    raise RuntimeError(f"Must set all parameters: {parameters}")
+
+            for k, v in kwargs.items():
+                nu[parameters.index(k)] = v
+
+            nu_A = np.array( [ functools.reduce(operator.mul, [nu[parameters.index(c)] for c in list(comb)], 1) for comb in combinations] )
+
+            return np.exp(np.dot( nu_A, DeltaA ))
+
+        return predictor

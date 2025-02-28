@@ -94,7 +94,6 @@ class Model:
 
 
     def loadConfig(self, config_path):
-
         if config_path.endswith(".pkl"):
             use_yaml = False
         else:

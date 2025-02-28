@@ -13,7 +13,7 @@ import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true', help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
-argParser.add_argument('--small',        action='store_true',  help="Only one batch, for debugging")
+argParser.add_argument('--small',         action='store_true',  help="Only one batch, for debugging")
 args = argParser.parse_args()
 
 # import the data
@@ -48,5 +48,8 @@ if ic is None or args.overwrite:
     print ("Written %s"%( filename ))
 
     time2 = time.time()
-    boosting_time = time2 - time1
-    print ("Training time: %.2f seconds" % boosting_time)
+    training_time = time2 - time1
+    print ("Training time: %.2f seconds" % training_time)
+
+print(f"Trained IC for this selection: {args.selection}")
+print(ic)

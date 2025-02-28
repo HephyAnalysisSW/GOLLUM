@@ -32,36 +32,35 @@ base_point_index = {
  14: (0, -1, 0.0), 
  15: (0, -1, 1.0), 
  16: (0, -1, 2.0), 
- 17: (0, 0, 0.5),  
- 18: (0, 0, 1.0),  
- 19: (0, 0, 1.5),  
- 20: (0, 0, 2.0),  
- 21: (0, 1, 0.0),  
- 22: (0, 1, 1.0),  
- 23: (0, 1, 2.0),  
- 24: (0, 2, 0.0),  
- 25: (0, 3, 0.0),  
- 26: (1, -1, 0.0), 
- 27: (1, -1, 1.0), 
- 28: (1, -1, 2.0), 
- 29: (1, 0, 0.0),  
- 30: (1, 0, 1.0),  
- 31: (1, 0, 2.0),  
- 32: (1, 1, 0.0),  
- 33: (1, 1, 1.0),  
- 34: (1, 1, 2.0),  
- 35: (2, 0, 0.0),  
- 36: (3, 0, 0.0)   
+ 17: (0, 0, 1.0),  
+ 18: (0, 0, 2.0),  
+ 19: (0, 1, 0.0),  
+ 20: (0, 1, 1.0),  
+ 21: (0, 1, 2.0),  
+ 22: (0, 2, 0.0),  
+ 23: (0, 3, 0.0),  
+ 24: (1, -1, 0.0), 
+ 25: (1, -1, 1.0), 
+ 26: (1, -1, 2.0), 
+ 27: (1, 0, 0.0),  
+ 28: (1, 0, 1.0),  
+ 29: (1, 0, 2.0),  
+ 30: (1, 1, 0.0),  
+ 31: (1, 1, 1.0),  
+ 32: (1, 1, 2.0),  
+ 33: (2, 0, 0.0),  
+ 34: (3, 0, 0.0)   
 }
  
 # translate nuisances to alpha values
 def get_alpha( base_point ):
-    return ( 1+base_point[0]*0.01, 1+base_point[1]*0.01, 3*base_point[2] )
+    return ( 1+base_point[0]*0.01, 1+base_point[1]*0.01, base_point[2] )
 
 # For convenience, base_point_index should also know about the inverse dictionary
 base_point_index.update ({val:key for key, val in base_point_index.items()})
 
 # Make a matrix
-base_points        = [ base_point_index[i] for i in range(37) ] 
+base_points        = [ base_point_index[i] for i in range(35) ] 
+
 # Pick out the "SM" base point
 nominal_base_point = base_point_index[0]

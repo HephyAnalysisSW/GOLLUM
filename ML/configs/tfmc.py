@@ -10,11 +10,14 @@ sys.path.insert( 0, '.')
 from configs.common import *
 import common.data_structure as data_structure
 
-n_epochs      = 100
-learning_rate = 0.0001
+n_epochs      = 200
+#learning_rate = 0.00015
+learning_rate = 0.01
 
 classes       = data_structure.labels
 input_dim     = len(data_structure.feature_names)
 hidden_layers = [64,64]
+activation    = 'relu'
 
-scale_with_ic = True
+use_ic        = True
+use_scaler    = True
