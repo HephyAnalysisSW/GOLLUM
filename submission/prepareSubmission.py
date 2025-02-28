@@ -135,7 +135,7 @@ if __name__ == '__main__':
   subprocess.call(['zip', '-r', zip_path, '.'])
 
   txt_path = zip_path.replace(".zip", ".txt")
-  with open(zip_path, "w") as f:
+  with open(txt_path, "w") as f:
     f.write(f"config = {args.config}\n")
     f.write(f"offset = {args.offset}\n")
     f.write(f"inflate = {args.inflate}\n")
