@@ -1,4 +1,6 @@
 import os,glob
+import sys
+sys.path.insert(0, '..')
 from common.logger import get_logger
 import yaml
 import shutil

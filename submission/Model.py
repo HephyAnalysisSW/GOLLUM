@@ -13,7 +13,7 @@ from common.intervalFinder import intervalFinder
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))#.replace('/submission', '')
         self.cfg = self.loadConfig( os.path.join( self.script_dir, "config_submission.yaml" ) )
         self.calibrate = True
         output_directory = os.path.join( self.script_dir, "data")
@@ -60,14 +60,15 @@ class Model:
 
         # Interval finder interpolates and returns crossing points
         # if a boundary is below best fit mu, it is the lower boundary, if above it is the upper
+
         intFinder = intervalFinder(muPoints, deltaQ, 1.0)
         boundaries = intFinder.getInterval()
+        print (boundaries)
         for b in boundaries:
             if b < mu_mle:
-                p16 = b
+                p_16 = b
             if b > mu_mle:
-                p84 = b
-
+                p_84 = b
 
         # inflate and offset
         offset = 0.0
