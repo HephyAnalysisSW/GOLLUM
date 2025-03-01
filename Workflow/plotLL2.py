@@ -11,6 +11,7 @@ import yaml
 import os
 
 import common.syncer
+import common.helpers as helpers
 
 # ROOT imports
 import ROOT
@@ -265,4 +266,5 @@ if __name__ == '__main__':
     c.SaveAs(png_name)
     logger.info(f"Saved plot as {png_name}")
 
+helpers.copyIndexPHP( plot_directory )
 common.syncer.sync()
