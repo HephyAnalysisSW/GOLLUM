@@ -32,7 +32,6 @@ args = parser.parse_args()
 initialSeed = 0
 Ntoys_this_job = args.Ntoys
 if args.nJobs > 1:
-    args.postfix = args.postfix+"_"+str(args.job)
     initialSeed = (args.job)*(Ntoys_this_job)
     Ntoys_this_job = args.Ntoys // args.nJobs
     remainder = args.Ntoys % args.nJobs
@@ -128,12 +127,12 @@ for i in tqdm(range(Ntoys_this_job)):
     # mu_measured_up_scan.append(results["p84_scan"])
     # mu_measured_down_scan.append(results["p16_scan"])
     # toypaths.append("generated")
-    # nu_tes.append(results["nu_tes"])
-    # nu_jes.append(results["nu_jes"])
-    # nu_met.append(results["nu_met"])
-    # nu_bkg.append(results["nu_bkg"])
-    # nu_tt.append(results["nu_tt"])
-    # nu_diboson.append(results["nu_diboson"])
+    nu_tes.append(results["nu_tes"])
+    nu_jes.append(results["nu_jes"])
+    nu_met.append(results["nu_met"])
+    nu_bkg.append(results["nu_bkg"])
+    nu_tt.append(results["nu_tt"])
+    nu_diboson.append(results["nu_diboson"])
 
 # Calculate the score
 average_width = width_sum/Ntoys
@@ -152,9 +151,13 @@ print("SCORE =", score)
 
 import uuid
 from datetime import datetime
-unique_id = uuid.uuid4().hex  # Shorter hex representation
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = os.path.join(user.output_directory, "toyFits", f"output_{args.postfix}_{timestamp}_{unique_id}.npz")
+
+out_dir = os.path.join(user.output_directory, "toyFits", args.postfix)
+if not os.path.exists(out_dir):
+    os.makedirs( out_dir, exist_ok=True)
+
+filename = os.path.join(out_dir, f"output_{args.job}_{timestamp}.npz")
 
 np.savez(filename,
     mu_true=np.array(mu_true),
@@ -164,11 +167,11 @@ np.savez(filename,
     # mu_measured_up_scan=np.array(mu_measured_up_scan),
     # mu_measured_down_scan=np.array(mu_measured_down_scan),
     # toypaths=np.array(toypaths, dtype=object),
-    # nu_tes=np.array(nu_tes),
-    # nu_jes=np.array(nu_jes),
-    # nu_met=np.array(nu_met),
-    # nu_bkg=np.array(nu_bkg),
-    # nu_tt=np.array(nu_tt),
-    # nu_diboson=np.array(nu_diboson),
+    nu_tes=np.array(nu_tes),
+    nu_jes=np.array(nu_jes),
+    nu_met=np.array(nu_met),
+    nu_bkg=np.array(nu_bkg),
+    nu_tt=np.array(nu_tt),
+    nu_diboson=np.array(nu_diboson),
     )
 print("Saved to file:", filename)
