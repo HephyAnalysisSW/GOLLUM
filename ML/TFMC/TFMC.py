@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from math import ceil, sqrt
 import pickle
 import importlib
-import ROOT
 import sys
 from tqdm import tqdm
 sys.path.insert(0, '..')
@@ -376,6 +375,7 @@ class TFMC:
         - output_path: str, directory to save the ROOT files.
         - feature_names: list of str, feature names for the x-axis.
         """
+        import ROOT
         ROOT.gStyle.SetOptStat(0)
         dir_path = os.path.dirname(os.path.realpath(__file__))
         ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
