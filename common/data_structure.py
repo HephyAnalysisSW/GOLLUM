@@ -14,14 +14,10 @@ label_index  = weight_index+1
 systematics     = ['tes', 'jes', 'met']
 default_values  = (1, 1, 0)
 
-# plot styles
-import ROOT
-plot_styles = {
-        "htautau": {"fill_color": ROOT.kOrange+7,  "line_color": ROOT.kOrange+7, "line_width": 2},
-        "ztautau": {"fill_color": ROOT.kGreen + 2, "line_color": ROOT.kBlack,    "line_width": 1},
-        "ttbar":   {"fill_color": ROOT.kMagenta+2, "line_color": ROOT.kBlack,    "line_width": 1},
-        "diboson": {"fill_color": ROOT.kBlue,      "line_color": ROOT.kBlack,    "line_width": 1},
-        }
+plot_styles = {'htautau': {'fill_color': 807, 'line_color': 807, 'line_width': 2},
+               'ztautau': {'fill_color': 418, 'line_color': 1, 'line_width': 1},
+               'ttbar': {'fill_color': 618, 'line_color': 1, 'line_width': 1},
+               'diboson': {'fill_color': 600, 'line_color': 1, 'line_width': 1}}
 
 plot_options = {
     "PRI_lep_pt"                    :{'logY':True,  'tex':"p_{T}(l)",                 'binning':[20, 20, 400                    ], 'y_ratio_range':[0.92, 1.08]},
@@ -54,42 +50,77 @@ plot_options = {
     "DER_lep_eta_centrality"        :{'logY':False, 'tex':"C(l, jets)",               'binning':[20, 0, 1                       ], 'y_ratio_range':[0.95, 1.05]},
     }
 
+colors = [ 600,
+           632,
+           418,
+           800,
+           616,
+           432,
+           402,
+           910,
+           882,
+           825,
+           843,
+           866,
+           807,
+           922,
+           407,
+           603,
+           634,
+           613,
+           796,
+           827,
+           835,
+           434,
+           905,
+           870,
+           404,
+           876,
+           413,
+           595,
+           625,
+           620,
+           809,
+           832,
+           427,
+           854,
+           393]
 
-colors = [
-        ROOT.kBlue,           # 1
-        ROOT.kRed,            # 2
-        ROOT.kGreen + 2,      # 3
-        ROOT.kOrange,         # 4
-        ROOT.kMagenta,        # 5
-        ROOT.kCyan,           # 6
-        ROOT.kYellow + 2,     # 7
-        ROOT.kPink + 10,      # 8
-        ROOT.kViolet + 2,     # 9
-        ROOT.kSpring + 5,     # 10
-        ROOT.kTeal + 3,       # 11
-        ROOT.kAzure + 6,      # 12
-        ROOT.kOrange + 7,     # 13
-        ROOT.kGray + 2,       # 14
-        ROOT.kGreen - 9,      # 15
-        ROOT.kBlue + 3,       # 16
-        ROOT.kRed + 2,        # 17
-        ROOT.kMagenta - 3,    # 18
-        ROOT.kOrange - 4,     # 19
-        ROOT.kSpring + 7,     # 20
-        ROOT.kTeal - 5,       # 21
-        ROOT.kCyan + 2,       # 22
-        ROOT.kPink + 5,       # 23
-        ROOT.kAzure + 10,     # 24
-        ROOT.kYellow + 4,     # 25
-        ROOT.kViolet - 4,     # 26
-        ROOT.kGreen - 3,      # 27
-        ROOT.kBlue - 5,       # 28
-        ROOT.kRed - 7,        # 29
-        ROOT.kMagenta + 4,    # 30
-        ROOT.kOrange + 9,     # 31
-        ROOT.kSpring + 12,    # 32
-        ROOT.kCyan - 5,       # 33
-        ROOT.kAzure - 6,      # 34
-        ROOT.kYellow - 7      # 35
-    ]
+#colors = [
+#        ROOT.kBlue,           # 1
+#        ROOT.kRed,            # 2
+#        ROOT.kGreen + 2,      # 3
+#        ROOT.kOrange,         # 4
+#        ROOT.kMagenta,        # 5
+#        ROOT.kCyan,           # 6
+#        ROOT.kYellow + 2,     # 7
+#        ROOT.kPink + 10,      # 8
+#        ROOT.kViolet + 2,     # 9
+#        ROOT.kSpring + 5,     # 10
+#        ROOT.kTeal + 3,       # 11
+#        ROOT.kAzure + 6,      # 12
+#        ROOT.kOrange + 7,     # 13
+#        ROOT.kGray + 2,       # 14
+#        ROOT.kGreen - 9,      # 15
+#        ROOT.kBlue + 3,       # 16
+#        ROOT.kRed + 2,        # 17
+#        ROOT.kMagenta - 3,    # 18
+#        ROOT.kOrange - 4,     # 19
+#        ROOT.kSpring + 7,     # 20
+#        ROOT.kTeal - 5,       # 21
+#        ROOT.kCyan + 2,       # 22
+#        ROOT.kPink + 5,       # 23
+#        ROOT.kAzure + 10,     # 24
+#        ROOT.kYellow + 4,     # 25
+#        ROOT.kViolet - 4,     # 26
+#        ROOT.kGreen - 3,      # 27
+#        ROOT.kBlue - 5,       # 28
+#        ROOT.kRed - 7,        # 29
+#        ROOT.kMagenta + 4,    # 30
+#        ROOT.kOrange + 9,     # 31
+#        ROOT.kSpring + 12,    # 32
+#        ROOT.kCyan - 5,       # 33
+#        ROOT.kAzure - 6,      # 34
+#        ROOT.kYellow - 7      # 35
+#    ]
 
