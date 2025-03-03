@@ -134,7 +134,11 @@ if __name__ == '__main__':
     sys.exit()
 
   logger.info("Now zip the whole directory ;)")
-  subprocess.call(['zip', '-r', zip_path, '.'])
+  #subprocess.call(['zip', '-r', zip_path, '.','-x ".git/*" ".gitignore" ".*" "*/.*"'])
+  #subprocess.run(['zip', '-r', zip_path, '.','-x ".git/*" ".gitignore" ".*" "*/.*"'])
+  exclude_patterns = [".git/*", ".gitignore", ".*", "*/.*"]  # Add more patterns as needed
+  exclude_args = sum([["-x", pattern] for pattern in exclude_patterns], [])
+  subprocess.run(['zip', '-r', zip_path, '.',*exclude_args], check=True)
 
   txt_path = zip_path.replace(".zip", ".txt")
   with open(txt_path, "w") as f:

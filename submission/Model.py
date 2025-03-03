@@ -1,7 +1,8 @@
+import os
 import sys
 sys.path.insert(0, "..")
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'pythonpackages'))
 
-import os
 import numpy as np
 import yaml
 from Workflow.Inference import Inference
@@ -101,9 +102,25 @@ class Model:
 
 
     def loadConfig(self, config_path):
+        if config_path.endswith(".pkl"):
+            use_yaml = False
+        else:
+            try:
+                import yaml
+                use_yaml = True
+            except:
+                import pickle
+                use_yaml = False
+                config_path = config_path.replace(".yaml", ".pkl")
+
         assert os.path.exists(config_path), "Config does not exist: {}".format(config_path)
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
+
+        if use_yaml:
+            with open(config_path) as f:
+                cfg = yaml.safe_load(f)
+        else:
+            with open(config_path) as f:
+                cfg = pickle.load(f, 'rb')
 
         for task in cfg["Tasks"]:
             for selection in cfg["Selections"]:
