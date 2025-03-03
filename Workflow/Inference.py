@@ -1014,7 +1014,7 @@ class Inference:
         else:
           poisson_term_total=sum( poisson_term.values() ) 
 
-          logger.debug( f"Total Poisson term from {len(self.cfg['Poisson'])} items: {poisson_term_total}")
+          #logger.debug( f"Total Poisson term from {len(self.cfg['Poisson'])} items: {poisson_term_total}")
 
       total = poisson_term_total + uTerm_total
 
