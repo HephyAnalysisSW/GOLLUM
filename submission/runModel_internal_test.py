@@ -1,4 +1,7 @@
-from Model import Model
+import sys
+import os
+sys.path.insert( 0, '..')
+from model import Model
 
 import h5py
 import pandas as pd
