@@ -9,7 +9,6 @@ sys.path.insert(0, '../..')
 import common.data_structure as data_structure
 import common.user as user
 from tqdm import tqdm
-import common.syncer
 from math import ceil, sqrt
 
 class XGBMC:
@@ -50,6 +49,7 @@ class XGBMC:
         """
         Train the XGBoost classifier using the batched data loader.
         """
+        import common.syncer
         if self.data_loader is None:
             raise ValueError("Data loader is not initialized. Call `load_training_data` first.")
 
