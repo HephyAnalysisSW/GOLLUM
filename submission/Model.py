@@ -5,7 +5,6 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'pythonp
 
 import numpy as np
 import yaml
-print(yaml.__file__)
 from Workflow.Inference import Inference
 from common.likelihoodFit import likelihoodFit
 import common.user as user
