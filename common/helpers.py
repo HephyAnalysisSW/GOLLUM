@@ -1,8 +1,8 @@
 import   numpy as np
-import   ROOT
 import   array
 
 def make_TH1F( h, ignore_binning = False):
+    import   ROOT
     # remove infs from thresholds
     vals, thrs = h
     if ignore_binning:
@@ -15,10 +15,12 @@ def make_TH1F( h, ignore_binning = False):
     return histo
 
 def make_TGraph( coords ):
+    import   ROOT
     tgraph = ROOT.TGraph(len(coords), array.array('d', [c[0] for c in coords]), array.array('d', [c[1] for c in coords]))
     return tgraph
 
 def make_TH2F( h, ignore_binning = False):
+    import   ROOT
     # remove infs from thresholds
     vals, thrs_x, thrs_y = h
     if ignore_binning:
