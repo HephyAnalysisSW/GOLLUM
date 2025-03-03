@@ -401,7 +401,7 @@ class Inference:
         # Poisson data
         if "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
-                if self.cfg['Poisson'][name]["ignore"]: continue
+                if "ignore" in self.cfg['Poisson'][name] and self.cfg['Poisson'][name]["ignore"]: continue
                 # convert toy in our data format and load data
                 toy_data = self.convertToyToDataStruct()
 
@@ -1014,7 +1014,7 @@ class Inference:
         else:
           poisson_term_total=sum( poisson_term.values() ) 
 
-          logger.info( f"Total Poisson term from {len(self.cfg['Poisson'])} items: {poisson_term_total}")
+          logger.debug( f"Total Poisson term from {len(self.cfg['Poisson'])} items: {poisson_term_total}")
 
       total = poisson_term_total + uTerm_total
 
