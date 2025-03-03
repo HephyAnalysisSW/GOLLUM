@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
   logger.warning("Please make sure to execute this script directly under main HEPHY-uncertainty folder. Excuting this in subfolders will not work.")
 
-  # copy the Model.py
+  # copy the Model.p
   logger.info("Copying {} to {}".format("submission/Model.py","Model.py"))
   # shutil.copyfile("submission/Model.py","Model.py")
   logger.info("Set offset = {}, inflate = {}".format(args.offset, args.inflate))
@@ -43,6 +43,10 @@ if __name__ == '__main__':
   # copy the example.py
   logger.info("Copying {} to {}".format("submission/example.py","example.py"))
   shutil.copyfile("submission/example.py","example.py")
+
+  # copy the runModel_internal_test.py
+  logger.info("Copying {} to {}".format("submission/runModel_internal_test.py","runModel_internal_test.py"))
+  shutil.copyfile("submission/runModel_internal_test.py","runModel_internal_test.py")
 
   with open(args.config) as f:
     cfg = yaml.safe_load(f)
