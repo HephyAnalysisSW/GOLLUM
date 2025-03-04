@@ -131,7 +131,7 @@ class Inference:
         Returns:
             DataLoader: The loaded training data.
         """
-        import common.datasets as datasets
+        import common.datasets_hephy as datasets
         d = datasets.get_data_loader(selection=selection, n_split=n_split)
         logger.info("Training data loaded for selection: {}".format(selection))
         return d
@@ -313,8 +313,16 @@ class Inference:
         """
         assert self.toy_from_memory is not None, "Toy dataset not defined!"
 
-        features = self.toy_from_memory["data"]  # (N, 28)
-        weights = self.toy_from_memory["weights"].reshape(-1, 1)  # (N, 1)
+        if isinstance(self.toy_from_memory["data"], pd.Series):
+            features = self.toy_from_memory["data"].to_numpy()  # (N, 28)
+        else:
+            features = self.toy_from_memory["data"]  # (N, 28)
+
+        if isinstance(self.toy_from_memory["weights"], pd.Series):
+            weights = self.toy_from_memory["weights"].to_numpy().reshape(-1, 1)  # (N, 1)
+        else:
+            weights = self.toy_from_memory["weights"].reshape(-1, 1)  # (N, 1)
+
         labels = np.full((features.shape[0], 1), -1)  # (N, 1), all -1
 
         # Convert into our format
@@ -448,7 +456,7 @@ class Inference:
             if t in self.icps and selection in self.icps[t]:
                 icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
-                icp_summand[t] = 1 
+                icp_summand[t] = 1
         logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
@@ -513,10 +521,10 @@ class Inference:
         f_bkg_rate_m1 = np.expm1(nu_bkg * np.log1p(self.alpha_bkg))
         f_tt_rate_m1 = np.expm1(nu_tt * np.log1p(self.alpha_tt))
         f_diboson_rate_m1 = np.expm1(nu_diboson * np.log1p(self.alpha_diboson))
-        f_bkg_rate = f_bkg_rate_m1 + 1 
-        f_tt_rate = f_tt_rate_m1 + 1 
-        f_diboson_rate = f_diboson_rate_m1 + 1 
-  
+        f_bkg_rate = f_bkg_rate_m1 + 1
+        f_tt_rate = f_tt_rate_m1 + 1
+        f_diboson_rate = f_diboson_rate_m1 + 1
+
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
             + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate_m1*self.csis_const[selection]['ztautau'] \
@@ -673,7 +681,7 @@ class Inference:
                         gp = np.array(h5f['MultiClassifier_predict'])
                         weight = np.array(h5f["Weight"])
 
-                        #Calibrate DCR 
+                        #Calibrate DCR
                         dcr_raw = gp / gp.sum(axis=1, keepdims=True) # First divide toget DCR
                         dcr_calibrated = self.calibrate_dcr(s, dcr_raw)
                         #print("dcr_raw", dcr_raw)
