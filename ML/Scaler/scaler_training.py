@@ -20,7 +20,7 @@ argParser.add_argument('--small', action='store_true', help="Only one batch, for
 args = argParser.parse_args()
 
 # Import the data
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 
 print("Scaler training for selection " + '\033[1m' + f"{args.selection}" + '\033[0m')
 
@@ -45,7 +45,7 @@ if scaler is None or args.overwrite:
     time1 = time.time()
     scaler = Scaler()
 
-    scaler.load_training_data(datasets=datasets, selection=args.selection, process=args.process)
+    scaler.load_training_data(datasets_hephy=datasets_hephy, selection=args.selection, process=args.process)
     scaler.train(small=args.small)
 
     scaler.save(filename)

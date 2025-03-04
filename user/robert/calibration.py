@@ -111,7 +111,7 @@ def create_calibration_graph(values, labels, weights,
 import common.user as user
 import common.data_structure as data_structure
 import common.selections as selections
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 
 # Calibrate DCR or Prob?
 dcr = True
@@ -124,7 +124,7 @@ from ML.XGBMC.XGBMC import XGBMC
 xgbmc = XGBMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/XGBMC/lowMT_VBFJet/xgb_v1/v1")
 
 # Iterate through the dataset
-loader = datasets.get_data_loader(selection="lowMT_VBFJet", n_split=1)
+loader = datasets_hephy.get_data_loader(selection="lowMT_VBFJet", n_split=1)
 for batch in loader:
     data, weights, labels = loader.split(batch)
     print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )

@@ -13,7 +13,7 @@ from XGBMC import XGBMC
 
 import importlib
 import common.helpers as helpers
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 
 # Parser
 import argparse
@@ -86,7 +86,7 @@ else:
 xgbmc.start_epoch = last_epoch
 
 # Initialize for training
-xgbmc.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
+xgbmc.load_training_data(datasets_hephy, args.selection, n_split=(args.n_split if not args.small else 100))
 
 # Train the model
 xgbmc.train(max_batch = max_batch, every=args.every, plot_directory=plot_directory)

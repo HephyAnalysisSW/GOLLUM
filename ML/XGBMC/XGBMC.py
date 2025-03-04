@@ -42,8 +42,8 @@ class XGBMC:
         self.feature_variances = getattr(config, 'feature_variances', None)
         self.weight_sums = getattr(config, 'weight_sums', None)
 
-    def load_training_data(self, datasets, selection, n_split=10):
-        self.data_loader = datasets.get_data_loader(selection=selection, selection_function=None, n_split=n_split)
+    def load_training_data(self, datasets_hephy, selection, n_split=10):
+        self.data_loader = datasets_hephy.get_data_loader(selection=selection, selection_function=None, n_split=n_split)
 
     def train(self, max_batch=-1, every=-1, plot_directory=None):
         """

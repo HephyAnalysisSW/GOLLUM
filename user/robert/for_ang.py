@@ -18,9 +18,9 @@ def dSigmaOverDSigmaSM( features, mu=1, nu_jec=0 ):
     p_jes_pnn = jes_pnn.predict( features, nu=( nu_jec, ) )
     return (mu*p_tfmc[:,0]/(p_tfmc[:,1:].sum(axis=1)) + 1)*p_jes_pnn
 
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 
-data_loader = datasets.get_data_loader( selection="lowMT_VBFJet", n_split=100)
+data_loader = datasets_hephy.get_data_loader( selection="lowMT_VBFJet", n_split=100)
 
 max_n_batch = 1
 

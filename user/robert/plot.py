@@ -306,11 +306,11 @@ def parse_arguments():
 
 args = parse_arguments()
 if args.test:
-    import common.test_datasets as datasets
+    import common.test_datasets as datasets_hephy
 else:
-    import common.datasets_hephy as datasets
+    import common.datasets_hephy as datasets_hephy
 
-data_loader = datasets.get_data_loader( 
+data_loader = datasets_hephy.get_data_loader( 
     n_split=10, 
     selection=args.selection, 
     selection_function=None, 

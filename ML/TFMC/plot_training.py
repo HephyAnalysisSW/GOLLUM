@@ -26,7 +26,7 @@ argParser.add_argument("--modelDir", action="store", required=True, help="Direct
 args = argParser.parse_args()
 
 # Import the data and config
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 config = importlib.import_module(f"{args.configDir}.{args.config}")
 
 # Load the trained TFMC model
@@ -34,7 +34,7 @@ from TFMC import TFMC
 tfmc = TFMC.load(args.modelDir)
 
 # Load the data
-data_loader = datasets.get_data_loader(
+data_loader = datasets_hephy.get_data_loader(
     selection=args.selection, selection_function=None, n_split=args.n_split)
 
 max_batch = 1 if args.small else -1

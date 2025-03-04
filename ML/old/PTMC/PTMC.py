@@ -123,8 +123,8 @@ class PTMC(Module):
         else:
             return res
 
-    def load_training_data(self, datasets, selection, n_split=10):
-        self.data_loader = datasets.get_data_loader(selection=selection, selection_function=None, n_split=n_split)
+    def load_training_data(self, datasets_hephy, selection, n_split=10):
+        self.data_loader = datasets_hephy.get_data_loader(selection=selection, selection_function=None, n_split=n_split)
 
     def train_one_epoch(self, max_batch=-1, accumulate_histograms=False):
         if accumulate_histograms:

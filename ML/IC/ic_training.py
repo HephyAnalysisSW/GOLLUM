@@ -17,7 +17,7 @@ argParser.add_argument('--small',         action='store_true',  help="Only one b
 args = argParser.parse_args()
 
 # import the data
-import common.datasets_hephy as datasets
+import common.datasets_hephy as datasets_hephy
 
 print("IC training for selection "+'\033[1m'+f"{args.selection}"+'\033[0m')
 
@@ -41,8 +41,8 @@ if ic is None or args.overwrite:
     time1 = time.time()
     ic = InclusiveCrosssection()
 
-    ic.load_training_data(datasets, args.selection)
-    ic.train             (datasets, args.selection, small=args.small)
+    ic.load_training_data(datasets_hephy, args.selection)
+    ic.train             (datasets_hephy, args.selection, small=args.small)
 
     ic.save(filename)
     print ("Written %s"%( filename ))
