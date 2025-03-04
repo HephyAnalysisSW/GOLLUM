@@ -12,6 +12,9 @@ from common.calibrationPlotter import calibrationPlotter
 from helpers import calculateScore,alphaToNu
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
+from ML.XGBC.XGBC import XGBC
+xgbc = XGBC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/XGBC/xgbc_v1/v1/")
+
 def list_files_in_directory(directory_path):
     toyList = []
     for file in os.listdir(directory_path):
@@ -49,6 +52,7 @@ args = parser.parse_args()
 result_files = list_files_in_directory(args.directory)
 
 mu_true_all = np.array([])
+mu_predicted_all = np.array([])
 mu_measured_all = np.array([])
 mu_measured_up_all = np.array([])
 mu_measured_down_all = np.array([])
@@ -58,14 +62,15 @@ for result_file in result_files:
     data = np.load(result_file, allow_pickle=True)
     mu_true = data["mu_true"]
     mu_measured = data["mu_measured"] + args.offset
-    mu_measured_up = data["mu_measured"] + args.inflate*(data["mu_measured_up"]-data["mu_measured"]) + args.offset
-    mu_measured_down = data["mu_measured"] - args.inflate*(data["mu_measured"]-data["mu_measured_down"]) + args.offset
+    #mu_measured = xgbc.predict(np.array([ data[key] for key in  [ 'mu_measured', 'mu_measured_up', 'mu_measured_down', 'nu_tes', 'nu_jes', 'nu_met', 'nu_bkg', 'nu_tt', 'nu_diboson'] ]).transpose()) + args.offset
+
+    mu_measured_up = mu_measured + args.inflate*(data["mu_measured_up"]-data["mu_measured"])
+    mu_measured_down = mu_measured - args.inflate*(data["mu_measured"]-data["mu_measured_down"]) 
 
     mu_true_all = np.append(mu_true_all, mu_true)
     mu_measured_all = np.append(mu_measured_all, mu_measured )
     mu_measured_up_all = np.append(mu_measured_up_all, mu_measured_up )
     mu_measured_down_all = np.append(mu_measured_down_all, mu_measured_down )
-
 
 addGraphs.append(getCorrectGraph(mu_true_all, mu_measured_all, mu_measured_up_all, mu_measured_down_all))
 
