@@ -13,7 +13,7 @@ w_0 = np.ones(N_0, dtype=np.float32)  # Equal weights for simplicity
 z_1 = np.random.exponential(scale=1 / lambda_1, size=N_1).reshape(-1, 1).astype(np.float32)
 w_1 = np.ones(N_1,dtype=np.float32)
 
-# Combine the datasets_hephy and labels
+# Combine the datasets and labels
 z = np.concatenate([z_0, z_1], axis=0)
 w = np.concatenate([w_0, w_1], axis=0)
 y = np.concatenate([np.zeros(N_0), np.ones(N_1)]).astype(np.float32)

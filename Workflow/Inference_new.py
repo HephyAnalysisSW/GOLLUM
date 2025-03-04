@@ -159,7 +159,7 @@ class Inference:
         if name not in self.h5s:
             self.h5s[name] = {}
 
-        # Load datasets_hephy from HDF5
+        # Load datasets from HDF5
         self.h5s[name][selection] = {
             "MultiClassifier_predict": h5f["MultiClassifier_predict"][:],
             "htautau_DeltaA":          h5f["htautau_DeltaA"][:],
@@ -445,13 +445,13 @@ class Inference:
                         # Save some metadata (e.g., the selection) into HDF5 attributes
                         h5f.attrs["selection"] = s
 
-                        # Initialize HDF5 datasets_hephy with extendable dimensions
+                        # Initialize HDF5 datasets with extendable dimensions
                         datasets_hephy = {
                             "Label": h5f.create_dataset("Label", (0,), maxshape=(None,), dtype=np.int32, compression="gzip", compression_opts=4),
                             "Weight": h5f.create_dataset("Weight", (0,), maxshape=(None,), dtype=np.float32, compression="gzip", compression_opts=4),
                         }
 
-                        # For each task, check what we need to save and initialize datasets_hephy
+                        # For each task, check what we need to save and initialize datasets
                         for t in self.cfg['Tasks']:
                             if "save" not in self.cfg[t]:
                                 continue
@@ -491,7 +491,7 @@ class Inference:
                             for i_batch, batch in enumerate(data_input):
                                 features, weights, labels = data_input.split(batch)
 
-                                # Append labels and weights to datasets_hephy
+                                # Append labels and weights to datasets
                                 datasets_hephy["Label"].resize(datasets_hephy["Label"].shape[0] + labels.shape[0], axis=0)
                                 datasets_hephy["Label"][-labels.shape[0]:] = labels
 
