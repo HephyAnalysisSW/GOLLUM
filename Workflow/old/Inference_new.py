@@ -85,8 +85,8 @@ class Inference:
         Returns:
             DataLoader: The loaded training data.
         """
-        import common.datasets as datasets
-        d = datasets.get_data_loader(selection=selection, n_split=n_split)
+        import common.datasets_hephy as datasets_hephy
+        d = datasets_hephy.get_data_loader(selection=selection, n_split=n_split)
         logger.info("Training data loaded for selection: {}".format(selection))
         return d
 
@@ -446,7 +446,7 @@ class Inference:
                         h5f.attrs["selection"] = s
 
                         # Initialize HDF5 datasets with extendable dimensions
-                        datasets = {
+                        datasets_hephy = {
                             "Label": h5f.create_dataset("Label", (0,), maxshape=(None,), dtype=np.int32, compression="gzip", compression_opts=4),
                             "Weight": h5f.create_dataset("Weight", (0,), maxshape=(None,), dtype=np.float32, compression="gzip", compression_opts=4),
                         }
@@ -464,7 +464,7 @@ class Inference:
                                 else:
                                     output_dim = len(self.models[t][s].combinations) #PNN case
 
-                                datasets[ds_name] = h5f.create_dataset(
+                                datasets_hephy[ds_name] = h5f.create_dataset(
                                     ds_name, (0, output_dim), maxshape=(None, output_dim), dtype=np.float32, compression="gzip", compression_opts=4
                                 )
 
@@ -492,11 +492,11 @@ class Inference:
                                 features, weights, labels = data_input.split(batch)
 
                                 # Append labels and weights to datasets
-                                datasets["Label"].resize(datasets["Label"].shape[0] + labels.shape[0], axis=0)
-                                datasets["Label"][-labels.shape[0]:] = labels
+                                datasets_hephy["Label"].resize(datasets_hephy["Label"].shape[0] + labels.shape[0], axis=0)
+                                datasets_hephy["Label"][-labels.shape[0]:] = labels
 
-                                datasets["Weight"].resize(datasets["Weight"].shape[0] + weights.shape[0], axis=0)
-                                datasets["Weight"][-weights.shape[0]:] = weights
+                                datasets_hephy["Weight"].resize(datasets_hephy["Weight"].shape[0] + weights.shape[0], axis=0)
+                                datasets_hephy["Weight"][-weights.shape[0]:] = weights
 
                                 # For each task, produce predictions or DeltaA and write incrementally
                                 for t in self.cfg['Tasks']:
@@ -517,8 +517,8 @@ class Inference:
                                             )
 
                                         # Resize and append predictions
-                                        datasets[ds_name].resize(datasets[ds_name].shape[0] + pred.shape[0], axis=0)
-                                        datasets[ds_name][-pred.shape[0]:] = pred
+                                        datasets_hephy[ds_name].resize(datasets_hephy[ds_name].shape[0] + pred.shape[0], axis=0)
+                                        datasets_hephy[ds_name][-pred.shape[0]:] = pred
 
                                 # Check for early stopping conditions
                                 if self.small or (

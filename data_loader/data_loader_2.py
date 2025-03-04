@@ -35,7 +35,7 @@ class H5DataLoader:
     def _init_dataset(self):
         """Load dataset metadata and determine batch size or splits."""
         with h5py.File(self.file_path, 'r') as f:
-            self.dataset_size = f['data'].shape[0]  # Assume all datasets have the same size
+            self.dataset_size = f['data'].shape[0]  # Assume all datasets_hephy have the same size
 
         # Determine batch size if not provided
         if self.batch_size is None:

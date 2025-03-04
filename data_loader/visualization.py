@@ -15,7 +15,7 @@ from tabulate import tabulate
 
 class Dataset_visualise:
     """
-    A class for visualizing datasets.
+    A class for visualizing datasets_hephy.
 
     Parameters:
         * data_set (dict): The dataset containing the data, labels, weights, and detailed labels.

@@ -28,7 +28,7 @@ argParser.add_argument('--small',         action='store_true',  help="Only one b
 args = argParser.parse_args()
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets_hephy
 
 # import the config
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
@@ -73,7 +73,7 @@ else:
     tfmc = TFMC(config)
 
 # Initialize for training
-tfmc.load_training_data(datasets, args.selection, n_split=(args.n_split if not args.small else 100))
+tfmc.load_training_data(datasets_hephy, args.selection, n_split=(args.n_split if not args.small else 100))
 
 max_batch = 1 if args.small else -1
 

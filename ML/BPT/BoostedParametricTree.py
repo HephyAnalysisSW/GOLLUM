@@ -79,7 +79,7 @@ class BoostedParametricTree:
         # Will hold the trees
         self.trees              = []
 
-    def load_training_data(self, datasets, selection, n_split=10, max_batch=-1):
+    def load_training_data(self, datasets_hephy, selection, n_split=10, max_batch=-1):
         all_features = []
         all_weights = []
         all_enumeration = []
@@ -87,7 +87,7 @@ class BoostedParametricTree:
         for i_base_point, base_point in enumerate(self.base_points):
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader(
+            data_loader = datasets_hephy.get_data_loader(
                 selection=selection,
                 values=values,
                 selection_function=None,

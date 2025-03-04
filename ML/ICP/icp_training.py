@@ -27,7 +27,7 @@ args = argParser.parse_args()
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets_hephy
 
 if args.mvaSelection is not None:
     import common.mva_selections as mva_selections
@@ -56,7 +56,7 @@ if icp is None or args.overwrite:
     time1 = time.time()
     icp = InclusiveCrosssectionParametrization( config = config )
 
-    icp.load_training_data(datasets=datasets, selection=args.selection, process=args.process) 
+    icp.load_training_data(datasets_hephy=datasets_hephy, selection=args.selection, process=args.process) 
     icp.train             (small=args.small, train_ratio = not args.train_absolute, selection=mva_selections.selections[args.mvaSelection] if args.mvaSelection is not None else None)
 
     icp.save(filename)

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import common.user as user
 import common.selections as selections
-import common.datasets as datasets
+import common.datasets_hephy as datasets_hephy
 
 class Calibration:
 
@@ -43,7 +43,7 @@ class Calibration:
     def train( self ):
         logger.info(f"Training: Load data for {self.selection}")
 
-        self.loader = datasets.get_data_loader(selection=self.selection, n_split=self.n_split)
+        self.loader = datasets_hephy.get_data_loader(selection=self.selection, n_split=self.n_split)
 
         # Initialize lists for accumulation
         all_prob = []

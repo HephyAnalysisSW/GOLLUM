@@ -178,13 +178,13 @@ class PNN:
 
         return model
 
-    def load_training_data( self, datasets, selection, process=None, n_split=10):
+    def load_training_data( self, datasets_hephy, selection, process=None, n_split=10):
         self.training_data = {}
         self.process = process
         for base_point in self.base_points:
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
-            data_loader = datasets.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
+            data_loader = datasets_hephy.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
             print ("PNN training data: process %s Base point nu = %r, alpha = %r, file = %s"%( (process if process is not None else "combined"), base_point, values, data_loader.file_path))
             self.training_data[base_point] = data_loader
 

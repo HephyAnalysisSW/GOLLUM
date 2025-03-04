@@ -36,11 +36,11 @@ class InclusiveCrosssection:
         with open(filename,'wb') as file_:
             pickle.dump( self, file_ )
 
-    def load_training_data( self, datasets, selection, n_split=10):
-        self.data_loader = datasets.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
+    def load_training_data( self, datasets_hephy, selection, n_split=10):
+        self.data_loader = datasets_hephy.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
         self.selection   = selection
 
-    def train(self, datasets, selection=None, small=True):
+    def train(self, datasets_hephy, selection=None, small=True):
         from collections import defaultdict
         from tqdm import tqdm
         import numpy as np
