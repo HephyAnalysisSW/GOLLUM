@@ -135,6 +135,7 @@ if __name__ == '__main__':
   #subprocess.call(['zip', '-r', zip_path, '.','-x ".git/*" ".gitignore" ".*" "*/.*"'])
   #subprocess.run(['zip', '-r', zip_path, '.','-x ".git/*" ".gitignore" ".*" "*/.*"'])
   exclude_patterns = [".git/*", ".gitignore", ".*", "*/.*"]  # Add more patterns as needed
+  exclude_patterns += ["README.md", "user/*", "submission/*", "toy_generator/*"]
   exclude_args = sum([["-x", pattern] for pattern in exclude_patterns], [])
   subprocess.run(['zip', '-r', zip_path, '.',*exclude_args], check=True)
 
