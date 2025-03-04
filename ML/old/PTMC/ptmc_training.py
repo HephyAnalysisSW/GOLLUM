@@ -28,7 +28,7 @@ argParser.add_argument('--small',         action='store_true',  help="Only one b
 args = argParser.parse_args()
 
 # Import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 # Import the config
 config = importlib.import_module(f"{args.configDir}.{args.config}")

@@ -17,7 +17,7 @@ argParser.add_argument('--small',         action='store_true',  help="Only one b
 args = argParser.parse_args()
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 print("IC training for selection "+'\033[1m'+f"{args.selection}"+'\033[0m')
 

@@ -21,7 +21,7 @@ if __name__ == '__main__':
     cfg = yaml.safe_load(f)
 
   # Import the data
-  import common.datasets as datasets
+  import common.datasets_hephy as datasets
   
   for t in cfg['Tasks']:
     assert t in cfg, "{t} not defined in config!"

@@ -103,7 +103,7 @@ for c, class_name in enumerate(tfmc.classes):
 #args = argParser.parse_args()
 #
 ## Import datasets
-#import common.datasets as datasets
+#import common.datasets_hephy as datasets
 #
 ## Set up directories
 #plot_directory = os.path.join(user.plot_directory, "TFMC", args.selection, "features"+("_small" if args.small else ""))

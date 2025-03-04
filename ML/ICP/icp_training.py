@@ -26,7 +26,7 @@ args = argParser.parse_args()
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 subdirs = [arg for arg in [args.process, args.selection, args.config] if arg is not None]
 

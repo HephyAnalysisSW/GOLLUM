@@ -26,7 +26,7 @@ argParser.add_argument('--small', action='store_true', help="Only one batch, for
 args = argParser.parse_args()
 
 # Import the config and datasets
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 config = importlib.import_module(f"{args.configDir}.{args.config}")
 
 # Output directory for plots

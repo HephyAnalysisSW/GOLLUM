@@ -7,7 +7,7 @@ from ML.TFMC.TFMC import TFMC
 tfmc = TFMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_5/v5")
 
 # Import all the data sets
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 data_loader = datasets.get_data_loader( selection="lowMT_VBFJet", n_split=100 )
 

@@ -8,7 +8,7 @@ import numpy as np
 import common.user as user
 import common.data_structure as data_structure
 import common.selections as selections
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 from ML.TFMC.TFMC import TFMC
 tfmc = TFMC.load("/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6")

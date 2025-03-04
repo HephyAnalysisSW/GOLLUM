@@ -308,7 +308,7 @@ args = parse_arguments()
 if args.test:
     import common.test_datasets as datasets
 else:
-    import common.datasets as datasets
+    import common.datasets_hephy as datasets
 
 data_loader = datasets.get_data_loader( 
     n_split=10, 

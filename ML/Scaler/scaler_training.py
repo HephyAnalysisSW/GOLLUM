@@ -20,7 +20,7 @@ argParser.add_argument('--small', action='store_true', help="Only one batch, for
 args = argParser.parse_args()
 
 # Import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 print("Scaler training for selection " + '\033[1m' + f"{args.selection}" + '\033[0m')
 

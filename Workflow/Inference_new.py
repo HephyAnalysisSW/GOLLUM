@@ -85,7 +85,7 @@ class Inference:
         Returns:
             DataLoader: The loaded training data.
         """
-        import common.datasets as datasets
+        import common.datasets_hephy as datasets
         d = datasets.get_data_loader(selection=selection, n_split=n_split)
         logger.info("Training data loaded for selection: {}".format(selection))
         return d

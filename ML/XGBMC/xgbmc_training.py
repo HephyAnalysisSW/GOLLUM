@@ -13,7 +13,7 @@ from XGBMC import XGBMC
 
 import importlib
 import common.helpers as helpers
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 # Parser
 import argparse

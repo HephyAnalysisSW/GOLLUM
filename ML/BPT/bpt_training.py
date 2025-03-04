@@ -33,7 +33,7 @@ logger = get_logger(args.logLevel, logFile = None)
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets
 
 # Where to store the training
 model_directory = os.path.join( user.model_directory, "BPT", args.selection, args.config, args.training+("_small" if args.small else ""))

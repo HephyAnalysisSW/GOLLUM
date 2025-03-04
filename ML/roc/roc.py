@@ -27,7 +27,7 @@ args = argParser.parse_args()
 if args.test:
     import common.test_datasets as datasets
 else:
-    import common.datasets as datasets
+    import common.datasets_hephy as datasets
 
 # Load the data
 data_loader = datasets.get_data_loader(
