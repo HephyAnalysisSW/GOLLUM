@@ -51,7 +51,7 @@ def coveragePenalty(coverage, Ntoys):
         f_penalty = 1
     return f_penalty
 
-def calculateScore(mu_true, mu_down, mu_up):
+def calculateScore(mu_true, mu_down, mu_up, Ntoys_for_penalty=None):
     width_sum = 0
     c_sum = 0
     Ntoys = 0
@@ -70,7 +70,10 @@ def calculateScore(mu_true, mu_down, mu_up):
     # Calculate the score
     average_width = width_sum/Ntoys
     coverage = c_sum/Ntoys
-    f_penalty = coveragePenalty(coverage, Ntoys)
+    if Ntoys_for_penalty is None:
+        f_penalty = coveragePenalty(coverage, Ntoys)
+    else:
+        f_penalty = coveragePenalty(coverage, Ntoys_for_penalty)
     epsilon = 0.01
     score = -np.log( (average_width+epsilon)*f_penalty )
     return score, average_width, coverage
