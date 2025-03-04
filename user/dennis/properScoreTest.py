@@ -77,7 +77,7 @@ for g in addGraphs:
     p.addGraph(g)
 p.draw()
 
-score, average_width, coverage = calculateScore(mu_true_all, mu_measured_down_all, mu_measured_up_all)
+score, average_width, coverage = calculateScore(mu_true_all, mu_measured_down_all, mu_measured_up_all, Ntoys_for_penalty=1000)
 print("SCORE =", score)
 print("AVG. WIDTH =", average_width)
 print("COVERAGE =", coverage)
