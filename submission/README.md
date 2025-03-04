@@ -9,3 +9,12 @@ Prepare the submission tarball: `python submission/prepareSubmission.py -c Workf
 Run an example fit locally for sanity check: `python submission/runModel_internal_test.py`
 
 If we want, we can submit the `submission.tar`.
+
+## Test submission:
+
+1. Git clone `git clone git@github.com:FAIR-Universe/HEP-Challenge.git`
+2. cd into directory `cd HEP-Challenge`
+3. create directory for fit output `sample_result_submission`
+4. cd into ingestion_program directory `cd ingestion_program`
+5. unzip submission `unzip /groups/hephy/cms/dennis.schwarz/submissions_higgs_challenge/submission_TEST.zip`
+6. run `python run_ingestion.py`
