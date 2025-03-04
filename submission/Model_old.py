@@ -16,7 +16,7 @@ class Model:
         # TODO: Set tmp_path for ML ntuples an CSI stuff
         output_directory = os.path.join( user.output_directory, "config_reference_v2_sr")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
-        logger = get_logger("INFO", logFile = None)
+        logger = get_logger("ERROR", logFile = None)
 
     def predict(self, test_set):
         # Initialize inference object

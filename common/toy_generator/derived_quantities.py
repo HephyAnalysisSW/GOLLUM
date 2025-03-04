@@ -8,7 +8,7 @@ import io
 import os
 
 # Get the logging level from an environment variable, default to INFO
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = os.getenv("LOG_LEVEL", "ERROR").upper()
 
 
 logging.basicConfig(

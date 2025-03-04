@@ -6,7 +6,7 @@ import pickle
 import pandas as pd
 import h5py
 
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = os.getenv("LOG_LEVEL", "ERROR").upper()
 
 logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),

@@ -19,7 +19,7 @@ class Model:
         self.calibrate = True
         output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
-        logger = get_logger("INFO", logFile = None)
+        logger = get_logger("ERROR", logFile = None)
 
     def fit(self):
         pass

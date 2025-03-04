@@ -6,7 +6,7 @@ import glob
 
 if __name__=="__main__":
     from common.logger import get_logger
-    logger = get_logger("INFO", logFile = None)
+    logger = get_logger("ERROR", logFile = None)
 else:
     import logging
     logger = logging.getLogger("UNC")

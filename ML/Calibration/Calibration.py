@@ -102,7 +102,7 @@ if __name__=="__main__":
     import argparse
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
-    parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
+    parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='ERROR', help="Log level for logging")
     parser.add_argument("--config", default = "config_reference_v2_sr", help="Path to the config file.")
     parser.add_argument("--selection", default="lowMT_VBFJet", help="Which selection?")
     parser.add_argument("--save", action="store_true", help="Save the ML predictions for the simulation.")
