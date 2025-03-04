@@ -7,8 +7,6 @@ from tqdm import tqdm
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '../..')
 
-import common.syncer
-
 from common.logger import get_logger
 
 import numpy as np
@@ -212,6 +210,7 @@ def weighted_calibration(true_label, pred_output, nbins=10, weights=None):
 
 if __name__=="__main__":
     import argparse
+    import common.syncer
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
     parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
@@ -254,4 +253,4 @@ if __name__=="__main__":
     calib.plot_IsotonicRegression(os.path.join( plot_directory, 
                                                 f'calibrator_validation_IsoReg_multi.png'))
 
-common.syncer.sync()
+    common.syncer.sync()

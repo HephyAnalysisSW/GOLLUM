@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.insert( 0, '..')
+#sys.path.insert( 0, '..')
 from model import Model
 
 import h5py

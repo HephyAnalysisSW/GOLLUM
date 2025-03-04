@@ -23,6 +23,7 @@ class InclusiveCrosssection:
         with open(filename,'rb') as file_:
             old_instance = pickle.load(file_)
             new_instance = cls()
+            print("filename", filename, old_instance.__dict__)
             new_instance.weight_sums = old_instance.weight_sums 
             new_instance.selection   = old_instance.selection if hasattr(old_instance, "selection") else None
             new_instance.unweighted_sums = old_instance.unweighted_sums if hasattr(old_instance, "unweighted_sums") else None
