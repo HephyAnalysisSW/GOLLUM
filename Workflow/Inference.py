@@ -14,6 +14,7 @@ import common.data_structure as data_structure
 import common.selections as selections
 import pickle
 import copy
+import pandas as pd
 
 import logging
 logger = logging.getLogger('UNC')
@@ -131,8 +132,8 @@ class Inference:
         Returns:
             DataLoader: The loaded training data.
         """
-        import common.datasets as datasets
-        d = datasets.get_data_loader(selection=selection, n_split=n_split)
+        import common.datasets_hephy as datasets_hephy
+        d = datasets_hephy.get_data_loader(selection=selection, n_split=n_split)
         logger.info("Training data loaded for selection: {}".format(selection))
         return d
 
@@ -222,7 +223,7 @@ class Inference:
         if name not in self.h5s:
             self.h5s[name] = {}
 
-        # Load datasets from HDF5
+        # Load datasets_hephy from HDF5
         self.h5s[name][selection] = {
             "MultiClassifier_predict": h5f["MultiClassifier_predict"][:],
             "htautau_DeltaA":          h5f["htautau_DeltaA"][:],
@@ -313,8 +314,16 @@ class Inference:
         """
         assert self.toy_from_memory is not None, "Toy dataset not defined!"
 
-        features = self.toy_from_memory["data"]  # (N, 28)
-        weights = self.toy_from_memory["weights"].reshape(-1, 1)  # (N, 1)
+        if isinstance(self.toy_from_memory["data"], pd.Series) or isinstance(self.toy_from_memory["data"], pd.DataFrame):
+            features = self.toy_from_memory["data"].to_numpy()  # (N, 28)
+        else:
+            features = self.toy_from_memory["data"]  # (N, 28)
+
+        if isinstance(self.toy_from_memory["weights"], pd.Series) or isinstance(self.toy_from_memory["weights"], pd.DataFrame):
+            weights = self.toy_from_memory["weights"].to_numpy().reshape(-1, 1)  # (N, 1)
+        else:
+            weights = self.toy_from_memory["weights"].reshape(-1, 1)  # (N, 1)
+
         labels = np.full((features.shape[0], 1), -1)  # (N, 1), all -1
 
         # Convert into our format
@@ -448,7 +457,7 @@ class Inference:
             if t in self.icps and selection in self.icps[t]:
                 icp_summand[t] = self.icps[t][selection].log_predict((nu_tes, nu_jes, nu_met))
             else:
-                icp_summand[t] = 1 
+                icp_summand[t] = 1
         logger.debug( "icp_summand %s tes %3.2f jes %3.2f met %3.2f "%(selection, nu_tes, nu_jes, nu_met)+" ".join( ["%s: %4.3f"%(t,icp_summand[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
         # htautau
@@ -513,10 +522,10 @@ class Inference:
         f_bkg_rate_m1 = np.expm1(nu_bkg * np.log1p(self.alpha_bkg))
         f_tt_rate_m1 = np.expm1(nu_tt * np.log1p(self.alpha_tt))
         f_diboson_rate_m1 = np.expm1(nu_diboson * np.log1p(self.alpha_diboson))
-        f_bkg_rate = f_bkg_rate_m1 + 1 
-        f_tt_rate = f_tt_rate_m1 + 1 
-        f_diboson_rate = f_diboson_rate_m1 + 1 
-  
+        f_bkg_rate = f_bkg_rate_m1 + 1
+        f_tt_rate = f_tt_rate_m1 + 1
+        f_diboson_rate = f_diboson_rate_m1 + 1
+
         return \
               mu*self.csis[selection]['htautau']((nu_tes,nu_jes,nu_met)) + (mu-1)*self.csis_const[selection]['htautau'] \
             + f_bkg_rate*self.csis[selection]['ztautau']((nu_tes,nu_jes,nu_met)) + f_bkg_rate_m1*self.csis_const[selection]['ztautau'] \
@@ -571,13 +580,13 @@ class Inference:
                         # Save some metadata (e.g., the selection) into HDF5 attributes
                         h5f.attrs["selection"] = s
 
-                        # Initialize HDF5 datasets with extendable dimensions
-                        datasets = {
+                        # Initialize HDF5 datasets_hephy with extendable dimensions
+                        datasets_hephy = {
                             "Label": h5f.create_dataset("Label", (0,), maxshape=(None,), dtype=np.int32, compression="gzip", compression_opts=4),
                             "Weight": h5f.create_dataset("Weight", (0,), maxshape=(None,), dtype=np.float32, compression="gzip", compression_opts=4),
                         }
 
-                        # For each task, check what we need to save and initialize datasets
+                        # For each task, check what we need to save and initialize datasets_hephy
                         for t in self.cfg['Tasks']:
                             if "save" not in self.cfg[t]:
                                 continue
@@ -590,7 +599,7 @@ class Inference:
                                 else:
                                     output_dim = len(self.models[t][s].combinations) #PNN case
 
-                                datasets[ds_name] = h5f.create_dataset(
+                                datasets_hephy[ds_name] = h5f.create_dataset(
                                     ds_name, (0, output_dim), maxshape=(None, output_dim), dtype=np.float32, compression="gzip", compression_opts=4
                                 )
 
@@ -617,12 +626,12 @@ class Inference:
                             for i_batch, batch in enumerate(data_input):
                                 features, weights, labels = data_input.split(batch)
 
-                                # Append labels and weights to datasets
-                                datasets["Label"].resize(datasets["Label"].shape[0] + labels.shape[0], axis=0)
-                                datasets["Label"][-labels.shape[0]:] = labels
+                                # Append labels and weights to datasets_hephy
+                                datasets_hephy["Label"].resize(datasets_hephy["Label"].shape[0] + labels.shape[0], axis=0)
+                                datasets_hephy["Label"][-labels.shape[0]:] = labels
 
-                                datasets["Weight"].resize(datasets["Weight"].shape[0] + weights.shape[0], axis=0)
-                                datasets["Weight"][-weights.shape[0]:] = weights
+                                datasets_hephy["Weight"].resize(datasets_hephy["Weight"].shape[0] + weights.shape[0], axis=0)
+                                datasets_hephy["Weight"][-weights.shape[0]:] = weights
 
                                 # For each task, produce predictions or DeltaA and write incrementally
                                 for t in self.cfg['Tasks']:
@@ -644,8 +653,8 @@ class Inference:
                                             )
 
                                         # Resize and append predictions
-                                        datasets[ds_name].resize(datasets[ds_name].shape[0] + pred.shape[0], axis=0)
-                                        datasets[ds_name][-pred.shape[0]:] = pred
+                                        datasets_hephy[ds_name].resize(datasets_hephy[ds_name].shape[0] + pred.shape[0], axis=0)
+                                        datasets_hephy[ds_name][-pred.shape[0]:] = pred
 
                                 # Check for early stopping conditions
                                 if self.small or (
@@ -673,7 +682,7 @@ class Inference:
                         gp = np.array(h5f['MultiClassifier_predict'])
                         weight = np.array(h5f["Weight"])
 
-                        #Calibrate DCR 
+                        #Calibrate DCR
                         dcr_raw = gp / gp.sum(axis=1, keepdims=True) # First divide toget DCR
                         dcr_calibrated = self.calibrate_dcr(s, dcr_raw)
                         #print("dcr_raw", dcr_raw)

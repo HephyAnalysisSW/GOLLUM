@@ -102,8 +102,8 @@ for c, class_name in enumerate(tfmc.classes):
 #argParser.add_argument("--small", action="store_true", help="Only one batch, for debugging")
 #args = argParser.parse_args()
 #
-## Import datasets
-#import common.datasets as datasets
+## Import datasets_hephy
+#import common.datasets_hephy as datasets_hephy
 #
 ## Set up directories
 #plot_directory = os.path.join(user.plot_directory, "TFMC", args.selection, "features"+("_small" if args.small else ""))
@@ -111,7 +111,7 @@ for c, class_name in enumerate(tfmc.classes):
 #helpers.copyIndexPHP(plot_directory)
 #
 ## Load data
-#data_loader = datasets.get_data_loader(selection=args.selection, selection_function=None, n_split=args.n_split if not args.small else 100)
+#data_loader = datasets_hephy.get_data_loader(selection=args.selection, selection_function=None, n_split=args.n_split if not args.small else 100)
 #max_batch = 1 if args.small else -1
 #
 ## Initialize histograms

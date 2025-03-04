@@ -12,13 +12,13 @@ batch_size = 1024
 # Create DataLoaders for single dataset
 train_loader_single, test_loader_single = create_dataloader(file_path_single, None, batch_size, load_mode='single', single_dataset_name=single_dataset_name)
 
-# Create DataLoaders for multiple datasets
+# Create DataLoaders for multiple datasets_hephy
 train_loader_multiple, test_loader_multiple = create_dataloader(file_path_multiple, datasets_multiple, batch_size, load_mode='multiple')
 
 # Create lightweight DataLoaders for single dataset
 light_train_loader_single, light_test_loader_single = create_dataloader(file_path_single, None, batch_size, load_mode='single', single_dataset_name=single_dataset_name, light=True)
 
-# Create lightweight DataLoaders for multiple datasets
+# Create lightweight DataLoaders for multiple datasets_hephy
 light_train_loader_multiple, light_test_loader_multiple = create_dataloader(file_path_multiple, datasets_multiple, batch_size, load_mode='multiple', light=True)
 
 if __name__ == "__main__":

@@ -13,10 +13,10 @@ import numpy as np
 
 import common.user as user
 import common.selections as selections
-import common.datasets as datasets
+import common.datasets_hephy as datasets_hephy
 
 ## Iterate through the dataset
-#loader = datasets.get_data_loader(selection="lowMT_VBFJet", n_split=1)
+#loader = datasets_hephy.get_data_loader(selection="lowMT_VBFJet", n_split=1)
 #for batch in loader:
 #    data, weights, labels = loader.split(batch)
 #    print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )
@@ -54,7 +54,7 @@ class Calibration:
     def train( self ):
         logger.info(f"Training: Load data for {self.selection}")
 
-        self.loader = datasets.get_data_loader(selection=self.selection, n_split=self.n_split)
+        self.loader = datasets_hephy.get_data_loader(selection=self.selection, n_split=self.n_split)
 
         # Initialize lists for accumulation
         all_prob = []

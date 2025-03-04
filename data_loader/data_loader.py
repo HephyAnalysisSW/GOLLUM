@@ -12,9 +12,9 @@ class HiggsDataset(Dataset):
         
         Parameters:
         - file_path: str, path to the HDF5 file.
-        - dataset_names: list of str, names of the datasets to load (e.g., ['data', 'labels', 'detailed_labels', 'weights']).
+        - dataset_names: list of str, names of the datasets_hephy to load (e.g., ['data', 'labels', 'detailed_labels', 'weights']).
         - indices: list or numpy array, indices to use for the dataset.
-        - load_mode: str, 'single' or 'multiple', specifies whether to load a single dataset or multiple datasets.
+        - load_mode: str, 'single' or 'multiple', specifies whether to load a single dataset or multiple datasets_hephy.
         - single_dataset_name: str, the name of the dataset to load when load_mode is 'single'.
         """
         self.file_path = file_path

@@ -26,7 +26,7 @@ args = argParser.parse_args()
 config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 
 # import the data
-import common.datasets as datasets
+import common.datasets_hephy as datasets_hephy
 
 subdirs = [arg for arg in [args.process, args.selection, args.config] if arg is not None]
 
@@ -50,7 +50,7 @@ if icp is None or args.overwrite:
     time1 = time.time()
     icp = InclusiveCrosssectionParametrization( config = config )
 
-    icp.load_training_data(datasets=datasets, selection=args.selection, process=args.process) 
+    icp.load_training_data(datasets_hephy=datasets_hephy, selection=args.selection, process=args.process) 
     icp.train             (small=args.small, train_ratio = not args.train_absolute)
 
     icp.save(filename)

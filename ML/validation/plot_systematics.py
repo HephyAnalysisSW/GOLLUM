@@ -25,8 +25,8 @@ argParser.add_argument("--configDir", action="store", default="configs", help="W
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
 args = argParser.parse_args()
 
-# Import the config and datasets
-import common.datasets as datasets
+# Import the config and datasets_hephy
+import common.datasets_hephy as datasets_hephy
 config = importlib.import_module(f"{args.configDir}.{args.config}")
 
 # Output directory for plots
@@ -39,7 +39,7 @@ data_loaders = {}
 for base_point in config.base_points:
     base_point_tuple = tuple(base_point)
     values = config.get_alpha(base_point_tuple)
-    data_loader = datasets.get_data_loader(
+    data_loader = datasets_hephy.get_data_loader(
         selection=args.selection,
         values=values,
         selection_function=None,

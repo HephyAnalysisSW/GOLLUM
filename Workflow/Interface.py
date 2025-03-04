@@ -21,7 +21,7 @@ if __name__ == '__main__':
     cfg = yaml.safe_load(f)
 
   # Import the data
-  import common.datasets as datasets
+  import common.datasets_hephy as datasets_hephy
   
   for t in cfg['Tasks']:
     assert t in cfg, "{t} not defined in config!"
@@ -50,8 +50,8 @@ if __name__ == '__main__':
         os.makedirs(model_directory)
       if os.path.exists(model_path) and not args.overwrite:
         raise Exception("Model path {} already exists!".format(model_path))
-      mm.load_training_data(datasets, cfg[t]["selection"])
-      mm.train(datasets, cfg[t]["selection"], small=True)
+      mm.load_training_data(datasets_hephy, cfg[t]["selection"])
+      mm.train(datasets_hephy, cfg[t]["selection"], small=True)
       mm.save(model_path)
       print("Model saved in {}".format(model_path))
     elif args.predict:
