@@ -42,7 +42,7 @@ class Model:
     def predict(self, test_set):
         # Initialize inference object
         self.infer.setToyFromMemory(test_set)
-        self._dcr_cache = {}
+        self.infer._dcr_cache = {}
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
             self.infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
