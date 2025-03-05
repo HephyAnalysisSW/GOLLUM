@@ -48,8 +48,8 @@ class Model:
 
         # Now do NON-PROFILED scan
         Npoints = 21
-        mumin = mu_mle - 3*delta_mu
-        mumax = mu_mle + 3*delta_mu
+        mumin = min(mu_mle - 3*delta_mu, mu_mle-0.5) # if delta_mu is too small, scan from mu-0.5 to mu+0.5
+        mumax = max(mu_mle + 3*delta_mu, mu_mle+0.5) # if delta_mu is too small, scan from mu-0.5 to mu+0.5
 
         # Now go to MLE point and only evaluate mu
         deltaQ = []
