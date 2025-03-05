@@ -871,12 +871,18 @@ class Inference:
                 )
 
         # dSoDS for toys
+
+        if asimov_mu is None and asimov_nu_bkg is None and asimov_nu_tt is None and asimov_nu_diboson is None:
+            weight_copy_method = lambda x:x
+        else:
+            weight_copy_method = copy.deepcopy
+
         if self.cfg['Predict']['use_toy']:
           dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
-          weights_toy = copy.deepcopy(self.h5s['Toy'][selection]["Weight"])
+          weights_toy = weight_copy_method(self.h5s['Toy'][selection]["Weight"])
         else:
           dSoDS_toy = dSoDS_sim
-          weights_toy = copy.deepcopy(weights)
+          weights_toy = weight_copy_method(weights)
 
         if asimov_mu is not None:
             labels = self.h5s['Toy'][selection]["Label"]
