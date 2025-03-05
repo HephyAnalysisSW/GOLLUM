@@ -13,14 +13,23 @@ Run an example fit locally for sanity check: `python submission/runModel_interna
 If we want, we can submit the `submission.tar`.
 
 ## Test submission:
-This setup should work within our conda environment.
+This setup should work within our conda environment (see commands below).
 
-1. Git clone `git clone git@github.com:FAIR-Universe/HEP-Challenge.git`
-2. cd into directory `cd HEP-Challenge`
-3. create directory for fit output `sample_result_submission`
-4. cd into ingestion_program directory `cd ingestion_program`
-5. unzip submission `unzip /groups/hephy/cms/dennis.schwarz/submissions_higgs_challenge/submission_TEST.zip`
-6. run `python run_ingestion.py`
+1. Git clone
+2. cd into directory
+3. create directory for fit output
+4. cd into ingestion_program directory
+5. unzip submission
+6. run
+
+```
+git clone git@github.com:FAIR-Universe/HEP-Challenge.git
+cd HEP-Challenge
+mkdir sample_result_submission
+cd ingestion_program
+unzip /groups/hephy/cms/dennis.schwarz/submissions_higgs_challenge/submission_TEST.zip
+python run_ingestion.py
+```
 
 You can now go to more realistic test settings via:
 
