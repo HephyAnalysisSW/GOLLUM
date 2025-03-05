@@ -47,7 +47,7 @@ def list_files_in_directory(directory_path):
 
 ################################################################################
 parser = argparse.ArgumentParser(description="ML inference.")
-parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
+#parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
 parser.add_argument("--otherSys", action="store_true")
 parser.add_argument('--calibration', action='store', default=None)
 args = parser.parse_args()

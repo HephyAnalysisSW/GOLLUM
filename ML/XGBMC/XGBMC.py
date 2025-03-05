@@ -11,6 +11,9 @@ import common.user as user
 from tqdm import tqdm
 from math import ceil, sqrt
 
+import logging
+logger = logging.getLogger('UNC')
+
 class XGBMC:
     def __init__(self, config=None, input_dim=None, classes=None, model_dir=None, num_boost_round=None):
         """
@@ -203,7 +206,7 @@ class XGBMC:
         instance.feature_variances = metadata['feature_variances']
         instance.weight_sums = metadata['weight_sums']
         instance.params = metadata['params']
-        print(f"Model and metadata loaded from {model_path}, epoch {epoch}")
+        logger.info(f"Model and metadata loaded from {model_path}, epoch {epoch}")
         if return_epoch:
             return instance, epoch
         else:
@@ -371,4 +374,4 @@ class XGBMC:
             for fmt in ["png"]:  
                 canvas.SaveAs(output_file.replace(".png", f".{fmt}"))
 
-            print(f"Saved convergence plot for epoch {epoch} to {output_file}.")
+            logger.info(f"Saved convergence plot for epoch {epoch} to {output_file}.")

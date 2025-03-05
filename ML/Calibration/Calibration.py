@@ -7,7 +7,8 @@ from tqdm import tqdm
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '../..')
 
-from common.logger import get_logger
+import logging
+logger = logging.getLogger("UNC")
 
 import numpy as np
 
@@ -111,6 +112,7 @@ if __name__=="__main__":
     parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
 
     args = parser.parse_args()
+    from common.logger import get_logger
 
     logger  = get_logger(args.logLevel, logFile = None)
 

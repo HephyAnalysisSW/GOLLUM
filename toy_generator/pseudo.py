@@ -6,14 +6,8 @@ import pickle
 import pandas as pd
 import h5py
 
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-
-logging.basicConfig(
-    level=getattr(logging, log_level, logging.INFO),
-    format="%(asctime)s - %(name)-20s - %(levelname) -8s - %(message)s",
-)
-
-logger = logging.getLogger(__name__)
+import logging
+logger = logging.getLogger('UNC')
 
 DEFAULT_INGESTION_SEED = 31415
 

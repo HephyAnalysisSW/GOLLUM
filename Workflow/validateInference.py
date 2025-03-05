@@ -2,7 +2,6 @@ import sys
 sys.path.insert(0, "..")
 import common.helpers as helpers
 
-from common.logger import get_logger
 import os
 import numpy as np
 import pickle
@@ -89,6 +88,7 @@ parser.add_argument("--range2",
 
 args = parser.parse_args()
 
+from common.logger import get_logger
 logger = get_logger(args.logLevel, logFile = None)
 
 with open(args.config) as f:
