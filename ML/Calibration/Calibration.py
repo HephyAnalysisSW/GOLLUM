@@ -7,7 +7,8 @@ from tqdm import tqdm
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '../..')
 
-from common.logger import get_logger
+import logging
+logger = logging.getLogger("UNC")
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -191,7 +192,7 @@ if __name__=="__main__":
     import common.syncer
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
-    parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
+    parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='ERROR', help="Log level for logging")
     parser.add_argument("--config", default = "config_reference_v2_sr", help="Path to the config file.")
     parser.add_argument("--selection", default="lowMT_VBFJet", help="Which selection?")
     parser.add_argument("--save", action="store_true", help="Save the ML predictions for the simulation.")
@@ -200,6 +201,7 @@ if __name__=="__main__":
     parser.add_argument("--postfix", default = None, type=str,  help="Append this to the fit result.")
 
     args = parser.parse_args()
+    from common.logger import get_logger
 
     logger  = get_logger(args.logLevel, logFile = None)
 

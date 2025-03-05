@@ -8,6 +8,13 @@ from iminuit import Minuit
 import logging
 logger = logging.getLogger("UNC")
 
+# Miniut debug
+if logger.getEffectiveLevel() <= logging.DEBUG:
+    print_level=2
+else:
+    print_level=0
+    
+
 def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
     # this defines the function that is minimized
     logger.warning( "Using likelihood_test_function! Result will not depend on data!" )
@@ -29,10 +36,12 @@ class likelihoodFit:
             "nu_tes": (-10., 10.),
             "nu_met": (0., 5.),
         }
+        self.strategy = 0 # default 1
         self.tolerance = 0.1 # default 0.1
         self.eps = 0.1 # default
         self.q_mle = None
         self.parameters_mle = None
+        self.doHesse = False
 
     def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
 
@@ -41,24 +50,26 @@ class likelihoodFit:
 
         m = Minuit(self.function, mu=start_mu, nu_bkg=start_nu_bkg, nu_tt=start_nu_tt, nu_diboson=start_nu_diboson, nu_jes=start_nu_jes, nu_tes=start_nu_tes, nu_met=start_nu_met)
         m.errordef = Minuit.LIKELIHOOD
+        m.print_level=print_level
 
         m.limits["mu"] = self.parameterBoundaries["mu"]
 
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]
 
-        m.tol = self.tolerance
+        m.strategy = self.strategy
+        m.tol      = self.tolerance
 
         for param in m.parameters:
             m.errors[param] = self.eps  # Set the step size for all parameters
-        m.print_level = 2
 
         m.migrad()
-        logger.info("Before 'm.hesse()")
+        logger.info("Before 'm.hesse().")
         print(m)
-        m.hesse()
-        logger.info("After 'm.hesse()")
-        print(m)
+        if(self.doHesse):
+            m.hesse()
+            logger.info("After 'm.hesse()'")
+            print(m)
 
         self.q_mle = m.fval
         self.parameters_mle = m.values
@@ -139,7 +150,7 @@ class likelihoodFit:
             param_up = {nuname: parameters_mle[nuname] + 0.01}
             m_up = Minuit(nu_functions[nuname], **param_up)
             m_up.errordef = Minuit.LEAST_SQUARES
-
+            m_up.print_level=print_level
             for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
                 if nuname == nuname2:
                     m_up.limits[nuname] = (parameters_mle[nuname], self.parameterBoundaries[nuname][1])
@@ -153,6 +164,7 @@ class likelihoodFit:
             param_down = {nuname: parameters_mle[nuname] - 0.01}
             m_down = Minuit(nu_functions[nuname], **param_down)
             m_down.errordef = Minuit.LEAST_SQUARES
+            m_down.print_level=print_level
             for nuname2 in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
                 if nuname == nuname2:
                     m_down.limits[nuname] = (self.parameterBoundaries[nuname][0], parameters_mle[nuname])

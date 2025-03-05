@@ -19,18 +19,19 @@ class Model:
         self.calibrate = True
         output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
-        logger = get_logger("INFO", logFile = None)
+        logger = get_logger("ERROR", logFile = None)
+        self.infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=None)
+        self.infer.ignore_loading_check()
 
     def fit(self):
         pass
 
     def predict(self, test_set):
         # Initialize inference object
-        infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=test_set)
-        infer.ignore_loading_check()
+        self.infer.setToyFromMemory(test_set)
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
-            infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
+            self.infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
             nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met, \
             asimov_mu=None, \
             asimov_nu_bkg=None, \
@@ -48,8 +49,8 @@ class Model:
 
         # Now do NON-PROFILED scan
         Npoints = 21
-        mumin = mu_mle - 3*delta_mu
-        mumax = mu_mle + 3*delta_mu
+        mumin = min(mu_mle - 3*delta_mu, mu_mle-0.5) # if delta_mu is too small, scan from mu-0.5 to mu+0.5
+        mumax = max(mu_mle + 3*delta_mu, mu_mle+0.5) # if delta_mu is too small, scan from mu-0.5 to mu+0.5
 
         # Now go to MLE point and only evaluate mu
         deltaQ = []

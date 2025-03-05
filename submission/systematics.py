@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 __doc__ = """
 This module contains the systematics functions for the FAIR Challenge.
 Originally written by David Rousseau, and Victor Estrade.
@@ -13,9 +12,10 @@ __author__ = "David Rousseau, and Victor Estrade "
 import copy
 import pandas as pd
 import numpy as np
-import logging
 from derived_quantities import DER_data
-logger = logging.getLogger(__name__)
+
+import logging
+logger = logging.getLogger("UNC")
 
 # ==================================================================================
 #  V4 Class and physic computations

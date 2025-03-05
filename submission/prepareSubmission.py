@@ -1,7 +1,4 @@
 import os,glob
-import sys
-sys.path.insert(0, '..')
-from common.logger import get_logger
 import yaml
 import shutil
 import subprocess
@@ -29,6 +26,7 @@ if __name__ == '__main__':
   parser.add_argument("--ntuple", help="Path to the pre-saved ntuples.")
 
   args = parser.parse_args()
+  from common.logger import get_logger
 
   logger = get_logger(args.logLevel, logFile = None)
 

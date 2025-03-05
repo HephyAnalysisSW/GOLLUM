@@ -4,12 +4,8 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 import glob
 
-if __name__=="__main__":
-    from common.logger import get_logger
-    logger = get_logger("INFO", logFile = None)
-else:
-    import logging
-    logger = logging.getLogger("UNC")
+import logging
+logger = logging.getLogger("UNC")
 
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
@@ -69,6 +65,9 @@ def get_data_loader( selection="inclusive", process=None, values=data_structure.
 #
 #        break
 if __name__=="__main__":
+    from common.logger import get_logger
+    logger = get_logger("INFO", logFile = None)
+
     import numpy as np
     # Iterate through the dataset
     loader = get_data_loader(selection="lowMT_VBFJet", n_split=1)

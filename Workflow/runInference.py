@@ -1,7 +1,6 @@
 import sys
 sys.path.insert(0, "..")
 
-from common.logger import get_logger
 import os
 import numpy as np
 import pickle
@@ -11,6 +10,9 @@ import yaml
 #from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
+
+#import cProfile, pstats
+
 
 def update_dict(d, keys, value):
     """Recursively update a nested dictionary."""
@@ -52,6 +54,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    from common.logger import get_logger
     logger = get_logger(args.logLevel, logFile = None)
 
     # Construct postfix for filenames based on asimov parameters
@@ -128,8 +131,17 @@ if __name__ == '__main__':
         # Perform global fit
         logger.info("Start global fit.")
         fit = likelihoodFit(likelihood_function)
+
+        #profiler = cProfile.Profile()
+        #profiler.enable()
+
         q_mle, parameters_mle, cov, limits = fit.fit(start_mu=args.start_mu)
         logger.info("Fit done.")
+
+        #profiler.disable()
+
+        #stats = pstats.Stats(profiler).sort_stats('cumulative')
+        #stats.print_stats()
 
         logger.info(f"q_mle = {q_mle}")
         logger.info(f"parameters = {parameters_mle}")
