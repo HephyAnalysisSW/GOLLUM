@@ -8,9 +8,10 @@ import yaml
 from Workflow.Inference import Inference
 from common.likelihoodFit import likelihoodFit
 import common.user as user
-from common.logger import get_logger
 from common.intervalFinder import intervalFinder
 
+import logging
+logger = logging.getLogger('UNC')
 
 class Model:
     def __init__(self, get_train_set=None, systematics=None):
@@ -19,16 +20,29 @@ class Model:
         self.calibrate = True
         output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
-        logger = get_logger("ERROR", logFile = None)
-        self.infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=None)
-        self.infer.ignore_loading_check()
+
+        ## Removing non-picklable modules        
+        #for _, mc in self.infer.models['MultiClassifier'].items():
+        #    mc.config = None
+        #    mc.optimizer = None
+        #    mc.lr_schedule = None
+        #    mc.loss_fn = None
+        #    mc.metrics = None
+
+        #for _, r in self.infer.icps.items():
+        #    for _, icp in r.items():
+        #        icp.config = None
+
 
     def fit(self):
-        pass
+        self.infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=None)
+        self.infer.ignore_loading_check()
+        #pass
 
     def predict(self, test_set):
         # Initialize inference object
         self.infer.setToyFromMemory(test_set)
+        self._dcr_cache = {}
         # Define likelihood function
         likelihood_function = lambda mu, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met: \
             self.infer.predict(mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, \
