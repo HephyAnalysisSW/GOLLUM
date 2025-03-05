@@ -108,6 +108,19 @@ class Inference:
         """
         self.ignore_check=True
 
+    def setToyFromMemory(self, toy):
+        self.toy_origin    = "memory"
+        self.toy_path      = None
+        self.toy_from_memory = toy
+        # Delete toy from config if not needed
+        if self.toy_origin != "config":
+            if "Toy" in self.cfg["Save"]:
+                del self.cfg["Save"]["Toy"]
+                logger.info("Specified toy from path or memory, remove toy from config")
+        for selection in self.selections:
+            self.loadToyFromMemory(selection=selection, ignore_done=True) # load and force overwrite
+
+
     def calibrate_dcr(self, selection, input_dcr):
         """
         calibrates the input (in DCR space) based on the loaded calibrator

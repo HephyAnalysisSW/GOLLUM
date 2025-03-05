@@ -41,6 +41,7 @@ class likelihoodFit:
         self.eps = 0.1 # default
         self.q_mle = None
         self.parameters_mle = None
+        self.doHesse = False
 
     def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
 
@@ -63,11 +64,12 @@ class likelihoodFit:
             m.errors[param] = self.eps  # Set the step size for all parameters
 
         m.migrad()
-        logger.info("Not doing minuit::hesse()")
+        logger.info("Before 'm.hesse().")
         print(m)
-        #m.hesse()
-        #logger.info("After 'm.hesse()")
-        #print(m)
+        if(self.doHesse):
+            m.hesse()
+            logger.info("After 'm.hesse()'")
+            print(m)
 
         self.q_mle = m.fval
         self.parameters_mle = m.values
