@@ -4,6 +4,9 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras import regularizers
 from tqdm import tqdm
 
+import logging
+logger = logging.getLogger('UNC')
+
 import numpy as np
 import operator
 import functools
@@ -185,7 +188,7 @@ class PNN:
             base_point = tuple(base_point)
             values = self.config.get_alpha(base_point)
             data_loader = datasets_hephy.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
-            print ("PNN training data: process %s Base point nu = %r, alpha = %r, file = %s"%( (process if process is not None else "combined"), base_point, values, data_loader.file_path))
+            logger.info ("PNN training data: process %s Base point nu = %r, alpha = %r, file = %s"%( (process if process is not None else "combined"), base_point, values, data_loader.file_path))
             self.training_data[base_point] = data_loader
 
     def train_one_epoch(self, max_batch=-1, accumulate_histograms=False, rebin=1):
@@ -296,7 +299,7 @@ class PNN:
             if max_batch > 0 and i_batch >= max_batch:
                 break
 
-        print(f"Epoch loss: {total_loss:.4f}")
+        logger.info(f"Epoch loss: {total_loss:.4f}")
 
         if accumulate_histograms:
             return true_histograms, pred_histograms
@@ -349,7 +352,7 @@ class PNN:
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
             f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
 
-        print(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
+        logger.info(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
 
         _config     = self.config
         self.config = None
@@ -413,7 +416,7 @@ class PNN:
             new_instance.feature_means     = old_instance.feature_means
             new_instance.feature_variances = old_instance.feature_variances
 
-            print(f"Model and config loaded from {latest_checkpoint} with config {old_instance.config_name}.")
+            logger.info(f"Model and config loaded from {latest_checkpoint} with config {old_instance.config_name}.")
 
         return new_instance
 
@@ -597,5 +600,5 @@ class PNN:
             for fmt in ["png"]:
                 canvas.SaveAs(output_file.replace(".png", f".{fmt}"))
 
-            print(f"Saved convergence plot for epoch {epoch} to {output_file}.")
+            logger.info(f"Saved convergence plot for epoch {epoch} to {output_file}.")
 

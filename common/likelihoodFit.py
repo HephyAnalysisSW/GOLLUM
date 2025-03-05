@@ -7,7 +7,13 @@ from iminuit import Minuit
 
 import logging
 logger = logging.getLogger("UNC")
-print_level=0
+
+# Miniut debug
+if logger.getEffectiveLevel() <= logging.DEBUG:
+    print_level=2
+else:
+    print_level=0
+    
 
 def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_met):
     # this defines the function that is minimized

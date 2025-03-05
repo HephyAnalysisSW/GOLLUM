@@ -7,18 +7,8 @@ import logging
 import io
 import os
 
-# Get the logging level from an environment variable, default to INFO
-log_level = os.getenv("LOG_LEVEL", "ERROR").upper()
-
-
-logging.basicConfig(
-    level=getattr(
-        logging, log_level, logging.INFO
-    ),  # Fallback to INFO if the level is invalid
-    format="%(asctime)s - %(name)-20s - %(levelname) -8s - %(message)s",
-)
-
-logger = logging.getLogger(__name__)
+import logging
+logger = logging.getLogger("UNC")
 
 __doc__ = """
 This module contains the functions to calculate the derived quantities of the HEP dataset.

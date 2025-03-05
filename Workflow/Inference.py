@@ -910,11 +910,11 @@ class Inference:
 
       return uTerm_total
 
-    def clossMLresults(self):
-        logger.warning( "Warning. clossMLresults does nothing" )
-        return
-        #for n in list(self.h5s):
-        #  for s in list(self.h5s[n]):
-        #    # self.h5s[n][s].close()
-        #    del self.h5s[n][s]
-        #  del self.h5s[n]
+    #def clossMLresults(self):
+    #    logger.warning( "Warning. clossMLresults does nothing" )
+    #    return
+    #    #for n in list(self.h5s):
+    #    #  for s in list(self.h5s[n]):
+    #    #    # self.h5s[n][s].close()
+    #    #    del self.h5s[n][s]
+    #    #  del self.h5s[n]
