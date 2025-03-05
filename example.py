@@ -1,4 +1,4 @@
-from Model import Model
+from model import Model
 
 # run fit
 m = Model(get_train_set=None, systematics=None)
