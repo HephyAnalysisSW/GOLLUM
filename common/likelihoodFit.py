@@ -36,6 +36,7 @@ class likelihoodFit:
             "nu_tes": (-10., 10.),
             "nu_met": (0., 5.),
         }
+        self.strategy = 0 # default 1
         self.tolerance = 0.1 # default 0.1
         self.eps = 0.1 # default
         self.q_mle = None
@@ -55,17 +56,18 @@ class likelihoodFit:
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             m.limits[nuname] = self.parameterBoundaries[nuname]
 
-        m.tol = self.tolerance
+        m.strategy = self.strategy
+        m.tol      = self.tolerance
 
         for param in m.parameters:
             m.errors[param] = self.eps  # Set the step size for all parameters
 
         m.migrad()
-        logger.info("Before 'm.hesse()")
+        logger.info("Not doing minuit::hesse()")
         print(m)
-        m.hesse()
-        logger.info("After 'm.hesse()")
-        print(m)
+        #m.hesse()
+        #logger.info("After 'm.hesse()")
+        #print(m)
 
         self.q_mle = m.fval
         self.parameters_mle = m.values
