@@ -11,7 +11,7 @@ import yaml
 from Workflow.Inference import Inference
 import common.user as user
 
-#import cProfile, pstats
+import cProfile, pstats
 
 
 def update_dict(d, keys, value):
@@ -132,16 +132,16 @@ if __name__ == '__main__':
         logger.info("Start global fit.")
         fit = likelihoodFit(likelihood_function)
 
-        #profiler = cProfile.Profile()
-        #profiler.enable()
+        profiler = cProfile.Profile()
+        profiler.enable()
 
         q_mle, parameters_mle, cov, limits = fit.fit(start_mu=args.start_mu)
         logger.info("Fit done.")
 
-        #profiler.disable()
+        profiler.disable()
 
-        #stats = pstats.Stats(profiler).sort_stats('cumulative')
-        #stats.print_stats()
+        stats = pstats.Stats(profiler).sort_stats('cumulative')
+        stats.print_stats()
 
         logger.info(f"q_mle = {q_mle}")
         logger.info(f"parameters = {parameters_mle}")

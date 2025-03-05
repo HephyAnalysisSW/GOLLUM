@@ -116,8 +116,7 @@ class Inference:
             if "Toy" in self.cfg["Save"]:
                 del self.cfg["Save"]["Toy"]
                 logger.info("Specified toy from path or memory, remove toy from config")
-        for selection in self.selections:
-            self.loadToyFromMemory(selection=selection, ignore_done=True) # load and force overwrite
+        self.loadToyFromMemory(ignore_done=True) # load and force overwrite
 
 
     def calibrate_dcr(self, selection, input_dcr):
