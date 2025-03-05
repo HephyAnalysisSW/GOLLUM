@@ -21,6 +21,8 @@ class Model:
         output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
 
+        self.infer = None
+
         ## Removing non-picklable modules        
         #for _, mc in self.infer.models['MultiClassifier'].items():
         #    mc.config = None
@@ -35,11 +37,14 @@ class Model:
 
 
     def fit(self):
-        self.infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=None)
-        self.infer.ignore_loading_check()
-        #pass
+        pass
 
     def predict(self, test_set):
+
+        if self.infer is None:
+            self.infer = Inference(cfg=self.cfg, small=False, overwrite=False, toy_origin="memory", toy_path=None, toy_from_memory=None)
+            self.infer.ignore_loading_check()
+
         # Initialize inference object
         self.infer.setToyFromMemory(test_set)
         self.infer._dcr_cache = {}
