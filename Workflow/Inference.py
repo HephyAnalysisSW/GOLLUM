@@ -460,9 +460,22 @@ class Inference:
             self.float_parameters[p] = True
             logger.info(f"Float parameter {p}.")
 
+    def get_p_mc_dcr_calibrated(self, name, selection):
+        # Create a cache if it doesn't exist already
+        if not hasattr(self, "_dcr_cache"):
+            self._dcr_cache = {}
+        key = (name, selection)
+        if key not in self._dcr_cache:
+            p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
+            p_mc_dcr = p_mc / p_mc.sum(axis=1, keepdims=True)
+            self._dcr_cache[key] = self.calibrate_dcr(selection, p_mc_dcr)
+        return self._dcr_cache[key]
+
     def dSigmaOverDSigmaSM_h5( self, name, selection, mu=1, nu_bkg=0, nu_tt=0, nu_diboson=0, nu_tes=0, nu_jes=0, nu_met=0):
         # Multiclassifier
-        p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
+        #p_mc = self.h5s[name][selection]["MultiClassifier_predict"]
+
+        p_mc_dcr_calibrated = self.get_p_mc_dcr_calibrated(name, selection)
 
         # Multiply the ICP to the CSI
         icp_summand = {}
@@ -498,18 +511,8 @@ class Inference:
         log_f_tt_rate = nu_tt*np.log1p(self.alpha_tt)
         log_f_diboson_rate = nu_diboson*np.log1p(self.alpha_diboson)
 
-        p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
-        p_mc_dcr_calibrated = self.calibrate_dcr(selection, p_mc_dcr)
-
-        #print("===============================================================")
-        #print("p_mc")
-        #print(p_mc)
-        #print("----------")
-        #print("p_mc_dcr")
-        #print(p_mc_dcr)
-        #print("----------")
-        #print("p_mc_dcr_calibrated")
-        #print(p_mc_dcr_calibrated)
+        #p_mc_dcr = p_mc/p_mc.sum(axis=1, keepdims=True) # First divide toget DCR
+        #p_mc_dcr_calibrated = self.calibrate_dcr(selection, p_mc_dcr)
 
         term1 = mu*(p_mc_dcr_calibrated[:, 0])*np.exp(log_p_pnn_htautau)
         term2 = (p_mc_dcr_calibrated[:, 1])*np.exp(log_f_bkg_rate + log_p_pnn_ztautau)
@@ -823,7 +826,6 @@ class Inference:
 
         #if not selection == "lowMT_VBFJet": continue
 
-
         # loading CSIs
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
             self.load_csis()
@@ -871,12 +873,18 @@ class Inference:
                 )
 
         # dSoDS for toys
+
+        if asimov_mu is None and asimov_nu_bkg is None and asimov_nu_tt is None and asimov_nu_diboson is None:
+            weight_copy_method = lambda x:x
+        else:
+            weight_copy_method = copy.deepcopy
+
         if self.cfg['Predict']['use_toy']:
           dSoDS_toy = self.dSigmaOverDSigmaSM_h5( 'Toy', selection, mu=mu, nu_bkg=nu_bkg, nu_tt=nu_tt, nu_diboson=nu_diboson, nu_tes=nu_tes, nu_jes=nu_jes, nu_met=nu_met )
-          weights_toy = copy.deepcopy(self.h5s['Toy'][selection]["Weight"])
+          weights_toy = weight_copy_method(self.h5s['Toy'][selection]["Weight"])
         else:
           dSoDS_toy = dSoDS_sim
-          weights_toy = copy.deepcopy(weights)
+          weights_toy = weight_copy_method(weights)
 
         if asimov_mu is not None:
             labels = self.h5s['Toy'][selection]["Label"]

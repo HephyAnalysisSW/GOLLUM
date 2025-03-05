@@ -93,6 +93,12 @@ class Model:
             "delta_mu_hat": delta_mu,
             "p16": p16,
             "p84": p84,
+            "nu_bkg": parameters_mle["nu_bkg"],
+            "nu_tt":  parameters_mle["nu_tt"],
+            "nu_diboson": parameters_mle["nu_diboson"],
+            "nu_tes": parameters_mle["nu_tes"],
+            "nu_jes": parameters_mle["nu_jes"],
+            "nu_met": parameters_mle["nu_met"],
         }
 
 
