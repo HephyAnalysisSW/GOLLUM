@@ -15,7 +15,6 @@ import common.syncer
 import ROOT
 ROOT.gROOT.SetBatch(True)  # Run in batch mode so we don't pop up windows.
 
-from common.logger import get_logger
 from common.likelihoodFit import likelihoodFit
 from Workflow.Inference import Inference
 import common.user as user
@@ -71,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument("--selection", default="lowMT_VBFJet", type=str, help="The selection")
 
     args = parser.parse_args()
+    from common.logger import get_logger
     logger = get_logger(args.logLevel, logFile=None)
 
     # Construct postfix for filenames based on asimov parameters

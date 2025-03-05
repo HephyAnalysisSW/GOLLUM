@@ -14,7 +14,7 @@ import functools
 import Node
 from tqdm import tqdm
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("UNC")
 
 from data_loader.data_loader_2 import H5DataLoader
 

@@ -1,7 +1,6 @@
 import sys
 sys.path.insert(0, "..")
 
-from common.logger import get_logger
 import os
 import numpy as np
 import pickle
@@ -52,6 +51,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    from common.logger import get_logger
     logger = get_logger(args.logLevel, logFile = None)
 
     # Construct postfix for filenames based on asimov parameters
@@ -166,7 +166,7 @@ if __name__ == '__main__':
             with open(impacts_file, 'wb') as file:
                 pickle.dump(postFitUncerts, file)
 
-        infer.clossMLresults()
+        #infer.clossMLresults()
 
     # Deprecated feature (commented out for now)
     # r = infer.testStat(1, 0)

@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, '..')
     
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('UNC')
 
 import common.data_structure as data_structure
 

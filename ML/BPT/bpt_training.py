@@ -27,6 +27,7 @@ argParser.add_argument('--small',         action='store_true',  help="Only one b
 args = argParser.parse_args()
 
 # logger
+from common.logger import get_logger
 logger = get_logger(args.logLevel, logFile = None)
 
 # import the config

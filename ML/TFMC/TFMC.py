@@ -14,6 +14,9 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 import common.data_structure as data_structure
 
+import logging
+logger = logging.getLogger('UNC')
+
 from tensorflow.keras.layers import Dense
 
 class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -282,7 +285,7 @@ class TFMC:
         # Apply accumulated gradients after looping over the dataset
         self.optimizer.apply_gradients(zip(accumulated_gradients, self.model.trainable_variables))
         epoch_loss = total_loss / total_samples
-        print(f"Epoch loss: {epoch_loss:.4f}")
+        logger.info(f"Epoch loss: {epoch_loss:.4f}")
 
         if accumulate_histograms:
             return true_histograms, pred_histograms
@@ -312,7 +315,7 @@ class TFMC:
         with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
             f.write(f'model_checkpoint_path: "{checkpoint_path}"\n')
 
-        print(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
+        logger.info(f"Model checkpoint and config saved for epoch {epoch} in {save_dir}.")
 
     @classmethod
     def load(cls, save_dir):
@@ -353,7 +356,7 @@ class TFMC:
 
         # Restore the model and optimizer state
         instance.checkpoint.restore(latest_checkpoint).expect_partial()
-        print(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
+        logger.info(f"Model and config loaded from {latest_checkpoint} with config {config_name}.")
 
         instance.feature_means     = feature_means
         instance.feature_variances = feature_variances
@@ -526,5 +529,5 @@ class TFMC:
             for fmt in ["png"]:  
                 canvas.SaveAs(output_file.replace(".png", f".{fmt}"))
 
-            print(f"Saved convergence plot for epoch {epoch} to {output_file}.")
+            logger.info(f"Saved convergence plot for epoch {epoch} to {output_file}.")
 
