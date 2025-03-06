@@ -147,4 +147,13 @@ class Model:
                 for item in ["calibration", "icp_file", "model_path"]:
                     if item in cfg[task][selection]:
                         cfg[task][selection][item] = os.path.join(self.script_dir, cfg[task][selection][item])
+
+        if "Poisson" in cfg:
+            for sel in cfg["Poisson"].keys():
+                if 'model_path' in cfg["Poisson"][sel]:
+                    cfg["Poisson"][sel]["model_path"] = os.path.join(self.script_dir, cfg["Poisson"][sel]["model_path"])
+                cfg["Poisson"][sel]["IC"] = os.path.join(self.script_dir, cfg["Poisson"][sel]["IC"])
+                for process in cfg["Poisson"][sel]["ICP"].keys():
+                    cfg["Poisson"][sel]["ICP"][process] = os.path.join(self.script_dir, cfg["Poisson"][sel]["ICP"][process])
+
         return cfg
