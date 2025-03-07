@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import argparse
 sys.path.insert( 0, '..')
-from model import Model
 import common.user as user
 
 def load_h5_to_test_set(h5_file_path):
@@ -33,8 +32,8 @@ h5_file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split
 test_toy = load_h5_to_test_set(h5_file_path)
 
 # run fit
-m = Model(get_train_set=None, systematics=None)
-m.cfg = m.loadConfig(args.config)
+from Model import Model
+m = Model(get_train_set=None, systematics=None, config_path=args.config)
 m.cfg["tmp_path"] = os.path.join( output_directory, f"tmp_data" )
 results = m.predict(test_toy)
 print(results)
