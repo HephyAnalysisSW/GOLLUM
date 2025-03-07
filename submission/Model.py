@@ -14,16 +14,19 @@ import logging
 logger = logging.getLogger('UNC')
 
 class Model:
-    def __init__(self, get_train_set=None, systematics=None):
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))#.replace('/submission', '')
-        self.cfg = self.loadConfig( os.path.join( self.script_dir, "config_submission.yaml" ) )
+    def __init__(self, get_train_set=None, systematics=None, config_path=None):
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        if config_path is None:
+            self.cfg = self.loadConfig( os.path.join( self.script_dir, "config_submission.yaml" ) )
+        else:
+            self.cfg = self.loadConfig( config_path )
         self.calibrate = True
         output_directory = os.path.join( self.script_dir, "data")
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
 
         self.infer = None
 
-        ## Removing non-picklable modules        
+        ## Removing non-picklable modules
         #for _, mc in self.infer.models['MultiClassifier'].items():
         #    mc.config = None
         #    mc.optimizer = None
