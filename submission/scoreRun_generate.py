@@ -27,6 +27,9 @@ parser.add_argument("--Ntoys", type=int, default=10)
 parser.add_argument("--freeze", type=str, default=None)
 parser.add_argument('--nJobs', action='store',type=int, default=1)
 parser.add_argument('--job', action='store',type=int, default=0)
+parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
+parser.add_argument('--config_path', action='store', help='path to yaml config')
+parser.add_argument('--tmp_path', action='store', help='path to tmp_data')
 args = parser.parse_args()
 
 initialSeed = 0
@@ -89,7 +92,9 @@ if args.freeze is not None:
         limits["nu_diboson"] = (-0.0001, 0.0001)
 
 
-m = Model(get_train_set=None, systematics=None)
+m = Model(get_train_set=None, systematics=None, config_path = args.config_path)
+m.cfg["tmp_path"] = args.tmp_path
+
 for i in tqdm(range(Ntoys_this_job)):
     seed = initialSeed+i
     if args.mu is not None:
