@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
 import common.user as user
-
+from common.logger import get_logger
 
 import argparse
 parser = argparse.ArgumentParser(description="ML inference.")
@@ -27,8 +27,10 @@ parser.add_argument("--Ntoys", type=int, default=10)
 parser.add_argument("--freeze", type=str, default=None)
 parser.add_argument('--nJobs', action='store',type=int, default=1)
 parser.add_argument('--job', action='store',type=int, default=0)
+parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
 args = parser.parse_args()
 
+logger = get_logger( args.logLevel )
 initialSeed = 0
 Ntoys_this_job = args.Ntoys
 if args.nJobs > 1:
