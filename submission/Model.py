@@ -61,7 +61,7 @@ class Model:
             asimov_nu_diboson=None)
         # Perform global fit
         fit = likelihoodFit(likelihood_function)
-        fit.parameterBoundaries["mu"] = (0.1, 3.0)
+        fit.parameterBoundaries["mu"] = (0, None)
         q_mle, parameters_mle, cov, limits = fit.fit(start_mu=1.0)
 
         mu_mle = parameters_mle["mu"]
@@ -102,11 +102,11 @@ class Model:
         p84 = mu_mle + inflate*(p84-mu_mle) + offset
         mu_mle = mu_mle + offset
 
-        # Check mu boundaries
-        if p16 < 0.1:
-            p16 = 0.09
-        if p84 > 3.0:
-            p84 = 3.01
+        ## Check mu boundaries
+        #if p16 < 0.1:
+        #    p16 = 0.09
+        #if p84 > 3.0:
+        #    p84 = 3.01
 
         delta_mu = (p84-p16)/2
 
