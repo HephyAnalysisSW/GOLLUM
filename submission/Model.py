@@ -102,11 +102,11 @@ class Model:
         p84 = mu_mle + inflate*(p84-mu_mle) + offset
         mu_mle = mu_mle + offset
 
-        ## Check mu boundaries
-        #if p16 < 0.1:
-        #    p16 = 0.09
-        #if p84 > 3.0:
-        #    p84 = 3.01
+        # Check mu boundaries
+        if p16 < 0.1:
+            p16 = 0.09
+        if p84 > 3.0:
+            p84 = 3.01
 
         delta_mu = (p84-p16)/2
 

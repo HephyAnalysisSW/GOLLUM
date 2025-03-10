@@ -43,7 +43,6 @@ if args.nJobs > 1:
     if args.job == args.nJobs-1:
         Ntoys_this_job += remainder
 
-
 print(f"Run {Ntoys_this_job} toys in this job.")
 
 def coveragePenalty(coverage, Ntoys):
