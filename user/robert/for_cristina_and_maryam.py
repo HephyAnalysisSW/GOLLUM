@@ -16,7 +16,6 @@ import common.data_structure as data_structure
 import argparse
 argParser = argparse.ArgumentParser(description="Argument parser")
 argParser.add_argument("--selection", action="store", default="lowMT_VBFJet", help="Which selection?")
-argParser.add_argument("--n_bins", action="store", default=50, type=int, help="Number of bins.")
 argParser.add_argument("--n_split", action="store", default=10, type=int, help="How many batches?")
 argParser.add_argument('--small', action='store_true', help="Only one batch, for debugging")
 argParser.add_argument("--modelDir", action="store", default="/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6",  help="Directory containing the trained TFMC model.")
@@ -85,7 +84,7 @@ for i_batch, batch in enumerate(tqdm(data_loader, total=total_batches, desc="Bat
 # Plot the predicted probabilities for each predicted class using ROOT
 ROOT.gStyle.SetOptStat(0)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../../common/scripts/tdrstyle.C"))
+ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
 ROOT.setTDRStyle()
 
 # Loop over variables 
