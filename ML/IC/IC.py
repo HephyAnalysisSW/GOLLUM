@@ -79,11 +79,12 @@ class InclusiveCrosssection:
         S = self.weight_sums[data_structure.label_encoding['htautau']]
         B = sum( [self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels if l!='htautau' ])
         SoverB = " S/B = %8.6f "%(S/B)
+        total = S+B
         if hasattr( self, "unweighted_sums") and self.unweighted_sums is not None:
             unweighed_str = "\n"+" ".ljust(59)+"count: "+" ".join([l+": "+"%8i"%self.unweighted_sums[data_structure.label_encoding[l]] for l in data_structure.labels ])
         else:
             unweighed_str = ""
-        return ( prefix.ljust(50)+SoverB+" yield: "+" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ])+unweighed_str)
+        return ( prefix.ljust(50)+SoverB+" yield: "+" ".join([l+": "+"%8.2f"%self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels ])+(" total %8.2f"%total)+unweighed_str)
 
     def predict( self, sample):
         if type(sample)==str:
