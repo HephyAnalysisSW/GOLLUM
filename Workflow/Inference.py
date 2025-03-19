@@ -424,12 +424,11 @@ class Inference:
             for name, poisson_data in self.poisson.items():
                 if "ignore" in self.cfg['Poisson'][name] and self.cfg['Poisson'][name]["ignore"]: continue
                 # convert toy in our data format and load data
-                toy_data = self.convertToyToDataStruct()
-
-                selected_toy_data = reduce( lambda acc, f: f(acc), [poisson_data["preselector"]]+poisson_data['mva_selectors'], toy_data )
-
-                poisson_data['observation'] = selected_toy_data[:,data_structure.weight_index].sum()
-                logger.info(f"loadToyFromMemory: Computed Poisson observation {name}: {poisson_data['observation']}")
+                if ignore_done or not (poisson_data['observation'] is not None):
+                    toy_data = self.convertToyToDataStruct()
+                    selected_toy_data = reduce( lambda acc, f: f(acc), [poisson_data["preselector"]]+poisson_data['mva_selectors'], toy_data )
+                    poisson_data['observation'] = selected_toy_data[:,data_structure.weight_index].sum()
+                    logger.info(f"loadToyFromMemory: Computed Poisson observation {name}: {poisson_data['observation']}")
 
     def load_models(self):
         """
