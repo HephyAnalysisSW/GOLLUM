@@ -1,0 +1,141 @@
+CSI:
+  save: true
+  use: true
+MultiClassifier:
+  highMT:
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT/tfmc_5/v6
+    module: TFMC
+  highMT_VBFJet:
+    calibration: models/MultiClassifier/highMT_VBFJet/calibration/calibrator.pkl
+    model_path: models/MultiClassifier/highMT_VBFJet/model_path
+    module: TFMC
+  highMT_noVBFJet:
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6
+    module: TFMC
+  lowMT_VBFJet:
+    calibration: models/MultiClassifier/lowMT_VBFJet/calibration/calibrator.pkl
+    model_path: models/MultiClassifier/lowMT_VBFJet/model_path
+    module: TFMC
+  lowMT_noVBFJet_ptH0to100:
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6
+    module: TFMC
+  lowMT_noVBFJet_ptH100:
+    calibration: models/MultiClassifier/lowMT_noVBFJet_ptH100/calibration/calibrator.pkl
+    model_path: models/MultiClassifier/lowMT_noVBFJet_ptH100/model_path
+    module: TFMC
+  save:
+  - predict
+Parameters:
+  alpha_bkg: 0.001
+  alpha_diboson: 0.25
+  alpha_tt: 0.02
+Predict:
+  use_toy: true
+Save:
+  Toy:
+    batch_size: null
+    dir: null
+    max_n_batch: -1
+    n_split: 100
+Selections:
+- lowMT_VBFJet
+- lowMT_noVBFJet_ptH100
+- highMT_VBFJet
+Tasks:
+- MultiClassifier
+- htautau
+- ztautau
+- ttbar
+- diboson
+diboson:
+  highMT_VBFJet:
+    icp_file: models/diboson/highMT_VBFJet/icp_file/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/diboson/highMT_VBFJet/model_path
+    module: PNN
+  highMT_noVBFJet:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_VBFJet:
+    icp_file: models/diboson/lowMT_VBFJet/icp_file/ICP_htautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/diboson/lowMT_VBFJet/model_path
+    module: PNN
+  lowMT_noVBFJet_ptH0to100:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_noVBFJet_ptH100:
+    icp_file: models/diboson/lowMT_noVBFJet_ptH100/icp_file/ICP_htautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl
+    model_path: models/diboson/lowMT_noVBFJet_ptH100/model_path
+    module: PNN
+  save:
+  - DeltaA
+htautau:
+  highMT_VBFJet:
+    icp_file: models/htautau/highMT_VBFJet/icp_file/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/htautau/highMT_VBFJet/model_path
+    module: PNN
+  highMT_noVBFJet:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_VBFJet:
+    icp_file: models/htautau/lowMT_VBFJet/icp_file/ICP_htautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/htautau/lowMT_VBFJet/model_path
+    module: PNN
+  lowMT_noVBFJet_ptH0to100:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_noVBFJet_ptH100:
+    icp_file: models/htautau/lowMT_noVBFJet_ptH100/icp_file/ICP_htautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl
+    model_path: models/htautau/lowMT_noVBFJet_ptH100/model_path
+    module: PNN
+  save:
+  - DeltaA
+ttbar:
+  highMT_VBFJet:
+    icp_file: models/ttbar/highMT_VBFJet/icp_file/ICP_ttbar_highMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/ttbar/highMT_VBFJet/model_path
+    module: PNN
+  highMT_noVBFJet:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_highMT_noVBFJet_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/highMT_noVBFJet/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_VBFJet:
+    icp_file: models/ttbar/lowMT_VBFJet/icp_file/ICP_ttbar_lowMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/ttbar/lowMT_VBFJet/model_path
+    module: PNN
+  lowMT_noVBFJet_ptH0to100:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_noVBFJet_ptH100:
+    icp_file: models/ttbar/lowMT_noVBFJet_ptH100/icp_file/ICP_ttbar_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl
+    model_path: models/ttbar/lowMT_noVBFJet_ptH100/model_path
+    module: PNN
+  save:
+  - DeltaA
+ztautau:
+  highMT_VBFJet:
+    icp_file: models/ztautau/highMT_VBFJet/icp_file/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/ztautau/highMT_VBFJet/model_path
+    module: PNN
+  highMT_noVBFJet:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_VBFJet:
+    icp_file: models/ztautau/lowMT_VBFJet/icp_file/ICP_ztautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl
+    model_path: models/ztautau/lowMT_VBFJet/model_path
+    module: PNN
+  lowMT_noVBFJet_ptH0to100:
+    icp_file: /groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+    model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1
+    module: PNN
+  lowMT_noVBFJet_ptH100:
+    icp_file: models/ztautau/lowMT_noVBFJet_ptH100/icp_file/ICP_ztautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl
+    model_path: models/ztautau/lowMT_noVBFJet_ptH100/model_path
+    module: PNN
+  save:
+  - DeltaA
