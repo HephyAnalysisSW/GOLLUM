@@ -17,12 +17,19 @@ GPU: not needed
 
 CentOS Linux 7
 
-## 3rd-party software
+## 3rd-party software and environment setup
 
 FIXME: should double check whether there are other packages needed
 
 TensorFlow: `pip install tensorflow`
 imunuit: `pip install iminuit`
+
+To ensure a consistent environment, we recommend using **Conda**. You can create the required environment using:
+
+```bash
+conda env create -f environment.yml
+conda activate uncertainty_challenge_new
+
 
 ## ML models
 
