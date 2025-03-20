@@ -28,7 +28,8 @@ To ensure a consistent environment, we recommend using **Conda**. You can create
 
 ```bash
 conda env create -f environment.yml
-conda activate uncertainty_challenge_new```
+conda activate uncertainty_challenge_new
+```
 
 
 ## ML models
