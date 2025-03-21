@@ -6,21 +6,24 @@ MultiClassifier:
     model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT/tfmc_5/v6
     module: TFMC
   highMT_VBFJet:
-    calibration: models/MultiClassifier/highMT_VBFJet/calibration/calibrator.pkl
+    calibration: models/MultiClassifier/highMT_VBFJet/calibration/calibrator_multi.pkl
+    calibration_module: MultiClassCalibration
     model_path: models/MultiClassifier/highMT_VBFJet/model_path
     module: TFMC
   highMT_noVBFJet:
     model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6
     module: TFMC
   lowMT_VBFJet:
-    calibration: models/MultiClassifier/lowMT_VBFJet/calibration/calibrator.pkl
+    calibration: models/MultiClassifier/lowMT_VBFJet/calibration/calibrator_multi.pkl
+    calibration_module: MultiClassCalibration
     model_path: models/MultiClassifier/lowMT_VBFJet/model_path
     module: TFMC
   lowMT_noVBFJet_ptH0to100:
     model_path: /groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6
     module: TFMC
   lowMT_noVBFJet_ptH100:
-    calibration: models/MultiClassifier/lowMT_noVBFJet_ptH100/calibration/calibrator.pkl
+    calibration: models/MultiClassifier/lowMT_noVBFJet_ptH100/calibration/calibrator_multi.pkl
+    calibration_module: MultiClassCalibration
     model_path: models/MultiClassifier/lowMT_noVBFJet_ptH100/model_path
     module: TFMC
   save:
@@ -29,12 +32,56 @@ Parameters:
   alpha_bkg: 0.001
   alpha_diboson: 0.25
   alpha_tt: 0.02
+Poisson:
+  highMT_noVBFJet_MVAHighMTnoVBFJetDiboson:
+    IC: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/IC/IC_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson.pkl
+    ICP:
+      diboson: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/ICP_diboson/ICP_diboson_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl
+      htautau: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/ICP_htautau/ICP_htautau_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl
+      ttbar: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/ICP_ttbar/ICP_ttbar_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl
+      ztautau: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/ICP_ztautau/ICP_ztautau_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl
+    model_path: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetDiboson/model_path
+    module: TFMC
+    mva_selection:
+    - - ttbar
+      - -100
+      - 0.4
+    - - diboson
+      - 0.5
+      - 100
+    preselection: highMT_noVBFJet
+  highMT_noVBFJet_MVAHighMTnoVBFJetTtbar:
+    IC: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/IC/IC_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar.pkl
+    ICP:
+      diboson: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/ICP_diboson/ICP_diboson_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl
+      htautau: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/ICP_htautau/ICP_htautau_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl
+      ttbar: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/ICP_ttbar/ICP_ttbar_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl
+      ztautau: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/ICP_ztautau/ICP_ztautau_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl
+    model_path: models/Poisson/highMT_noVBFJet_MVAHighMTnoVBFJetTtbar/model_path
+    module: TFMC
+    mva_selection:
+    - - ttbar
+      - 0.4
+      - 100
+    preselection: highMT_noVBFJet
+  lowMT_noVBFJet_ptH0to100:
+    IC: models/Poisson/lowMT_noVBFJet_ptH0to100/IC/IC_lowMT_noVBFJet_ptH0to100.pkl
+    ICP:
+      diboson: models/Poisson/lowMT_noVBFJet_ptH0to100/ICP_diboson/ICP_diboson_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+      htautau: models/Poisson/lowMT_noVBFJet_ptH0to100/ICP_htautau/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+      ttbar: models/Poisson/lowMT_noVBFJet_ptH0to100/ICP_ttbar/ICP_ttbar_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+      ztautau: models/Poisson/lowMT_noVBFJet_ptH0to100/ICP_ztautau/ICP_ztautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl
+    preselection: lowMT_noVBFJet_ptH0to100
 Predict:
+  TrainingData: TrainingData
   use_toy: true
 Save:
   Toy:
     batch_size: null
-    dir: null
+    dir: /scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/
+    max_n_batch: -1
+    n_split: 100
+  TrainingData:
     max_n_batch: -1
     n_split: 100
 Selections:
@@ -47,6 +94,7 @@ Tasks:
 - ztautau
 - ttbar
 - diboson
+Toy_name: nominal
 diboson:
   highMT_VBFJet:
     icp_file: models/diboson/highMT_VBFJet/icp_file/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl

@@ -7,6 +7,7 @@ from ML.PNN.PNN import PNN
 from ML.TFMC.TFMC import TFMC
 from ML.XGBMC.XGBMC import XGBMC
 from ML.Calibration.Calibration import Calibration
+from ML.Calibration.MulticlassCalibration import MultiClassCalibration
 
 def getModule(name):
   return eval(name)

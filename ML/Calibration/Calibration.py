@@ -11,22 +11,11 @@ import logging
 logger = logging.getLogger("UNC")
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import common.user as user
 import common.selections as selections
 import common.datasets_hephy as datasets_hephy
-
-## Iterate through the dataset
-#loader = datasets_hephy.get_data_loader(selection="lowMT_VBFJet", n_split=1)
-#for batch in loader:
-#    data, weights, labels = loader.split(batch)
-#    print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )
-#
-#    print(" class probabilities from TFMC")
-#    prob = tfmc.predict(data, ic_scaling = False)
-#    print(prob)
-#
-#    break
 
 class Calibration:
 
@@ -83,24 +72,124 @@ class Calibration:
         truth       = (all_labels == 0).astype(float) # get truth label
         logger.info( "Training IsotonicRegression." ) 
         self.iso_reg = IsotonicRegression(out_of_bounds='clip', y_min=1e-6, y_max=1.-1e-6).fit(all_prob[:, 0], truth, sample_weight=all_weights)
+        self.data_for_plot = {"prob": all_prob, "weight": all_weights, "label": all_labels}
         logger.info( "Done." ) 
         
     def save( self, file_name ):
-        with open(filename, 'wb') as file:
+        with open(file_name, 'wb') as file:
             pickle.dump(self.iso_reg, file)
 
-        logger.info(f"Written {filename}")
+        logger.info(f"Written {file_name}")
 
     @classmethod
     def load( cls, file_name ):
-        new_instance = cls()
-        with open(filename, 'rb') as file:
+        new_instance = cls() 
+        with open(file_name, 'rb') as file:
             new_instance.iso_reg = pickle.load(file)
+        return new_instance
 
-        logger.info(f"Loaded Calibration {filename}")
+    def predict(self, input_dcr):
+        # assume for now that calibrator was trained / loaded
+        # TO-DO: check if calibrator exists and train/load otherwise
+        
+        output_dcr = input_dcr.copy() # to be overwritten below
+        calibrated_0_dcr = self.iso_reg.predict(input_dcr[:, 0]) # changes DCR value of class 0 only
+        output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
+        output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
+        return output_dcr
+
+    def plot_calibration(self, file_name):
+        logger.info(f"started plotting calibration")
+        fig, axs = plt.subplots(2, 2)
+        for idx, loc in enumerate([(0,0), (0,1), (1,0), (1,1)]):
+            uncalib_pred = self.data_for_plot['prob'][:, idx]
+            truth = (self.data_for_plot['label'] == idx).astype(float)
+            calib_pred = self.predict(self.data_for_plot['prob'])[:, idx]
+            prob_true_uncalib, prob_pred_uncalib = weighted_calibration(truth, 
+                                                                        uncalib_pred, 
+                                                                        nbins=10, 
+                                                                        weights = self.data_for_plot['weight'])
+            prob_true_calib, prob_pred_calib = weighted_calibration(truth, 
+                                                                    calib_pred, 
+                                                                    nbins=10, 
+                                                                    weights = self.data_for_plot['weight'])
+            mask_uncalib = (prob_pred_uncalib == 0.) & (prob_true_uncalib == 0.)
+            mask_calib = (prob_pred_calib == 0.) & (prob_true_calib == 0.)
+
+
+            axs[loc].plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axs[loc].plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+            axs[loc].plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
+            axs[loc].set_title(f"class {idx} calibration")
+            axx = axs[loc].inset_axes([0.625, 0.175, 0.3, 0.3])
+            axx.plot(prob_pred_uncalib[~mask_uncalib], prob_true_uncalib[~mask_uncalib], 
+                          label="before calibration")
+            axx.plot(prob_pred_calib[~mask_calib], prob_true_calib[~mask_calib], 
+                          label="after calibration")
+
+            axx.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
+            axx.set(xlim=(0,0.2), ylim=(0,0.2))
+            
+            if idx == 0:
+                axs[loc].legend(loc='upper left')
+    
+        for ax in axs.flat:
+            ax.set(xlabel='predicted DCR', ylabel='true DCR', xlim=(-0.05,1.05), ylim=(-0.05,1.05))
+            ax.label_outer()
+        
+        plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved calibration plot to {file_name}")
+
+    def plot_IsotonicRegression(self, file_name):
+        # assume for now that calibrator was trained / loaded
+        # TO-DO: check if calibrator exists and train/load otherwise
+        logger.info(f"Started isotonic regression plot")
+        x_scan = np.linspace(0., 1., 1001)
+        plt.plot(x_scan, self.iso_reg.predict(x_scan), label="Isotonic Regression Calibrator")
+        plt.plot([0.,1.], [0.,1.], ls='dashed',c='k', label='identity')
+        plt.xlim(0., 1.)
+        plt.ylim(0., 1.)
+        plt.legend(loc="upper left")
+        plt.gcf().add_axes([0.575, 0.175, 0.3, 0.3])
+        x_scan = np.linspace(0., .2, 201)
+        plt.plot(x_scan, self.iso_reg.predict(x_scan), label="Isotonic Regression Calibrator")
+        plt.plot([0.,.2], [0.,.2], ls='dashed',c='k', label='identity')
+        plt.xlim(0., .2)
+        plt.ylim(0., .2)
+        plt.savefig(file_name)
+        plt.close()
+        logger.info(f"Saved isotonic regression plot to {file_name}")
+
+
+def weighted_calibration(true_label, pred_output, nbins=10, weights=None):
+    # reproduces to a large extend 
+    # from sklearn.calibration import calibration_curve
+    # but adds the functionality to have weighted events
+    bins = np.linspace(pred_output.min(), pred_output.max(), nbins+1)
+    if weights is None:
+        weights = np.ones_like(true_label)
+    mask = (pred_output.reshape(-1,1) >= bins[:-1]) & (bins[1:] >= pred_output.reshape(-1,1))
+    true_fraction = []
+    pred_fraction = []
+    for bin_nr in range(nbins):
+        if len(weights[mask[:,bin_nr]]) == 0:
+            true_fraction.append(0.)
+        else:
+            true_fraction.append((weights[mask[:,bin_nr]]*true_label[mask[:,bin_nr]]).sum() /(weights[mask[:,bin_nr]]).sum()+1e-16)
+        if len(pred_output[mask[:,bin_nr]]) == 0:
+            pred_fraction.append(0.)
+        else:
+            pred_fraction.append((pred_output[mask[:,bin_nr]]).mean())
+    prob_true = np.array(true_fraction)
+    prob_pred = np.array(pred_fraction)
+    return prob_true, prob_pred        
 
 if __name__=="__main__":
     import argparse
+    import common.syncer
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
     parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='ERROR', help="Log level for logging")
@@ -121,7 +210,7 @@ if __name__=="__main__":
     # Where to store the training
     model_directory = os.path.join(user.model_directory, "Calibration", *subdirs,  args.config, args.selection)
     os.makedirs(model_directory, exist_ok=True)
-    filename = os.path.join( model_directory, 'calibrator.pkl')
+    filename = os.path.join( model_directory, f'calibrator.pkl')
 
     if os.path.exists( filename ) and not args.overwrite:
         logger.info(f"Found {filename}. Do nothing")
@@ -133,5 +222,14 @@ if __name__=="__main__":
 
     calib.train()
     
-    calib.save(model_directory)
+    calib.save(filename)
+
+    # where to store plots
+    plot_directory = os.path.join(user.plot_directory, "Calibration", *subdirs,  args.config, args.selection)
+    os.makedirs(plot_directory, exist_ok=True)
+    
+    calib.plot_calibration(os.path.join( plot_directory, 
+                                         f'calibrator_validation_calibration.png'))
+    calib.plot_IsotonicRegression(os.path.join( plot_directory, 
+                                                f'calibrator_validation_IsoReg.png'))
 

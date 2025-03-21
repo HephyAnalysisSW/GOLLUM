@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 sys.path.insert(0, "..")
+sys.path.insert(0, "../..")
 import copy
 import numpy as np
 import pickle
@@ -10,6 +11,7 @@ import yaml
 import os
 
 import common.syncer
+import common.helpers as helpers
 
 # ROOT imports
 import ROOT
@@ -139,13 +141,13 @@ if __name__ == '__main__':
                           asimov_nu_diboson=args.asimov_nu_diboson)
 
     best_fit = {
-        'mu': 2.7890366325750544,
-        'nu_bkg': -0.01870050364302638,
-        'nu_tt': -0.02033470695759596,
-        'nu_diboson': -0.014087646147647227,
-        'nu_tes': -0.01639583773828038,
-        'nu_jes': -0.0031745177253910727,
-        'nu_met': 0.01370563943507545,
+        'mu': 2.5,
+        'nu_bkg': 0.,
+        'nu_tt': 0.,
+        'nu_diboson': 0.,
+        'nu_tes': 0.,
+        'nu_jes': 0.,
+        'nu_met': 0.,
     }
 
     #-------------------------------------------------------
@@ -264,4 +266,5 @@ if __name__ == '__main__':
     c.SaveAs(png_name)
     logger.info(f"Saved plot as {png_name}")
 
+helpers.copyIndexPHP( plot_directory )
 common.syncer.sync()

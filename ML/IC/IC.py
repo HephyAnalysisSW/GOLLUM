@@ -39,7 +39,7 @@ class InclusiveCrosssection:
         self.data_loader = datasets_hephy.get_data_loader( selection=selection, selection_function=None, n_split=n_split)
         self.selection   = selection
 
-    def train(self, datasets_hephy, selection, small=True):
+    def train(self, datasets_hephy, selection=None, small=True):
         from collections import defaultdict
         from tqdm import tqdm
         import numpy as np
@@ -48,8 +48,14 @@ class InclusiveCrosssection:
         unweighted_sums = defaultdict(float)  # Count of elements (unweighted) for each class
 
         for batch in tqdm(self.data_loader, desc="Computing weight sums", unit="batch"):
-            weights = batch[:, -2]  # One-but-last column
-            classes = batch[:, -1]  # Last column
+    
+            if selection is not None:
+                batch_ = selection(batch)
+            else:
+                batch_ = batch
+ 
+            weights = batch_[:, -2]  # One-but-last column
+            classes = batch_[:, -1]  # Last column
 
             # Use NumPy to compute weighted and unweighted sums
             unique_classes, indices = np.unique(classes, return_inverse=True)

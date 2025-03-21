@@ -70,6 +70,7 @@ class Model:
 
         # Interval finder interpolates and returns crossing points
         # if a boundary is below best fit mu, it is the lower boundary, if above it is the upper
+
         intFinder = intervalFinder(muPoints, deltaQ, 1.0)
         boundaries = intFinder.getInterval()
         for b in boundaries:
@@ -78,12 +79,11 @@ class Model:
             if b > mu_mle:
                 p84 = b
 
-
         # inflate and offset
         offset = 0.0
         inflate = 1.0
         offset = 0.0
-        inflate = 1.057
+        inflate = 1.045
         p16 = mu_mle - inflate*(mu_mle-p16) + offset
         p84 = mu_mle + inflate*(p84-mu_mle) + offset
         mu_mle = mu_mle + offset
@@ -136,4 +136,13 @@ class Model:
                 for item in ["calibration", "icp_file", "model_path"]:
                     if item in cfg[task][selection]:
                         cfg[task][selection][item] = os.path.join(self.script_dir, cfg[task][selection][item])
+
+        if "Poisson" in cfg:
+            for sel in cfg["Poisson"].keys():
+                if 'model_path' in cfg["Poisson"][sel]:
+                    cfg["Poisson"][sel]["model_path"] = os.path.join(self.script_dir, cfg["Poisson"][sel]["model_path"])
+                cfg["Poisson"][sel]["IC"] = os.path.join(self.script_dir, cfg["Poisson"][sel]["IC"])
+                for process in cfg["Poisson"][sel]["ICP"].keys():
+                    cfg["Poisson"][sel]["ICP"][process] = os.path.join(self.script_dir, cfg["Poisson"][sel]["ICP"][process])
+
         return cfg

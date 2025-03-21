@@ -11,7 +11,8 @@ import networks.Models as ms
 from data_loader.data_loader_2 import H5DataLoader
 import common.user as user
 import common.data_structure as data_structure
-import common.selections as selections
+from common.selections import selections
+from functools import reduce
 import pickle
 import copy
 import pandas as pd
@@ -19,11 +20,13 @@ import pandas as pd
 import logging
 logger = logging.getLogger('UNC')
 
-################################################################################
-# Calibration
-from sklearn.isotonic import IsotonicRegression
-import pickle
-################################################################################
+# A functor to make MVA based selections for Poisson regions
+def makeMVAselector( class_name, lower, upper, selection_mva): 
+    def _selector( data, class_name=class_name, lower=lower, upper=upper, selection_mva=selection_mva):
+        pred = selection_mva.predict(data[:, :28], ic_scaling=False)[:,data_structure.labels.index(class_name)]
+        mask = (pred >= lower ) & (pred < upper)
+        return data[mask]
+    return _selector 
 
 class Inference:
     def __init__(self, cfg, small=False, overwrite=False, toy_origin="config", toy_path=None, toy_from_memory=None):
@@ -95,11 +98,7 @@ class Inference:
                 pass
 
         self.load_calibrations()
-
-        #from common.classifierCalibration import calibration
-        #self.MC_calibration = calibration
-        #with open('/groups/hephy/mlearning/HiggsChallenge/tfmc_calibrator.pkl', 'rb') as file:
-        #    self.calibrator = pickle.load(file)
+        self.load_Poisson_predictions()
 
     def ignore_loading_check(self):
         """
@@ -117,8 +116,7 @@ class Inference:
             if "Toy" in self.cfg["Save"]:
                 del self.cfg["Save"]["Toy"]
                 logger.info("Specified toy from path or memory, remove toy from config")
-        for selection in self.selections:
-            self.loadToyFromMemory(selection=selection, ignore_done=True) # load and force overwrite
+        self.loadToyFromMemory(ignore_done=True) # load and force overwrite
 
 
     def calibrate_dcr(self, selection, input_dcr):
@@ -127,11 +125,9 @@ class Inference:
         """
         if selection not in self.calibrations:
             return input_dcr
+        else:
+            output_dcr = self.calibrations[selection].predict(input_dcr)
 
-        output_dcr = input_dcr.copy() # to be overwritten below
-        calibrated_0_dcr = self.calibrations[selection].predict(input_dcr[:, 0]) # changes DCR value of class 0 only
-        output_dcr[:, 1:] = output_dcr[:, 1:] * ((1.-calibrated_0_dcr)/(1.-output_dcr[:, 0])).reshape(-1,1) # rescale DCR of remaining classes, such that sum stays 1
-        output_dcr[:, 0] = calibrated_0_dcr # put correct value in first column, too
         return output_dcr
 
     def training_data_loader(self, selection, n_split):
@@ -216,110 +212,133 @@ class Inference:
 
         logger.info( "Loaded ICPs: "+" ".join( ["%s: %i"%(t,counter[t]) for t in self.cfg['Tasks'] if t!='MultiClassifier'] ) )
 
-    def loadMLresults(self, name, filename, selection, ignore_done=False):
+    def loadMLresults(self, name, filename, ignore_done=False):
         """
         Load machine learning results from an HDF5 file.
 
         Args:
             name (str): Name of the results.
             filename (str): Base name of the HDF5 file.
-            selection (str): Selection criteria.
             ignore_done (bool): Whether to ignore already loaded results.
         """
-        h5_filename = os.path.join( self.cfg['tmp_path'], filename + '_' + selection + '.h5' )
-        assert os.path.exists(h5_filename), "File {} does not exist! Try running the save mode first.".format(h5_filename)
+        for selection in self.selections:
+            if not ignore_done and name in self.h5s and selection in self.h5s[name]:
+                continue  # Results already loaded, skip
 
-        if not ignore_done and name in self.h5s and selection in self.h5s[name]:
-            return  # Results already loaded, skip
+            logger.debug( f"Loading ML results for {name} in selection {selection}" )
+            h5_filename = os.path.join( self.cfg['tmp_path'], filename + '_' + selection + '.h5' )
+            assert os.path.exists(h5_filename), "File {} does not exist! Try running the save mode first.".format(h5_filename)
 
-        h5f = self.loadH5(h5_filename, selection)
-        if name not in self.h5s:
-            self.h5s[name] = {}
+            h5f = self.loadH5(h5_filename, selection)
+            if name not in self.h5s:
+                self.h5s[name] = {}
 
-        # Load datasets from HDF5
-        self.h5s[name][selection] = {
-            "MultiClassifier_predict": h5f["MultiClassifier_predict"][:],
-            "htautau_DeltaA":          h5f["htautau_DeltaA"][:],
-            "ztautau_DeltaA":          h5f["ztautau_DeltaA"][:],
-            "ttbar_DeltaA":            h5f["ttbar_DeltaA"][:],
-            "diboson_DeltaA":          h5f["diboson_DeltaA"][:],
-            "Weight":                  h5f["Weight"][:],
-            "Label":                   h5f["Label"][:]
-        }
-        logger.info("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
+            # Load datasets from HDF5
+            self.h5s[name][selection] = {
+                "MultiClassifier_predict": h5f["MultiClassifier_predict"][:],
+                "htautau_DeltaA":          h5f["htautau_DeltaA"][:],
+                "ztautau_DeltaA":          h5f["ztautau_DeltaA"][:],
+                "ttbar_DeltaA":            h5f["ttbar_DeltaA"][:],
+                "diboson_DeltaA":          h5f["diboson_DeltaA"][:],
+                "Weight":                  h5f["Weight"][:],
+                "Label":                   h5f["Label"][:]
+            }
+            logger.info("ML results {} with {} loaded from {}".format(name, selection, h5_filename))
 
-    def loadToyFromPath(self, filename, selection, ignore_done=False):
+        if name!="TrainingData" and "Poisson" in self.cfg:
+            for name, poisson_data in self.poisson.items():
+                # Check whether we have it already
+                if poisson_data['observation'] is not None or ( 'ignore' in poisson_data and poisson_data['ignore']):
+                    continue
+                pkl_filename = os.path.join(
+                    self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
+                if not os.path.exists(pkl_filename):
+                    raise RuntimeError(f"Poisson term file {pkl_filename} not found. Run with --save first.") 
+                with open(pkl_filename, 'rb') as pkl_file:
+                    poisson_data['observation']=pickle.load( pkl_file)
+                    logger.info(f"Read Poisson observation from {pkl_filename}. Found {name}: {poisson_data['observation']}")
+
+    def loadToyFromPath(self, filename, ignore_done=False):
         """
         Load toy directly from raw -h5 file
         We calculate the arrays with the ML ntuple informations on the fly,
         do not write an output file and store the arrays in the corresponding self.h5s["Toy"]
         Args:
             filename (str): Path of the toy.
-            selection (str): Selection criteria.
             ignore_done (bool): Whether to ignore already loaded results.
         """
 
         assert os.path.exists(filename), "Toy file {} does not exist!".format(filename)
+        for selection in self.selections:
+            if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
+                return  # Results already loaded, skip
 
-        if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
-            return  # Results already loaded, skip
+            # Load h5 file
+            rawToy = self.load_toy_file(
+                filename = filename,
+                batch_size = None,
+                n_split = 1,
+                selection_function = selections[selection]
+            )
 
-        # Load h5 file
-        rawToy = self.load_toy_file(
-            filename = filename,
-            batch_size = None,
-            n_split = 1,
-            selection_function = selections.selections[selection]
-        )
+            # Check if the dict already exists, otherwise create it
+            if "Toy" not in self.h5s:
+                self.h5s["Toy"] = {}
+            if selection not in self.h5s["Toy"]:
+                self.h5s["Toy"][selection] = {}
 
-        # Check if the dict already exists, otherwise create it
-        if "Toy" not in self.h5s:
-            self.h5s["Toy"] = {}
-        if selection not in self.h5s["Toy"]:
-            self.h5s["Toy"][selection] = {}
+            # Load features, weight, labels and convert to ML scores/DeltaAs
+            with tqdm(total=len(rawToy), desc="Processing batches") as pbar:
+                for i_batch, batch in enumerate(rawToy):
+                    features, weights, labels = rawToy.split(batch)
+                    MLpredictions = {}
+                    for t in self.cfg['Tasks']:
+                        if "save" not in self.cfg[t]:
+                            continue
 
-        # Load features, weight, labels and convert to ML scores/DeltaAs
-        with tqdm(total=len(rawToy), desc="Processing batches") as pbar:
-            for i_batch, batch in enumerate(rawToy):
-                features, weights, labels = rawToy.split(batch)
-                MLpredictions = {}
-                for t in self.cfg['Tasks']:
-                    if "save" not in self.cfg[t]:
-                        continue
+                        for iobj in self.cfg[t]['save']:
+                            ds_name = t + '_' + iobj
 
-                    for iobj in self.cfg[t]['save']:
-                        ds_name = t + '_' + iobj
+                            if iobj == "predict":
+                                pred = self.models[t][selection].predict(features)
+                            elif iobj == "DeltaA":
+                                pred = self.models[t][selection].get_DeltaA(features)
+                            else:
+                                raise Exception(
+                                    f"Unsupported save type: '{iobj}'. "
+                                    "Currently supported: 'predict', 'DeltaA'."
+                                )
+                            MLpredictions[ds_name] = pred
 
-                        if iobj == "predict":
-                            pred = self.models[t][selection].predict(features)
-                        elif iobj == "DeltaA":
-                            pred = self.models[t][selection].get_DeltaA(features)
-                        else:
-                            raise Exception(
-                                f"Unsupported save type: '{iobj}'. "
-                                "Currently supported: 'predict', 'DeltaA'."
-                            )
-                        MLpredictions[ds_name] = pred
+                    # Save in dict
+                    if i_batch == 0:
+                        self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
+                        self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
+                        self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
+                        self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
+                        self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
+                        self.h5s["Toy"][selection]["Weight"] = weights[:]
+                        self.h5s["Toy"][selection]["Label"] = labels[:]
+                    else:
+                        self.h5s["Toy"][selection]["MultiClassifier_predict"] = np.append(self.h5s["Toy"][selection]["MultiClassifier_predict"], MLpredictions["MultiClassifier_predict"][:])
+                        self.h5s["Toy"][selection]["htautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["htautau_DeltaA"], MLpredictions["htautau_DeltaA"][:])
+                        self.h5s["Toy"][selection]["ztautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["ztautau_DeltaA"], MLpredictions["ztautau_DeltaA"][:])
+                        self.h5s["Toy"][selection]["ttbar_DeltaA"] = np.append(self.h5s["Toy"][selection]["ttbar_DeltaA"], MLpredictions["ttbar_DeltaA"][:])
+                        self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
+                        self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
+                        self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
+                    
+                    pbar.update(1)
 
-                # Save in dict
-                if i_batch == 0:
-                    self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
-                    self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
-                    self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
-                    self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
-                    self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
-                    self.h5s["Toy"][selection]["Weight"] = weights[:]
-                    self.h5s["Toy"][selection]["Label"] = labels[:]
-                else:
-                    self.h5s["Toy"][selection]["MultiClassifier_predict"] = np.append(self.h5s["Toy"][selection]["MultiClassifier_predict"], MLpredictions["MultiClassifier_predict"][:])
-                    self.h5s["Toy"][selection]["htautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["htautau_DeltaA"], MLpredictions["htautau_DeltaA"][:])
-                    self.h5s["Toy"][selection]["ztautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["ztautau_DeltaA"], MLpredictions["ztautau_DeltaA"][:])
-                    self.h5s["Toy"][selection]["ttbar_DeltaA"] = np.append(self.h5s["Toy"][selection]["ttbar_DeltaA"], MLpredictions["ttbar_DeltaA"][:])
-                    self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
-                    self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
-                    self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
+            logger.info("Toy with {} loaded from {}".format(selection, filename))
 
-        logger.info("Toy with {} loaded from {}".format(selection, filename))
+            # Poisson data
+            if "Poisson" in self.cfg:
+                for name, poisson_data in self.poisson.items():
+                    if self.cfg['Poisson'][name]["ignore"]: continue
+                    poisson_rawToy = self.load_toy_file( filename = filename, batch_size = None, n_split = 1, selection_function = selections[self.cfg["Poisson"][name]["preselection"]])
+                    poisson_data['observation'] = self.Poisson_observation( data_input = poisson_rawToy, selectors = poisson_data['mva_selectors'], small=False)
+                    logger.info(f"loadToyFromPath: Computed Poisson observation {name}: {poisson_data['observation']}")
 
     def convertToyToDataStruct(self):
         """
@@ -344,61 +363,73 @@ class Inference:
 
         return converted_data
 
-    def loadToyFromMemory(self, selection, ignore_done=False):
+    def loadToyFromMemory(self, ignore_done=False):
         assert self.toy_from_memory is not None, "Toy not defined!"
 
-        if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
-            return  # Results already loaded, skip
+        for selection in self.selections:
+            if not ignore_done and "Toy" in self.h5s and selection in self.h5s["Toy"]:
+                return  # Results already loaded, skip
 
-        # Check if the dict already exists, otherwise create it
-        if "Toy" not in self.h5s:
-            self.h5s["Toy"] = {}
-        if selection not in self.h5s["Toy"]:
-            self.h5s["Toy"][selection] = {}
+            # Check if the dict already exists, otherwise create it
+            if "Toy" not in self.h5s:
+                self.h5s["Toy"] = {}
+            if selection not in self.h5s["Toy"]:
+                self.h5s["Toy"][selection] = {}
 
-        # convert toy in our data format and load data
-        toy_data = self.convertToyToDataStruct()
+            # convert toy in our data format and load data
+            toy_data = self.convertToyToDataStruct()
 
-        # Make event selection
-        selection_function = selections.selections[selection]
-        selected_toy_data = selection_function(toy_data)
+            # Make event selection
+            selection_function = selections[selection]
+            selected_toy_data = selection_function(toy_data)
 
-        # Split into features and weights:
-        features = selected_toy_data[:, :len(data_structure.feature_names)]
-        weights  = selected_toy_data[:, data_structure.weight_index]
-        labels   = selected_toy_data[:, data_structure.label_index]
+            # Split into features and weights:
+            features = selected_toy_data[:, :len(data_structure.feature_names)]
+            weights  = selected_toy_data[:, data_structure.weight_index]
+            labels   = selected_toy_data[:, data_structure.label_index]
 
-        # Get ML info from features
-        MLpredictions = {}
-        for t in self.cfg['Tasks']:
-            if "save" not in self.cfg[t]:
-                continue
+            # Get ML info from features
+            MLpredictions = {}
+            for t in self.cfg['Tasks']:
+                if "save" not in self.cfg[t]:
+                    continue
 
-            for iobj in self.cfg[t]['save']:
-                ds_name = t + '_' + iobj
+                for iobj in self.cfg[t]['save']:
+                    ds_name = t + '_' + iobj
 
-                if iobj == "predict":
-                    pred = self.models[t][selection].predict(features)
-                elif iobj == "DeltaA":
-                    pred = self.models[t][selection].get_DeltaA(features)
-                else:
-                    raise Exception(
-                        f"Unsupported save type: '{iobj}'. "
-                        "Currently supported: 'predict', 'DeltaA'."
-                    )
-                MLpredictions[ds_name] = pred
+                    if iobj == "predict":
+                        pred = self.models[t][selection].predict(features)
+                    elif iobj == "DeltaA":
+                        pred = self.models[t][selection].get_DeltaA(features)
+                    else:
+                        raise Exception(
+                            f"Unsupported save type: '{iobj}'. "
+                            "Currently supported: 'predict', 'DeltaA'."
+                        )
+                    MLpredictions[ds_name] = pred
 
-        # Save in dict
-        self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
-        self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
-        self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
-        self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
-        self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
-        self.h5s["Toy"][selection]["Weight"] = weights[:]
-        self.h5s["Toy"][selection]["Label"] = labels[:]
+            # Save in dict
+            self.h5s["Toy"][selection]["MultiClassifier_predict"] = MLpredictions["MultiClassifier_predict"][:]
+            self.h5s["Toy"][selection]["htautau_DeltaA"] = MLpredictions["htautau_DeltaA"][:]
+            self.h5s["Toy"][selection]["ztautau_DeltaA"] = MLpredictions["ztautau_DeltaA"][:]
+            self.h5s["Toy"][selection]["ttbar_DeltaA"] = MLpredictions["ttbar_DeltaA"][:]
+            self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
+            self.h5s["Toy"][selection]["Weight"] = weights[:]
+            self.h5s["Toy"][selection]["Label"] = labels[:]
 
-        logger.info("Toy with {} loaded from memory".format(selection))
+            logger.info("Toy with {} loaded from memory".format(selection))
 
+        # Poisson data
+        if "Poisson" in self.cfg:
+            for name, poisson_data in self.poisson.items():
+                if "ignore" in self.cfg['Poisson'][name] and self.cfg['Poisson'][name]["ignore"]: continue
+                # convert toy in our data format and load data
+                toy_data = self.convertToyToDataStruct()
+
+                selected_toy_data = reduce( lambda acc, f: f(acc), [poisson_data["preselector"]]+poisson_data['mva_selectors'], toy_data )
+
+                poisson_data['observation'] = selected_toy_data[:,data_structure.weight_index].sum()
+                logger.info(f"loadToyFromMemory: Computed Poisson observation {name}: {poisson_data['observation']}")
 
     def load_models(self):
         """
@@ -441,6 +472,7 @@ class Inference:
         Load the calibrations.
 
         """
+
         # Already loaded
         if hasattr( self, "calibrations" ): return
         self.calibrations = {}
@@ -448,10 +480,32 @@ class Inference:
             if 'calibration' in self.cfg['MultiClassifier'][s]:
                 pkl_filename = self.cfg['MultiClassifier'][s]['calibration']
                 assert os.path.exists(pkl_filename), "calibrations file {} does not exist!".format(pkl_filename)
-                with open(pkl_filename, 'rb') as f:
-                    self.calibrations[s] = pickle.load(f)
 
-                logger.info(f"Multiclassifier calibration loaded for {s} from {pkl_filename}.")
+                calib_class = self.cfg['MultiClassifier'][s]["calibration_module"] if "calibration_module" in self.cfg['MultiClassifier'][s] else "Calibration"
+                self.calibrations[s] = ms.getModule( calib_class ).load( pkl_filename ) 
+                logger.info(f"Calibration {calib_class} loaded for {s} from {pkl_filename}.")
+
+    def load_Poisson_predictions(self):
+        self.poisson={}
+        if "Poisson" not in self.cfg:
+            return
+
+        for name, poisson_cfg in self.cfg["Poisson"].items():
+            if "ignore" in poisson_cfg and poisson_cfg["ignore"]: continue
+            logger.info(f"Loading data for Poisson region: {name}")
+            poisson = { 
+                'preselector': selections[poisson_cfg['preselection']], # functor to apply the pre-selection
+                'IC'         : ms.InclusiveCrosssection.load( poisson_cfg['IC'] ), # the inclusive cross sections per process in the selection identified by 'name'
+                'ICP'        : { process:ms.InclusiveCrosssectionParametrization.load( poisson_cfg['ICP'][process]) for process in data_structure.labels }, # systematics dependence 
+                'observation': None,    # The observation never changes. We need to compute it from the toy.
+                } 
+            self.poisson[name] = poisson
+            poisson["mva_selectors"] = []
+            if 'mva_selection' in poisson_cfg:
+                m = ms.getModule(poisson_cfg["module"])
+                poisson['selection_mva'] = m.load(poisson_cfg["model_path"])
+                for class_name, lower, upper in poisson_cfg['mva_selection']: 
+                    poisson["mva_selectors"].append( makeMVAselector( class_name, lower, upper, selection_mva=poisson['selection_mva'] ) ) 
 
     def floatParameters(self, paramlist):
         for p in paramlist:
@@ -736,12 +790,15 @@ class Inference:
                                 if t not in restrict_csis:
                                     logger.info("Task %s not among those we compute CSIs for. Continue." %t)
                                     continue
-                                # Check whether we have it already
-                                pkl_filename = os.path.join(
-                                    self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
-                                if os.path.exists( pkl_filename ) and not self.overwrite:
-                                    logger.info("Found %s. Continue." %pkl_filename)
-                                    continue
+
+                            # Check whether we have it already
+                            pkl_filename = os.path.join(
+                                self.cfg['tmp_path'], f"CSI_{s}_{t}_TrainingData.pkl")
+                            if not os.path.exists( pkl_filename ) and not self.overwrite:
+                                logger.info("Did not find %s. Will compute CSI." %pkl_filename)
+                            if os.path.exists( pkl_filename ) and not self.overwrite:
+                                logger.info("Found %s. Continue." %pkl_filename)
+                                continue
 
                             nu_A_values = np.array([
                                 self.models[t][s].nu_A(bp) for bp in base_points_flat])
@@ -791,6 +848,42 @@ class Inference:
                                     pickle.dump((self.csis[s][t], self.csis_const[s][t]), pkl_file)
                                 logger.info(f"CSI saved: {pkl_filename}")
 
+        # Save Poisson observations for toy from yaml
+        if "Poisson" in self.cfg:# and self.cfg["save"]:
+            for name, poisson_data in self.poisson.items():
+                if "ignore" in self.cfg["Poisson"][name] and self.cfg["Poisson"][name]["ignore"]: continue
+                # Check whether we have it already
+                pkl_filename = os.path.join(
+                    self.cfg['tmp_path'], f"Poisson_{name}_Toy.pkl")
+                if os.path.exists( pkl_filename ) and not self.overwrite:
+                    logger.info("Found %s. Do not overwrite." %pkl_filename)
+                    continue
+
+                logger.info(f"Computing Poisson observation for {name}")
+                data_input = self.training_data_loader(self.cfg["Poisson"][name]["preselection"], n_split=100)
+                poisson_data['observation'] = self.Poisson_observation( data_input = data_input, selectors = poisson_data['mva_selectors'], small=self.small)
+                with open(pkl_filename, 'wb') as pkl_file:
+                    pickle.dump(poisson_data['observation'], pkl_file)
+                    logger.info(f"Written Poisson observation to {pkl_filename}.")
+
+    def Poisson_observation( self, data_input, selectors=[], small=False):
+        with tqdm(total=len(data_input), desc="Processing batches") as pbar:
+            result=0.
+            for i_batch, batch in enumerate(data_input):
+                features, weights, labels = data_input.split(batch)
+                data = np.column_stack( (features, weights, labels) )
+                # Apply MVA cuts
+                before = data.shape[0]
+                data = reduce( lambda acc, f: f(acc), selectors, data )
+                after = data.shape[0]
+                #logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
+                weights = data[:, data_structure.weight_index]
+                result+=weights.sum()
+                #print( weights.sum(), poisson_data )
+                pbar.update(1)
+                if small: break
+        return result
+            
     def penalty(self, nu_bkg, nu_tt, nu_diboson, nu_tes, nu_jes, nu_met):
         penalty_term = 0
         if not self.float_parameters["nu_tes"]:
@@ -822,27 +915,26 @@ class Inference:
                 f"nu_jes={nu_jes:6.4f}, "
                 f"nu_met={nu_met:6.4f} "
             )
+
+      # Load all toy data
+      if self.toy_origin == "path":
+            self.loadToyFromPath(filename=self.toy_path)
+      elif self.toy_origin == "config":
+          if self.cfg['Predict']['use_toy']:
+              self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'])
+      elif self.toy_origin == "memory":
+            self.loadToyFromMemory()
+
+      # Load ML result for training data
+      if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
+          self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'])
+
       for selection in self.selections:
-
-        #if not selection == "lowMT_VBFJet": continue
-
         # loading CSIs
         if self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"]:
             self.load_csis()
 
-        # Load ML result for toy
-        if self.toy_origin == "path":
-            self.loadToyFromPath(filename=self.toy_path, selection=selection)
-        elif self.toy_origin == "config":
-            if self.cfg['Predict']['use_toy']:
-                self.loadMLresults( name='Toy', filename=self.cfg['Toy_name'], selection=selection)
-        elif self.toy_origin == "memory":
-            self.loadToyFromMemory(selection=selection)
-
         if not ( self.cfg.get("CSI") is not None and self.cfg["CSI"]["use"] ):
-            # Load ML result for training data
-            self.loadMLresults( name='TrainingData', filename=self.cfg['Predict']['TrainingData'], selection=selection)
-
             # dSoDS for training data
             weights = self.h5s['TrainingData'][selection]["Weight"]
 
@@ -914,15 +1006,46 @@ class Inference:
 
       uTerm_total = penalty + sum( uTerm.values() )
 
+      logger.debug("Working on Poisson terms.")
+
       logger.debug( f"FCN: {uTerm_total:8.6f} penalty: {penalty:6.4f} " + " ".join( ["%s: %6.4f" % ( sel, uTerm[sel]) for sel in self.selections if sel in uTerm] ) )
 
-      return uTerm_total
+      poisson_term = {}
+      poisson_term_total = 0
+      if "Poisson" in self.cfg:
+        f_bkg_rate  = np.exp(nu_bkg*np.log1p(self.alpha_bkg))
+        f_tt_rate   = np.exp(nu_tt*np.log1p(self.alpha_tt))
+        f_diboson_rate = np.exp(nu_diboson*np.log1p(self.alpha_diboson))
+        for name, poisson_data in self.poisson.items():
+            if "ignore" in self.cfg["Poisson"][name] and self.cfg["Poisson"][name]["ignore"]: continue
+            sigma_SM_h  = poisson_data['IC'].predict('htautau')
+            sigma_SM_z  = poisson_data['IC'].predict('ztautau')
+            sigma_SM_tt = poisson_data['IC'].predict('ttbar')
+            sigma_SM_db = poisson_data['IC'].predict('diboson')
+            sigma_SM_tot = sigma_SM_h+sigma_SM_z+sigma_SM_tt+sigma_SM_db
+            
+            S_h  = poisson_data['ICP']['htautau'].predict( (nu_tes, nu_jes, nu_met) )
+            S_z  = poisson_data['ICP']['ztautau'].predict( (nu_tes, nu_jes, nu_met) )
+            S_tt = poisson_data['ICP']['ttbar']  .predict( (nu_tes, nu_jes, nu_met) )
+            S_db = poisson_data['ICP']['diboson'].predict( (nu_tes, nu_jes, nu_met) ) 
 
-    #def clossMLresults(self):
-    #    logger.warning( "Warning. clossMLresults does nothing" )
-    #    return
-    #    #for n in list(self.h5s):
-    #    #  for s in list(self.h5s[n]):
-    #    #    # self.h5s[n][s].close()
-    #    #    del self.h5s[n][s]
-    #    #  del self.h5s[n]
+            poisson_term[name] = \
+                +2*(  sigma_SM_h* ( mu*S_h - 1 )
+                    + sigma_SM_z* ( f_bkg_rate*S_z - 1 )
+                    + sigma_SM_tt*( f_bkg_rate*f_tt_rate*S_tt - 1 )
+                    + sigma_SM_db*( f_bkg_rate*f_diboson_rate*S_db - 1 ) )\
+                -2*poisson_data['observation']*np.log( 
+                    mu*S_h*sigma_SM_h/sigma_SM_tot + f_bkg_rate*(S_z*sigma_SM_z/sigma_SM_tot + f_tt_rate*S_tt*sigma_SM_tt/sigma_SM_tot + f_diboson_rate*S_db*sigma_SM_db/sigma_SM_tot)
+                    )
+            logger.debug( f"Poisson term {name}: -2 log (P( N={poisson_data['observation']:.3f} | lambda={sigma_SM_tot:.3f})/P(...|SM)) = {poisson_term[name]:.3f}" ) 
+   
+        if self.small:
+          logger.warning( "Skip Poisson term with --small." ) 
+        else:
+          poisson_term_total=sum( poisson_term.values() ) 
+
+          #logger.debug( f"Total Poisson term from {len(self.cfg['Poisson'])} items: {poisson_term_total}")
+
+      total = poisson_term_total + uTerm_total
+
+      return total
