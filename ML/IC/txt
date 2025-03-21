@@ -1,0 +1,8 @@
+IC: lowMT_VBFJet X-sec:                         htautau:   225.83 ztautau: 41280.43  ttbar: 15425.87 diboson:   313.36
+IC: highMT_VBFJet X-sec:                        htautau:    14.68 ztautau:   721.70  ttbar: 16768.56 diboson:   193.20
+IC: lowMT_noVBFJet_ptH0to100 X-sec:             htautau:   642.46 ztautau: 837928.69 ttbar:  3360.13 diboson:  1438.54
+IC: lowMT_noVBFJet_ptH100to200 X-sec:           htautau:    44.56 ztautau: 15494.22  ttbar:   622.36 diboson:    65.36
+IC: lowMT_noVBFJet_ptH200 X-sec:                htautau:    12.42 ztautau:  1885.56  ttbar:    52.18 diboson:    13.69
+IC: highMT_noVBFJet_ptH0to100 X-sec:            htautau:    23.51 ztautau:  3588.86  ttbar:  4216.95 diboson:  1339.68
+IC: highMT_noVBFJet_ptH100to200 X-sec:          htautau:     2.03 ztautau:   207.66  ttbar:   780.23 diboson:    56.11
+IC: highMT_noVBFJet_ptH200 X-sec:               htautau:     0.48 ztautau:    30.40  ttbar:    57.12 diboson:    13.63
