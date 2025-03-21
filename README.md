@@ -55,6 +55,8 @@ The trained models are stored in `models/*Task*/*selection*/*specifics*/`. The `
 - `selection`: The `Selections` in the config file, includes `lowMT_VBFJet`, `lowMT_noVBFJet_ptH100`, and `highMT_VBFJet`.
 - `specifics`: The stored files includes the trained model path (`model_path`), calibration files for multiclassifier (`calibration`), and inclusive cross section parametrization file (`icp_file`).
 
+In addition, the `CSI` files for training data is used as well in the prediction. Those files are saved in `data/tmp_data/`.
+
 ## Side effects
 
 - Running `predict.py` produces a `results.json` under the `SUBMISSION_DIR` provided in the arguments. The json file will be overwritten if the file already exists.

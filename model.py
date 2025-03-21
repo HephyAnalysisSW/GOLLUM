@@ -1,7 +1,6 @@
 import os
 import sys
 sys.path.insert(0, "..")
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'pythonpackages'))
 
 import numpy as np
 import yaml
@@ -25,19 +24,6 @@ class Model:
         self.cfg['tmp_path'] = os.path.join( output_directory, f"tmp_data" )
 
         self.infer = None
-
-        ## Removing non-picklable modules
-        #for _, mc in self.infer.models['MultiClassifier'].items():
-        #    mc.config = None
-        #    mc.optimizer = None
-        #    mc.lr_schedule = None
-        #    mc.loss_fn = None
-        #    mc.metrics = None
-
-        #for _, r in self.infer.icps.items():
-        #    for _, icp in r.items():
-        #        icp.config = None
-
 
     def fit(self):
         pass
