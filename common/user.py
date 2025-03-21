@@ -1,5 +1,9 @@
 import os
 
+data_directory         = "./train/"
+derived_data_directory = "./data/"
+derived_test_data_directory = "./test_data/"
+
 try:
     user = os.environ['USER']
 except:
