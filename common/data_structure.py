@@ -26,7 +26,7 @@ plot_options = {
     "PRI_had_pt"                    :{'logY':True,  'tex':"p_{T}(#tau)",              'binning':[20, 25, 400                    ], 'y_ratio_range':[0.8,  1.2 ]},
     "PRI_had_eta"                   :{'logY':False, 'tex':"#eta(#tau)",               'binning':[20, -3, 3                      ], 'y_ratio_range':[0.95, 1.05]},
     "PRI_had_phi"                   :{'logY':False, 'tex':"#phi(#tau)",               'binning':[20, -math.pi, math.pi          ], 'y_ratio_range':[0.95, 1.05]},
-    "PRI_jet_leading_pt"            :{'logY':True,  'tex':"p_{T}(j_{0})",             'binning':[20, 25, 400                    ], 'y_ratio_range':[0.8,  1.2 ]},
+    "PRI_jet_leading_pt"            :{'logY':True,  'tex':"p_{T}(j_{0})",             'binning':[(600-25)//25, 25, 600          ], 'y_ratio_range':[0.8,  1.2 ]},
     "PRI_jet_leading_eta"           :{'logY':False, 'tex':"#eta(j_{0})",              'binning':[20, -5, 5                      ], 'y_ratio_range':[0.8,  1.2 ]},
     "PRI_jet_leading_phi"           :{'logY':False, 'tex':"#phi(j_{0})",              'binning':[20, -math.pi, math.pi          ], 'y_ratio_range':[0.95, 1.05]},
     "PRI_jet_subleading_pt"         :{'logY':True,  'tex':"p_{T}(j_{1})",             'binning':[20, 25, 400                    ], 'y_ratio_range':[0.7,  1.3 ]},

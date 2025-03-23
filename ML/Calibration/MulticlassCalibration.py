@@ -40,7 +40,7 @@ class MultiClassCalibration:
             else:
                 raise NotImplementedError
 
-    def train( self ):
+    def train( self, probability_training = False):
         logger.info(f"Training: Load data for {self.selection}")
 
         self.loader = datasets_hephy.get_data_loader(selection=self.selection, n_split=self.n_split)
@@ -53,7 +53,7 @@ class MultiClassCalibration:
         for batch in tqdm(self.loader, desc="Processing batches"):
             data, weights, labels = self.loader.split(batch)  # Unpack batch
 
-            prob = self.classifier.predict(data, ic_scaling=True)  # Predict with ic_scaling
+            prob = self.classifier.predict(data, ic_scaling=not probability_training)  # Predict with ic_scaling
             all_prob.append(prob)
             all_weights.append(weights)
             all_labels.append(labels)
@@ -67,6 +67,13 @@ class MultiClassCalibration:
         all_labels = np.concatenate(all_labels, axis=0)
 
         all_prob/=all_prob.sum(axis=1, keepdims=True)
+
+        if probability_training:
+            for label in range(4):
+                mask = (all_labels == label)
+                total_weight = all_weights[mask].sum()
+                if total_weight > 0:
+                    all_weights[mask] /= total_weight
 
         self.iso_reg = []
         for class_id in range(4):
@@ -465,12 +472,16 @@ if __name__=="__main__":
     parser.add_argument("--selection", default="lowMT_VBFJet", help="Which selection?")
     parser.add_argument("--save", action="store_true", help="Save the ML predictions for the simulation.")
     parser.add_argument("--small", action="store_true", help="Run a subset.")
+    parser.add_argument("--probability_training", action="store_true", help="Run a subset.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--postfix", default = "", type=str,  help="Append this to the fit result.")
 
     args = parser.parse_args()
 
     logger  = get_logger(args.logLevel, logFile = None)
+
+    if args.probability_training:
+        args.postfix = "prob" if args.postfix=="" else "prob_"+args.postfix
 
     subdirs = [args.selection, args.postfix]
 
@@ -488,7 +499,7 @@ if __name__=="__main__":
 
     calib = MultiClassCalibration( os.path.join( os.path.abspath('../../Workflow/configs'), args.config) +".yaml", selection=args.selection, small=args.small)
 
-    calib.train()
+    calib.train(probability_training=args.probability_training)
     
     calib.save(filename)
 

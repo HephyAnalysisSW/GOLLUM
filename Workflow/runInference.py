@@ -40,6 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--impacts", action="store_true", help="Run post-fit uncertainties.")
     parser.add_argument("-g", "--scan", action="store_true", help="Run likelihood scan.")
     parser.add_argument("--small", action="store_true", help="Run a subset.")
+    parser.add_argument("--doHesse", action="store_true", help="Run Hesse after Minuit?")
     parser.add_argument("--minimizer", type=str, default="minuit", choices=["minuit", "bfgs", "robust"], help="Which minimizer?")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--asimov_mu", type=float, default=None, help="Modify asimov weights according to mu.")
@@ -130,7 +131,7 @@ if __name__ == '__main__':
 
         # Perform global fit
         logger.info("Start global fit.")
-        fit = likelihoodFit(likelihood_function)
+        fit = likelihoodFit(likelihood_function, doHesse=args.doHesse)
 
         #profiler = cProfile.Profile()
         #profiler.enable()
