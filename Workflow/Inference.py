@@ -419,6 +419,7 @@ class Inference:
 
             logger.info("Toy with {} loaded from memory".format(selection))
 
+
         # Poisson data
         if "Poisson" in self.cfg:
             for name, poisson_data in self.poisson.items():
@@ -426,8 +427,16 @@ class Inference:
                 # convert toy in our data format and load data
                 if ignore_done or not (poisson_data['observation'] is not None):
                     toy_data = self.convertToyToDataStruct()
+
+                    # Apply selections
                     selected_toy_data = reduce( lambda acc, f: f(acc), [poisson_data["preselector"]]+poisson_data['mva_selectors'], toy_data )
-                    poisson_data['observation'] = selected_toy_data[:,data_structure.weight_index].sum()
+
+                    # Store the Poisson data per label, including -1
+                    labels  = selected_toy_data[:, data_structure.label_index]
+                    poisson_data['observation'] = {}
+                    for i_label in [-1] + list(range(len(data_structure.labels))):
+                        label_mask = (labels==i_label)
+                        poisson_data['observation'][i_label] = selected_toy_data[label_mask,data_structure.weight_index].sum()
                     logger.info(f"loadToyFromMemory: Computed Poisson observation {name}: {poisson_data['observation']}")
 
     def load_models(self):
@@ -867,7 +876,7 @@ class Inference:
 
     def Poisson_observation( self, data_input, selectors=[], small=False):
         with tqdm(total=len(data_input), desc="Processing batches") as pbar:
-            result=0.
+            result={}
             for i_batch, batch in enumerate(data_input):
                 features, weights, labels = data_input.split(batch)
                 data = np.column_stack( (features, weights, labels) )
@@ -876,8 +885,11 @@ class Inference:
                 data = reduce( lambda acc, f: f(acc), selectors, data )
                 after = data.shape[0]
                 #logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
-                weights = data[:, data_structure.weight_index]
-                result+=weights.sum()
+                for i_label in [-1] + list(range(len(data_structure.labels))):
+                    label_mask = (labels==i_label)
+                    result[i_label] = data[:, data_structure.weight_index].sum()
+                #weights = data[:, data_structure.weight_index]
+                #result+=weights.sum()
                 #print( weights.sum(), poisson_data )
                 pbar.update(1)
                 if small: break
@@ -1028,15 +1040,17 @@ class Inference:
             S_tt = poisson_data['ICP']['ttbar']  .predict( (nu_tes, nu_jes, nu_met) )
             S_db = poisson_data['ICP']['diboson'].predict( (nu_tes, nu_jes, nu_met) ) 
 
+            poisson_observation = sum(poisson_data['observation'].keys())
+
             poisson_term[name] = \
                 +2*(  sigma_SM_h* ( mu*S_h - 1 )
                     + sigma_SM_z* ( f_bkg_rate*S_z - 1 )
                     + sigma_SM_tt*( f_bkg_rate*f_tt_rate*S_tt - 1 )
                     + sigma_SM_db*( f_bkg_rate*f_diboson_rate*S_db - 1 ) )\
-                -2*poisson_data['observation']*np.log( 
+                -2*poisson_observation*np.log( 
                     mu*S_h*sigma_SM_h/sigma_SM_tot + f_bkg_rate*(S_z*sigma_SM_z/sigma_SM_tot + f_tt_rate*S_tt*sigma_SM_tt/sigma_SM_tot + f_diboson_rate*S_db*sigma_SM_db/sigma_SM_tot)
                     )
-            logger.debug( f"Poisson term {name}: -2 log (P( N={poisson_data['observation']:.3f} | lambda={sigma_SM_tot:.3f})/P(...|SM)) = {poisson_term[name]:.3f}" ) 
+            logger.debug( f"Poisson term {name}: -2 log (P( N={poisson_observation:.3f} | lambda={sigma_SM_tot:.3f})/P(...|SM)) = {poisson_term[name]:.3f}" ) 
    
         if self.small:
           logger.warning( "Skip Poisson term with --small." ) 
