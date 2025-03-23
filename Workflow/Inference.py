@@ -875,8 +875,8 @@ class Inference:
                     logger.info(f"Written Poisson observation to {pkl_filename}.")
 
     def Poisson_observation( self, data_input, selectors=[], small=False):
+        result = {i_label:0 for i_label in [-1] + list(range(len(data_structure.labels))) }
         with tqdm(total=len(data_input), desc="Processing batches") as pbar:
-            result={}
             for i_batch, batch in enumerate(data_input):
                 features, weights, labels = data_input.split(batch)
                 data = np.column_stack( (features, weights, labels) )
@@ -886,8 +886,8 @@ class Inference:
                 after = data.shape[0]
                 #logger.debug(f"Applying MVA selectors leads to reduction from {before} to {after} counts")
                 for i_label in [-1] + list(range(len(data_structure.labels))):
-                    label_mask = (labels==i_label)
-                    result[i_label] = data[:, data_structure.weight_index].sum()
+                    label_mask = (data[:, data_structure.label_index]==i_label)
+                    result[i_label] += (data[label_mask, data_structure.weight_index]).sum()
                 #weights = data[:, data_structure.weight_index]
                 #result+=weights.sum()
                 #print( weights.sum(), poisson_data )
@@ -1040,8 +1040,20 @@ class Inference:
             S_tt = poisson_data['ICP']['ttbar']  .predict( (nu_tes, nu_jes, nu_met) )
             S_db = poisson_data['ICP']['diboson'].predict( (nu_tes, nu_jes, nu_met) ) 
 
-            poisson_observation = sum(poisson_data['observation'].keys())
+            poisson_obs = copy.deepcopy( poisson_data['observation'] )            
+            if asimov_mu is not None:
+                poisson_obs[data_structure.label_encoding['htautau']] *= asimov_mu
+            if asimov_nu_bkg is not None:
+                poisson_obs[data_structure.label_encoding['ztautau']] *= (1+self.alpha_bkg)**asimov_nu_bkg
+                poisson_obs[data_structure.label_encoding['ttbar']]   *= (1+self.alpha_bkg)**asimov_nu_bkg
+                poisson_obs[data_structure.label_encoding['diboson']] *= (1+self.alpha_bkg)**asimov_nu_bkg
+            if asimov_nu_tt is not None:
+                poisson_obs[data_structure.label_encoding['ttbar']] *= (1+self.alpha_tt)**asimov_nu_tt
+            if asimov_nu_diboson is not None:
+                poisson_obs[data_structure.label_encoding['dibosonbar']] *= (1+self.alpha_diboson)**asimov_nu_diboson
 
+            poisson_observation = sum(poisson_obs.values())
+            #print(name, poisson_data['observation'])
             poisson_term[name] = \
                 +2*(  sigma_SM_h* ( mu*S_h - 1 )
                     + sigma_SM_z* ( f_bkg_rate*S_z - 1 )
