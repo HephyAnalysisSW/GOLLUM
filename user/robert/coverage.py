@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     Nentries= 10000
 
-    for inflate in np.linspace(1., 1.2, 51):
+    for inflate in np.linspace(1., 1.3, 76):
 
         mu_measured_up_inf   = mu_measured   + inflate*(mu_measured_up-mu_measured)
         mu_measured_down_inf = mu_measured - inflate*(mu_measured-mu_measured_down) 

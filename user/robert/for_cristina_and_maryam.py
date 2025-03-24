@@ -21,7 +21,6 @@ argParser.add_argument('--small', action='store_true', help="Only one batch, for
 argParser.add_argument("--modelDir", action="store", default="/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6",  help="Directory containing the trained TFMC model.")
 args = argParser.parse_args()
 
-
 # let us load a classifier! 
 from ML.TFMC.TFMC import TFMC
 tfmc = TFMC.load(args.modelDir)
@@ -32,7 +31,7 @@ import common.datasets_hephy as datasets_hephy
 data_loader = datasets_hephy.get_data_loader(
     selection=args.selection, selection_function=None, n_split=args.n_split)
 
-# systmatics data_loader: values = (tes, jes, nu) where for jes/tes we have 1.01 is +1 sigma, 0.99 is -1 sigma, etc. and for MET, the value directly is the sigma (between 0 and 3)
+# systmatics data_loader: values = (tes, jes, met) where for jes/tes we have 1.01 is +1 sigma, 0.99 is -1 sigma, etc. and for MET, the value directly is the sigma (between 0 and 3)
 #datasets_hephy.get_data_loader( selection='lowMT_VBFJet', values=(1.01,1.01,0))
 # all available combinations are here: ls /scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/lowMT_VBFJet
 
@@ -64,7 +63,7 @@ for var, options in data_structure.plot_options.items():
 total_batches = len(data_loader)
 for i_batch, batch in enumerate(tqdm(data_loader, total=total_batches, desc="Batches")):
     features, weights, labels = data_loader.split(batch)
-    predictions = tfmc.predict(features, ic_scaling=False)
+    #predictions = tfmc.predict(features, ic_scaling=False)
 
     # Accumulate predicted probabilities for each class and label
     for label_idx, label in enumerate(data_structure.labels):

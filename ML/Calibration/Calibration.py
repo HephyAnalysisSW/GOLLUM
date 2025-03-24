@@ -105,11 +105,11 @@ class Calibration:
             uncalib_pred = self.data_for_plot['prob'][:, idx]
             truth = (self.data_for_plot['label'] == idx).astype(float)
             calib_pred = self.predict(self.data_for_plot['prob'])[:, idx]
-            prob_true_uncalib, prob_pred_uncalib = weighted_calibration(truth, 
+            prob_true_uncalib, prob_pred_uncalib, _, _ = weighted_calibration(truth, 
                                                                         uncalib_pred, 
                                                                         nbins=10, 
                                                                         weights = self.data_for_plot['weight'])
-            prob_true_calib, prob_pred_calib = weighted_calibration(truth, 
+            prob_true_calib, prob_pred_calib, _, _ = weighted_calibration(truth, 
                                                                     calib_pred, 
                                                                     nbins=10, 
                                                                     weights = self.data_for_plot['weight'])
@@ -143,6 +143,202 @@ class Calibration:
         plt.close()
         logger.info(f"Saved calibration plot to {file_name}")
 
+    def plot_calibration_root(self, file_name):
+        import ROOT
+        import os
+        import common.helpers
+        import common.syncer
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Import soft_colors, label_encoding, and plot_styles from common.data_structure.
+        from common.data_structure import label_encoding, plot_styles
+
+        soft_colors = [
+            ROOT.TColor.GetColor("#779ECB"),  # Soft blue
+            ROOT.TColor.GetColor("#03C03C"),  # Teal green
+            ROOT.TColor.GetColor("#B39EB5"),  # Light purple
+            ROOT.TColor.GetColor("#FFB347"),  # Soft orange
+            ROOT.TColor.GetColor("#FFD1DC"),  # Pastel pink
+            ROOT.TColor.GetColor("#AEC6CF"),  # Muted cyan
+            ROOT.TColor.GetColor("#CFCFC4"),  # Light gray
+            ROOT.TColor.GetColor("#77DD77")   # Pastel green
+        ]
+
+        # Define axis range dictionaries per label.
+        # Each label key (0,1,2,3) has separate 'main' and 'inset' ranges.
+        ranges_per_label = {
+            0: {
+                'main':  {'xmin': 0., 'xmax': .15, 'ymin': 0., 'ymax': .15},
+                'inset': {'xmin': 0,     'xmax': 0.02,   'ymin': 0,     'ymax': 0.02}
+            },
+            1: {
+                'main':  {'xmin': 0., 'xmax': 1., 'ymin': 0., 'ymax': 1.},
+                'inset': {'xmin': 0,     'xmax': 0.25, 'ymin': 0,     'ymax': 0.25}
+            },
+            2: {
+                'main':  {'xmin': 0., 'xmax': 1., 'ymin': 0., 'ymax': 1.},
+                'inset': {'xmin': 0,     'xmax': 0.2,   'ymin': 0,     'ymax': 0.2}
+            },
+            3: {
+                'main':  {'xmin': 0., 'xmax': .1, 'ymin': 0., 'ymax': .1},
+                'inset': {'xmin': 0,     'xmax': 0.2,   'ymin': 0,     'ymax': 0.2}
+            }
+        }
+        
+        # Load ROOT TDR style.
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
+        ROOT.setTDRStyle()
+        
+        logger.info("Started plotting calibration with ROOT (one figure per class)")
+        
+        # Loop over the four classes.
+        for idx in range(4):
+            # Get the configured ranges for this label.
+            this_range = ranges_per_label[idx]
+            
+            # Create a new canvas for each class.
+            c = ROOT.TCanvas("c_%d" % idx, "Calibration Plot for Class %d" % idx, 800, 600)
+            
+            # Create a frame for the main pad using the main ranges.
+            frame = c.DrawFrame(this_range['main']['xmin'], this_range['main']['ymin'],
+                                this_range['main']['xmax'], this_range['main']['ymax'])
+            # Set the x-axis title to the TeX label from plot_styles.
+            # For example, if idx==0 then label_encoding[0] gives "htautau" and
+            # plot_styles["htautau"]['tex'] gives "H#rightarrow#tau#tau".
+            class_str = label_encoding[idx]
+            tex_label = plot_styles[class_str]['tex']
+            frame.GetXaxis().SetTitle(tex_label)
+            frame.GetYaxis().SetTitle("true DCR")
+            frame.Draw("axis same")
+            
+            # Get data for class idx.
+            uncalib_pred = self.data_for_plot['prob'][:, idx]
+            truth = (self.data_for_plot['label'] == idx).astype(float)
+            calib_pred = self.predict(self.data_for_plot['prob'])[:, idx]
+            
+            # --- Replace the weighted_calibration calls:
+            prob_true_uncalib, prob_pred_uncalib, err_true_uncalib, err_pred_uncalib = weighted_calibration(
+                truth, uncalib_pred, nbins=20, weights=self.data_for_plot['weight'], x_min = this_range['main']['xmin'], x_max = this_range['main']['xmax'])
+            prob_true_calib, prob_pred_calib, err_true_calib, err_pred_calib = weighted_calibration(
+                truth, calib_pred, nbins=20, weights=self.data_for_plot['weight'], x_min = this_range['main']['xmin'], x_max = this_range['main']['xmax'])
+
+            # --- Replace the TGraph creation for uncalibrated curve:
+            mask_uncalib = (prob_pred_uncalib == 0.) & (prob_true_uncalib == 0.)
+            x_uncalib = prob_pred_uncalib[~mask_uncalib]
+            y_uncalib = prob_true_uncalib[~mask_uncalib]
+            ex_uncalib = err_pred_uncalib[~mask_uncalib]
+            ey_uncalib = err_true_uncalib[~mask_uncalib]
+            g_uncalib = ROOT.TGraphErrors(len(x_uncalib))
+            for i, (x, y, ex, ey) in enumerate(zip(x_uncalib, y_uncalib, ex_uncalib, ey_uncalib)):
+                g_uncalib.SetPoint(i, x, y)
+                g_uncalib.SetPointError(i, ex, ey)
+
+            # --- And similarly, for the calibrated curve:
+            mask_calib = (prob_pred_calib == 0.) & (prob_true_calib == 0.)
+            x_calib = prob_pred_calib[~mask_calib]
+            y_calib = prob_true_calib[~mask_calib]
+            ex_calib = err_pred_calib[~mask_calib]
+            ey_calib = err_true_calib[~mask_calib]
+            g_calib = ROOT.TGraphErrors(len(x_calib))
+            for i, (x, y, ex, ey) in enumerate(zip(x_calib, y_calib, ex_calib, ey_calib)):
+                g_calib.SetPoint(i, x, y)
+                g_calib.SetPointError(i, ex, ey)
+
+
+            #
+            ## Remove bins where both predicted and true values are zero.
+            #mask_uncalib = (prob_pred_uncalib == 0.) & (prob_true_uncalib == 0.)
+            #mask_calib   = (prob_pred_calib == 0.) & (prob_true_calib == 0.)
+            #x_uncalib = prob_pred_uncalib[~mask_uncalib]
+            #y_uncalib = prob_true_uncalib[~mask_uncalib]
+            #x_calib   = prob_pred_calib[~mask_calib]
+            #y_calib   = prob_true_calib[~mask_calib]
+            #
+            ## Create TGraphs for the calibration curves.
+            #g_uncalib = ROOT.TGraph(len(x_uncalib))
+            #for i, (x, y) in enumerate(zip(x_uncalib, y_uncalib)):
+            #    g_uncalib.SetPoint(i, x, y)
+            #g_calib = ROOT.TGraph(len(x_calib))
+            #for i, (x, y) in enumerate(zip(x_calib, y_calib)):
+            #    g_calib.SetPoint(i, x, y)
+            
+            # Style the graphs using soft_colors.
+            g_uncalib.SetMarkerStyle(20)
+            g_uncalib.SetMarkerColor(soft_colors[0])
+            g_uncalib.SetLineColor(soft_colors[0])
+            g_uncalib.SetLineWidth(2)
+            g_calib.SetMarkerStyle(20)
+            g_calib.SetMarkerColor(soft_colors[1])
+            g_calib.SetLineColor(soft_colors[1])
+            g_calib.SetLineWidth(2)
+            
+            # Draw the graphs on the main pad.
+            g_uncalib.Draw("LP SAME")
+            g_calib.Draw("LP SAME")
+            
+            # Draw the identity line y=x.
+            line = ROOT.TLine(this_range['main']['xmin'], this_range['main']['xmin'],
+                               this_range['main']['xmax'], this_range['main']['xmax'])
+            line.SetLineStyle(2)
+            line.Draw("SAME")
+            
+            # Add a legend.
+            leg = ROOT.TLegend(0.2, 0.75, 0.55, 0.85)
+            leg.SetBorderSize(0)
+            leg.SetFillStyle(0)
+            leg.AddEntry(g_uncalib, "before calibration", "lp")
+            leg.AddEntry(g_calib, "after calibration", "lp")
+            leg.Draw("SAME")
+            
+            # (No additional title is added; the x-axis title already carries the TeX label.)
+            
+            # Create an inset pad with a zoomed view.
+            inset = ROOT.TPad("inset_%d" % idx, "", 0.625, 0.175, 0.925, 0.475)
+            inset.SetFillStyle(0)  # transparent background
+            inset.Draw()
+            inset.cd()
+            
+            # Draw a frame for the inset using the inset ranges.
+            inset_frame = ROOT.gPad.DrawFrame(this_range['inset']['xmin'], this_range['inset']['ymin'],
+                                              this_range['inset']['xmax'], this_range['inset']['ymax'])
+            # Set the inset's axis label and title sizes to match the main pad.
+            main_label_size = frame.GetXaxis().GetLabelSize()
+            main_title_size = frame.GetXaxis().GetTitleSize()
+            inset_frame.GetXaxis().SetLabelSize(main_label_size)
+            inset_frame.GetYaxis().SetLabelSize(main_label_size)
+            inset_frame.GetXaxis().SetTitleSize(main_title_size)
+            inset_frame.GetYaxis().SetTitleSize(main_title_size)
+            inset_frame.Draw("axis same")
+            
+            # Draw the same calibration curves and identity line in the inset.
+            g_uncalib.Draw("LP SAME")
+            g_calib.Draw("LP SAME")
+            line_inset = ROOT.TLine(this_range['inset']['xmin'], this_range['inset']['xmin'],
+                                    this_range['inset']['xmax'], this_range['inset']['xmax'])
+            line_inset.SetLineStyle(2)
+            line_inset.Draw("SAME")
+
+            frame.Draw("axis same")
+            
+            # Return to the main canvas.
+            c.cd()
+            c.Update()
+            
+            # Save the canvas to a file; append _classX to the filename.
+            base, _ = os.path.splitext(file_name)
+            out_file = "%s_class%d%s" % (base, idx, ".png")
+            c.SaveAs(out_file)
+            logger.info("Saved calibration plot for class %d to %s", idx, out_file)
+            out_file = "%s_class%d%s" % (base, idx, ".pdf")
+            c.SaveAs(out_file)
+            logger.info("Saved calibration plot for class %d to %s", idx, out_file)
+        
+        common.helpers.copyIndexPHP(os.path.dirname(file_name))
+        common.syncer.sync()
+
+
     def plot_IsotonicRegression(self, file_name):
         # assume for now that calibrator was trained / loaded
         # TO-DO: check if calibrator exists and train/load otherwise
@@ -163,29 +359,68 @@ class Calibration:
         plt.close()
         logger.info(f"Saved isotonic regression plot to {file_name}")
 
+def weighted_calibration(true_label, pred_output, nbins=10, weights=None, x_min=None, x_max=None):
+    # This function computes weighted calibration curves along with uncertainties.
+    # It returns:
+    #   prob_true  : weighted true fraction per bin
+    #   prob_pred  : weighted mean of pred_output per bin
+    #   err_true   : uncertainty on the weighted true fraction (binomial uncertainty)
+    #   err_pred   : uncertainty on the weighted predicted mean (standard error)
 
-def weighted_calibration(true_label, pred_output, nbins=10, weights=None):
-    # reproduces to a large extend 
-    # from sklearn.calibration import calibration_curve
-    # but adds the functionality to have weighted events
-    bins = np.linspace(pred_output.min(), pred_output.max(), nbins+1)
+    import numpy as np
+
+    x_min = x_min if not None else pred_output.min()
+    x_max = x_max if not None else pred_output.max()
+
+    bins = np.linspace(x_min, x_max, nbins+1)
     if weights is None:
         weights = np.ones_like(true_label)
+
+    # Create a boolean mask: each column corresponds to a bin.
     mask = (pred_output.reshape(-1,1) >= bins[:-1]) & (bins[1:] >= pred_output.reshape(-1,1))
+
     true_fraction = []
     pred_fraction = []
+    true_uncertainty = []
+    pred_uncertainty = []
+
     for bin_nr in range(nbins):
-        if len(weights[mask[:,bin_nr]]) == 0:
+        # Select events in this bin.
+        bin_mask = mask[:, bin_nr]
+        w_bin = weights[bin_mask]
+
+        if len(w_bin) == 0:
             true_fraction.append(0.)
-        else:
-            true_fraction.append((weights[mask[:,bin_nr]]*true_label[mask[:,bin_nr]]).sum() /(weights[mask[:,bin_nr]]).sum()+1e-16)
-        if len(pred_output[mask[:,bin_nr]]) == 0:
             pred_fraction.append(0.)
+            true_uncertainty.append(0.)
+            pred_uncertainty.append(0.)
         else:
-            pred_fraction.append((pred_output[mask[:,bin_nr]]).mean())
+            w_sum = w_bin.sum()
+            # Effective number of events in the bin.
+            n_eff = (w_sum ** 2) / ((w_bin ** 2).sum())
+
+            # Compute the weighted true fraction (using true_label).
+            p_true = (w_bin * true_label[bin_mask]).sum() / w_sum + 1e-16
+            true_fraction.append(p_true)
+            # Uncertainty on the true fraction, binomial style.
+            sigma_true = (p_true * (1 - p_true) / n_eff) ** 0.5
+            true_uncertainty.append(sigma_true)
+
+            # Compute the weighted mean of the predicted output.
+            p_pred = (w_bin * pred_output[bin_mask]).sum() / w_sum
+            pred_fraction.append(p_pred)
+            # Compute the weighted variance.
+            variance = (w_bin * (pred_output[bin_mask] - p_pred)**2).sum() / w_sum
+            sigma_pred = (variance / n_eff) ** 0.5
+            pred_uncertainty.append(sigma_pred)
+
     prob_true = np.array(true_fraction)
     prob_pred = np.array(pred_fraction)
-    return prob_true, prob_pred        
+    err_true  = np.array(true_uncertainty)
+    err_pred  = np.array(pred_uncertainty)
+
+    return prob_true, prob_pred, err_true, err_pred
+
 
 if __name__=="__main__":
     import argparse
@@ -205,7 +440,7 @@ if __name__=="__main__":
 
     logger  = get_logger(args.logLevel, logFile = None)
 
-    subdirs = [args.selection]
+    subdirs = [args.selection, args.postfix]
 
     # Where to store the training
     model_directory = os.path.join(user.model_directory, "Calibration", *subdirs,  args.config, args.selection)
@@ -228,7 +463,9 @@ if __name__=="__main__":
     plot_directory = os.path.join(user.plot_directory, "Calibration", *subdirs,  args.config, args.selection)
     os.makedirs(plot_directory, exist_ok=True)
     
-    calib.plot_calibration(os.path.join( plot_directory, 
+    #calib.plot_calibration(os.path.join( plot_directory, 
+    #                                     f'calibrator_validation_calibration.png'))
+    calib.plot_calibration_root(os.path.join( plot_directory, 
                                          f'calibrator_validation_calibration.png'))
     calib.plot_IsotonicRegression(os.path.join( plot_directory, 
                                                 f'calibrator_validation_IsoReg.png'))
