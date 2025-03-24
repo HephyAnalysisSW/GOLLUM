@@ -74,6 +74,12 @@ nu_met = []
 nu_bkg = []
 nu_tt = []
 nu_diboson = []
+nu_tes_true = []
+nu_jes_true = []
+nu_met_true = []
+nu_bkg_true = []
+nu_tt_true = []
+nu_diboson_true = []
 
 limits = None
 if args.freeze is not None:
@@ -139,6 +145,12 @@ for i in tqdm(range(Ntoys_this_job)):
     nu_bkg.append(results["nu_bkg"])
     nu_tt.append(results["nu_tt"])
     nu_diboson.append(results["nu_diboson"])
+    nu_tes_true.append(trueValues["tes"])
+    nu_jes_true.append(trueValues["jes"])
+    nu_met_true.append(trueValues["soft_met"])
+    nu_bkg_true.append(trueValues["bkg_scale"])
+    nu_tt_true.append(trueValues["ttbar_scale"])
+    nu_diboson_true.append(trueValues["diboson_scale"])
 
 # Calculate the score
 average_width = width_sum/Ntoys
@@ -179,5 +191,11 @@ np.savez(filename,
     nu_bkg=np.array(nu_bkg),
     nu_tt=np.array(nu_tt),
     nu_diboson=np.array(nu_diboson),
+    nu_tes_true=np.array(nu_tes_true),
+    nu_jes_true=np.array(nu_jes_true),
+    nu_met_true=np.array(nu_met_true),
+    nu_bkg_true=np.array(nu_bkg_true),
+    nu_tt_true=np.array(nu_tt_true),
+    nu_diboson_true=np.array(nu_diboson_true),
     )
 print("Saved to file:", filename)
