@@ -1,6 +1,6 @@
 # Higgs ML Uncertainty Challenge -- HEPHY
 
-## Hardward
+## Hardware
 
 CPU model: Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz
 Architecture: x86\_64
@@ -18,8 +18,6 @@ GPU: not needed
 CentOS Linux 7
 
 ## 3rd-party software and environment setup
-
-FIXME: should double check whether there are other packages needed
 
 TensorFlow: `pip install tensorflow`
 imunuit: `pip install iminuit`
