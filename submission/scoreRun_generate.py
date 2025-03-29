@@ -81,6 +81,8 @@ nu_bkg_true = []
 nu_tt_true = []
 nu_diboson_true = []
 
+covs = []
+
 limits = None
 if args.freeze is not None:
     limits = {}
@@ -151,6 +153,7 @@ for i in tqdm(range(Ntoys_this_job)):
     nu_bkg_true.append(trueValues["bkg_scale"])
     nu_tt_true.append(trueValues["ttbar_scale"])
     nu_diboson_true.append(trueValues["diboson_scale"])
+    covs.append(results["cov"])
 
 # Calculate the score
 average_width = width_sum/Ntoys
@@ -197,5 +200,6 @@ np.savez(filename,
     nu_bkg_true=np.array(nu_bkg_true),
     nu_tt_true=np.array(nu_tt_true),
     nu_diboson_true=np.array(nu_diboson_true),
+    covs=covs,
     )
 print("Saved to file:", filename)

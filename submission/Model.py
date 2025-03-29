@@ -125,6 +125,7 @@ class Model:
             "nu_tes": parameters_mle["nu_tes"],
             "nu_jes": parameters_mle["nu_jes"],
             "nu_met": parameters_mle["nu_met"],
+            "cov":cov,
         }
 
 
