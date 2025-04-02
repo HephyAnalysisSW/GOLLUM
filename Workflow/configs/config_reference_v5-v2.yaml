@@ -1,0 +1,209 @@
+Tasks:
+  - MultiClassifier
+  - htautau
+  - ztautau
+  - ttbar
+  - diboson
+
+Selections:
+  - "lowMT_VBFJet"
+    #  - "lowMT_noVBFJet_ptH0to100"
+  - "lowMT_noVBFJet_ptH100"
+    #  - "highMT"
+    #  - "highMT_noVBFJet"
+  - "highMT_VBFJet"
+
+Toy_name: "nominal"
+
+Save:
+  TrainingData: # pre-defined "TrainingData" used for training
+    n_split: 100
+    max_n_batch: -1 # set to -1 as infinity
+
+  Toy: # toys, name can be changed
+    dir: "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
+    #filename: "nominal.h5"
+    n_split: 100
+    batch_size:
+    max_n_batch: -1
+
+# Cubic spline interpolation for inclusive cross section
+CSI:
+    save: True
+    use: True
+
+Predict:
+  use_toy: True
+  TrainingData: "TrainingData"
+
+MultiClassifier:
+  lowMT_VBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_VBFJet/tfmc_2_reg/v6"
+    calibration_module: "MultiClassCalibration"
+    calibration: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/Calibration/lowMT_VBFJet/config_reference_v3/lowMT_VBFJet/calibrator_multi.pkl"
+  lowMT_noVBFJet_ptH0to100:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH0to100/tfmc_2_reg/v6"
+  lowMT_noVBFJet_ptH100:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/lowMT_noVBFJet_ptH100/tfmc_2_reg/v6"
+    calibration_module: "MultiClassCalibration"
+    calibration: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/Calibration/lowMT_noVBFJet_ptH100/config_reference_v3/lowMT_noVBFJet_ptH100/calibrator_multi.pkl"
+  highMT:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT/tfmc_5/v6"
+  highMT_noVBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6"
+  highMT_VBFJet:
+    module: "TFMC"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_VBFJet/tfmc_2_reg/v6"
+    calibration_module: "MultiClassCalibration"
+    calibration: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/Calibration/highMT_VBFJet/config_reference_v3/highMT_VBFJet/calibrator_multi.pkl"
+  save:
+    - predict
+
+htautau:
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl"
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  save:
+    - DeltaA
+
+ztautau:
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl"
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl"
+  highMT_VBFJet:
+    module: "PNN"
+    #model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ztautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    #icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  save:
+    - DeltaA
+
+ttbar:
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_lowMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/lowMT_noVBFJet_ptH100/pnn_lin_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl"
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_highMT_noVBFJet_icp_quad_tes_jes_met.pkl"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/ttbar/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_highMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  save:
+    - DeltaA
+
+diboson:
+  lowMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH0to100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH0to100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+  lowMT_noVBFJet_ptH100:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/lowMT_noVBFJet_ptH100/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH100_icp_quad_tes_jes_met.pkl"
+  highMT_noVBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_noVBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_icp_quad_tes_jes_met.pkl"
+  highMT_VBFJet:
+    module: "PNN"
+    model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/PNN/htautau/highMT_VBFJet/pnn_quad_tes_jes_met/v1"
+    icp_file:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_VBFJet_icp_quad_tes_jes_met.pkl"
+  save:
+    - DeltaA
+
+Parameters:
+  alpha_bkg: 0.001
+  alpha_tt: 0.02
+  alpha_diboson: 0.25
+
+Poisson:
+    highMT_noVBFJet_MVAHighMTnoVBFJetDiboson:
+        preselection: "highMT_noVBFJet"
+        module: "TFMC"
+        model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6"
+
+        mva_selection: 
+            -   ["ttbar",-100,0.4]
+            -   ["diboson",0.5,100]
+
+        IC: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/IC/IC_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson.pkl"
+        ICP:
+            htautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl"
+            ztautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl"
+            ttbar:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl"
+            diboson: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_diboson_highMT_noVBFJet_MVAHighMTnoVBFJetDiboson_icp_quad_tes_jes_met.pkl"
+
+    highMT_noVBFJet_MVAHighMTnoVBFJetTtbar:
+        preselection: "highMT_noVBFJet"
+        module: "TFMC"
+        model_path: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/TFMC/highMT_noVBFJet/tfmc_2_reg/v6"
+
+        mva_selection: 
+            -   ["ttbar",0.4,100]
+
+        IC: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/IC/IC_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar.pkl"
+        ICP:
+            htautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl"
+            ztautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl"
+            ttbar:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl"
+            diboson: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_diboson_highMT_noVBFJet_MVAHighMTnoVBFJetTtbar_icp_quad_tes_jes_met.pkl"
+        
+    lowMT_noVBFJet_ptH0to100:
+        preselection: "lowMT_noVBFJet_ptH0to100"
+        IC: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/IC/IC_lowMT_noVBFJet_ptH0to100.pkl"
+        ICP:
+            htautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_htautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+            ztautau: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ztautau_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+            ttbar:   "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_ttbar_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"
+            diboson: "/groups/hephy/cms/robert.schoefbeck/Challenge/models/ICP/ICP_diboson_lowMT_noVBFJet_ptH0to100_icp_quad_tes_jes_met.pkl"

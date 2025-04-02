@@ -238,15 +238,21 @@ if not os.path.exists( filename ) or args.overwrite:
         bounds=bounds
     )
 
+    f_min = m.fmin.fval
+    mu_asimov=args.asimov_mu
+    mu_fit=args.fixed_mu
+    m_cov = np.array(m.covariance)
+    m_val = np.array(m.values)
+    
     np.savez(filename,
-        f_min = m.fmin.fval,
+        f_min = f_min,
         mu_asimov=args.asimov_mu,
-        mu_fit=args.fixed_mu,
-        m_cov = np.array(m.covariance),
-        m_val = np.array(m.values),
+        mu_fit=mu_fit,
+        m_cov = m_cov,
+        m_val = m_val,
         approx_hess=hess,
         )
-    logger.info("Saved to file:", filename)
+    logger.info("Saved to file: %s", filename)
 else:
     data = np.load(filename, allow_pickle=True)
 
@@ -256,9 +262,10 @@ else:
     m_cov      = data['m_cov']
     m_val      = data['m_val']
     hess = data['approx_hess']
-    logger.info("Loaded from file:", filename)
+    logger.info("Loaded from file: %s", filename)
 
 # Print the matrix
+print("Approximate covariance:")
 print(np.linalg.inv(hess))
 
 if args.fixed_mu is None:
@@ -627,4 +634,4 @@ if args.fixed_mu is None:
     c_cor.Print(os.path.join(plot_directory, "correlations.pdf"))
     c_cor.Print(os.path.join(plot_directory, "correlations.png"))
 
-common.syncer.sync()
+    common.syncer.sync()
