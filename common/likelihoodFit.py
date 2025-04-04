@@ -23,7 +23,7 @@ def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_
 
 
 class likelihoodFit:
-    def __init__(self, function):
+    def __init__(self, function, doHesse=False):
 
         self.function = function
 
@@ -41,7 +41,7 @@ class likelihoodFit:
         self.eps = 0.1 # default
         self.q_mle = None
         self.parameters_mle = None
-        self.doHesse = False
+        self.doHesse = doHesse
 
     def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
 
