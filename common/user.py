@@ -39,6 +39,11 @@ elif user in ['lisa.benato']:
     model_directory        = "/groups/hephy/cms/lisa.benato/HiggsChallenge/models/"
     output_directory       = "/groups/hephy/cms/lisa.benato/HiggsChallenge/output/"
 
+elif user in ['maryam.shooshtari']:
+    plot_directory         = "/groups/hephy/cms/maryam.shooshtari/www/HiggsChallenge/"
+    model_directory        = "/groups/hephy/cms/maryam.shooshtari/HiggsChallenge/models/"
+    output_directory       = "/groups/hephy/cms/maryam.shooshtari/HiggsChallenge/output/"
+
 elif user in ['claudius.krause']:
     plot_directory         = "/groups/hephy/mlearning/HiggsChallenge/claudius/plots/"
     model_directory        = "/groups/hephy/mlearning/HiggsChallenge/claudius/models/"

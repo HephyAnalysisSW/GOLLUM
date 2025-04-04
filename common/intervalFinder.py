@@ -20,5 +20,5 @@ class intervalFinder:
     def getInterval(self):
         crossings = self.__findCrossings(self.muValues, self.qValues, self.threshold)
         if len(crossings) != 2:
-            logger.error("[ERROR] Found", len(crossings), "point(s) where q = 1 in the mu range, should be 2! Please increase scan range.")
+            logger.error(f"[ERROR] Found {len(crossings)} point(s) where q = 1 in the mu range, should be 2! Please increase scan range.")
         return crossings
