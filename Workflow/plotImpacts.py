@@ -183,14 +183,6 @@ with open(args.file, 'rb') as file:
 
 nuisanceList = ["nu_jes", "nu_tes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]
 
-# Acess the postfit uncertainties
-# These are simply sqrt(C_ii) for v_i
-postFitUncerts = {}
-for nu in nuisanceList:
-    mle = fitResult[nu]
-    uncert = np.sqrt(fitResult["cov__"+nu+"__"+nu])
-    postFitUncerts[nu] = (mle, mle-uncert, mle+uncert)
-
 # Access the impacts on mu
 # These can be calculated via
 impacts = {}
@@ -238,7 +230,7 @@ pad2.Draw()
 pad1.cd()
 g_dummy = getDummy("#nu", xmin, xmax, ymin, ymax)
 g_dummy.Draw("AP")
-g, g_prefit,labels = createGraph(postFitUncerts, nuisanceList)
+g, g_prefit,labels = createGraph(fitResult, nuisanceList)
 g_prefit.SetFillColor(17)
 g_prefit.Draw("E2 SAME")
 g.SetMarkerStyle(20)
@@ -272,7 +264,7 @@ line.SetLineStyle(2)
 line.SetLineWidth(2)
 line.Draw("SAME")
 
-muresult = addText(0.2, 0.9, "#mu = %.2f #pm %.2f"%(fitResult["mu"], np.sqrt(fitResult["cov__mu__mu"])), font=43, size=16, color=ROOT.kBlack)
+muresult = addText(0.2, 0.9, "#mu = %.2f #pm %.2f"%(fitResult["mu_mle"], np.sqrt(fitResult["cov__mu__mu"])), font=43, size=16, color=ROOT.kBlack)
 muresult.Draw()
 
 c.Print(os.path.join( user.plot_directory, 'impacts', os.path.basename(args.file).replace("fitResult.", "impacts.").replace(".pkl",".pdf")))

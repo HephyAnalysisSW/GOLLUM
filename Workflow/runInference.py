@@ -173,8 +173,12 @@ if __name__ == '__main__':
             logger.info("Start impacts.")
             postFitUncerts = fit.impacts()
             logger.info("Impacts done.")
+            for param1 in ["mu", "nu_tes", "nu_jes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]:
+                for param2 in ["mu", "nu_tes", "nu_jes", "nu_met", "nu_bkg", "nu_tt", "nu_diboson"]:
+                    postFitUncerts[f"cov__{param1}__{param2}"] = cov[param1, param2]
 
             logger.info(f"postFit parameter boundaries: {postFitUncerts}")
-            impacts_file = os.path.join(output_directory, f"postFitUncerts.{config_name}{'_' + postfix if postfix else ''}.pkl")
+            impacts_file = os.path.join(output_directory, f"fitResult.{config_name}{'_' + postfix if postfix else ''}.pkl")
             with open(impacts_file, 'wb') as file:
                 pickle.dump(postFitUncerts, file)
+            logger.info(f"Written {impacts_file}")

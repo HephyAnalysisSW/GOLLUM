@@ -7,6 +7,7 @@ from iminuit import Minuit
 
 import logging
 logger = logging.getLogger("UNC")
+import copy
 
 # Miniut debug
 if logger.getEffectiveLevel() <= logging.DEBUG:
@@ -142,7 +143,7 @@ class likelihoodFit:
 
         # Now go through each nu and find point where q - q_mle == 1
         # Do this from nu_mle to both sides to find lower and upper boundaries
-        limits = {}
+        limits = {'mu_mle':mu_mle, 'nu_bkg_mle':nu_bkg_mle, 'nu_tt_mle':nu_tt_mle, 'nu_diboson_mle':nu_diboson_mle, 'nu_jes_mle':nu_jes_mle, 'nu_tes_mle':nu_tes_mle, 'nu_met_mle':nu_met_mle} 
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             upper, lower = None, None
 

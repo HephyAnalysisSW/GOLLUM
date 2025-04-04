@@ -26,7 +26,6 @@ from ML.TFMC.TFMC import TFMC
 tfmc = TFMC.load(args.modelDir)
 
 import common.datasets_hephy as datasets_hephy
-
 # Load the data
 data_loader = datasets_hephy.get_data_loader(
     selection=args.selection, selection_function=None, n_split=args.n_split)
