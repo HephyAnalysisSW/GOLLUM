@@ -105,11 +105,14 @@ class H5DataLoader:
         return H5DataLoader.features(arr), H5DataLoader.weights(arr), H5DataLoader.labels(arr)
 
     @staticmethod
-    def get_weight_sum( data_loader, small=False):
+    def get_weight_sum( data_loader, small=False, selection=None):
         from tqdm import tqdm
         sum_ = 0.
         for batch in tqdm(data_loader, desc="Computing weight sum", unit="batch"):
-            sum_ += data_loader.weights(batch).sum()
+            if selection is not None:
+                sum_ += data_loader.weights(selection(batch)).sum()
+            else:
+                sum_ += data_loader.weights(batch).sum()
             if small: break
         return sum_
 

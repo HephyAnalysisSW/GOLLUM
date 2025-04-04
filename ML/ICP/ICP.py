@@ -86,7 +86,7 @@ class InclusiveCrosssectionParametrization:
             print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
             self.training_data[base_point] = data_loader
 
-    def train( self, small=False, train_ratio=True, yields={}):
+    def train( self, small=False, train_ratio=True, yields={}, selection=None):
 
         # We might pass yields externally
         self.yields = yields
@@ -94,7 +94,7 @@ class InclusiveCrosssectionParametrization:
         # Fetch from data loader if not externally provided
         if len(yields)==0:
             for base_point, loader in self.training_data.items():
-                self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small)
+                self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small, selection=selection)
 
         # The default case: We devide by the nominal base-point yield and 
         if train_ratio:
@@ -107,7 +107,7 @@ class InclusiveCrosssectionParametrization:
             self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
 
     def __str__( self ):
-        return " ".join( [(f"{deltaA:+.1e}")+( "*"+c if c!="" else "") for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+        return " ".join( [(f"{deltaA:+.2e}")+( "*"+c if c!="" else "") for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
 
     @classmethod
     def load(cls, filename):

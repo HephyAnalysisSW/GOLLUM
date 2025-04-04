@@ -14,6 +14,7 @@ import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--overwrite',     action='store_true',                                   help="Overwrite training?")
 argParser.add_argument("--selection",     action="store",      default="lowMT_VBFJet",           help="Which selection?")
+argParser.add_argument("--mvaSelection",     action="store",      default=None,           help="Which MVA selection?")
 argParser.add_argument("--process",       action="store",      default=None,                     help="Which process?")
 argParser.add_argument("--config",        action="store",      default="icp_quad_jes",           help="Which config?")
 argParser.add_argument("--configDir",     action="store",      default="configs",                help="Where is the config?")
@@ -28,7 +29,12 @@ config = importlib.import_module("%s.%s"%( args.configDir, args.config))
 # import the data
 import common.datasets_hephy as datasets_hephy
 
+if args.mvaSelection is not None:
+    import common.mva_selections as mva_selections
+
 subdirs = [arg for arg in [args.process, args.selection, args.config] if arg is not None]
+if args.mvaSelection is not None:
+    subdirs.insert(2, args.mvaSelection)
 
 icp_name = "ICP_"+"_".join(subdirs)
 
@@ -51,7 +57,7 @@ if icp is None or args.overwrite:
     icp = InclusiveCrosssectionParametrization( config = config )
 
     icp.load_training_data(datasets_hephy=datasets_hephy, selection=args.selection, process=args.process) 
-    icp.train             (small=args.small, train_ratio = not args.train_absolute)
+    icp.train             (small=args.small, train_ratio = not args.train_absolute, selection=mva_selections.selections[args.mvaSelection] if args.mvaSelection is not None else None)
 
     icp.save(filename)
     print ("Written %s"%( filename ))
@@ -61,5 +67,5 @@ if icp is None or args.overwrite:
     print ("Training time: %.2f seconds" % boosting_time)
 
 print (f"Trained ICP with config {args.config} in selection {args.selection}")
-prefix = "ICP: "+'\033[1m'+args.selection+'\033[0m'
+prefix = "ICP: "+'\033[1m'+args.selection+' \033[0m' +  (' \033[1m'+f"{args.mvaSelection}"+'\033[0m' if args.mvaSelection is not None else "")
 print (prefix.ljust(50)+icp.__str__())

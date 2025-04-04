@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
   logger.warning("Please make sure to execute this script directly under main HEPHY-uncertainty folder. Excuting this in subfolders will not work.")
 
-  # copy the Model.py
+  # copy the Model.p
   logger.info("Copying {} to {}".format("submission/Model.py","Model.py"))
   # shutil.copyfile("submission/Model.py","Model.py")
   logger.info("Set offset = {}, inflate = {}".format(args.offset, args.inflate))
@@ -41,6 +41,10 @@ if __name__ == '__main__':
   # copy the example.py
   logger.info("Copying {} to {}".format("submission/example.py","example.py"))
   shutil.copyfile("submission/example.py","example.py")
+
+  # copy the runModel_internal_test.py
+  logger.info("Copying {} to {}".format("submission/runModel_internal_test.py","runModel_internal_test.py"))
+  shutil.copyfile("submission/runModel_internal_test.py","runModel_internal_test.py")
 
   with open(args.config) as f:
     cfg = yaml.safe_load(f)
@@ -109,6 +113,63 @@ if __name__ == '__main__':
 
         # update the new config with the local paths
         cfg_new[t][s]['icp_file'] = os.path.join(new_icp_path,os.path.basename(original_icp_path))
+
+  if "Poisson" in cfg:
+    for s in cfg['Poisson']:
+      # copy the model if we select on MVA
+      if 'model_path' in cfg["Poisson"][s]:
+          original_model_path = cfg["Poisson"][s]['model_path']
+          new_model_path = os.path.join('models',"Poisson",s, 'model_path')
+          os.makedirs( new_model_path )
+          with open(os.path.join(original_model_path,"checkpoint")) as ckpf:
+            ckp_path = yaml.safe_load(ckpf)['model_checkpoint_path']
+
+          logger.info("Poisson ML model for {}: copying from {}".format(s,ckp_path))
+          latest_model_idx = os.path.basename(ckp_path)
+
+          # copy the .index
+          logger.info("Copying {} to {}".format(ckp_path+'.index',new_model_path))
+          shutil.copyfile(ckp_path+'.index',os.path.join(new_model_path,str(latest_model_idx)+'.index'))
+
+          # copy the .data
+          logger.info("Copying {} to {}".format(ckp_path+'.data-00000-of-00001',new_model_path))
+          shutil.copyfile(ckp_path+'.data-00000-of-00001',os.path.join(new_model_path,str(latest_model_idx)+'.data-00000-of-00001'))
+
+          # copy the config.pkl
+          logger.info("Copying {} to {}".format(os.path.join(original_model_path,'config.pkl'),new_model_path))
+          shutil.copyfile(os.path.join(original_model_path,'config.pkl'),os.path.join(new_model_path,'config.pkl'))
+
+          # write the new checkpoint metadata
+          logger.info("Creating checkpoint in {}".format(new_model_path))
+          shutil.copyfile(os.path.join(original_model_path,'checkpoint'),os.path.join(new_model_path,'checkpoint'))
+          with open(os.path.join(new_model_path,"checkpoint"), "w") as ckpf_new:
+            ckpf_new.write('model_checkpoint_path: "{}"\n'.format(str(latest_model_idx)))
+
+          # update the new config with the local paths
+          cfg_new["Poisson"][s]['model_path'] = new_model_path
+
+      # copy the IC file
+      os.makedirs(os.path.join('models',"Poisson",s,'IC'))
+      original_ic_path = cfg["Poisson"][s]['IC']
+      new_ic_path = os.path.join('models',"Poisson",s,'IC')
+
+      logger.info("Copying {} to {}".format(original_ic_path,new_ic_path))
+      shutil.copyfile(original_ic_path,os.path.join(new_ic_path,os.path.basename(original_ic_path)))
+
+      # update the new config with the local paths
+      cfg_new["Poisson"][s]['IC'] = os.path.join(new_ic_path,os.path.basename(original_ic_path))
+
+#      # copy the icp files
+      for p in ['htautau', 'ztautau', 'ttbar', 'diboson']:
+        os.makedirs(os.path.join('models',"Poisson",s,'ICP_'+p))
+        original_icp_path = cfg["Poisson"][s]['ICP'][p]
+        new_icp_path = os.path.join('models',"Poisson",s,'ICP_'+p)
+
+        logger.info("Copying {} to {}".format(original_icp_path,new_icp_path))
+        shutil.copyfile(original_icp_path,os.path.join(new_icp_path,os.path.basename(original_icp_path)))
+
+        # update the new config with the local paths
+        cfg_new["Poisson"][s]["ICP"][p] = os.path.join(new_icp_path,os.path.basename(original_icp_path))
 
   # copy the CSI files
   os.makedirs("data/tmp_data")

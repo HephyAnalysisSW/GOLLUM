@@ -7,6 +7,7 @@ from iminuit import Minuit
 
 import logging
 logger = logging.getLogger("UNC")
+import copy
 
 # Miniut debug
 if logger.getEffectiveLevel() <= logging.DEBUG:
@@ -23,7 +24,7 @@ def likelihood_test_function( mu, nu_bkg, nu_tt, nu_diboson, nu_jes, nu_tes, nu_
 
 
 class likelihoodFit:
-    def __init__(self, function):
+    def __init__(self, function, doHesse=False):
 
         self.function = function
 
@@ -41,7 +42,7 @@ class likelihoodFit:
         self.eps = 0.1 # default
         self.q_mle = None
         self.parameters_mle = None
-        self.doHesse = False
+        self.doHesse = doHesse
 
     def fit(self, start_mu=1.0, start_nu_bkg=0.0, start_nu_tt=0.0, start_nu_diboson=0.0, start_nu_jes=0.0, start_nu_tes=0.0, start_nu_met=0.0):
 
@@ -142,7 +143,7 @@ class likelihoodFit:
 
         # Now go through each nu and find point where q - q_mle == 1
         # Do this from nu_mle to both sides to find lower and upper boundaries
-        limits = {}
+        limits = {'mu_mle':mu_mle, 'nu_bkg_mle':nu_bkg_mle, 'nu_tt_mle':nu_tt_mle, 'nu_diboson_mle':nu_diboson_mle, 'nu_jes_mle':nu_jes_mle, 'nu_tes_mle':nu_tes_mle, 'nu_met_mle':nu_met_mle} 
         for nuname in ["nu_bkg", "nu_tt", "nu_diboson", "nu_jes", "nu_tes", "nu_met"]:
             upper, lower = None, None
 
