@@ -8,6 +8,7 @@ class calibrationPlotter:
         self.ymin = 0.
         self.ymax = 6.
         self.addGraphs = []
+        self.colorCoverage = False
 
     def setMus(self, mu_true, mu_measured, mu_measured_down, mu_measured_up):
         if len(mu_true) != len(mu_measured):
@@ -78,6 +79,27 @@ class calibrationPlotter:
             graph.SetPointError(i, 0.0, 0.0, self.mu_measured[i]-self.mu_measured_down[i], self.mu_measured_up[i]-self.mu_measured[i])
         graph.SetMarkerStyle(20)
         graph.Draw("P SAME")
+        if self.colorCoverage:
+            mu_true_cov = []
+            mu_measured_cov = []
+            mu_measured_up_cov = []
+            mu_measured_down_cov = []
+
+            for i in range(len(self.mu_true)):
+                if self.mu_true[i] > self.mu_measured_down[i] and self.mu_true[i] < self.mu_measured_up[i]:
+                    mu_true_cov.append(self.mu_true[i])
+                    mu_measured_cov.append(self.mu_measured[i])
+                    mu_measured_up_cov.append(self.mu_measured_up[i])
+                    mu_measured_down_cov.append(self.mu_measured_down[i])
+            graph_cov = ROOT.TGraphAsymmErrors(len(mu_true_cov))
+            for i in range(len(mu_true_cov)):
+                graph_cov.SetPoint(i, mu_true_cov[i], mu_measured_cov[i])
+                graph_cov.SetPointError(i, 0.0, 0.0, mu_measured_cov[i]-mu_measured_down_cov[i], mu_measured_up_cov[i]-mu_measured_cov[i])
+            graph_cov.SetMarkerStyle(20)
+            graph_cov.SetMarkerColor(ROOT.kRed)
+            graph_cov.SetLineColor(ROOT.kRed)
+            graph_cov.Draw("P SAME")
+
         for g in self.addGraphs:
             g.Draw("P SAME")
         c.Print(self.name)

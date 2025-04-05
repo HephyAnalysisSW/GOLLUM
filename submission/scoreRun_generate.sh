@@ -12,10 +12,10 @@
 # python scoreRun_generate.py --Ntoys 50 --mu 2.75 --postfix gen_mu_2p75
 # python scoreRun_generate.py --Ntoys 50 --mu 3.00 --postfix gen_mu_3p00
 
-# python scoreRun_generate.py --Ntoys 10000 #SPLIT200
-python scoreRun_generate.py --Ntoys 35
-python scoreRun_generate.py --Ntoys 50
-python scoreRun_generate.py --Ntoys 100
+python scoreRun_generate.py --Ntoys 100000 --config_path /users/dennis.schwarz/HEPHY-uncertainty/Workflow/configs/config_reference_v2_calib.yaml --tmp_path /groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/config_reference_v2_calib/tmp_data #SPLIT2000
+# python scoreRun_generate.py --Ntoys 35
+# python scoreRun_generate.py --Ntoys 50
+# python scoreRun_generate.py --Ntoys 100
 
 # python scoreRun_generate.py --Ntoys 50 --mu 1 --postfix gen_noSYS_mu_1p0 --jes 1.0 --tes 1.0 --met 0.0 --ttbar 1.0 --bkg 1.0 --diboson 1.0 --freeze jes-tes-met-bkg-ttbar-diboson
 # python scoreRun_generate.py --Ntoys 50 --mu 2 --postfix gen_noSYS_mu_2p0 --jes 1.0 --tes 1.0 --met 0.0 --ttbar 1.0 --bkg 1.0 --diboson 1.0 --freeze jes-tes-met-bkg-ttbar-diboson
