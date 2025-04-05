@@ -335,7 +335,7 @@ class Inference:
             # Poisson data
             if "Poisson" in self.cfg:
                 for name, poisson_data in self.poisson.items():
-                    if self.cfg['Poisson'][name]["ignore"]: continue
+                    if "ignore" in self.cfg['Poisson'][name] and self.cfg['Poisson'][name]["ignore"]: continue
                     poisson_rawToy = self.load_toy_file( filename = filename, batch_size = None, n_split = 1, selection_function = selections[self.cfg["Poisson"][name]["preselection"]])
                     poisson_data['observation'] = self.Poisson_observation( data_input = poisson_rawToy, selectors = poisson_data['mva_selectors'], small=False)
                     logger.info(f"loadToyFromPath: Computed Poisson observation {name}: {poisson_data['observation']}")

@@ -372,65 +372,9 @@ if args.fixed_mu is None:
         impact_minus = mu_minus - fitResult["mu"]
         impacts_numerical[nu] = {'down': impact_minus, 'up': impact_plus}
         
-        logger.info("Nuisance %s: non-Gaussian impact: - = %.3f, + = %.3f" % (nu, impact_minus, impact_plus))
+        logger.info("Nuisance %s: non-Gaussian impact: - = %.4f, + = %.4f" % (nu, impact_minus, impact_plus))
 
-    ## Dictionary to hold numerical impacts for each nuisance parameter:
-    #impacts_numerical = {}
-    #nuisance_values   = {}
-    #for nu in nuisances:
-    #    nu_best = fitResult[nu]
-
-    #    # --- Positive Variation ---
-    #    nu_val = nu_best
-    #    while True: 
-    #        params = fitResult.copy()
-    #        nu_val += step[nu]
-    #        nuisance_values[nu] = {'up':nu_val}
-    #        if nu_val > parameterBoundaries[nu][1]:
-    #            break
-    #        params[nu] = nu_val
-    #        f_val = function(**params)   # function returns −2 ln L
-    #        if f_val >= f_target:
-    #            break
-    #    # With nuisance fixed at nu_val, refit μ.
-    #    def func_mu(mu):
-    #        # Use best-fit values for all except μ and the current nuisance parameter.
-    #        p = fitResult.copy()
-    #        p["mu"] = mu
-    #        p[nu] = nu_val
-    #        return function(**p)
-
-    #    m_pos = Minuit(func_mu, mu=fitResult["mu"])
-    #    m_pos.migrad()
-    #    mu_plus = m_pos.values["mu"]
-
-    #    # --- Negative Variation ---
-    #    nu_val = nu_best
-    #    while nu_val > parameterBoundaries[nu][0]:
-    #        params = fitResult.copy()
-    #        nu_val -= step[nu]
-    #        nuisance_values[nu]['down'] = nu_val
-    #        if nu_val < parameterBoundaries[nu][0]:
-    #            break
-    #        params[nu] = nu_val
-    #        f_val = function(**params)
-    #        if f_val >= f_target:
-    #            break
-    #    # With nuisance fixed at nu_val, refit μ.
-    #    def func_mu_neg(mu):
-    #        p = fitResult.copy()
-    #        p["mu"] = mu
-    #        p[nu] = nu_val
-    #        return function(**p)
-
-    #    m_neg = Minuit(func_mu_neg, mu=fitResult["mu"])
-    #    m_neg.migrad()
-    #    mu_minus = m_neg.values["mu"]
-
-    #    # Impacts: positive impact = (mu_plus - fitResult["mu"]), negative impact = (fitResult["mu"] - mu_minus)
-    #    impacts_numerical[nu] = {}
-    #    impacts_numerical[nu]["down"] =  mu_minus - fitResult["mu"] 
-    #    impacts_numerical[nu]["up"]   =  mu_plus  - fitResult["mu"] 
+    logger.info( "nuisance values %r impacts_numerical %r", nuisance_values, impacts_numerical )
 
     # --------------------
     # IMPACT PLOT BLOCK (Spaghetti)
@@ -553,7 +497,6 @@ if args.fixed_mu is None:
 
     # Create the main canvas.
     c_imp = ROOT.TCanvas("postFitUncerts", "", 600, 600)
-
     # Create left pad (for post-fit uncertainties).
     pad1 = ROOT.TPad("pad1", "pad1", 0.0, 0.0, xboundary, 1.0)
     pad1.SetTopMargin(TopMargin)
