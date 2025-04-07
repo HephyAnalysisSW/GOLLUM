@@ -45,7 +45,7 @@ data_loader = datasets_hephy.get_data_loader(
 max_batch = 1 if args.small else -1
 
 # Output directory for plots
-plot_directory = os.path.join(user.plot_directory, "paper_plots", args.selection)
+plot_directory = os.path.join(user.plot_directory, "postfit_plots", args.selection)
 os.makedirs(plot_directory, exist_ok=True)
 helpers.copyIndexPHP(plot_directory)
 

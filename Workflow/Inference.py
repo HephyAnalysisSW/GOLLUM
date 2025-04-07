@@ -319,6 +319,7 @@ class Inference:
                         self.h5s["Toy"][selection]["diboson_DeltaA"] = MLpredictions["diboson_DeltaA"][:]
                         self.h5s["Toy"][selection]["Weight"] = weights[:]
                         self.h5s["Toy"][selection]["Label"] = labels[:]
+                        self.h5s["Toy"][selection]["features"] = features[:] #A flaw in the code design. Inference loads its data. Now that I need the toy features I need to accumulate them here. The data should be handed over, not loaded here or anywhere in this class.
                     else:
                         self.h5s["Toy"][selection]["MultiClassifier_predict"] = np.append(self.h5s["Toy"][selection]["MultiClassifier_predict"], MLpredictions["MultiClassifier_predict"][:])
                         self.h5s["Toy"][selection]["htautau_DeltaA"] = np.append(self.h5s["Toy"][selection]["htautau_DeltaA"], MLpredictions["htautau_DeltaA"][:])
@@ -327,6 +328,7 @@ class Inference:
                         self.h5s["Toy"][selection]["diboson_DeltaA"] = np.append(self.h5s["Toy"][selection]["diboson_DeltaA"], MLpredictions["diboson_DeltaA"][:])
                         self.h5s["Toy"][selection]["Weight"] = np.append(self.h5s["Toy"][selection]["Weight"], weights[:])
                         self.h5s["Toy"][selection]["Label"] = np.append(self.h5s["Toy"][selection]["Label"], labels[:])
+                        self.h5s["Toy"][selection]["features"] = np.append(self.h5s["Toy"][selection]["features"], features[:])
                     
                     pbar.update(1)
 
@@ -724,6 +726,7 @@ class Inference:
                                             #print("class_weights", self.models[t][s].class_weights, "weight_sums", self.models[t][s].weight_sums)
                                         elif iobj == "DeltaA":
                                             pred = self.models[t][s].get_DeltaA(features)
+                                            print("DeltaA",t,s,self.models[t][s], np.array(pred).mean(axis=0) )
                                         else:
                                             raise Exception(
                                                 f"Unsupported save type: '{iobj}'. "

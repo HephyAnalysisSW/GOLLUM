@@ -309,6 +309,32 @@ class PNN:
     def nu_A(self, nu):
         return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
 
+
+    def nu_A_diff(self, nu, param):
+        param_idx = self.parameters.index(param)
+
+        def diff_term(comb):
+            # Count how often 'param' appears
+            count = comb.count(param)
+            if count == 0:
+                return 0
+
+            total = 0
+            for i, p in enumerate(comb):
+                if p != param:
+                    continue
+                # Product of all entries except the i-th occurrence of 'param'
+                product = 1
+                for j, q in enumerate(comb):
+                    if j == i:
+                        continue
+                    product *= nu[self.parameters.index(q)]
+                total += product
+            return total
+
+        return np.array([diff_term(comb) for comb in self.combinations])
+
+
     def predict( self, features, nu):
         if hasattr( self.config, "icp_predictor"):
             bias_factor = self.config.icp_predictor(**{k:v for k,v in zip( self.parameters, nu)}) 
