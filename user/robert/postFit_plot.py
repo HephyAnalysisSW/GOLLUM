@@ -152,8 +152,12 @@ else:
     params_mle = {p:parameters_mle[p] for p in parameters}
     cov       = np.array(cov)
 
+subdirectory = os.path.basename(os.path.dirname(args.toy))
+filename_without_ext = os.path.splitext(os.path.basename(args.toy))[0]
+subdir = f"{subdirectory}_{filename_without_ext}"
+
 # Output directory for plots
-plot_directory = os.path.join(user.plot_directory, "postfit", ("small_" if args.small else "") + config_name, args.selection)
+plot_directory = os.path.join(user.plot_directory, "postfit2", ("small_" if args.small else "") + config_name, args.selection, subdir)
 os.makedirs(plot_directory, exist_ok=True)
 helpers.copyIndexPHP(plot_directory)
 
@@ -442,8 +446,8 @@ canvas.cd()
 canvas.Update()
 
 #--- Save the canvas ---#
-canvas.SaveAs(os.path.join(plot_directory, ("prefit_" if args.prefit else "postfit_")+f"{args.var}.png"))
-canvas.SaveAs(os.path.join(plot_directory, ("prefit_" if args.prefit else "postfit_")+f"{args.var}.pdf"))
+canvas.SaveAs(os.path.join(plot_directory, args.var + ("_prefit" if args.prefit else "_postfit")+".png"))
+canvas.SaveAs(os.path.join(plot_directory, args.var + ("_prefit" if args.prefit else "_postfit")+".pdf"))
 
 common.syncer.sync()
 
