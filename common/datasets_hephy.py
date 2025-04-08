@@ -8,22 +8,10 @@ import logging
 logger = logging.getLogger("UNC")
 
 from data_loader.data_loader_2 import H5DataLoader
-import common.user as user
 
 import selections
 import Dataset
 import common.data_structure as data_structure
-
-subdirectories = glob.glob(os.path.join(user.derived_data_directory, "*/"))
-data = {}
-for subdir in subdirectories:
-    selection = os.path.basename(subdir.rstrip('/'))
-    if selection not in data:
-        data[selection]={}
-    for filename in glob.glob(os.path.join(os.path.normpath(subdir), "*.h5")):
-        process, values =  Dataset.parse_filename(os.path.basename(filename))
-        data[selection][(process, values)] = filename
-        #data[selection][filename] = process
 
 def print_all(specific_selection=None, verbose=False): 
     logger.info("All data sets I have:")
@@ -38,12 +26,20 @@ def print_all(specific_selection=None, verbose=False):
         else:
             len_=len(data[selection])
             logger.info( "selection: "+'\033[1m'+selection+'\033[0m'+f" {len_} dataset(s) found")
-    #print() 
-
-print_all()
 
 ## Initialize the data loader
-def get_data_loader( selection="inclusive", process=None, values=data_structure.default_values, n_split=10, batch_size=None, selection_function=None):
+def get_data_loader( data_directory, selection="inclusive", process=None, values=data_structure.default_values, n_split=10, batch_size=None, selection_function=None):
+
+    subdirectories = glob.glob(os.path.join(data_directory, "*/"))
+    data = {}
+    for subdir in subdirectories:
+        s = os.path.basename(subdir.rstrip('/'))
+        if s not in data:
+            data[s]={}
+        for filename in glob.glob(os.path.join(os.path.normpath(subdir), "*.h5")):
+            pro, val=  Dataset.parse_filename(os.path.basename(filename))
+            data[s][(pro, val)] = filename
+
     if selection not in selections.all_selections:
         logger.info(f"I know nothing about selection {selection}")
         selections.print_all()

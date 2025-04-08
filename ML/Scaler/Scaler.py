@@ -35,8 +35,8 @@ class Scaler:
         with open(filename, 'wb') as file_:
             pickle.dump(self, file_)
 
-    def load_training_data(self, datasets_hephy, selection, process=None, n_split=10):
-        self.data_loader = datasets_hephy.get_data_loader(selection=selection, process=process, selection_function=None, n_split=n_split)
+    def load_training_data(self, datasets_hephy, training_data_dir, selection, process=None, n_split=10):
+        self.data_loader = datasets_hephy.get_data_loader(data_directory=training_data_dir,selection=selection, process=process, selection_function=None, n_split=n_split)
         self.selection   = selection
         self.process     = process
 
