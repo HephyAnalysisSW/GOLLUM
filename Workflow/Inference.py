@@ -142,7 +142,7 @@ class Inference:
             DataLoader: The loaded training data.
         """
         import common.datasets_hephy as datasets_hephy
-        d = datasets_hephy.get_data_loader(selection=selection, n_split=n_split)
+        d = datasets_hephy.get_data_loader(data_directory=self.cfg['training_data_dir'],selection=selection, n_split=n_split)
         logger.info("Training data loaded for selection: {}".format(selection))
         return d
 
