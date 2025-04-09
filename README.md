@@ -78,7 +78,7 @@ Generating the test set follows the same structure, using:
 python Higgs_Datasets_Test_Generation.py
 ```
 
-All parameters (systematic values, directories, etc.) are set in the same way as for the training set.
+All parameters (systematic values, directories, etc.) are set in the same way as for the train set.
 
 
 ## ML models
