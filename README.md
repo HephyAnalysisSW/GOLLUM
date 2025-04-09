@@ -29,6 +29,58 @@ conda env create -f environment.yml
 conda activate uncertainty_challenge_new
 ```
 
+# Dataset Preparation
+
+This section describes how to generate the train and test datasets used in this project. All scripts related to dataset generation are in the `Dataset_Preparation/` folder.
+
+## 1. Training Set
+
+To create the training set, you will need the following four scripts:
+
+- `Higgs_Datasets_Train.py`
+- `Higgs_Datasets_Train_Generation.py`
+- `derived_quantities.py`
+- `systematics.py`
+
+**Usage**: Simply run:
+
+```bash
+python Higgs_Datasets_Train_Generation.py
+```
+
+- `input_directory` specifies the path to the dataset (downloaded from the Higgs Uncertainty Challenge).
+- Six parameters (`tes`, `jes`, `soft_met`, `ttbar_scale`, `diboson_scale`, `bkg_scale`) define systematic uncertainties. Modifying these values generates different systematic variants of the training dataset.
+- `hdf5_filename` is the path and filename for the output `.h5` file.
+
+The resulting dataset is an `.h5` file with shape \((N, 30)\):
+- The first 16 columns are **primary features**.
+- The next 12 columns are **derived features** (see [2410.02867] for details).
+- The 29th column is the **event weight**.
+- The 30th column is the **label**, where:
+  - **0** = htautau  
+  - **1** = ztautau  
+  - **2** = ttbar  
+  - **3** = diboson  
+
+---
+
+## 2. Testing Set
+
+Generating the testing set follows the same structure, using:
+
+- `Higgs_Datasets_Test.py`
+- `Higgs_Datasets_Test_Generation.py`
+- `derived_quantities.py`
+- `systematics.py`
+
+**Usage**: Simply run:
+
+```bash
+python Higgs_Datasets_Test_Generation.py
+```
+
+All parameters (systematic values, directories, etc.) are set in the same way as for the training set.
+```
 
 ## ML models
 
