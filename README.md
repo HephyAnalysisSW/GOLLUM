@@ -80,6 +80,32 @@ python Higgs_Datasets_Test_Generation.py
 
 All parameters (systematic values, directories, etc.) are set in the same way as for the train set.
 
+## 3. Applying Selection Cuts
+After generating train or test datasets (including systematic variations), you can apply additional selection cuts to obtain data in specific signal regions. These cuts are defined in common/selections.py and can be combined to form more detailed filtering criteria.
+
+Use the copy_with_selection.py script to filter the .h5 dataset. For example:
+```bash
+python copy_with_selection.py \
+  --files /path/to/dataset.h5 \
+  --target-dir /path/to/output/ \
+  --selection lowMT_VBFJet \
+  --n-batches 100 \
+  --overwrite
+```
+--files: One or more input HDF5 files (wildcards like *.h5 are allowed).
+
+--target-dir: Where filtered files will be saved.
+
+--selection: The name of the selection, defined in common/selections.py (e.g., lowMT_VBFJet).
+
+--n-batches: Number of batches to read the input file in (helps reduce memory usage).
+
+--overwrite: Overwrite existing files in the target directory.
+
+By changing --selection, you can apply different cuts (e.g., highMT, noVBFJet, ptH0to100) either alone or in combination.
+
+This process yields new .h5 files, each containing only events that pass the specified selection criteria.
+
 
 ## ML models
 
