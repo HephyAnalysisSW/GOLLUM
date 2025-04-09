@@ -33,9 +33,9 @@ conda activate uncertainty_challenge_new
 
 This section describes how to generate the train and test datasets used in this project. All scripts related to dataset generation are in the `Dataset_Preparation/` folder.
 
-## 1. Training Set
+## 1. Train Set
 
-To create the training set, you will need the following four scripts:
+To create the train set, you will need the following four scripts:
 
 - `Higgs_Datasets_Train.py`
 - `Higgs_Datasets_Train_Generation.py`
@@ -53,8 +53,7 @@ python Higgs_Datasets_Train_Generation.py
 - `hdf5_filename` is the path and filename for the output `.h5` file.
 
 The resulting dataset is an `.h5` file with shape \((N, 30)\):
-- The first 16 columns are **primary features**.
-- The next 12 columns are **derived features** (see [2410.02867] for details).
+- The first 16 columns are **primary features**. The next 12 columns are **derived features** (see [2410.02867] for details).
 - The 29th column is the **event weight**.
 - The 30th column is the **label**, where:
   - **0** = htautau  
@@ -64,9 +63,9 @@ The resulting dataset is an `.h5` file with shape \((N, 30)\):
 
 ---
 
-## 2. Testing Set
+## 2. Test Set
 
-Generating the testing set follows the same structure, using:
+Generating the test set follows the same structure, using:
 
 - `Higgs_Datasets_Test.py`
 - `Higgs_Datasets_Test_Generation.py`
@@ -80,7 +79,7 @@ python Higgs_Datasets_Test_Generation.py
 ```
 
 All parameters (systematic values, directories, etc.) are set in the same way as for the training set.
-```
+
 
 ## ML models
 
