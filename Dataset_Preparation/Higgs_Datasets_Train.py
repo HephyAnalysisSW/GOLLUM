@@ -4,7 +4,6 @@ import numpy as np
 from Higgs_Datasets import Data
 import pandas as pd
 
-# 设置日志配置，确保输出到控制台
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,6 @@ def main():
 
         hdf5_filename = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/trial/trial1.h5"
 
-        # 调用 get_syst_train_set 方法保存一个包含所有信息的数据集
         syst_train_set = data_instance.get_syst_train_set(
             tes=tes,
             jes=jes,
