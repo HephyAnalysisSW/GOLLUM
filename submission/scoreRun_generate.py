@@ -30,6 +30,7 @@ parser.add_argument('--job', action='store',type=int, default=0)
 parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
 parser.add_argument('--config_path', action='store', help='path to yaml config')
 parser.add_argument('--tmp_path', action='store', help='path to tmp_data')
+parser.add_argument("--makeRandSeed", action="store_true", help="Always set a random seed.")
 args = parser.parse_args()
 
 logger = get_logger( args.logLevel )
@@ -104,6 +105,8 @@ m.cfg["tmp_path"] = args.tmp_path
 
 for i in tqdm(range(Ntoys_this_job)):
     seed = initialSeed+i
+    if args.makeRandSeed:
+        seed = np.random.randint(0, 2**32)
     if args.mu is not None:
         mu_input = args.mu
     else:
