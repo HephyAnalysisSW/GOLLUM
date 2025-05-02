@@ -31,7 +31,7 @@ conda activate uncertainty_challenge_new
 
 # Dataset Preparation
 
-This section describes how to generate the train and test datasets used in this project. All scripts related to dataset generation are in the `Dataset_Preparation/` folder. In addition to these dataset generation scripts, we also provide a collection of 19 pre-generated HDF5 files for demonstration purposes used in `demo.ipynb`. These files cover all mixed combinations satisfying $\(|\nu_{\text{jes}}| + |\nu_{\text{tes}}| + |\nu_{\text{met}}| \leq 2\)$, restricted to the `lowMT_VBFJet` selection region. Users can download these datasets from [Zenodo](https://doi.org/10.5281/zenodo.15322773) to directly run the demo notebook without regenerating data.
+This section describes how to generate the train and test datasets used in this project. All scripts related to dataset generation are in the `Dataset_Preparation/` folder. In addition to these dataset generation scripts, we also provide a collection of 19 pre-generated HDF5 files for demonstration purposes used in `demo.ipynb`. These files cover all mixed combinations satisfying $\(|\nu_{\text{jes}}| + |\nu_{\text{tes}}| + |\nu_{\text{met}}| \leq 2\)$, restricted to the `lowMT_VBFJet` selection region. Users can download these datasets from [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15322773.svg)](https://doi.org/10.5281/zenodo.15322773) to directly run the demo notebook without regenerating data.
 
 ## 1. Train Set
 
