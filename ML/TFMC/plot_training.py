@@ -146,7 +146,6 @@ for c, predicted_class in reversed(list(enumerate(tfmc.classes))):
 
     # signal class
     if c==0:
-
         def find_index(a):
             # Iterate over the array indices from right to left.
             for i in range(len(a) - 1, -1, -1):

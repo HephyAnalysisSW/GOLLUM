@@ -102,7 +102,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--npzdir",
-    default = "/scratch-cbe/users/robert.schoefbeck/Challenge/output/toyFits/v5_train/",
+    default = "/scratch-cbe/users/robert.schoefbeck/Challenge/output/toyFits/v1_fixedMu/",
     type=str,
     help="Input directory containing NPZ files with 'mu_measured_down', 'mu_measured_up', and 'mu_true'."
 )
@@ -160,7 +160,7 @@ mu_measured_down_inf = mu_measured - inflate*(mu_measured-mu_measured_down)
 inside = (mu_true >= mu_measured_down_inf) & (mu_true <= mu_measured_up_inf)
 width  = mu_measured_up_inf - mu_measured_down_inf
 
-for i_plot in range(10):
+for i_plot in range(100):
 
     print ("i_plot", i_plot)
     N_meta = 10
@@ -201,6 +201,8 @@ for i_plot in range(10):
     # Optionally, save the canvas as an image file
     c1.SetTitle("")
 
-    c1.Print(os.path.join(user.plot_directory, "meta", f"coverages_{i_plot}.png")) 
+    c1.Print(os.path.join(user.plot_directory, "meta_v2", f"coverages_{i_plot}.png")) 
+    c1.Print(os.path.join(user.plot_directory, "meta_v2", f"coverages_{i_plot}.pdf")) 
+    c1.Print(os.path.join(user.plot_directory, "meta_v2", f"coverages_{i_plot}.root")) 
 
     common.syncer.sync()

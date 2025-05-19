@@ -44,6 +44,9 @@ selections.update( {
     "MVALowMTVBFJet_bin5":  makeMVASelector( 'lowMT_VBFJet', 'htautau',  0.89 , 0.965 ), 
     "MVALowMTVBFJet_bin6":  makeMVASelector( 'lowMT_VBFJet', 'htautau',  0.965, 1.005 ),  
 
+    "MVALowMTVBFJet_bin6p1":  makeMVASelector( 'lowMT_VBFJet', 'htautau',  0.965, 0.980 ),  
+    "MVALowMTVBFJet_bin6p2":  makeMVASelector( 'lowMT_VBFJet', 'htautau',  0.980, 1.005 ),  
+
     "MVALowMTNoVBFJetPtH100_bin0":  makeMVASelector( 'lowMT_noVBFJet_ptH100', 'htautau', -0.005, 0.06 ),
     "MVALowMTNoVBFJetPtH100_bin1":  makeMVASelector( 'lowMT_noVBFJet_ptH100', 'htautau',  0.06, 0.17 ),
     "MVALowMTNoVBFJetPtH100_bin2":  makeMVASelector( 'lowMT_noVBFJet_ptH100', 'htautau',  0.17, 0.405 ), 

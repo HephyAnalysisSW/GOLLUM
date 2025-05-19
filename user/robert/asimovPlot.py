@@ -32,7 +32,7 @@ def load_data(directory):
     mu_fit_vals = []
     f_min_vals = []
     for file in npz_files:
-        data = np.load(file)
+        data = np.load(file, allow_pickle=True)
         mu_fit = data['mu_fit']
         f_min = data['f_min']
         # Convert one-element numpy arrays to scalars if necessary.
@@ -40,6 +40,8 @@ def load_data(directory):
             mu_fit = mu_fit.item()
         if isinstance(f_min, np.ndarray) and f_min.size == 1:
             f_min = f_min.item()
+        if mu_fit is None: 
+            continue
         mu_fit_vals.append(mu_fit)
         f_min_vals.append(f_min)
     # Sort the data by mu_fit

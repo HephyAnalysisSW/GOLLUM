@@ -107,6 +107,7 @@ for i in tqdm(range(Ntoys_this_job)):
     seed = initialSeed+i
     if args.makeRandSeed:
         seed = np.random.randint(0, 2**32)
+        print ("Use seed", seed)
     if args.mu is not None:
         mu_input = args.mu
     else:

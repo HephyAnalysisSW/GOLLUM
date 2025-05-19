@@ -5,8 +5,8 @@
 #python ic_training.py --selection lowMT_noVBFJet_ptH100
 #python ic_training.py --selection lowMT_noVBFJet_ptH0to100
 
-python ic_training.py --selection highMT_noVBFJet --mvaSelection MVAHighMTnoVBFJetTtbar
-python ic_training.py --selection highMT_noVBFJet --mvaSelection MVAHighMTnoVBFJetDiboson 
+#python ic_training.py --selection highMT_noVBFJet --mvaSelection MVAHighMTnoVBFJetTtbar
+#python ic_training.py --selection highMT_noVBFJet --mvaSelection MVAHighMTnoVBFJetDiboson 
 
 #python ic_training.py --selection highMT
 #python ic_training.py --overwrite --selection GGHMVA_lowMT_noVBFJet_ptH0to100
@@ -19,6 +19,9 @@ python ic_training.py --selection highMT_noVBFJet --mvaSelection MVAHighMTnoVBFJ
 #python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin4
 #python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
 #python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
+
+python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #
 #python ic_training.py --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python ic_training.py --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1

@@ -1,27 +1,27 @@
-python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet
-python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet
-python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet
-python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet
-
-python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection highMT_VBFJet
-python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection highMT_VBFJet
-python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection highMT_VBFJet
-python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection highMT_VBFJet
-
-python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection highMT_noVBFJet
-python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection highMT_noVBFJet
-python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection highMT_noVBFJet
-python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection highMT_noVBFJet
-
-python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
-python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
-python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
-python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
-
-python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
-python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
-python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
-python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
+#python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet
+#python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet
+#python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet
+#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet
+#
+#python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection highMT_VBFJet
+#python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection highMT_VBFJet
+#python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection highMT_VBFJet
+#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection highMT_VBFJet
+#
+#python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection highMT_noVBFJet
+#python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection highMT_noVBFJet
+#python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection highMT_noVBFJet
+#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection highMT_noVBFJet
+#
+#python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
+#python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
+#python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
+#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100
+#
+#python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
+#python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
+#python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
+#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH0to100
 
 #python icp_training.py --config icp_quad_tes_jes_met --selection lowMT_VBFJet
 #python icp_training.py --config icp_quad_tes_jes_met --selection highMT_VBFJet
@@ -99,6 +99,8 @@ python icp_training.py --process diboson --config icp_quad_tes_jes_met --selecti
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin4
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
+python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1
 #python icp_training.py --process htautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin2
@@ -117,6 +119,8 @@ python icp_training.py --process diboson --config icp_quad_tes_jes_met --selecti
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin4
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
+python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1
 #python icp_training.py --process ztautau --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin2
@@ -135,6 +139,8 @@ python icp_training.py --process diboson --config icp_quad_tes_jes_met --selecti
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin4
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
+python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1
 #python icp_training.py --process ttbar --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin2
@@ -152,7 +158,8 @@ python icp_training.py --process diboson --config icp_quad_tes_jes_met --selecti
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin3
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin4
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
-#python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
+python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1
 #python icp_training.py --process diboson --config icp_quad_tes_jes_met --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin2

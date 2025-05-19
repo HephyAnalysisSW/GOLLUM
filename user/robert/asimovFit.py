@@ -126,7 +126,7 @@ def within_boundaries(params):
         value = params.get(param)
         if value is None:
             # Parameter not provided; consider it out-of-bound.
-            return False
+            return True
         if lower is not None and value < lower:
             return False
         if upper is not None and value > upper:

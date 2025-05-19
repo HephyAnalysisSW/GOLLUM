@@ -170,9 +170,9 @@ def sync(gifs=False):
         print("To sync with CERN www directory, you need to set $CERN_USER")
         return
 
-    if not has_kerberos_token():
-        print("No kerberos token. Do nothing.")
-        return 
+    #if not has_kerberos_token():
+    #    print("No kerberos token. Do nothing.")
+    #    return 
     
     global file_sync_storage
     global gif_cmds 
@@ -186,6 +186,7 @@ def sync(gifs=False):
     if write_sync_files_txt(filename)==0: return 
 
     cmd = "rsync -avR  `cat %s` ${CERN_USER}@lxplus.cern.ch:/eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
+    #cmd = "xrdcp -f  `cat %s` root://eosuser.cern.ch//eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
     print(cmd)
     output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
     #os.remove(filename)
