@@ -6,7 +6,10 @@ import os
 import common.datasets_hephy as datasets_hephy
 import common.user as user
 
-def load_training_data( selection, n_split=10, use_ic = True, use_scaler = True):
+def load_training_data( selection="lowMT_VBFJet", small = False, use_ic = True, use_scaler = True, rng=None):
+
+    n_split = 10 if not small else 10000
+
     result = {'loader': datasets_hephy.get_data_loader( selection=selection, selection_function=None, n_split=n_split)}
 
     if use_ic:

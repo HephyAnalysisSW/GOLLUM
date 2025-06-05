@@ -87,7 +87,6 @@ class Tree:
                 # If we have ntrees instances, we initialize with 1/ntrees to arrive at O(1)
                 W = self.rng.normal(size=(1, self.input_dim))/self.ntrees
                 b = self.rng.normal()/self.ntrees
-
                 node.set_prediction(b=b, W=W if self.mode=="lasso" else None ) 
             else:
                 W = self.rng.normal(size=(1, self.input_dim))
@@ -134,6 +133,11 @@ class Tree:
                 return
 
             decision_values = (X @ node.W.T).flatten() + node.b
+            #print (self.root.node_id, node.node_id)
+            #print (X, node.W.T, node.b)
+            #print (decision_values)
+            #assert False, ""
+
             go_right = decision_values > 0
             go_left = ~go_right
 
@@ -146,7 +150,8 @@ class Tree:
         # Tell each node how many entries it has
         for i_node, node in enumerate(ordered_nodes):
             node.n_instances = np.count_nonzero( result[:, i_node] )
-
+            #print (i_node, node.node_id, node.n_instances )
+            #assert False, ""
         return result, ordered_nodes
 
     #def prune_by_min_node_size(self, min_size):
@@ -195,6 +200,9 @@ class Tree:
         logger.debug("→ Routing all data...")
         routing, ordered_nodes = self.route_all(X)
 
+        #print(routing.shape, routing)
+        #assert False, ""
+
         if logger.level<=10:
             logger.debug("Before fit:")
             self.print()
@@ -202,6 +210,8 @@ class Tree:
         logger.debug("→ Computing new predictions")
         for i_node, node in enumerate(ordered_nodes):
             mask = routing[:, i_node]
+            #print (i_node, node.is_leaf, np.count_nonzero(mask), mask)
+            #assert False, ""
             if node.is_leaf:
                 self._update_leaf_from_routing(
                     node, mask, X, y, w, alpha_leaf=train_config['alpha_leaf']

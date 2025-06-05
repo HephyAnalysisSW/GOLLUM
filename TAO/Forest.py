@@ -62,7 +62,7 @@ class Forest:
             tree.train_step( X, y-predictions, w, train_config=train_config)
             predictions += tree.predict(X)
 
-        print (predictions.shape, predictions)
+        #print (predictions.shape, predictions)
 
     def save(self, path, epoch):
         os.makedirs(path, exist_ok=True)

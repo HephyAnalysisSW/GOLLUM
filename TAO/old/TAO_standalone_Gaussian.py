@@ -28,13 +28,15 @@ def generate_overlapping_gaussians(n_per_class=100, d=2, separation=1.0, rng=Non
         y (np.ndarray): Array of shape (2 * n_per_class,) with labels {0, 1}.
         w (np.ndarray): Array of shape (2 * n_per_class,) with sample weights.
     """
-    rng = np.random.default_rng(rng)
-    
+    if type(rng) in [float, int]:
+        rng = np.random.default_rng(rng) 
+    else:
+        rng = rng 
     # Define means
     mu0 = np.zeros(d)
     mu1 = np.zeros(d)
     mu1[0] = separation
-    mu1[1] = 0.5*separation
+    #mu1[1] = 0.5*separation
 
     # Covariance
     cov = np.eye(d)
@@ -94,7 +96,10 @@ class Tree:
         self.input_dim = input_dim
         self.root = None
         self.nodes = {}
-        self.rng = np.random.default_rng(rng)
+        if type(rng) in [float, int]:
+            self.rng = np.random.default_rng(rng)
+        else:
+            self.rng = rng
         self.mode = mode
         self._build_tree()
 
@@ -109,7 +114,10 @@ class Tree:
             node = TreeNode(node_id=node_id, depth=current_depth, is_leaf=is_leaf)
 
             if is_leaf:
-                node.set_prediction(b=0.0, W=np.zeros(self.input_dim) if self.mode=="lasso" else None )  # will be set during training
+                W = self.rng.normal(size=(1, self.input_dim))
+                b = self.rng.normal()
+                node.set_prediction(b=b, W=W if self.mode=="lasso" else None ) 
+                #node.set_prediction(b=0.0, W=np.zeros(self.input_dim) if self.mode=="lasso" else None )  # will be set during training
             else:
                 W = self.rng.normal(size=(1, self.input_dim))
                 b = self.rng.normal()
@@ -155,6 +163,10 @@ class Tree:
                 return
 
             decision_values = (X @ node.W.T).flatten() + node.b
+            #print (self.root.node_id, node.node_id)
+            #print (X, node.W.T, node.b)
+            #print (decision_values)
+            #assert False, ""
             go_right = decision_values > 0
             go_left = ~go_right
 
@@ -167,7 +179,8 @@ class Tree:
         # Tell each node how many entries it has
         for i_node, node in enumerate(ordered_nodes):
             node.n_instances = np.count_nonzero( result[:, i_node] )
-
+            #print (i_node, node.node_id, node.n_instances )
+            #assert False, ""
         return result, ordered_nodes
 
     #def prune_by_min_node_size(self, min_size):
@@ -216,12 +229,17 @@ class Tree:
         logger.debug("→ Routing all data...")
         routing, ordered_nodes = self.route_all(X)
 
+        #print(routing.shape, routing)
+        #assert False, ""
+
         logger.debug("After routing the tree should be fit:")
         self.print()
 
         logger.debug("→ Computing new predictions")
         for i_node, node in enumerate(ordered_nodes):
             mask = routing[:, i_node]
+            #print (i_node, node.is_leaf, np.count_nonzero(mask), mask)
+            #assert False, ""
             if node.is_leaf:
                 self._update_leaf_from_routing(
                     node, mask, X, y, w, alpha_leaf=alpha_leaf
@@ -524,7 +542,7 @@ if __name__=="__main__":
     # Argument parser setup
     parser = argparse.ArgumentParser(description="ML inference.")
     parser.add_argument('--logLevel', action='store', nargs='?', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET'], default='INFO', help="Log level for logging")
-    parser.add_argument("--postfix", default = "v4", type=str,  help="Append this to the fit result.")
+    parser.add_argument("--postfix", default = "v6", type=str,  help="Append this to the fit result.")
 
     args = parser.parse_args()
     from common.logger import get_logger
@@ -551,6 +569,8 @@ if __name__=="__main__":
     # random seed
     rng = 40
     #rng = 42
+    rng = np.random.default_rng(rng)
+
     X, y, w = generate_overlapping_gaussians( n_per_class=100000, d=3, separation=1.0, rng=rng)
     t = Tree( max_depth = 5, input_dim=3, rng=rng, mode='lasso')
 
