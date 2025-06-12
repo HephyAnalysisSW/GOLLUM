@@ -527,7 +527,8 @@ if __name__=="__main__":
     rng = 40
     #rng = 42
     X, y, w = generate_overlapping_gaussians( n_per_class=100000, d=3, separation=1.0, rng=rng)
-    t = Tree( max_depth = 5, input_dim=3, rng=rng)
+    #t = Tree( max_depth = 5, input_dim=3, rng=rng)
+    t = Tree( max_depth = 1, input_dim=3, rng=rng)
 
     print("Tree before fit:")
     t.print()

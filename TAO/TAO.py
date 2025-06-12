@@ -13,6 +13,8 @@ import common.syncer
 import logging
 logger = logging.getLogger('UNC')
 
+from quantize import quantize
+
 class TreeNode:
     def __init__(self, node_id, depth, is_leaf=False, mode='regression'):
         self.node_id = node_id
@@ -52,10 +54,11 @@ class Tree:
         elif type(config)==dict:
             self.config = config
 
-        self.max_depth = self.config['max_depth']
-        self.input_dim = self.config['input_dim']
-        self.order = self.config.get('order', 'reverse_bfs')
-        self.mode = self.config.get('mode', 'regression')
+        self.max_depth    = self.config['max_depth']
+        self.input_dim    = self.config['input_dim']
+        self.order        = self.config.get('order',      'reverse_bfs')
+        self.mode         = self.config.get('mode',       'regression')
+        self.quantization = self.config.get('quantization', None)
 
         # Relevant for initializing the lef nodes with 1/Ntree
         self.ntrees = self.config.get('ntrees', 1)
@@ -64,10 +67,10 @@ class Tree:
         self.nodes = {}
 
         # make an rng or take external one
-        if type(config.get('rng', None)) in [int, float]:
-            self.rng = np.random.default_rng(config.get('rng', None))
-        else:
+        if "rng" in config:
             self.rng = config.get('rng')
+        else:
+            self.rng = np.random.default_rng(config.get('rng_seed', None))
 
         self.X_mean = None  # Standardization
         self.X_std  = None
@@ -95,6 +98,22 @@ class Tree:
 
                 node.left = add_node(current_depth + 1, 2 * node_id + 1)
                 node.right = add_node(current_depth + 1, 2 * node_id + 2)
+
+            if is_leaf:
+                # initialize leaf to small random, then quantize
+                W = self.rng.normal(size=(1, self.input_dim)) / self.ntrees
+                b = self.rng.normal()           / self.ntrees
+                if self.mode=="lasso":
+                    W, b = quantize(W, b, self.quantization)
+                    node.set_prediction(b=b, W=W)
+                else:
+                    node.set_prediction(b=b, W=None)
+            else:
+                # interior split → quantize too
+                W = self.rng.normal(size=(1, self.input_dim))
+                b = self.rng.normal()
+                W, b = quantize(W, b, self.quantization)
+                node.set_split(W, b)
 
             self.nodes[node_id] = node
             return node
@@ -133,10 +152,6 @@ class Tree:
                 return
 
             decision_values = (X @ node.W.T).flatten() + node.b
-            #print (self.root.node_id, node.node_id)
-            #print (X, node.W.T, node.b)
-            #print (decision_values)
-            #assert False, ""
 
             go_right = decision_values > 0
             go_left = ~go_right
@@ -150,8 +165,6 @@ class Tree:
         # Tell each node how many entries it has
         for i_node, node in enumerate(ordered_nodes):
             node.n_instances = np.count_nonzero( result[:, i_node] )
-            #print (i_node, node.node_id, node.n_instances )
-            #assert False, ""
         return result, ordered_nodes
 
     #def prune_by_min_node_size(self, min_size):
@@ -263,11 +276,14 @@ class Tree:
             if X_sub.shape[0] < 2:
                 node.set_prediction(0.0, W=np.zeros(self.input_dim) if self.mode=="lasso" else None)
                 return
+
             clf = Lasso(alpha=alpha_leaf, fit_intercept=True, max_iter=1000)
             clf.fit(X_sub, y_sub, sample_weight=w_sub)
-            #node.W = clf.coef_.reshape(1, -1)
-            #node.b = clf.intercept_
-            node.set_prediction(b=clf.intercept_, W=clf.coef_.reshape(1, -1))
+            W_new = clf.coef_.reshape(1, -1)
+            b_new = clf.intercept_
+            # quantize leaf weights & bias
+            Wq, bq = quantize(W_new, b_new, self.quantization)
+            node.set_prediction(b=bq, W=Wq)
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
@@ -310,6 +326,53 @@ class Tree:
 
         emit_loss(root, np.ones(N, dtype=bool))
         return losses
+
+    def _update_split_node_tao(self, X, y, w, node, mask, alpha=0.01):
+        if node.is_leaf or not np.any(mask):
+            return
+
+        X_sub = X[mask]
+        y_sub = y[mask]
+        w_sub = w[mask]
+
+        logger.debug(f"Fitting internal node {node.node_id} with {X_sub.shape[0]} events")
+
+        left_losses  = self._accumulate_leaf_losses(node.left, X_sub, y_sub, w_sub)
+        right_losses = self._accumulate_leaf_losses(node.right, X_sub, y_sub, w_sub)
+
+        delta_loss = left_losses - right_losses
+        y_target = np.sign(delta_loss).astype(int)
+        sample_weight = np.abs(delta_loss)
+
+        if np.sum(sample_weight) == 0 or len(np.unique(y_target)) < 2:
+            return
+
+        clf = LogisticRegression(penalty='l1', solver='liblinear', C=1 / alpha)
+
+        #clf.fit(X_sub, y_target, sample_weight=sample_weight)
+
+        # Fit an L1-regularized linear model to residuals (MSE loss)
+        #from sklearn.linear_model import SGDRegressor
+        #clf = SGDRegressor(
+        #    loss='squared_error',   # MSE
+        #    penalty='l1',           # L1 regularization
+        #    alpha=alpha,            # strength of penalty
+        #    fit_intercept=True,
+        #    max_iter=1000,
+        #    tol=1e-3,
+        #    random_state=self.config.get('rng_seed', None),
+        #)
+        #clf.fit(X_sub, y_target, sample_weight=sample_weight)
+
+        #node.W = clf.coef_.reshape(1, -1)
+        #node.b = clf.intercept_[0]
+
+        clf.fit(X_sub, y_target, sample_weight=sample_weight)
+        W_new = clf.coef_.reshape(1, -1)
+        b_new = clf.intercept_[0]
+        # quantize split
+        Wq, bq = quantize(W_new, b_new, self.quantization)
+        node.W, node.b = Wq, bq
 
     def print(self):
         threshold = 1e-3
@@ -371,32 +434,6 @@ class Tree:
             return result
         else:
             raise ValueError(f"Unknown order: {self.order}")
-
-    def _update_split_node_tao(self, X, y, w, node, mask, alpha=0.01):
-        if node.is_leaf or not np.any(mask):
-            return
-
-        X_sub = X[mask]
-        y_sub = y[mask]
-        w_sub = w[mask]
-
-        logger.debug(f"Fitting internal node {node.node_id} with {X_sub.shape[0]} events")
-
-        left_losses = self._accumulate_leaf_losses(node.left, X_sub, y_sub, w_sub)
-        right_losses = self._accumulate_leaf_losses(node.right, X_sub, y_sub, w_sub)
-
-        delta_loss = left_losses - right_losses
-        y_target = np.sign(delta_loss).astype(int)
-        sample_weight = np.abs(delta_loss)
-
-        if np.sum(sample_weight) == 0 or len(np.unique(y_target)) < 2:
-            return
-
-        clf = LogisticRegression(penalty='l1', solver='liblinear', C=1 / alpha)
-        clf.fit(X_sub, y_target, sample_weight=sample_weight)
-
-        node.W = clf.coef_.reshape(1, -1)
-        node.b = clf.intercept_[0]
 
     def predict(self, X):
         """

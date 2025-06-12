@@ -36,7 +36,7 @@ def generate_overlapping_gaussians(n_per_class=100, d=2, separation=1.0, rng=Non
     mu0 = np.zeros(d)
     mu1 = np.zeros(d)
     mu1[0] = separation
-    #mu1[1] = 0.5*separation
+    mu1[1] = 0.5*separation
 
     # Covariance
     cov = np.eye(d)
@@ -289,10 +289,14 @@ class Tree:
                 node.set_prediction(0.0, W=np.zeros(self.input_dim) if self.mode=="lasso" else None)
                 return
             clf = Lasso(alpha=alpha_leaf, fit_intercept=True, max_iter=1000)
+            print( X_sub.shape, X_sub)
+            print( y_sub.shape, y_sub)
+            print( w_sub.shape, w_sub)
             clf.fit(X_sub, y_sub, sample_weight=w_sub)
             #node.W = clf.coef_.reshape(1, -1)
             #node.b = clf.intercept_
             node.set_prediction(b=clf.intercept_, W=clf.coef_.reshape(1, -1))
+            print( clf.intercept_, clf.coef_.reshape(1, -1))
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
@@ -572,12 +576,14 @@ if __name__=="__main__":
     rng = np.random.default_rng(rng)
 
     X, y, w = generate_overlapping_gaussians( n_per_class=100000, d=3, separation=1.0, rng=rng)
-    t = Tree( max_depth = 5, input_dim=3, rng=rng, mode='lasso')
+    #t = Tree( max_depth = 5, input_dim=3, rng=rng, mode='lasso')
+
+    t = Tree( max_depth = 0, input_dim=3, rng=rng, mode='lasso')
 
     print("Tree before fit:")
     t.print()
 
-    for iteration in range(20):
+    for iteration in range(1):
         
         t.train_step(X,y,w, alpha=0.01, alpha_leaf=0.0001, min_node_size=25)
         t.print()
