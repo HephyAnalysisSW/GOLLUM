@@ -1,3 +1,5 @@
+import numpy as np
+
 def quantize(W, b, q):
     """
     Quantize weight matrix W and bias b to the precision specified in self.config['quantization']:
