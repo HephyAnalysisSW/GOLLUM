@@ -13,10 +13,11 @@ logger = logging.getLogger('UNC')
 from quantize import quantize
 
 class Forest:
-    def __init__(self, trees: List):
+    def __init__(self, trees: List, config: dict):
         self.trees = trees
         self.X_mean = None  # Standardization
         self.X_std  = None
+        self.config = config
 
     def set_standardization(self, X_mean, X_std):
         self.X_mean = X_mean
@@ -115,11 +116,14 @@ class Forest:
             b_j = theta[j, 0]
             W_j = theta[j, 1:].reshape(1, -1)
             # apply quantization if requested
-            q = train_config.get('quantization', None)
-            if q is not None:
-                W_j, b_j = quantize(W_j, b_j, q)
+            if node.quantization is not None:
+                W_j, b_j = quantize(W_j, b_j, node.quantization)
             node.b = b_j
             node.W = W_j
+
+        if logger.level<=10:
+            logger.debug("After fit:")
+            self.print()
 
     def save(self, path, epoch):
         os.makedirs(path, exist_ok=True)
@@ -127,6 +131,7 @@ class Forest:
             'X_mean': self.X_mean,
             'X_std': self.X_std,
             'trees': self.trees,
+            'config': self.config,
         }
         forest_file = os.path.join(path, f"forest_epoch_{epoch}.pkl")
         with open(forest_file, 'wb') as f:
@@ -150,7 +155,7 @@ class Forest:
         with open(forest_file, 'rb') as f:
             forest_data = pickle.load(f)
 
-        forest = cls(forest_data['trees'])
+        forest = cls(forest_data['trees'], config=forest_data['config'])
         forest.set_standardization(forest_data['X_mean'], forest_data['X_std'])
         return forest
 

@@ -16,11 +16,11 @@ logger = logging.getLogger('UNC')
 from quantize import quantize
 
 class TreeNode:
-    def __init__(self, node_id, depth, is_leaf=False, mode='regression'):
+    def __init__(self, node_id, depth, is_leaf=False, mode='regression', quantization=None):
         self.node_id = node_id
         self.depth = depth
         self.is_leaf = is_leaf
-
+        self.quantization = quantization
         self.W = None  # (1, d) for oblique splits
         self.b = None
 
@@ -58,7 +58,10 @@ class Tree:
         self.input_dim    = self.config['input_dim']
         self.order        = self.config.get('order',      'reverse_bfs')
         self.mode         = self.config.get('mode',       'regression')
-        self.quantization = self.config.get('quantization', None)
+        if len(self.config['quantization']) == 0:
+            self.quantization = [None]*(self.max_depth+1)
+        else:
+            self.quantization = self.config['quantization'] 
 
         # Relevant for initializing the lef nodes with 1/Ntree
         self.ntrees = self.config.get('ntrees', 1)
@@ -84,7 +87,7 @@ class Tree:
     def _build_tree(self):
         def add_node(current_depth, node_id):
             is_leaf = (current_depth == self.max_depth)
-            node = TreeNode(node_id=node_id, depth=current_depth, is_leaf=is_leaf)
+            node = TreeNode(node_id=node_id, depth=current_depth, is_leaf=is_leaf, quantization = self.quantization[current_depth])
 
             if is_leaf:
                 # If we have ntrees instances, we initialize with 1/ntrees to arrive at O(1)
@@ -104,7 +107,7 @@ class Tree:
                 W = self.rng.normal(size=(1, self.input_dim)) / self.ntrees
                 b = self.rng.normal()           / self.ntrees
                 if self.mode=="lasso":
-                    W, b = quantize(W, b, self.quantization)
+                    W, b = quantize(W, b, node.quantization)
                     node.set_prediction(b=b, W=W)
                 else:
                     node.set_prediction(b=b, W=None)
@@ -112,7 +115,7 @@ class Tree:
                 # interior split → quantize too
                 W = self.rng.normal(size=(1, self.input_dim))
                 b = self.rng.normal()
-                W, b = quantize(W, b, self.quantization)
+                W, b = quantize(W, b, node.quantization)
                 node.set_split(W, b)
 
             self.nodes[node_id] = node
@@ -282,7 +285,7 @@ class Tree:
             W_new = clf.coef_.reshape(1, -1)
             b_new = clf.intercept_
             # quantize leaf weights & bias
-            Wq, bq = quantize(W_new, b_new, self.quantization)
+            Wq, bq = quantize(W_new, b_new, node.quantization)
             node.set_prediction(b=bq, W=Wq)
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
@@ -371,7 +374,7 @@ class Tree:
         W_new = clf.coef_.reshape(1, -1)
         b_new = clf.intercept_[0]
         # quantize split
-        Wq, bq = quantize(W_new, b_new, self.quantization)
+        Wq, bq = quantize(W_new, b_new, node.quantization)
         node.W, node.b = Wq, bq
 
     def print(self):
