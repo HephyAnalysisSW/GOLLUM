@@ -10,7 +10,8 @@ import torch.optim as optim
 import importlib
 import argparse
 
-from TAO import SoftForest as Forest, SoftTree as Tree
+from SoftForest import SoftForest
+from SoftTree import SoftTree
 import common.user as user
 import common.syncer
 import common.helpers as helpers
@@ -24,7 +25,7 @@ argParser.add_argument('--overwrite',     action='store_true', help="Restart tra
 argParser.add_argument('--every',         type=int, default=1,    help="Update plot every N epochs")
 argParser.add_argument('--data',          choices=['toy','challenge'], default='challenge', help="Dataset to use")
 argParser.add_argument('--forest_config', type=str, default="configs/tree_softtree_1node.yaml", help="Forest YAML config")
-argParser.add_argument('--train_config',  type=str, default="configs/training_softtao.py", help="Training YAML config")
+argParser.add_argument('--train_config',  type=str, default="configs/training_softtree.py", help="Training YAML config")
 argParser.add_argument('--training',      type=str, default="",     help="Optional postfix for run")
 #argParser.add_argument('--quantization',  nargs='*', type=int, choices=[-1,2,3], default=[], help="Bits per depth (empty→no quant.)")
 argParser.add_argument('--small',         action='store_true', help="Debug mode: single batch")
@@ -40,6 +41,19 @@ with open(args.forest_config, 'r') as f:
     forest_config = yaml.safe_load(f)
 # allow YAML to specify rng_seed; build Generator
 forest_config['rng'] = np.random.default_rng(forest_config.get('rng_seed', None))
+
+    
+# -----------------------------------------------------------------------------
+# Load training config _before_ instantiating the forest
+# -----------------------------------------------------------------------------
+with open(args.train_config, 'r') as f:
+    train_config = yaml.safe_load(f)
+
+# Figure out the torch.dtype
+dtype_str = train_config.get("dtype", "float32")
+# e.g. "float32" → torch.float32
+import torch
+dtype = getattr(torch, dtype_str)
 
 ## process quantization flags
 #for i, q in enumerate(args.quantization):
@@ -83,18 +97,24 @@ plot_directory = os.path.join(
 helpers.copyIndexPHP(os.path.join(plot_directory, "1D"))
 
 # -----------------------------------------------------------------------------
+# Load training config
+# -----------------------------------------------------------------------------
+with open(args.train_config, 'r') as f:
+    train_config = yaml.safe_load(f)
+
+# -----------------------------------------------------------------------------
 # Instantiate or load forest
 # -----------------------------------------------------------------------------
 if args.overwrite:
     start_epoch = 0
     logger.info("→ Overwrite: starting from scratch")
-    forest = Forest(
-        [ Tree(forest_config) for _ in range(forest_config.get("ntrees",1)) ],
+    forest = SoftForest(
+        [ SoftTree(forest_config, dtype=dtype) for _ in range(forest_config.get("ntrees",1)) ],
         config=forest_config
     )
 else:
     try:
-        forest = Forest.load(model_directory)
+        forest = SoftForest.load(model_directory)
         # find latest epoch from filenames
         epochs = [
             int(fn.split('_')[-1].split('.')[0])
@@ -106,16 +126,10 @@ else:
     except FileNotFoundError:
         start_epoch = 0
         logger.info("→ No checkpoint found, starting at epoch 0")
-        forest = Forest(
-            [ Tree(forest_config) for _ in range(forest_config.get("ntrees",1)) ],
+        forest = SoftForest(
+            [ SoftTree(forest_config) for _ in range(forest_config.get("ntrees",1)) ],
             config=forest_config
         )
-
-# -----------------------------------------------------------------------------
-# Load training config
-# -----------------------------------------------------------------------------
-with open(args.train_config, 'r') as f:
-    train_config = yaml.safe_load(f)
 
 # -----------------------------------------------------------------------------
 # Plotting helper
@@ -129,6 +143,7 @@ def plot1D(filename, X, y, y_pred, bins=50, weight=None, title="1D response", te
     cols = min(3,d); rows = (d+cols-1)//cols
     c = ROOT.TCanvas("c1d", title, 300*cols, 300*rows)
     c.Divide(cols, rows)
+    stuff = []
     for i in range(d):
         h2   = ROOT.TH2F(f"h2_{i}", "", bins, X[:,i].min(), X[:,i].max(), bins, y.min(), y.max())
         hprof= ROOT.TProfile(f"hp_{i}", "", bins, X[:,i].min(), X[:,i].max())
@@ -141,6 +156,9 @@ def plot1D(filename, X, y, y_pred, bins=50, weight=None, title="1D response", te
         h2.SetStats(False); h2.Draw("COLZ")
         htrue.SetLineColor(ROOT.kBlack); htrue.SetLineWidth(2); htrue.Draw("SAME")
         hprof.SetLineColor(ROOT.kRed); hprof.SetMarkerColor(ROOT.kRed); hprof.SetLineWidth(2); hprof.Draw("SAME")
+        stuff.append(htrue)
+        stuff.append(hprof)
+        stuff.append(h2)
     if text:
         obj = tex.DrawLatex(0.3,0.95,text); obj.Draw()
     c.Update(); c.Print(filename)
@@ -149,10 +167,10 @@ def plot1D(filename, X, y, y_pred, bins=50, weight=None, title="1D response", te
 # PyTorch training loop
 # -----------------------------------------------------------------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-forest = forest.to(device)
+forest = forest.to(device, dtype=dtype)
 optimizer = optim.Adam(forest.parameters(), lr=train_config['lr'])
 
-if forest_config['mode'] == 'regression':
+if train_config['loss'] == 'MSE':
     criterion = nn.MSELoss(reduction='none')
 else:
     criterion = nn.CrossEntropyLoss(reduction='none')
@@ -164,14 +182,15 @@ for epoch in range(start_epoch, train_config['n_epochs']):
 
     for i_batch, batch in enumerate(training_data['loader']):
         data, weights, raw_labels = training_data['loader'].split(batch)
-        inputs = torch.from_numpy(data).float().to(device)
-        sample_w = torch.from_numpy(weights).float().to(device)
-
-        if forest_config['mode'] == 'regression':
-            targets = torch.from_numpy(raw_labels).float().to(device)
+        # cast everything to the configured dtype
+        inputs   = torch.from_numpy(data  ).to(device=device, dtype=dtype)
+        sample_w = torch.from_numpy(weights).to(device=device, dtype=dtype)
+        if train_config['loss'] == 'MSE':
+            # regression → float targets
+            targets = torch.from_numpy(raw_labels).to(device=device, dtype=dtype)
         else:
-            targets = torch.from_numpy(raw_labels).long().to(device)
-
+            # classification → integer labels
+            targets = torch.from_numpy(raw_labels).to(device=device, dtype=torch.long)
         optimizer.zero_grad()
         outputs = forest(inputs)
         loss = criterion(outputs, targets)

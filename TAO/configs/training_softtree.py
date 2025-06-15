@@ -1,16 +1,20 @@
 # configs/training_tao_v1.yaml
 
 # Number of epochs to train
-n_epochs: 20
+n_epochs: 1
 
 # Learning rate for the optimizer (Adam)
-lr: 1e-3
+lr: 0.001
 
 # Batch size (only used by your data loader)
 batch_size: 1024
 
+dtype: 'float32'
+
 # Optional weight decay (L2 regularization) on the parameters
 weight_decay: 0.0
+
+loss: "MSE"
 
 # Scheduler settings (optional – uncomment if you want LR scheduling)
 #scheduler:

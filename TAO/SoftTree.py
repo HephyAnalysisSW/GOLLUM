@@ -11,7 +11,7 @@ class SoftTree(nn.Module):
     Leaves predict a linear response W_leaf x + b_leaf.
     Configuration is loaded from a YAML file or dict.
     """
-    def __init__(self, config):
+    def __init__(self, config, dtype=torch.float32):
         super().__init__()
         # Load config
         if isinstance(config, str):
@@ -24,6 +24,7 @@ class SoftTree(nn.Module):
         self.depth       = self.config['max_depth']
         self.input_dim   = self.config['input_dim']
         self.temperature = self.config.get('temperature', 1.0)
+        self.dtype       = dtype
 
         # Number of internal and leaf nodes
         # Full binary tree of depth D has (2^D - 1) internal and 2^D leaves
@@ -31,24 +32,24 @@ class SoftTree(nn.Module):
         self.num_leaves   = 2**self.depth
 
         # Standardization buffers
-        self.register_buffer('X_mean', torch.zeros(self.input_dim))
-        self.register_buffer('X_std',  torch.ones(self.input_dim))
+        self.register_buffer('X_mean', torch.zeros(self.input_dim, dtype=self.dtype))
+        self.register_buffer('X_std',  torch.ones(self.input_dim, dtype=self.dtype))
 
         # Create split parameters: one weight vector and bias per internal node
-        self.split_W = nn.Parameter(torch.randn(self.num_internal, self.input_dim))
-        self.split_b = nn.Parameter(torch.randn(self.num_internal))
+        self.split_W = nn.Parameter(torch.randn(self.num_internal, self.input_dim, dtype=self.dtype))
+        self.split_b = nn.Parameter(torch.randn(self.num_internal, dtype=self.dtype))
 
         # Create leaf parameters: one weight vector and bias per leaf
-        self.leaf_W = nn.Parameter(torch.randn(self.num_leaves, self.input_dim))
-        self.leaf_b = nn.Parameter(torch.randn(self.num_leaves))
+        self.leaf_W = nn.Parameter(torch.randn(self.num_leaves, self.input_dim, dtype=self.dtype))
+        self.leaf_b = nn.Parameter(torch.randn(self.num_leaves, dtype=self.dtype))
 
     def set_standardization(self, X_mean, X_std):
         """Store dataset mean and std for feature standardization."""
-        self.X_mean.copy_(torch.tensor(X_mean, dtype=torch.float32))
-        self.X_std.copy_(torch.tensor(X_std, dtype=torch.float32))
+        self.X_mean.copy_(torch.tensor(X_mean, dtype=self.dtype))
+        self.X_std.copy_(torch.tensor(X_std, dtype=self.dtype))
 
     def standardize_input(self, X):
-        return (X - self.X_mean) / self.X_std
+        return (X.to(self.dtype) - self.X_mean) / self.X_std
 
     def forward(self, X):
         """
@@ -64,35 +65,23 @@ class SoftTree(nn.Module):
         probs = torch.sigmoid(d / self.temperature)
 
         # Build routing probabilities for each leaf
-        # For a full binary tree, leaf index l corresponds to a unique path of rights/lefts
-        # We can vectorize: start with root mask of ones, then for each level refine
-        mask = X.new_ones(N, 1)
+        mask = X.new_ones(N, 1, dtype=self.dtype)
         routing = []  # list of (N, 1) masks per leaf
-        # Precompute decisions for each internal node in BFS order
-        # Node i has children at 2*i+1 (left) and 2*i+2 (right)
         decisions = probs
 
-        # Recursive function to compute mask for leaf
         def recurse(node_idx, curr_mask):
             if node_idx >= self.num_internal:
-                # leaf index = node_idx - num_internal
-                leaf_idx = node_idx - self.num_internal
                 routing.append(curr_mask)
             else:
                 p = decisions[:, node_idx:node_idx+1]
-                # left child: follow (1 - p)
-                recurse(2*node_idx+1,
-                        curr_mask * (1 - p))
-                # right child: follow p
-                recurse(2*node_idx+2,
-                        curr_mask * p)
+                recurse(2*node_idx+1, curr_mask * (1 - p))  # left
+                recurse(2*node_idx+2, curr_mask * p)        # right
 
         recurse(0, mask)
-        # routing: list of num_leaves tensors, stack into (N, num_leaves)
         routing = torch.cat(routing, dim=1)  # (N, num_leaves)
 
         # Leaf predictions: (N, num_leaves)
-        leaf_out = X @ self.leaf_W.t() + self.leaf_b  # broadcast
+        leaf_out = X @ self.leaf_W.t() + self.leaf_b
 
         # Final output = sum over leaves of routing * leaf_out
         out = (routing * leaf_out).sum(dim=1)
@@ -103,26 +92,22 @@ class SoftTree(nn.Module):
         Save model state and config. Creates directory if needed.
         """
         os.makedirs(path, exist_ok=True)
-        # Save config
-        cfg_file = os.path.join(path, f'tree_config.yaml')
+        cfg_file = os.path.join(path, 'tree_config.yaml')
         if not os.path.exists(cfg_file):
             with open(cfg_file, 'w') as f:
                 yaml.safe_dump(self.config, f)
-        # Save state dict
         model_file = os.path.join(path, f'softtree_epoch_{epoch}.pt')
         torch.save(self.state_dict(), model_file)
 
     @classmethod
-    def load(cls, path, epoch=None):
+    def load(cls, path, epoch=None, dtype=torch.float32):
         """
         Load the latest or specified epoch model from directory.
         """
-        # Read config
         cfg_file = os.path.join(path, 'tree_config.yaml')
         with open(cfg_file, 'r') as f:
             config = yaml.safe_load(f)
 
-        # Determine epoch if not given
         if epoch is None:
             files = [f for f in os.listdir(path) if f.startswith('softtree_epoch_') and f.endswith('.pt')]
             files.sort()
@@ -131,8 +116,7 @@ class SoftTree(nn.Module):
             epoch = int(files[-1].split('_')[-1].split('.')[0])
 
         model_file = os.path.join(path, f'softtree_epoch_{epoch}.pt')
-        # Instantiate
-        model = cls(config)
-        model.load_state_dict(torch.load(model_file))
+        model = cls(config, dtype=dtype)
+        state = torch.load(model_file, map_location=lambda s,t: s)
+        model.load_state_dict(state)
         return model
-
