@@ -1,13 +1,13 @@
 # configs/training_tao_v1.yaml
 
 # Number of epochs to train
-n_epochs: 1
+n_epochs: 1000
 
 # Learning rate for the optimizer (Adam)
-lr: 0.001
+lr: 0.01
 
 # Batch size (only used by your data loader)
-batch_size: 1024
+batch_size: 4096
 
 dtype: 'float32'
 
@@ -26,3 +26,8 @@ loss: "MSE"
 #  patience: 5      # stop if no improvement after this many epochs
 #  min_delta: 1e-4  # minimum change to qualify as improvement
 
+temperature: 1
+
+# new regularization hyper‐parameters
+l1:           0.0       # L1 strength
+l2:           0.0 #1e-3       # L2 strength (weight decay)

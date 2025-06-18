@@ -168,13 +168,26 @@ def plot1D(filename, X, y, y_pred, bins=50, weight=None, title="1D response", te
 # -----------------------------------------------------------------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 forest = forest.to(device, dtype=dtype)
-optimizer = optim.Adam(forest.parameters(), lr=train_config['lr'])
+# pull l2 for weight-decay
+l2 = train_config.get('l2', 0.0)
+optimizer = optim.Adam(
+    forest.parameters(),
+    lr=train_config['lr'],
+    weight_decay=l2
+)
 
 if train_config['loss'] == 'MSE':
     criterion = nn.MSELoss(reduction='none')
 else:
     criterion = nn.CrossEntropyLoss(reduction='none')
 
+# Set the temperature. Later, use a schedule
+for tree in forest.trees:
+    tree.set_temperature( train_config.get("temperature", 1.0) )
+
+#logger.debug("Before fit:")
+#forest.print()
+forest.set_standardization(X_mean = training_data["X_mean"], X_std = training_data["X_std"])
 for epoch in range(start_epoch, train_config['n_epochs']):
     logger.info(f"=== Epoch {epoch} ===")
     forest.train()
@@ -195,12 +208,23 @@ for epoch in range(start_epoch, train_config['n_epochs']):
         outputs = forest(inputs)
         loss = criterion(outputs, targets)
         loss = (loss * sample_w).mean()
+
+        # add L1 penalty manually
+        l1 = train_config.get('l1', 0.0)
+        if l1 > 0:
+            l1_reg = torch.tensor(0., device=loss.device, dtype=loss.dtype)
+            for p in forest.parameters():
+                l1_reg = l1_reg + p.abs().sum()
+            loss = loss + l1 * l1_reg
         loss.backward()
         optimizer.step()
 
         running_loss += loss.item()
         if args.small:
             break
+
+    #logger.debug("After fit:")
+    #forest.print()
 
     avg_loss = running_loss / (i_batch + 1)
     logger.info(f"Epoch {epoch} loss: {avg_loss:.4f}")
@@ -211,16 +235,17 @@ for epoch in range(start_epoch, train_config['n_epochs']):
         X_cpu = torch.from_numpy(data).float().to(device)
         preds = forest(X_cpu).cpu().numpy()
 
-    plot1D(
-        os.path.join(plot_directory, "1D", f"epoch_{epoch:04d}.png"),
-        data, raw_labels, preds,
-        weight=weights, text=f"Epoch {epoch:04d}"
-    )
+    if (epoch%args.every==0):    
+        plot1D(
+            os.path.join(plot_directory, "1D", f"epoch_{epoch:04d}.png"),
+            data, raw_labels, preds,
+            weight=weights, text=f"Epoch {epoch:04d}"
+        )
 
-    common.syncer.makeRemoteGif(
-        os.path.join(plot_directory, "1D"),
-        pattern="epoch_*.png", name="epoch"
-    )
-    common.syncer.sync()
+        common.syncer.makeRemoteGif(
+            os.path.join(plot_directory, "1D"),
+            pattern="epoch_*.png", name="epoch"
+        )
+        common.syncer.sync()
     forest.save(model_directory, epoch)
 

@@ -99,27 +99,6 @@ import yaml
 with open(args.train_config, 'r') as f:
     train_config = yaml.safe_load(f)
 
-##Test: one train step for first tree
-#
-#tree = forest.trees[0]
-#tree.set_standardization(X_mean = training_data["X_mean"], X_std = training_data["X_std"]) 
-#
-#loader = training_data['loader']
-#for i_batch, batch in enumerate(loader):
-#    data, weights, raw_labels = loader.split(batch)
-#
-#    # truth
-#    y = (raw_labels==0)
-#
-#    # reweight to equal class probability
-#    bkg_norm = training_data['weight_sums'][1]+training_data['weight_sums'][2]+training_data['weight_sums'][3]
-#    sig_norm = training_data['weight_sums'][0]
-#    weights[raw_labels>0]*=(sig_norm/bkg_norm)
-#
-#    tree.train_step( data, y, weights, train_config=train_config)
-#
-#    break
-
 def plot1D(filename, X, y, y_pred, bins=50, weight=None, title="1D response", truth_2d=False, text = ""):
     import ROOT
     tex = ROOT.TLatex()

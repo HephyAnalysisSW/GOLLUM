@@ -22,6 +22,20 @@ class SoftForest(nn.Module):
         # cast entire module (and its submodules) to this dtype
         self.to(self.dtype)
 
+        # Standardization buffers
+        self.register_buffer('X_mean', torch.zeros(config.get('input_dim', 0), dtype=self.dtype))
+        self.register_buffer('X_std',  torch.ones(config.get('input_dim', 0), dtype=self.dtype))
+
+    def set_standardization(self, X_mean, X_std):
+        """Store dataset mean and std for feature standardization."""
+        self.X_mean.copy_(torch.tensor(X_mean, dtype=self.dtype))
+        self.X_std.copy_(torch.tensor(X_std, dtype=self.dtype))
+        self.config['X_mean'] = self.X_mean.detach().cpu().tolist()
+        self.config['X_std']  = self.X_std.detach().cpu().tolist()
+
+    def standardize_input(self, X):
+        return (X.to(self.dtype) - self.X_mean) / self.X_std
+
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         """
         Compute the ensemble prediction.
@@ -33,6 +47,7 @@ class SoftForest(nn.Module):
         """
         # ensure input is correct dtype
         X = X.to(self.dtype)
+        X = self.standardize_input(X)
         # collect each tree's soft output
         outputs = [tree(X) for tree in self.trees]  # list of (N,) tensors
         stacked = torch.stack(outputs, dim=0)       # shape (T, N)
@@ -48,6 +63,11 @@ class SoftForest(nn.Module):
             'config': self.config,
             'state_dict': self.state_dict(),
         }, fname)
+
+    def print(self):
+        for i_tree, tree in enumerate(self.trees):
+            print(f"SoftTre/ {i_tree}/{len(self.trees)}")
+            tree.print()
 
     @classmethod
     def load(cls, path: str, epoch: int = None):
@@ -82,5 +102,6 @@ class SoftForest(nn.Module):
         # create forest and load weights
         forest = cls(trees, config)
         forest.load_state_dict(data['state_dict'])
+        forest.set_standardization(config['X_mean'], config['X_std'])
         return forest
 

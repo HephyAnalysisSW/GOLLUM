@@ -1,4 +1,4 @@
-max_depth: 0          # Maximum depth of the tree
+max_depth: 3          # Maximum depth of the tree
 input_dim: 3          # Dimensionality of input features
 rng_seed: 40          # Random seed for reproducibility
 ntrees: 1             # Number of trees
