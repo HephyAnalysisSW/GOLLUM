@@ -223,8 +223,8 @@ for epoch in range(start_epoch, train_config['n_epochs']):
         if args.small:
             break
 
-    #logger.debug("After fit:")
-    #forest.print()
+    logger.debug(f"Epoch {epoch}")
+    forest.print()
 
     avg_loss = running_loss / (i_batch + 1)
     logger.info(f"Epoch {epoch} loss: {avg_loss:.4f}")

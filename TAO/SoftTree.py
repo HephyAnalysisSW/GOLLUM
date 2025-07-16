@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from quantize import quantize_torch as quantize
+from quantize import quantize_np 
 
 class STEQuant(torch.autograd.Function):
     @staticmethod
@@ -73,6 +74,10 @@ class SoftTree(nn.Module):
             prefix = '  ' * depth
             if node_idx < self.num_internal:
                 w = self.split_W[node_idx].detach().cpu().numpy()
+
+                if self.quantization is not None:
+                    w = quantize_np(w, self.quantization)
+
                 terms = [f"{v:.3f}*x{j}" for j, v in enumerate(w) if abs(v) >= threshold]
                 w_str = " + ".join(terms) if terms else "0"
                 b = float(self.split_b[node_idx].item())
@@ -83,6 +88,10 @@ class SoftTree(nn.Module):
             else:
                 leaf_idx = node_idx - self.num_internal
                 w = self.leaf_W[leaf_idx].detach().cpu().numpy()
+
+                if self.quantization is not None:
+                    w = quantize_np(w, self.quantization)
+
                 terms = [f"{v:.3f}*x{j}" for j, v in enumerate(w) if abs(v) >= threshold]
                 w_str = " + ".join(terms) if terms else "0"
                 b = float(self.leaf_b[leaf_idx].item())
@@ -149,12 +158,7 @@ class SoftTree(nn.Module):
         # Leaf predictions and final output
         leaf_out = X @ W_leaf_q.t() + b_leaf_q
 
-        #print( self.leaf_W, self.leaf_b, W_leaf_q, b_leaf_q, leaf_out )
-
         out = (routing * leaf_out.exp()).sum(dim=1)
-        #print ("leaf_out", leaf_out.shape, leaf_out)
-        #print ("routing", routing.shape, routing, routing.sum(axis=1), routing.sum(axis=0))
-        #print ("log_routing", log_routing.shape, log_routing, log_routing.sum(axis=1), log_routing.sum(axis=0))
 
         return out
 

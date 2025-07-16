@@ -67,6 +67,34 @@ def quantize(W, b, q):
 
     raise NotImplementedError
 
+def quantize_np(W, q):
+    import numpy as np
+    """
+    Quantize weight tensor W and bias b to q levels:
+      - q is None or q<0: no quantization
+      - q == 2: binary (+1, -1)
+      - q == 3: ternary (-1, 0, +1) with threshold at mean(|W|)
+    """
+    # No quantization
+    if q is None or q < 0:
+        return W
+
+    # Binary quantization: ±1
+    if q == 2:
+        W_q = np.sign(W)
+        # Replace zeros with +1
+        W_q = np.where(W_q == 0, np.ones_like(W_q), W_q)
+        return W_q
+
+    # Ternary quantization: -1, 0, +1
+    if q == 3:
+        thresh = np.mean(np.abs(W))
+        W_q = np.where(np.abs(W) < thresh,
+                          np.zeros_like(W),
+                          np.sign(W))
+        return W_q
+
+    raise NotImplementedError(f"Quantization for q={q} not implemented")
 
 def quantize_torch(W, q):
     import torch
