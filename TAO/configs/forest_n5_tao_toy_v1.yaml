@@ -1,0 +1,6 @@
+max_depth: 5          # Maximum depth of the tree
+input_dim: 3          # Dimensionality of input features
+rng_seed: 40               # Random seed for reproducibility
+order: reverse_bfs    # Node traversal order: reverse_bfs, bfs, or preorder
+ntrees: 5             # Number of trees
+mode: lasso           # Mode: regression, classification, or lasso
