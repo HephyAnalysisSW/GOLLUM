@@ -1,4 +1,0 @@
-alpha: 0.01           # L1 regularization strength for internal splits
-alpha_leaf: 0.001    # L1 regularization strength for lasso leaf fits
-min_node_size: 25     # Minimum number of examples per node
-n_epochs : 20         # Number of training epochs
