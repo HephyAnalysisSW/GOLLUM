@@ -73,6 +73,7 @@ class H5DataLoader:
                 start = self.current_index
                 end = min(self.current_index + self.batch_size, self.dataset_size)
                 batch_data = f['data'][start:end]
+
         except Exception as e:
             logger.error(f"Problem in {self.file_path}")
             raise e
@@ -123,8 +124,7 @@ if __name__=="__main__":
     batch_size = None #64**2
     n_split    = 10000
 
-    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_0p99_jes_0p99_met_2.h5"
-    file_path = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/split_train_dataset/processed_data/tes_1p01_jes_1p01_met_6.h5"
+    file_path = "/scratch-cbe/users/robert.schoefbeck/t_sch_uncertainty/input_data/inclusive/nominal.h5"
 
     # Example1: load all the data, then select
     data_loader_1 = H5DataLoader(

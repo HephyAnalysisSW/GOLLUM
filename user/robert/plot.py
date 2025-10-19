@@ -224,7 +224,7 @@ def plot_truth_histograms_root(truth_histograms, bin_edges, output_dir):
             #h_stack.GetYaxis().SetTitleSize(1.15 * h_stack.GetYaxis().GetTitleSize())  # Increase by 15%
             #h_stack.GetYaxis().SetLabelSize(20)  # Ensure axis numbers are displayed
 
-            h_stack.SetMinimum(0.0005)
+            h_stack.SetMinimum(0.9)
 
             # Hide x-axis labels on the top pad
             h_stack.GetXaxis().SetLabelSize(0)
@@ -298,25 +298,21 @@ def parse_arguments():
     
     # Add arguments
     parser.add_argument("--selection", type=str, default="inclusive", help="Event selection")
-    parser.add_argument("--plot_directory", type=str, default="v3", help="Plot directory")
+    parser.add_argument("--plot_directory", type=str, default="t_sch_v2", help="Plot directory")
     parser.add_argument("--small", action="store_true" )
-    parser.add_argument("--test",  action="store_true", help="test data?" )
 
     return parser.parse_args()
 
 args = parse_arguments()
-if args.test:
-    import common.test_datasets as datasets_hephy
-else:
-    import common.datasets_hephy as datasets_hephy
+import common.datasets_hephy as _datasets
 
-data_loader = datasets_hephy.get_data_loader( 
-    n_split=10, 
+data_loader = _datasets.get_data_loader( 
+    n_split=100, 
     selection=args.selection, 
     selection_function=None, 
     )
 
-output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else "")+("_test" if args.test else ""))
+output_path = os.path.join(user.plot_directory, "plots", args.plot_directory, args.selection+("_small" if args.small else ""))
 os.makedirs(output_path, exist_ok=True)
 
 # Accumulate histograms

@@ -164,37 +164,138 @@ def make_gifs( cmds=gif_cmds ):
             ret.append(cmd)
     return ret
 
-def sync(gifs=False):
+#def sync(gifs=False):
+#
+#    if "CERN_USER" not in os.environ: 
+#        print("To sync with CERN www directory, you need to set $CERN_USER")
+#        return
+#
+#    #if not has_kerberos_token():
+#    #    print("No kerberos token. Do nothing.")
+#    #    return 
+#    
+#    global file_sync_storage
+#    global gif_cmds 
+#
+#    if len(file_sync_storage)==0:
+#        print("No files for syncing.")
+#        return
+#
+#    filename = '/tmp/%s.txt'%uuid.uuid4()
+#
+#    if write_sync_files_txt(filename)==0: return 
+#
+#    cmd = "rsync -avR  `cat %s` ${CERN_USER}@lxplus.cern.ch:/eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
+#    #cmd = "xrdcp -f  `cat %s` root://eosuser.cern.ch//eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
+#    print(cmd)
+#    output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+#    #os.remove(filename)
+#    file_sync_storage = []
+#    if gifs:
+#        gif_cmds = make_gifs(gif_cmds) 
+#
+#    return #output, error
+import os
+import uuid
+import shlex
+import pathlib
+import subprocess
 
-    if "CERN_USER" not in os.environ: 
+# ----------------- CONFIG -----------------
+EOS_HOST = "root://eosuser.cern.ch"
+WWW_MARKER = "/www/"
+# ------------------------------------------
+
+def _run(cmd):
+    """Run a shell command and print stderr on failure."""
+    p = subprocess.run(cmd, shell=True, executable="/bin/bash",
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(
+            f"Command failed: {cmd}\n--- STDOUT ---\n{p.stdout}\n--- STDERR ---\n{p.stderr}"
+        )
+    return p.stdout
+
+def _rel_under_www(src_abs):
+    """
+    Strip everything up to and including '/www/'.
+    '/groups/.../www/t_sch/a.txt' -> 't_sch/a.txt'
+    Fallback: if no '/www/' present, drop the leading slash to avoid mirroring root.
+    """
+    s = os.path.abspath(src_abs)
+    if WWW_MARKER in s:
+        return s.split(WWW_MARKER, 1)[1]
+    return str(pathlib.Path(s).as_posix()).lstrip("/")
+
+def _eos_user_base(user):
+    return f"/eos/user/{user[0]}/{user}/www"
+
+def _eos_url(abs_eos_path):
+    # xrdcp requires the double slash before absolute EOS path
+    return f"{EOS_HOST}//{abs_eos_path}"
+
+def sync(gifs=False):
+    """
+    Sequential upload to EOS using xrdfs/xrdcp, driven by your file list.
+    Path mapping: everything AFTER '/www/' in the source path is mirrored under .../www on EOS.
+    """
+    if "CERN_USER" not in os.environ:
         print("To sync with CERN www directory, you need to set $CERN_USER")
         return
 
-    #if not has_kerberos_token():
-    #    print("No kerberos token. Do nothing.")
-    #    return 
-    
     global file_sync_storage
-    global gif_cmds 
+    global gif_cmds
 
-    if len(file_sync_storage)==0:
+    if len(file_sync_storage) == 0:
         print("No files for syncing.")
         return
 
-    filename = '/tmp/%s.txt'%uuid.uuid4()
+    # Use your existing writer for the file list
+    filename = f"/tmp/{uuid.uuid4()}.txt"
+    if write_sync_files_txt(filename) == 0:
+        return
 
-    if write_sync_files_txt(filename)==0: return 
+    user = os.environ["CERN_USER"]
+    eos_base = _eos_user_base(user)
 
-    cmd = "rsync -avR  `cat %s` ${CERN_USER}@lxplus.cern.ch:/eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
-    #cmd = "xrdcp -f  `cat %s` root://eosuser.cern.ch//eos/user/$(echo ${CERN_USER} | head -c 1)/${CERN_USER}/www/" % filename
-    print(cmd)
-    output,error = subprocess.Popen(cmd, shell=True, executable="/bin/bash", stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-    #os.remove(filename)
+    # Read file list
+    with open(filename, "r") as f:
+        files = [line.strip() for line in f if line.strip()]
+
+    # Build copy plan and collect directories
+    plan = []            # (src_abs, dest_abs)
+    dirs_needed = set()
+    for src in files:
+        src_abs = os.path.abspath(src)
+        rel = _rel_under_www(src_abs)
+        dest_abs = f"{eos_base}/{rel}"
+        plan.append((src_abs, dest_abs))
+        dirs_needed.add(os.path.dirname(dest_abs))
+
+    # Create directories on EOS (sequential)
+    for d in sorted(dirs_needed):
+        cmd = f'xrdfs {EOS_HOST} mkdir -p {shlex.quote(d)}'
+        try:
+            _run(cmd)
+        except RuntimeError as e:
+            # If directory exists, xrdfs -p is usually fine; otherwise show the error and continue
+            print(e)
+
+    # Copy files (sequential)
+    for src_abs, dest_abs in plan:
+        dest_spec = _eos_url(dest_abs)
+        cmd = f'xrdcp -f {shlex.quote(src_abs)} {shlex.quote(dest_spec)}'
+        print(cmd)
+        _run(cmd)
+
+    # Cleanup / post
+    # os.remove(filename)
     file_sync_storage = []
     if gifs:
-        gif_cmds = make_gifs(gif_cmds) 
+        gif_cmds = make_gifs(gif_cmds)
 
-    return #output, error
+    return
+
 
 import atexit
 atexit.register( sync )

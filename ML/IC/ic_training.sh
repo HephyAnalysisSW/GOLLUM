@@ -1,4 +1,4 @@
-#python ic_training.py --selection inclusive
+python ic_training.py --selection inclusive
 #python ic_training.py --selection lowMT_VBFJet
 #python ic_training.py --selection highMT_VBFJet
 #python ic_training.py --selection highMT_noVBFJet
@@ -20,8 +20,8 @@
 #python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin5
 #python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6
 
-python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
-python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
+#python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p1
+#python ic_training.py --selection lowMT_VBFJet --mvaSelection    MVALowMTVBFJet_bin6p2
 #
 #python ic_training.py --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin0
 #python ic_training.py --selection lowMT_noVBFJet_ptH100 --mvaSelection    MVALowMTNoVBFJetPtH100_bin1

@@ -76,8 +76,8 @@ class InclusiveCrosssection:
 
     def __str__( self ):
         prefix = ("IC: "+'\033[1m'+self.selection+'\033[0m') if hasattr(self, "selection") and self.selection is not None else "X-Sec: "
-        S = self.weight_sums[data_structure.label_encoding['htautau']]
-        B = sum( [self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels if l!='htautau' ])
+        S = self.weight_sums[data_structure.label_encoding['tsch']]
+        B = sum( [self.weight_sums[data_structure.label_encoding[l]] for l in data_structure.labels if l!='tsch' ])
         SoverB = " S/B = %8.6f "%(S/B)
         total = S+B
         if hasattr( self, "unweighted_sums") and self.unweighted_sums is not None:

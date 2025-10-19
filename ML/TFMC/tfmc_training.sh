@@ -1,4 +1,5 @@
 
+python tfmc_training.py --config tfmc_2_reg --selection  inclusive
 #python tfmc_training.py --config tfmc_2_reg --selection  lowMT_VBFJet
 #python tfmc_training.py --config tfmc_2_reg --selection  highMT_VBFJet
 #python tfmc_training.py --config tfmc_2_reg --selection  lowMT_noVBFJet_ptH0to100 --n_split 50
@@ -35,12 +36,12 @@
 #python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_l2_4
 #python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_l2_5
 
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_1
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_2
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_3
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_4
-
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_1
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_2
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_3
-python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_4
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_1
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_2
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_3
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_do_4
+#
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_1
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_2
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_3
+#python tfmc_training.py --selection  lowMT_VBFJet --config tfmc_scan_lr_4

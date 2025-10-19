@@ -1,9 +1,8 @@
 import os
 
 # default
-data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
-derived_data_directory = "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/data/"
-derived_test_data_directory = "/scratch-cbe/users/robert.schoefbeck/Higgs_uncertainty/test_data/"
+#data_directory         = "/eos/vbc/group/mlearning/data/Higgs_uncertainty/input_data/train/"
+derived_data_directory = "/scratch-cbe/users/robert.schoefbeck/t_sch_uncertainty/input_data/"
 
 try:
     user = os.environ['USER']
@@ -14,11 +13,12 @@ tmp_mem_directory      = "/dev/shm/%s/"%(user)
 
 if user in ['robert.schoefbeck']:
     # Where the plots go:
-    plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/Challenge/"
+    plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/t_sch/"
     # For model output:
-    model_directory        = "/groups/hephy/cms/robert.schoefbeck/Challenge/models/"
-    output_directory       = "/scratch-cbe/users/robert.schoefbeck/Challenge/output/"
+    model_directory        = "/groups/hephy/cms/robert.schoefbeck/t_sch/models/"
+    output_directory       = "/scratch-cbe/users/robert.schoefbeck/t_sch/output/"
 
+    
 elif user in ['dennis.schwarz']:
     plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
     model_directory        = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/models/"

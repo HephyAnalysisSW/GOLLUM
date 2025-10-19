@@ -58,7 +58,11 @@ for key, arrays in data_dict.items():
         concatenated_data[key] = arrays  # Fall back to a list if concatenation fails.
 
 # Convert the list of covariance matrices to a 3D array: (N, Nvar, Nvar)
-covs_array = np.concatenate(np.array(covs_list)) 
+# ensure each element is a NumPy array
+covs_list = [np.asarray(c) for c in covs_list]
+# concatenate along axis 0
+covs_array = np.concatenate(covs_list, axis=0)
+#covs_array = np.concatenate(np.array(covs_list)) 
 
 concatenated_data['nu_jes_true'] = (concatenated_data['nu_jes_true']-1)/0.01
 concatenated_data['nu_tes_true'] = (concatenated_data['nu_tes_true']-1)/0.01

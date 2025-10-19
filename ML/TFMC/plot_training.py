@@ -144,34 +144,34 @@ for c, predicted_class in reversed(list(enumerate(tfmc.classes))):
     canvas.SaveAs(output_file)
     print(f"Saved plot for predicted class {predicted_class} to {output_file}")
 
-    # signal class
-    if c==0:
-        def find_index(a):
-            # Iterate over the array indices from right to left.
-            for i in range(len(a) - 1, -1, -1):
-                if a[i] > 2:
-                    return i  # Return the index of the first element (from the right) greater than 2.
-            # If no element is greater than 2, return the index of the maximum element.
-            return np.argmax(a)
-
-        h_signal = histograms_for_class[0]
-        h_background = histograms_for_class[1:]
-        last_bin = h_signal.GetNbinsX()+1
-
-        boundaries = []
-        while last_bin>0:
-            s_ = np.cumsum([ h_signal.GetBinContent(i) for i in range(1,last_bin)[::-1]])[::-1]
-            b_ = np.sum( [np.cumsum([ b.GetBinContent(i) for i in range(1,last_bin)[::-1]])[::-1] for b in h_background], axis=0)
-            sig = s_/np.sqrt(b_+s_)
-            #best_bin = np.argmax(sig)
-            best_bin = find_index(sig)
-            low_boundary = h_signal.GetBinLowEdge(int(best_bin))
-            boundaries.append( low_boundary )
-            print(f"Found best cut {best_bin} lower boundary {low_boundary} significance {sig[best_bin]} signal {s_[best_bin]} background {b_[best_bin]}")
-
-            last_bin = best_bin
-
-        boundaries = list(reversed(boundaries))
-        print (f"For a binned search in {args.selection} use these boundaries {boundaries}" )
+#    # signal class
+#    if c==0:
+#        def find_index(a):
+#            # Iterate over the array indices from right to left.
+#            for i in range(len(a) - 1, -1, -1):
+#                if a[i] > 2:
+#                    return i  # Return the index of the first element (from the right) greater than 2.
+#            # If no element is greater than 2, return the index of the maximum element.
+#            return np.argmax(a)
+#
+#        h_signal = histograms_for_class[0]
+#        h_background = histograms_for_class[1:]
+#        last_bin = h_signal.GetNbinsX()+1
+#
+#        boundaries = []
+#        while last_bin>0:
+#            s_ = np.cumsum([ h_signal.GetBinContent(i) for i in range(1,last_bin)[::-1]])[::-1]
+#            b_ = np.sum( [np.cumsum([ b.GetBinContent(i) for i in range(1,last_bin)[::-1]])[::-1] for b in h_background], axis=0)
+#            sig = s_/np.sqrt(b_+s_)
+#            #best_bin = np.argmax(sig)
+#            best_bin = find_index(sig)
+#            low_boundary = h_signal.GetBinLowEdge(int(best_bin))
+#            boundaries.append( low_boundary )
+#            print(f"Found best cut {best_bin} lower boundary {low_boundary} significance {sig[best_bin]} signal {s_[best_bin]} background {b_[best_bin]}")
+#
+#            last_bin = best_bin
+#
+#        boundaries = list(reversed(boundaries))
+#        print (f"For a binned search in {args.selection} use these boundaries {boundaries}" )
 
 common.syncer.sync()

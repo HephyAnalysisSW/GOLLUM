@@ -122,8 +122,8 @@ for epoch in range(starting_epoch, config.n_epochs):
             plot_directory,
             data_structure.feature_names, 
         )
-        common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
-        common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
+        #common.syncer.makeRemoteGif(plot_directory, pattern="epoch_*.png", name="epoch" )
+        #common.syncer.makeRemoteGif(plot_directory, pattern="norm_epoch_*.png", name="norm_epoch" )
 
     if epoch%args.every==0 or not args.small:
         common.syncer.sync()

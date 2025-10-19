@@ -57,20 +57,20 @@ def get_data_loader( selection="inclusive", process=None, values=data_structure.
         selection_function = selection_function,
     ) 
    
+##if __name__=="__main__":
+##    # Iterate through the dataset
+##    for batch in get_data_loader(n_split=100):
+##        data, weights, labels = H5DataLoader.split(batch)
+##        print(data.shape, weights.shape, labels.shape)
+##
+##        break
 #if __name__=="__main__":
-#    # Iterate through the dataset
-#    for batch in get_data_loader(n_split=100):
-#        data, weights, labels = H5DataLoader.split(batch)
-#        print(data.shape, weights.shape, labels.shape)
+#    from common.logger import get_logger
+#    logger = get_logger("INFO", logFile = None)
 #
-#        break
-if __name__=="__main__":
-    from common.logger import get_logger
-    logger = get_logger("INFO", logFile = None)
-
-    import numpy as np
-    # Iterate through the dataset
-    loader = get_data_loader(selection="lowMT_VBFJet", n_split=1)
-    for batch in loader:
-        data, weights, labels = H5DataLoader.split(batch)
-        print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )
+#    import numpy as np
+#    # Iterate through the dataset
+#    loader = get_data_loader(selection="inclusive", n_split=1)
+#    for batch in loader:
+#        data, weights, labels = H5DataLoader.split(batch)
+#        print(data.shape, weights.shape, labels.shape, np.unique(labels, return_counts=True) )
