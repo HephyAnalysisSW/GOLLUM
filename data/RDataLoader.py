@@ -1,37 +1,11 @@
 """
 RDataLoader — lightweight ROOT/UPROOT data loader with group-aware branch handling.
-
-Key features
-------------
-- Instantiate on a directory (or list of files/dirs) containing ROOT files.
-- Select a TTree by name (default: "Events").
-- Provide an explicit branch allowlist; unknown branches are ignored with a warning (optional strict mode).
-- Optional selection callable: `selection(ar) -> mask` applied to the loaded awkward Array.
-- Split data by files or events for simple parallelization (`n_split`, `splitting_strategy`).
-- Access helpers to extract scalar and vector branches into numpy/awkward.
-- Minimal dependencies: uproot, awkward, numpy.
-
-Usage
------
-from tools.RDataLoader import RDataLoader
-ldr = RDataLoader(
-    input_paths=["/path/to/dirA", "/path/to/file.root"],
-    tree_name="Events",
-    branches=["pt", "eta", "phi"],
-    selection=lambda ar: (ar["pt"] > 0),
-    n_split=1,
-    splitting_strategy="events",
-)
-arr = ldr[0]                      # awkward.Array (possibly filtered)
-X   = ldr.scalar_branches(arr, ["pt","eta","phi"])  # (N,3) numpy
-
 """
 from __future__ import annotations
 import os
 import glob
-import math
 import warnings
-from typing import Callable, Iterable, List, Optional, Sequence, Union, Dict
+from typing import Callable, List, Optional, Sequence, Union
 
 import numpy as np
 import awkward as ak
@@ -54,12 +28,19 @@ class RDataLoader:
         splitting_strategy: str = "files",  # "files" or "events"
         strict_branches: bool = False,
         max_files: Optional[int] = None,
+        # ---- NEW (optional, does not break callers) ----
+        feature_names: Optional[Sequence[str]] = None,
+        observer_names: Optional[Sequence[str]] = None,
     ) -> None:
         self.tree_name = tree_name
         self.selection = selection
         self.strict_branches = strict_branches
         self.splitting_strategy = splitting_strategy
         self.n_split = max(1, int(n_split))
+
+        # Persist configured features/observers (optional)
+        self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
+        self.observer_names: Optional[List[str]] = list(observer_names) if observer_names else None
 
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
@@ -80,12 +61,20 @@ class RDataLoader:
         self._all_files = files
 
         # Discover branches if not provided
-        self._requested_branches = list(branches) if branches else None
-        if self._requested_branches is None:
+        _requested = list(branches) if branches else None
+        if _requested is None:
             with uproot.open(self._all_files[0]) as f:
                 t = f[self.tree_name]
-                self._requested_branches = list(t.keys())
+                _requested = list(t.keys())
                 warnings.warn("RDataLoader: 'branches' not provided, loading all tree branches.")
+
+        # Ensure requested branches include configured features/observers if any
+        if self.feature_names:
+            _requested = list(dict.fromkeys(list(_requested) + list(self.feature_names)))
+        if self.observer_names:
+            _requested = list(dict.fromkeys(list(_requested) + list(self.observer_names)))
+
+        self._requested_branches = _requested
 
         # Compute split layout
         if self.splitting_strategy not in ("files", "events"):
@@ -94,7 +83,6 @@ class RDataLoader:
 
     # ---------------------------- public API ----------------------------
     def __len__(self) -> int:
-        """Number of shards/splits."""
         return len(self._file_splits) if self.splitting_strategy == "files" else self.n_split
 
     def __getitem__(self, idx: int) -> ak.Array:
@@ -103,17 +91,12 @@ class RDataLoader:
             files = self._file_splits[self._wrap_index(idx)]
             ar = self._load_files(files)
         else:  # events
-            # load all, then slice by event ranges
             ar_all = self._load_files(self._all_files)
             n = len(ar_all)
-            # compute contiguous event chunks
-            bounds = self._event_bounds(n, self.n_split)
-            lo, hi = bounds[self._wrap_index(idx)]
+            lo, hi = self._event_bounds(n, self.n_split)[self._wrap_index(idx)]
             ar = ar_all[lo:hi]
-        # selection after split to keep shard sizes balanced
         if self.selection is not None:
             mask = self.selection(ar)
-            # Be robust to numpy or awkward boolean masks
             mask = ak.to_numpy(mask) if isinstance(mask, ak.Array) else mask
             if mask is None:
                 warnings.warn("RDataLoader: selection returned None; skipping.")
@@ -131,9 +114,7 @@ class RDataLoader:
 
     # ---- helpers for extracting data ----
     def scalar_branches(self, ar: ak.Array, names: Sequence[str]) -> np.ndarray:
-        """Return a 2D numpy array stack of scalar branches `names` from awkward record array `ar`.
-        If a branch is jagged (variable-length), raise an informative error.
-        """
+        """Return a 2D numpy array stack of scalar branches `names` from awkward record array `ar`."""
         cols = []
         for n in names:
             if n not in ar.fields:
@@ -143,16 +124,11 @@ class RDataLoader:
                 cols.append(np.zeros(len(ar), dtype=np.float32))
                 continue
             v = ar[n]
-            # In Awkward v2, inspect types via awkward.types
             t = ak.type(v)
-            # Unwrap optional types
             while isinstance(t, aktypes.OptionType):
                 t = t.type
-            # Treat ListType and RegularType as non-scalar (vectors/jagged/fixed-length)
             if isinstance(t, (aktypes.ListType, aktypes.RegularType)):
-                raise ValueError(
-                    f"Branch '{n}' is vector-like (List/Regular), not scalar. Use vector_branch()."
-                )
+                raise ValueError(f"Branch '{n}' is vector-like (List/Regular), not scalar. Use vector_branch().")
             cols.append(ak.to_numpy(v))
         if not cols:
             return np.empty((len(ar), 0), dtype=np.float32)
@@ -167,6 +143,45 @@ class RDataLoader:
             return ak.Array([[] for _ in range(len(ar))])
         return ar[name]
 
+    # -------- NEW: direct feature access (no awkward escapes) ----------
+    def features(self, shard: int = 0, n: Optional[int] = None,
+                 feature_names: Optional[Sequence[str]] = None) -> np.ndarray:
+        """Return features matrix (N,F) as NumPy using configured or provided feature names."""
+        names = list(feature_names) if feature_names is not None else (self.feature_names or [])
+        if not names:
+            raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
+        ar = self[shard]
+        X = self.scalar_branches(ar, names)
+        return X if n is None else X[:n]
+
+    def features_and_observers(self, shard: int = 0, n: Optional[int] = None,
+                               feature_names: Optional[Sequence[str]] = None,
+                               observer_names: Optional[Sequence[str]] = None) -> tuple[np.ndarray, np.ndarray]:
+        """Return (features, observers) as NumPy matrices."""
+        fnames = list(feature_names) if feature_names is not None else (self.feature_names or [])
+        onames = list(observer_names) if observer_names is not None else (self.observer_names or [])
+        if not fnames:
+            raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
+        if not onames:
+            raise ValueError("No observer names configured. Pass observer_names=... or set observer_names in the constructor.")
+        ar = self[shard]
+        X = self.scalar_branches(ar, fnames)
+        G = self.scalar_branches(ar, onames)
+        if n is not None:
+            X = X[:n]
+            G = G[:n]
+        return X, G
+
+    def iter_features(self, shard: int = 0, batch_size: int = 8192,
+                      feature_names: Optional[Sequence[str]] = None):
+        """Yield feature batches (B,F) as NumPy — minimal iterator without exposing awkward."""
+        X = self.features(shard=shard, n=None, feature_names=feature_names)
+        N = len(X)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be > 0")
+        for i in range(0, N, batch_size):
+            yield X[i:i + batch_size]
+
     # --------------------------- internals ----------------------------
     def _wrap_index(self, idx: int) -> int:
         if not isinstance(idx, int):
@@ -177,14 +192,12 @@ class RDataLoader:
     def _make_file_splits(self, files: List[str], n_split: int) -> List[List[str]]:
         if n_split <= 1:
             return [files]
-        # round-robin assignment for better balancing when file sizes vary
         splits: List[List[str]] = [[] for _ in range(n_split)]
         for i, f in enumerate(files):
             splits[i % n_split].append(f)
         return splits
 
     def _event_bounds(self, n_events: int, n_split: int) -> List[tuple]:
-        # contiguous chunks (nearly equal sizes)
         base = n_events // n_split
         rem = n_events % n_split
         bounds = []
@@ -203,16 +216,12 @@ class RDataLoader:
                 t = rf[self.tree_name]
                 available = set(t.keys())
                 use_branches = self._filter_branches(available, self._requested_branches)
-                # Return an awkward record array
                 return t.arrays(expressions=use_branches, library="ak")
         else:
-            # uproot.concatenate keeps event order per file
-            # peek first file for available branches
             with uproot.open(files[0]) as rf0:
                 t0 = rf0[self.tree_name]
                 available0 = set(t0.keys())
                 use_branches = self._filter_branches(available0, self._requested_branches)
-            # Return a single awkward record array across all files
             return uproot.concatenate(
                 {f: self.tree_name for f in files},
                 expressions=use_branches,
@@ -226,3 +235,4 @@ class RDataLoader:
                 raise KeyError(f"Missing branches in tree: {missing}")
             warnings.warn(f"RDataLoader: missing branches will be skipped: {missing}")
         return [b for b in requested if b in available]
+

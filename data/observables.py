@@ -60,56 +60,56 @@ GROUPS: Dict[str, List[str]] = {
 ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT
 
 
-def resolve_groups(*group_names: str) -> List[str]:
-    """Flatten one or more group names to a unique feature list in a stable order."""
-    seen = set()
-    out: List[str] = []
-    for g in group_names:
-        if g not in GROUPS:
-            raise KeyError(f"Unknown group '{g}'. Known: {list(GROUPS)}")
-        for b in GROUPS[g]:
-            if b not in seen:
-                out.append(b)
-                seen.add(b)
-    return out
-
-
-def all_features() -> List[str]:
-    return list(ALL_FEATURES)
-
-
-def observers() -> List[str]:
-    return list(OBSERVERS)
-
-
-class DataModel:
-    """Backwards-compatible feature selector mirroring your previous interface.
-
-    DataModel(top_kinematics=True, lepton_kinematics=False, ...)
-    -> .feature_names and .name
-    """
-    def __init__(self, top_kinematics=False, lepton_kinematics=False, asymmetry=False, spin_correlation=False):
-        self.top_kinematics = top_kinematics
-        self.lepton_kinematics = lepton_kinematics
-        self.asymmetry = asymmetry
-        self.spin_correlation = spin_correlation
-        if any([top_kinematics, lepton_kinematics, asymmetry, spin_correlation]):
-            groups = []
-            if top_kinematics:
-                groups.append("top_kinematics")
-            if lepton_kinematics:
-                groups.append("lepton_kinematics")
-            if asymmetry:
-                groups.append("asymmetry")
-            if spin_correlation:
-                groups.append("spin_correlation")
-            self.feature_names = resolve_groups(*groups)
-        else:
-            self.feature_names = all_features()
-
-    @property
-    def name(self) -> str:
-        return (
-            f"TK_{self.top_kinematics}_LK_{self.lepton_kinematics}_CA_{self.asymmetry}_SC_{self.spin_correlation}"
-        )
-
+#def resolve_groups(*group_names: str) -> List[str]:
+#    """Flatten one or more group names to a unique feature list in a stable order."""
+#    seen = set()
+#    out: List[str] = []
+#    for g in group_names:
+#        if g not in GROUPS:
+#            raise KeyError(f"Unknown group '{g}'. Known: {list(GROUPS)}")
+#        for b in GROUPS[g]:
+#            if b not in seen:
+#                out.append(b)
+#                seen.add(b)
+#    return out
+#
+#
+#def all_features() -> List[str]:
+#    return list(ALL_FEATURES)
+#
+#
+#def observers() -> List[str]:
+#    return list(OBSERVERS)
+#
+#
+#class DataModel:
+#    """Backwards-compatible feature selector mirroring your previous interface.
+#
+#    DataModel(top_kinematics=True, lepton_kinematics=False, ...)
+#    -> .feature_names and .name
+#    """
+#    def __init__(self, top_kinematics=False, lepton_kinematics=False, asymmetry=False, spin_correlation=False):
+#        self.top_kinematics = top_kinematics
+#        self.lepton_kinematics = lepton_kinematics
+#        self.asymmetry = asymmetry
+#        self.spin_correlation = spin_correlation
+#        if any([top_kinematics, lepton_kinematics, asymmetry, spin_correlation]):
+#            groups = []
+#            if top_kinematics:
+#                groups.append("top_kinematics")
+#            if lepton_kinematics:
+#                groups.append("lepton_kinematics")
+#            if asymmetry:
+#                groups.append("asymmetry")
+#            if spin_correlation:
+#                groups.append("spin_correlation")
+#            self.feature_names = resolve_groups(*groups)
+#        else:
+#            self.feature_names = all_features()
+#
+#    @property
+#    def name(self) -> str:
+#        return (
+#            f"TK_{self.top_kinematics}_LK_{self.lepton_kinematics}_CA_{self.asymmetry}_SC_{self.spin_correlation}"
+#        )
+#
