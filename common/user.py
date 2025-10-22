@@ -13,11 +13,12 @@ tmp_mem_directory      = "/dev/shm/%s/"%(user)
 
 if user in ['robert.schoefbeck']:
     # Where the plots go:
-    plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/t_sch/"
+    plot_directory         = "/groups/hephy/cms/robert.schoefbeck/www/SBIPDF/"
     # For model output:
-    model_directory        = "/groups/hephy/cms/robert.schoefbeck/t_sch/models/"
-    output_directory       = "/scratch-cbe/users/robert.schoefbeck/t_sch/output/"
+    model_directory        = "/groups/hephy/cms/robert.schoefbeck/SBIPDF/models/"
+    output_directory       = "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/"
 
+    training_data_dir      = "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/"
     
 elif user in ['dennis.schwarz']:
     plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
