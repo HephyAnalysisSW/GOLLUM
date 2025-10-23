@@ -1,0 +1,22 @@
+name: hephy-ml-gpu
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - root
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - scikit-optimize
+  - xgboost
+  - lightgbm
+  - iminuit
+  - requests
+  - tabulate
+  - tqdm
+  - uproot
+  - uproot3
