@@ -47,7 +47,7 @@ BASIC_EVENT = [
 ]
 
 # Generator-level observers (not directly features)
-OBSERVERS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
+OBSERVERS = ["weight", "Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
 
 GROUPS: Dict[str, List[str]] = {
     "top_kinematics": TOP_KINEMATICS,
