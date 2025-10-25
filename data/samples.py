@@ -8,9 +8,9 @@ import numpy as np
 sys.path.insert(0, '..')
 
 from RDataLoader import RDataLoader
+from SelectionView import SelectionView
 import observables
 import common.user as user
-
 
 # -----------------------------
 # Base sample (no selection)
@@ -23,74 +23,74 @@ tt2l = RDataLoader(
         "TTLep_Summer16_preVFP/TTLep_Summer16_preVFP.root",
     )],
     tree_name="Events",
+    # Load the union needed for training + observers
     branches=observables.OBSERVERS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
     selection=None,
     n_split=1,
     splitting_strategy="events",
     strict_branches=False,
     feature_names=observables.TOP_KINEMATICS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
-    observer_names=observables.OBSERVERS,
+    observer_names=observables.OBSERVERS,  # must include "weight", id1, id2, etc.
 )
-
 
 # -----------------------------
 # Selections (GG, QG, QQ)
+#   We build masks from OBSERVERS (only id1/id2 are actually needed).
+#   The SelectionView will request selection_feature_names just for mask eval.
 # -----------------------------
-def _id_columns(training_observers: np.ndarray, obs_names=None):
-    """
-    Resolve id1/id2 columns from observers using the canonical order in observables.OBSERVERS.
-    """
+def _id_columns(obs_matrix: np.ndarray, obs_names=None):
     names = observables.OBSERVERS if obs_names is None else obs_names
     ix_id1 = names.index("Generator_id1")
     ix_id2 = names.index("Generator_id2")
-    id1 = training_observers[:, ix_id1].astype(int, copy=False)
-    id2 = training_observers[:, ix_id2].astype(int, copy=False)
+    id1 = obs_matrix[:, ix_id1].astype(int, copy=False)
+    id2 = obs_matrix[:, ix_id2].astype(int, copy=False)
     return id1, id2
 
-
-def sel_GG(training_observers: np.ndarray, obs_names=None) -> np.ndarray:
+def sel_GG(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
     """gluon–gluon fusion: (id1==21) & (id2==21)"""
-    id1, id2 = _id_columns(training_observers, obs_names)
+    id1, id2 = _id_columns(obs_matrix, obs_names)
     return (id1 == 21) & (id2 == 21)
 
-
-def sel_QG(training_observers: np.ndarray, obs_names=None) -> np.ndarray:
+def sel_QG(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
     """quark–gluon mixed (either leg gluon, the other (anti)quark)"""
-    id1, id2 = _id_columns(training_observers, obs_names)
+    id1, id2 = _id_columns(obs_matrix, obs_names)
     abs_ids = np.array([1, 2, 3, 4, 5, 6], dtype=int)
     return ((id1 == 21) & np.isin(np.abs(id2), abs_ids)) | ((id2 == 21) & np.isin(np.abs(id1), abs_ids))
 
-
-def sel_QQ(training_observers: np.ndarray, obs_names=None) -> np.ndarray:
-    """quark–antiquark annihilation: both legs are quarks with opposite sign"""
-    id1, id2 = _id_columns(training_observers, obs_names)
+def sel_QQ(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
+    """quark–antiquark annihilation: both legs are (anti)quarks with opposite sign"""
+    id1, id2 = _id_columns(obs_matrix, obs_names)
     abs_ids = np.array([1, 2, 3, 4, 5, 6], dtype=int)
     return (np.isin(np.abs(id1), abs_ids) & np.isin(np.abs(id2), abs_ids) & (id1 * id2 < 0))
 
+# Names of observer columns needed to evaluate the mask fast
+_SELECTION_OBS = ["Generator_id1", "Generator_id2"]
 
 # -----------------------------
-# Lightweight “views” over tt2l
-# (the loader changes will wire these up to reuse I/O)
+# First-class views (behave like loaders)
+#   - Use observers to compute masks (selection_feature_names = _SELECTION_OBS)
+#   - Inherit feature_names / observer_names from base
 # -----------------------------
-class SelectionView:
-    """
-    Minimal placeholder for a selection-based view over a base loader.
-    The base loader handles I/O; this view only carries the selection metadata.
-    """
-    def __init__(self, base: RDataLoader, name: str, selection_fn):
-        self.base = base
-        self.name = name
-        self.selection_fn = selection_fn
-        # Optionally override feature/observer sets per view later:
-        self.feature_names = getattr(base, "feature_names", None)
-        self.observer_names = getattr(base, "observer_names", None)
+tt2l_GG = SelectionView(
+    base=tt2l,
+    name="GG",
+    selection_fn=lambda obs_mat, names: sel_GG(obs_mat, names),
+    selection_feature_names=["Generator_id1", "Generator_id2"],
+)
 
+tt2l_QG = SelectionView(
+    base=tt2l,
+    name="QG",
+    selection_fn=lambda obs_mat, names: sel_QG(obs_mat, names),
+    selection_feature_names=["Generator_id1", "Generator_id2"],
+)
 
-# Three selected samples/views based on tt2l
-tt2l_GG = SelectionView(base=tt2l, name="GG", selection_fn=sel_GG)
-tt2l_QG = SelectionView(base=tt2l, name="QG", selection_fn=sel_QG)
-tt2l_QQ = SelectionView(base=tt2l, name="QQ", selection_fn=sel_QQ)
-
+tt2l_QQ = SelectionView(
+    base=tt2l,
+    name="QQ",
+    selection_fn=lambda obs_mat, names: sel_QQ(obs_mat, names),
+    selection_feature_names=["Generator_id1", "Generator_id2"],
+)
 
 __all__ = [
     "tt2l",

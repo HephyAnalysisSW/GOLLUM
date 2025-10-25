@@ -1,6 +1,3 @@
-''' A config for inclusive cross section parametrization, quadratic in pdf. 
-'''
-
 import sys
 sys.path.insert( 0, '..')
 sys.path.insert( 0, '../..')
@@ -14,8 +11,8 @@ n_epochs           = 300
 n_epochs_phaseout  = 100
 learning_rate = 0.01
 
-classes       = data_structure.labels
-input_dim     = len(data_structure.feature_names)
+classes       = [tt2l_GG, tt2l_QG, tt2l_QQ] 
+input_dim     = len(tt2l_GG.feature_names)
 hidden_layers = [64,64,64]
 activation    = 'relu'
 

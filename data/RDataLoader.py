@@ -12,9 +12,10 @@ import awkward as ak
 from awkward import types as aktypes
 import uproot
 
+import SelectionView
+
 PathLike = Union[str, os.PathLike]
 SelectionFn = Optional[Callable[[ak.Array], Union[ak.Array, np.ndarray]]]
-
 
 class RDataLoader:
     def __init__(
@@ -311,3 +312,25 @@ class RDataLoader:
             warnings.warn(f"RDataLoader: missing branches will be skipped: {missing}")
         return [b for b in requested if b in available]
 
+    def view(
+        self,
+        name: str,
+        selection_fn,
+        feature_names: Optional[Sequence[str]] = None,
+        observer_names: Optional[Sequence[str]] = None,
+        selection_feature_names: Optional[Sequence[str]] = None,
+    ) -> 'SelectionView':
+        """
+        Create a first-class SelectionView that behaves like a loader.
+        - selection_fn(X_sel) -> boolean mask
+        - feature_names/observer_names: per-view overrides (fallback to base)
+        - selection_feature_names: features used to compute mask (fallback to base.feature_names)
+        """
+        return SelectionView(
+            base=self,
+            name=name,
+            selection_fn=selection_fn,
+            feature_names=feature_names,
+            observer_names=observer_names,
+            selection_feature_names=selection_feature_names,
+        )
