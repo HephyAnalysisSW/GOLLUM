@@ -81,20 +81,32 @@ class RDataLoader:
             raise ValueError("splitting_strategy must be 'files' or 'events'")
         self._file_splits: List[List[str]] = self._make_file_splits(self._all_files, self.n_split)
 
+        # -------- NEW: simple in-memory caches (per shard) --------
+        # cache of post-selection awkward shards: {shard_index: ak.Array}
+        self._arr_cache: dict[int, ak.Array] = {}
+        # cache of boolean masks per selection name and shard: {sel_name: {shard_index: np.ndarray}}
+        self._mask_cache: dict[str, dict[int, np.ndarray]] = {}
+
     # ---------------------------- public API ----------------------------
     def __len__(self) -> int:
         return len(self._file_splits) if self.splitting_strategy == "files" else self.n_split
 
     def __getitem__(self, idx: int) -> ak.Array:
-        """Load one shard as an awkward Array, apply selection if present."""
+        """Load one shard as an awkward Array, apply selection if present. Result is cached."""
+        key = self._wrap_index(idx)
+        if key in self._arr_cache:
+            return self._arr_cache[key]
+
         if self.splitting_strategy == "files":
-            files = self._file_splits[self._wrap_index(idx)]
+            files = self._file_splits[key]
             ar = self._load_files(files)
         else:  # events
             ar_all = self._load_files(self._all_files)
             n = len(ar_all)
-            lo, hi = self._event_bounds(n, self.n_split)[self._wrap_index(idx)]
+            lo, hi = self._event_bounds(n, self.n_split)[key]
             ar = ar_all[lo:hi]
+
+        # selection after split
         if self.selection is not None:
             mask = self.selection(ar)
             mask = ak.to_numpy(mask) if isinstance(mask, ak.Array) else mask
@@ -102,6 +114,8 @@ class RDataLoader:
                 warnings.warn("RDataLoader: selection returned None; skipping.")
             else:
                 ar = ar[mask]
+
+        self._arr_cache[key] = ar
         return ar
 
     @property
@@ -143,7 +157,17 @@ class RDataLoader:
             return ak.Array([[] for _ in range(len(ar))])
         return ar[name]
 
-    # -------- NEW: direct feature access (no awkward escapes) ----------
+    # -------- direct feature/observer access (no awkward escapes) ----------
+    def observers(self, shard: int = 0, n: Optional[int] = None,
+                  observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
+        """Return observers matrix (N,O) as NumPy using configured or provided observer names."""
+        names = list(observer_names) if observer_names is not None else (self.observer_names or [])
+        if not names:
+            raise ValueError("No observer names configured. Pass observer_names=... or set observer_names in the constructor.")
+        ar = self[shard]
+        G = self.scalar_branches(ar, names)
+        return G if n is None else G[:n]
+
     def features(self, shard: int = 0, n: Optional[int] = None,
                  feature_names: Optional[Sequence[str]] = None) -> np.ndarray:
         """Return features matrix (N,F) as NumPy using configured or provided feature names."""
@@ -172,6 +196,25 @@ class RDataLoader:
             G = G[:n]
         return X, G
 
+    # -------- NEW: masked materialization helpers (for views) ----------
+    def features_from_mask(self, shard: int, mask: np.ndarray,
+                           feature_names: Optional[Sequence[str]] = None,
+                           n: Optional[int] = None) -> np.ndarray:
+        """Return features sliced by a boolean mask computed externally (e.g., by a view)."""
+        X = self.features(shard=shard, n=None, feature_names=feature_names)
+        if mask is not None:
+            X = X[mask]
+        return X if n is None else X[:n]
+
+    def observers_from_mask(self, shard: int, mask: np.ndarray,
+                            observer_names: Optional[Sequence[str]] = None,
+                            n: Optional[int] = None) -> np.ndarray:
+        """Return observers sliced by a boolean mask computed externally (e.g., by a view)."""
+        G = self.observers(shard=shard, n=None, observer_names=observer_names)
+        if mask is not None:
+            G = G[mask]
+        return G if n is None else G[:n]
+
     def iter_features(self, shard: int = 0, batch_size: int = 8192,
                       feature_names: Optional[Sequence[str]] = None):
         """Yield feature batches (B,F) as NumPy — minimal iterator without exposing awkward."""
@@ -181,6 +224,38 @@ class RDataLoader:
             raise ValueError("batch_size must be > 0")
         for i in range(0, N, batch_size):
             yield X[i:i + batch_size]
+
+    # -------- NEW: view helpers (mask computation & minimal shard reuse) --------
+    def load_selection_shard(self, shard: int) -> ak.Array:
+        """
+        Return the post-selection awkward shard (cached). Acts as the single read
+        for all views that will compute masks/weights from observers/features.
+        """
+        return self[shard]
+
+    def compute_mask(self, selection_name: str, selection_fn, shard: int,
+                     observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
+        """
+        Compute (and cache) a boolean mask for a named selection on a given shard.
+        The selection_fn must accept (observers_matrix, observer_names) and return a boolean mask.
+        """
+        # cached?
+        if selection_name not in self._mask_cache:
+            self._mask_cache[selection_name] = {}
+        if shard in self._mask_cache[selection_name]:
+            return self._mask_cache[selection_name][shard]
+
+        # build observers once (reuses cached shard)
+        G = self.observers(shard=shard, n=None, observer_names=observer_names)
+        names = list(observer_names) if observer_names is not None else (self.observer_names or [])
+        mask = selection_fn(G, names)
+        if not isinstance(mask, np.ndarray) or mask.dtype != bool or mask.ndim != 1:
+            raise ValueError(f"Selection '{selection_name}' did not return a 1D boolean mask.")
+        if len(mask) != len(G):
+            raise ValueError(f"Selection '{selection_name}' mask length mismatch: {len(mask)} vs {len(G)}.")
+
+        self._mask_cache[selection_name][shard] = mask
+        return mask
 
     # --------------------------- internals ----------------------------
     def _wrap_index(self, idx: int) -> int:
