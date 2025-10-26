@@ -1,0 +1,44 @@
+version: 1
+
+project:
+  name: TFMC-toy
+
+defaults:
+  module_samples: "data.toy_data"
+  observer_weight: "weight"
+  batch_size: 2048
+  seed: null
+  reuse_existing_artifacts: true
+
+datasets:
+  available:
+    - toy_uniform
+    - toy_step
+
+jobs:
+  - id: tfmc_toy
+    type: classifier
+    framework: tfmc
+    data:
+      classes: [toy_uniform, toy_step]
+      weight: "${observer_weight}"
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+      dropout_rate: 0.0
+      regularization:
+        l1: 0.0
+        l2: 0.0
+    optim:
+      epochs: 500
+      phaseout_epochs: 0
+      learning_rate: 0.02
+    runtime:
+      batch_size: -1 
+      seed: null 
+    extras:
+      use_ic: false
+      use_scaler: false
+    output:
+      filename: "tfmc_toy.h5"
+
