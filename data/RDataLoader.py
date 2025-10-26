@@ -213,52 +213,30 @@ class RDataLoader:
             G = G[:n]
         return X, G
 
-    # -------- NEW: weight vector & materialize API ----------
     def weight_vector(self, shard: int = 0, n: Optional[int] = None) -> np.ndarray:
-        """
-        Compute per-event weights for a shard.
-        - str:                use that branch
-        - list/tuple of str:  element-wise product of those branches
-        - callable(dict):     compute from provided branch dict (names in self.weight_branches)
-        """
+        """Compute weight vector. Missing inputs now raise KeyError."""
         ar = self[shard]
-        if isinstance(self.weight, str):
-            if self.weight not in ar.fields:
-                if self.strict_branches:
-                    raise KeyError(f"Weight branch '{self.weight}' not in array fields.")
-                warnings.warn(f"weight_vector: missing '{self.weight}', filling with ones.")
-                w = np.ones(len(ar), dtype=np.float32)
-            else:
-                w = ak.to_numpy(ar[self.weight]).astype(np.float32, copy=False)
 
-        elif isinstance(self.weight, (list, tuple)):
-            names = list(self.weight)
-            if not names:
-                w = np.ones(len(ar), dtype=np.float32)
-            else:
-                cols = []
-                for nm in names:
-                    if nm not in ar.fields:
-                        if self.strict_branches:
-                            raise KeyError(f"Weight factor branch '{nm}' not in array fields.")
-                        warnings.warn(f"weight_vector: missing factor '{nm}', treating as ones.")
-                        cols.append(np.ones(len(ar), dtype=np.float32))
-                    else:
-                        cols.append(ak.to_numpy(ar[nm]).astype(np.float32, copy=False))
-                w = np.prod(np.stack(cols, axis=0), axis=0).astype(np.float32, copy=False)
+        if isinstance(self.weight, str):
+            # nominal weight must exist
+            if self.weight not in ar.fields:
+                raise KeyError(f"Weight branch '{self.weight}' not found in loaded branches. "
+                               f"Add it to 'branches' or 'observer_names'.")
+            w = ak.to_numpy(ar[self.weight]).astype(np.float32, copy=False)
 
         else:
-            # callable — build dict of required arrays
+            # callable — ALL required inputs must exist
             needed = list(self.weight_branches or [])
+            if not needed:
+                raise ValueError("Callable weight requires non-empty 'weight_branches'.")
             data: dict[str, np.ndarray] = {}
+            missing = [nme for nme in needed if nme not in ar.fields]
+            if missing:
+                raise KeyError(f"Weight input branches missing: {missing}. "
+                               f"Add them to 'branches' or 'observer_names'.")
             for nme in needed:
-                if nme not in ar.fields:
-                    if self.strict_branches:
-                        raise KeyError(f"Weight input branch '{nme}' not in array fields.")
-                    warnings.warn(f"weight_vector: missing '{nme}', filling zeros for callable input.")
-                    data[nme] = np.zeros(len(ar), dtype=np.float32)
-                else:
-                    data[nme] = ak.to_numpy(ar[nme]).astype(np.float32, copy=False)
+                data[nme] = ak.to_numpy(ar[nme]).astype(np.float32, copy=False)
+
             w = np.asarray(self.weight(data))
             if w.ndim != 1 or len(w) != len(ar):
                 raise ValueError("Weight function must return a 1D array of length equal to the shard length.")
