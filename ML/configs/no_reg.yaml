@@ -1,26 +1,26 @@
-# File: configs/train_config.yaml
+# File: configs/no_reg.yaml
 version: 1
 
 project:
   name: SBI-PDF
 
 defaults:
-  module_samples: "data.samples"           # jobs import datasets/views by name from here
+  module_samples: "data.samples"     # jobs import datasets/views by name from here
   observer_weight: "weight"
   batch_size: 65536
-  num_workers: 0                           # if you later parallelize I/O
+  num_workers: 0
   seed: 1
-  # When true, a trainer may skip re-running deps if their artifacts exist
   reuse_existing_artifacts: true
 
 datasets:
-  # The code will import these by name from `data.samples`.
-  # Listed here only for discoverability / validation.
+  # For discoverability only; trainers import by name from data.samples
   available:
     - tt2l
     - tt2l_GG
     - tt2l_QG
     - tt2l_QQ
+    - tt2l_GG_LeptonSFUp
+    - tt2l_GG_LeptonSFDown
 
 jobs:
   # -------------------------------
@@ -28,8 +28,8 @@ jobs:
   # -------------------------------
   - id: ic_tt2l_GG
     type: ic
-    process: tt2l_GG               # sample or view name from data.samples
-    selection: null                # optional extra selection layered on top (None for now)
+    process: tt2l_GG
+    selection: null
     output:
       filename: "IC_tt2l_GG.pkl"
 
@@ -50,6 +50,13 @@ jobs:
   # -------------------------------
   # Scalers (one per class/view)
   # -------------------------------
+  - id: scaler_tt2l
+    type: scaler
+    process: tt2l
+    selection: null
+    output:
+      filename: "Scaler_tt2l.pkl"
+
   - id: scaler_tt2l_GG
     type: scaler
     process: tt2l_GG
@@ -71,12 +78,14 @@ jobs:
     output:
       filename: "Scaler_tt2l_QQ.pkl"
 
+  # -------------------------------
+  # TFMC classifier (split processes)
+  # -------------------------------
   - id: tfmc_split_processes
     type: classifier
-    framework: "tfmc"              # free-form tag your trainer can switch on
+    framework: "tfmc"
     data:
-      classes: [tt2l_GG, tt2l_QG, tt2l_QQ]   # import these from data.samples
-      # features/observers come from each loader; trainer should validate they share same feature layout
+      classes: [tt2l_GG, tt2l_QG, tt2l_QQ]
       weight: "${observer_weight}"
     model:
       activation: relu
@@ -86,13 +95,12 @@ jobs:
       phaseout_epochs: 0
       learning_rate: 0.02
     runtime:
-      batch_size: 65536 
-      num_workers: 1 
-      seed: 1 
+      batch_size: 65536
+      num_workers: 1
+      seed: 1
     extras:
       use_ic: true
       use_scaler: true
-      # Optionally declare dependencies; your runner can ensure they exist or trigger them first
       depends_on:
         - ic_tt2l_GG
         - ic_tt2l_QG
@@ -101,39 +109,88 @@ jobs:
         - scaler_tt2l_QG
         - scaler_tt2l_QQ
     output:
-      filename: "tfmc_no_reg.pkl"    
+      filename: "tfmc_no_reg.pkl"
 
-# --- ICP job --------------------------------------------------------------
-  - id: icp_lSF_quad_GG
+  # -------------------------------
+  # ICP (Inclusive Cross-Section Parametrization) for lepton SF (quadratic)
+  # Base points: {-1, 0, +1} using GG views
+  # -------------------------------
+  - id: icp_lSF_quad
     type: icp
 
-    # Which loaders to use for each base point (keys must match base_points)
-    # Use any loader/view name from your samples module (e.g. tt2l_GG, tt2l_GG_LeptonSFUp/Down).
+    # Which loader/view provides each base point
     base_point_loaders:
-      0: tt2l_GG_LeptonSFDown
-      1: tt2l_GG
-      2: tt2l_GG_LeptonSFUp
+      0: tt2l_LeptonSFDown   # nu_lSF = -1
+      1: tt2l                 # nu_lSF =  0 (nominal)
+      2: tt2l_LeptonSFUp     # nu_lSF = +1
 
-    # Nuisance parameters and log-poly terms we fit
+    # Nuisance definition and log-polynomial terms
     parameters: [nu_lSF]
     combinations:
       - [nu_lSF]           # linear
       - [nu_lSF, nu_lSF]   # quadratic
 
-    # Base-point coordinates in the nuisance space (flexible & multi-dim ready)
+    # Coordinates in nuisance space
     base_points:
       0: [-1.0]
       1: [ 0.0]
       2: [ 1.0]
 
-    nominal_index: 1        # which base point is the nominal (SM)
+    nominal_index: 1
+    train_ratio: true        # learn log σ(nu)/σ(nominal)
 
-    # Train ratios (log σ(nu)/σ(nominal)); set false to fit absolute (requires constant term ())
-    train_ratio: true
-
-    # Optional: extra selection on features (refers to common/selections.py key)
+    # Optional extra selections (commented for now)
     # selection: lowMT_VBFJet
     # mva_selection: SomeMVAKey
 
     output:
-      filename: "icp_tt2l_GG_lSF_quad.pkl"
+      filename: "icp_tt2l_lSF_quad.pkl"
+
+  # -------------------------------
+  # PNN (Parametric NN for local DCR) using the same lSF setup
+  # Uses ICP inside the loss/pred via extras.use_icp
+  # -------------------------------
+  - id: pnn_leptonSF
+    type: pnn
+    selection: lowMT_VBFJet    # name-only; data comes from the loaders below
+    process: tt2l              # nominal process label for metadata
+
+    # nuisance setup
+    parameters: [nu_lSF]
+    # choose linear or quadratic
+    combinations: [["nu_lSF"]]     # linear
+    # combinations: [["nu_lSF"], ["nu_lSF","nu_lSF"]]  # quadratic
+
+    # Base points: coords + which loader/view provides each sample
+    base_points:
+      - coords: [-1.0]   # Down
+        loader: tt2l_LeptonSFDown
+      - coords: [ 0.0]   # Nominal
+        loader: tt2l
+      - coords: [ 1.0]   # Up
+        loader: tt2l_LeptonSFUp
+
+    model:
+      hidden_layers: [128, 128]
+      activation: relu
+      initialize_zero: true
+
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+
+    runtime:
+      n_split: 10
+      plot_every: 5
+      rebin: 2
+
+    extras:
+      use_scaler: true
+      use_icp:   true
+      depends_on: [scaler_tt2l, icp_lSF_quad]
+      icp_job_id: icp_lSF_quad
+
+    output:
+      filename: "pnn_leptonSF_GG.pkl"
+

@@ -6,6 +6,7 @@ import numpy as np
 
 # project roots (keep as in your current layout)
 sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 
 from RDataLoader import RDataLoader
 from SelectionView import SelectionView
@@ -71,6 +72,20 @@ _SELECTION_OBS = ["Generator_id1", "Generator_id2"]
 # -----------------------------
 # First-class views (behave like loaders)
 # -----------------------------
+
+# Up variation: weight * reweightLeptonSFUp
+tt2l_LeptonSFUp = SelectionView(
+    base=tt2l,
+    name="LeptonSFUp",
+    weight="reweightLeptonSFUp",
+)
+
+# Down variation: weight * reweightLeptonSFDown
+tt2l_LeptonSFDown = SelectionView(
+    base=tt2l,
+    name="LeptonSFDown",
+    weight="reweightLeptonSFDown",
+)
 
 # Nominal GG (uses base weight)
 tt2l_GG = SelectionView(

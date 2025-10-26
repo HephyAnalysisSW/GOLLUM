@@ -1,0 +1,430 @@
+#!/usr/bin/env python
+from __future__ import annotations
+import os, sys, time, argparse, importlib, yaml, math
+import numpy as np
+import tensorflow as tf
+
+# project roots
+sys.path.insert(0, '..'); sys.path.insert(0, '../..')
+
+import common.user as user
+import common.syncer as syncer
+
+from ML.PNN.PNN import PNN
+from tqdm import trange, tqdm
+
+# Plot options (binning, labels, optional y_ratio_range)
+from data.plot_options import plot_options as PLOT_OPTS
+
+# ---------------- args ----------------
+p = argparse.ArgumentParser(description="PNN training (YAML-driven)")
+p.add_argument("config", help="Path to global YAML config")
+p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
+p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
+p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+args = p.parse_args()
+
+# ---------------- cfg ----------------
+cfg_path = os.path.expanduser(os.path.expandvars(args.config))
+with open(cfg_path, "r") as f:
+    CFG = yaml.safe_load(f) or {}
+D = CFG.get("defaults", {}) or {}
+module_samples = D.get("module_samples", "data.samples")
+
+def list_and_exit():
+    jobs = [j for j in (CFG.get("jobs") or []) if j.get("type") == "pnn"]
+    if not jobs:
+        print("No PNN jobs found.")
+        sys.exit(0)
+    flags = []
+    if args.overwrite: flags.append("--overwrite")
+    if args.small:     flags.append("--small")
+    script = os.path.basename(__file__)
+    for j in jobs:
+        print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
+    sys.exit(0)
+
+if args.job is None:
+    list_and_exit()
+
+J = next((j for j in (CFG.get("jobs") or []) if j.get("id") == args.job), None)
+if J is None or J.get("type") != "pnn":
+    raise RuntimeError(f"Job '{args.job}' not found or not type 'pnn'.")
+
+# ---------------- resolve loaders ----------------
+samples_mod = importlib.import_module(module_samples)
+
+bp_specs = J["base_points"]  # list of {coords: [...], loader: "name"}
+base_points = [spec["coords"] for spec in bp_specs]
+loader_names = [spec["loader"] for spec in bp_specs]
+loaders = []
+for nm in loader_names:
+    if not hasattr(samples_mod, nm):
+        raise RuntimeError(f"Loader/view '{nm}' not found in module {module_samples}.")
+    loaders.append(getattr(samples_mod, nm))
+
+# sanity: same features across loaders
+feat_names = list(getattr(loaders[0], "feature_names", []))
+if not feat_names:
+    raise RuntimeError("First loader has no feature_names.")
+for L in loaders[1:]:
+    if list(getattr(L, "feature_names", [])) != feat_names:
+        raise RuntimeError("Feature mismatch across base-point loaders.")
+input_dim = len(feat_names)
+feat2col = {f: i for i, f in enumerate(feat_names)}
+
+# ---------------- artifacts: scaler & ICP ----------------
+use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
+use_icp    = bool(J.get("extras", {}).get("use_icp",   False))
+cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]
+
+scaler_means = np.zeros(input_dim, dtype=np.float64)
+scaler_vars  = np.ones(input_dim, dtype=np.float64)
+if use_scaler:
+    from ML.Scaler.Scaler import Scaler
+    dep_ids = list(J.get("extras", {}).get("depends_on", []))
+    dep_scalers = [d for d in dep_ids if d.startswith("scaler_")]
+    if dep_scalers:
+        dep = dep_scalers[0]
+        dep_job = next((jj for jj in CFG.get("jobs", []) if jj.get("id") == dep), None)
+        if not dep_job:
+            raise RuntimeError(f"Dependency '{dep}' not found in YAML.")
+        fname = dep_job.get("output", {}).get("filename")
+        if not fname:
+            raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
+        path = os.path.join(user.model_directory, cfg_base, "Scaler", fname)
+    else:
+        proc = J.get("process")
+        path = os.path.join(user.model_directory, cfg_base, "Scaler", f"Scaler_{proc}.pkl")
+    sc = Scaler.load(path)
+    scaler_means, scaler_vars = sc.feature_means, sc.feature_variances
+    print(f"Loaded Scaler: {path}")
+
+icp_predictor = None
+if use_icp:
+    from ML.ICP.ICP import InclusiveCrosssectionParametrization
+    icp_id = J.get("extras", {}).get("icp_job_id", None)
+    dep_ids = list(J.get("extras", {}).get("depends_on", []))
+    dep_ics = [d for d in dep_ids if d.startswith("ic_") or d.startswith("icp_")]
+    if not icp_id and dep_ics:
+        icp_id = dep_ics[0]
+    if not icp_id:
+        raise RuntimeError("use_icp=True but no icp_job_id / depends_on ICP provided.")
+    icp_job = next((jj for jj in CFG.get("jobs", []) if jj.get("id") == icp_id), None)
+    if not icp_job:
+        raise RuntimeError(f"ICP job '{icp_id}' not found in YAML.")
+    icp_fname = icp_job.get("output", {}).get("filename")
+    if not icp_fname:
+        raise RuntimeError(f"ICP job '{icp_id}' has no output.filename.")
+    icp_path = os.path.join(user.model_directory, cfg_base, "ICP", icp_fname)
+    icp = InclusiveCrosssectionParametrization.load(icp_path)
+
+    # Build a lightweight predictor from the saved ICP payload (no get_predictor needed)
+    _params = list(icp.parameters)
+    _combs  = [tuple(c) for c in icp.combinations]
+    _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
+
+    def _icp_predictor(**kwargs):
+        # kwargs like {"nu_lSF": value, ...} in the same order/names as _params
+        nu_vec = [kwargs[p] for p in _params]
+        # construct ν_A vector for the given combinations
+        def _prod(comb):
+            v = 1.0
+            for p in comb:
+                v *= nu_vec[_params.index(p)]
+            return v
+        nu_A = np.array([_prod(c) for c in _combs], dtype=np.float64)
+        return float(np.exp(nu_A @ _DeltaA))
+
+    icp_predictor = _icp_predictor
+    print(f"Loaded ICP: {icp_path}")
+
+# ---------------- build model ----------------
+parameters   = list(J["parameters"])
+combinations = [tuple(c) for c in J["combinations"]]
+hidden_layers = J.get("model", {}).get("hidden_layers", [128,128])
+activation    = J.get("model", {}).get("activation", "relu")
+initialize_zero = bool(J.get("model", {}).get("initialize_zero", False))
+epochs       = int(J.get("optim", {}).get("epochs", 200))
+phaseout     = int(J.get("optim", {}).get("phaseout_epochs", 0))
+lr           = float(J.get("optim", {}).get("learning_rate", 1e-3))
+
+pnn = None
+model_dir = os.path.join(user.model_directory, "PNN", cfg_base, J["id"])
+plot_dir  = os.path.join(user.plot_directory,  "PNN", cfg_base, J["id"])
+os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
+
+if not args.overwrite:
+    try:
+        print(f"Trying to load PNN from {model_dir}")
+        pnn = PNN.load(model_dir)
+    except Exception:
+        pnn = None
+
+if pnn is None:
+    pnn = PNN(parameters=parameters,
+              combinations=combinations,
+              base_points=base_points,
+              input_dim=input_dim,
+              hidden_layers=hidden_layers,
+              activation=activation,
+              learning_rate=lr,
+              n_epochs=epochs,
+              n_epochs_phaseout=phaseout,
+              initialize_zero=initialize_zero)
+
+pnn.set_scaler(scaler_means, scaler_vars)
+
+# ---------------- training utils ----------------
+def lr_schedule(epoch):
+    if phaseout <= 0: return lr
+    if epoch < epochs - phaseout: return lr
+    start = epochs - phaseout
+    # linear phaseout down to ~0
+    return lr * (1.0 - (epoch - start + 1) / phaseout)
+
+def iterate_epoch(shard_limit=None):
+    # ensure same number of shards
+    shard_counts = [len(getattr(L, "base", L)) for L in loaders]
+    n_shards = min(shard_counts)
+    if shard_limit is not None:
+        n_shards = min(n_shards, shard_limit)
+    for shard in range(n_shards):
+        # materialize for each base point: (X, w)
+        Xs, Ws = [], []
+        for L in loaders:
+            X, w = L.materialize(shard=shard, what="fw")
+            Xs.append(X); Ws.append(w.astype(np.float32, copy=False))
+        yield Xs, Ws
+
+# ---- plotting helpers (ROOT) ----
+def init_histograms(plot_features, n_bp, rebin=1):
+    h_true, h_pred, bins = {}, {}, {}
+    for feat in plot_features:
+        n, lo, hi = PLOT_OPTS[feat]['binning']
+        n = max(1, n // max(1, int(rebin)))
+        h_true[feat] = np.zeros((n, n_bp), dtype=np.float64)
+        h_pred[feat] = np.zeros((n, n_bp), dtype=np.float64)
+        bins[feat]   = np.linspace(lo, hi, n+1)
+    return h_true, h_pred, bins
+
+def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, icp_predictor, base_points, nom_idx, plot_features, feat2col):
+    # true: from Xi, wi; pred: from X0, w0 * bias * exp(DeltaA0·V_k)
+    X0, w0 = Xs[nom_idx], Ws[nom_idx]
+    dA0 = pnn.deltaA(X0)  # (N0, C)
+
+    # --- fill NOMINAL column so normalization has a real reference ---
+    for feat in plot_features:
+        col   = feat2col[feat]
+        edges = bins[feat]
+        # true nominal = histogram of nominal sample
+        ht0, _ = np.histogram(X0[:, col], bins=edges, weights=w0)
+        h_true[feat][:, nom_idx] += ht0
+        # pred nominal equals true nominal (bias=1, exp(DeltaA0·0)=1)
+        h_pred[feat][:, nom_idx] += ht0
+    # -----------------------------------------------------------------
+
+    for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
+        if i_bp == nom_idx:
+            continue
+        vk = VkA[i_bp]  # (C,)
+
+        # ICP bias for this base point
+        if icp_predictor:
+            nu_map = {k: v for k, v in zip(pnn.parameters, base_points[i_bp])}
+            bias = float(icp_predictor(**nu_map))
+        else:
+            bias = 1.0
+
+        pred_w = w0 * (bias * np.exp(dA0 @ vk))
+
+        for feat in plot_features:
+            col   = feat2col[feat]
+            edges = bins[feat]
+            # true (Xi, wi)
+            ht, _ = np.histogram(Xi[:, col], bins=edges, weights=wi)
+            h_true[feat][:, i_bp] += ht
+            # pred (X0, pred_w)
+            hp, _ = np.histogram(X0[:, col], bins=edges, weights=pred_w)
+            h_pred[feat][:, i_bp] += hp
+
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1):
+    import ROOT, os, math
+    try:
+        ROOT.gStyle.SetOptStat(0)
+        # try to set TDR if present, ignore otherwise
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
+        ROOT.setTDRStyle()
+    except Exception:
+        pass
+
+    os.makedirs(out_dir, exist_ok=True)
+    n_feat = len(feature_names)
+    n_bp   = len(base_points)
+
+    # color palette
+    colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen+2, ROOT.kOrange+1, ROOT.kMagenta+1, ROOT.kCyan+2,
+              ROOT.kViolet+1, ROOT.kAzure+1, ROOT.kPink+7, ROOT.kTeal+3]
+    if n_bp > len(colors):
+        # repeat if needed
+        colors = (colors * (n_bp // len(colors) + 1))[:n_bp]
+    colors[nom_idx] = ROOT.kBlack
+
+    for normalized in (False, True):
+        # work on copies (avoid altering input)
+        th = {k: v.copy() for k, v in true_h.items()}
+        ph = {k: v.copy() for k, v in pred_h.items()}
+
+        if normalized:
+            # divide each bp by the true nominal spectrum (bin-by-bin)
+            for feat in feature_names:
+                ref = th[feat][:, nom_idx].copy()
+                ref[ref == 0] = 1.0
+                th[feat] = th[feat] / ref[:, None]
+                ph[feat] = ph[feat] / ref[:, None]
+
+        total_pads = n_feat + 1
+        gx = int(math.ceil(math.sqrt(total_pads)))
+        gy = int(math.ceil(total_pads / gx))
+        canvas = ROOT.TCanvas("c_convergence", "PNN Convergence", 500*gx, 500*gy)
+        canvas.Divide(gx, gy)
+
+        keep = []
+
+        for i, feat in enumerate(feature_names):
+            pad = canvas.cd(i + 1)
+            pad.SetTicks(1, 1)
+            pad.SetBottomMargin(0.15)
+            pad.SetLeftMargin(0.15)
+            # logY on raw only if requested
+            pad.SetLogy((not normalized) and PLOT_OPTS[feat].get('logY', False))
+
+            n_bins, x_min, x_max = PLOT_OPTS[feat]['binning']
+            n_bins = max(1, n_bins // max(1, int(rebin)))
+
+            max_y = 0.0
+            for k in range(n_bp):
+                max_y = max(max_y, th[feat][:, k].max(), ph[feat][:, k].max())
+            if normalized:
+                y_min, y_max = PLOT_OPTS[feat].get('y_ratio_range', [max(0, 1-(1.2*max_y-1)), 1.2*max_y])
+            else:
+                y_min, y_max = 0.0, (1.2*max_y if max_y>0 else 1.0)
+
+            hframe = ROOT.TH2F(f"h_{feat}", f";{PLOT_OPTS[feat]['tex']};Probability",
+                               n_bins, x_min, x_max, 100, y_min, y_max)
+            hframe.GetYaxis().SetTitleOffset(1.3)
+            hframe.Draw()
+            keep.append(hframe)
+
+            for k, nu in enumerate(base_points):
+                # true dashed
+                ht = ROOT.TH1F(f"t_{feat}_{k}", "", n_bins, x_min, x_max)
+                for b, y in enumerate(th[feat][:, k]): ht.SetBinContent(b+1, y)
+                ht.SetLineColor(colors[k]); ht.SetLineStyle(2); ht.SetLineWidth(2); ht.Draw("HIST SAME")
+                keep.append(ht)
+
+                # pred solid
+                hp = ROOT.TH1F(f"p_{feat}_{k}", "", n_bins, x_min, x_max)
+                for b, y in enumerate(ph[feat][:, k]): hp.SetBinContent(b+1, y)
+                hp.SetLineColor(colors[k]); hp.SetLineStyle(1); hp.SetLineWidth(2); hp.Draw("HIST SAME")
+                keep.append(hp)
+
+        # legend
+        pad = canvas.cd(n_feat + 1)
+        leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9); leg.SetBorderSize(0); leg.SetShadowColor(0)
+        leg.SetNColumns(1 + n_bp//20)
+        dtrue, dpred = [], []
+        for k, nu in enumerate(base_points):
+            t = ROOT.TH1F(f"dt_{k}", "", 1, 0, 1); t.SetLineColor(colors[k]); t.SetLineStyle(2); t.SetLineWidth(2)
+            p = ROOT.TH1F(f"dp_{k}", "", 1, 0, 1); p.SetLineColor(colors[k]); p.SetLineStyle(1); p.SetLineWidth(2)
+            dtrue.append(t); dpred.append(p)
+            leg.AddEntry(t, f"{tuple(nu)} (true)", "l")
+            leg.AddEntry(p, f"{tuple(nu)} (pred)", "l")
+        leg.Draw(); keep.extend(dtrue + dpred)
+
+        tex = ROOT.TLatex(); tex.SetNDC(); tex.SetTextSize(0.07); tex.SetTextAlign(11)
+        tex.DrawLatex(0.30, 0.95, f"Epoch = {epoch:04d}")
+        keep.append(tex)
+
+        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
+        for fmt in ["png"]:
+            canvas.SaveAs(fname.replace(".png", f".{fmt}"))
+
+# ---------------- train ----------------
+start_epoch = 0
+if not args.overwrite:
+    latest = tf.train.latest_checkpoint(model_dir)
+    if latest:
+        try:
+            start_epoch = int(os.path.basename(latest)) + 1
+        except Exception:
+            pass
+
+shard_limit = 1 if args.small else None
+plot_every  = int(J.get("runtime", {}).get("plot_every", 5))
+rebin       = int(J.get("runtime", {}).get("rebin", 1))
+
+VkA = pnn.VkA
+nom_idx = pnn.nominal_base_point_index
+
+for epoch in trange(start_epoch, epochs, desc="Epoch"):
+    # LR
+    new_lr = lr_schedule(epoch)
+    pnn.optimizer.learning_rate.assign(float(new_lr))
+
+    total_loss = 0.0
+
+    # plotting accumulation
+    do_plot = (epoch % plot_every == 0)
+    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
+    if do_plot:
+        true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+
+    for Xs, Ws in iterate_epoch(shard_limit=shard_limit):
+        X0, w0 = Xs[nom_idx], Ws[nom_idx]
+        X0n = pnn._normalize(X0)
+        with tf.GradientTape() as tape:
+            DeltaA0 = pnn.model(tf.convert_to_tensor(X0n, dtype=tf.float32), training=True)
+
+            loss = 0.0
+            for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
+                if i_bp == nom_idx: continue
+                Xin = pnn._normalize(Xi)
+                DeltaAi = pnn.model(tf.convert_to_tensor(Xin, dtype=tf.float32), training=True)
+
+                # ICP bias for this base point
+                if icp_predictor:
+                    nu_map = {k: v for k, v in zip(parameters, base_points[i_bp])}
+                    bias = float(icp_predictor(**nu_map))
+                else:
+                    bias = 1.0
+
+                v = tf.convert_to_tensor(VkA[i_bp], dtype=tf.float32)  # (C,)
+                term0 = tf.reduce_sum(tf.convert_to_tensor(w0) * tf.nn.softplus(tf.linalg.matvec(DeltaA0, v)))
+                termi = (1.0 / bias) * tf.reduce_sum(tf.convert_to_tensor(wi) * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v)))
+                const = (np.sum(w0) + np.sum(wi)) * math.log(2.0)
+                loss += term0 + termi - const
+
+            grads = tape.gradient(loss, pnn.model.trainable_variables)
+            pnn.optimizer.apply_gradients(zip(grads, pnn.model.trainable_variables))
+            total_loss += float(loss.numpy())
+
+        # accumulate plots from this shard
+        if do_plot and len(X0) and all(len(Xi) for Xi in Xs):
+            accumulate_histograms(true_h, pred_h, bins, Xs, Ws, pnn, VkA, icp_predictor,
+                                  base_points, nom_idx, plot_feats, feat2col)
+
+    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {float(new_lr):.6f} - loss {total_loss:.4f}")
+    pnn.save(model_dir, epoch=epoch)
+
+    if do_plot:
+        plot_convergence_root(true_h, pred_h, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin)
+        syncer.makeRemoteGif(plot_dir, pattern="epoch_*.png",      name="epoch")
+        syncer.makeRemoteGif(plot_dir, pattern="norm_epoch_*.png", name="norm_epoch")
+        syncer.sync()
+    elif not args.small:
+        syncer.sync()
+
+print(f"Done. Model stored in {model_dir}")
+
