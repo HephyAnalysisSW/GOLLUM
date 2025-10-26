@@ -6,5 +6,5 @@
 `git clone --branch sbi-pdf --single-branch git@github.com:HephyAnalysisSW/HEPHY-uncertainty.git`
 
 ### Every time (make aliases for these commands)
-`conda activate /groups/hephy/cms/robert.schoefbeck/conda/envs/hephy-ml-gpu`
+`conda activate /groups/hephy/cms/robert.schoefbeck/conda/envs/hephy-ml-gpu-2`
 
