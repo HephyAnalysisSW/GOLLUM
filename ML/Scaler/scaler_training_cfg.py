@@ -4,7 +4,7 @@
 # YAML-driven Scaler trainer.
 # - Runs selected scaler job via --job ID
 # - If --job is omitted, prints runnable commands and exits(0)
-# - Output path = common.user.model_directory / "Scaler" / <filename from YAML>
+# - Output path = common.user.model_directory / <yaml-basename> / "Scaler" / <filename from YAML>
 
 import os
 import sys
@@ -36,7 +36,6 @@ with open(cfg_path, "r") as f:
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
-observer_weight = defaults.get("observer_weight", "weight")
 
 # ---------------------- list mode ----------------------
 if args.job is None:
@@ -69,7 +68,7 @@ if not process_name:
 
 selection_name = job.get("selection", None)
 
-# Output path: common.user.model_directory / "Scaler" / filename
+# Output path: common.user.model_directory / <yaml-basename> / "Scaler" / filename
 out = job.get("output", {}) or {}
 filename = out.get("filename", f"Scaler_{process_name}.pkl")
 cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]  # e.g. "../configs/no_reg.yaml" -> "no_reg"
@@ -85,12 +84,6 @@ if not hasattr(samples_mod, process_name):
     raise RuntimeError(f"Process/view '{process_name}' not found in module '{module_samples}'.")
 loader = getattr(samples_mod, process_name)
 base = getattr(loader, "base", loader)
-
-# Strict: require weight observer
-observer_names = list(getattr(loader, "observer_names", None) or getattr(base, "observer_names", []) or [])
-if observer_weight not in observer_names:
-    raise RuntimeError(f"Observer '{observer_weight}' required but not found in loader/base.observer_names.")
-w_idx = observer_names.index(observer_weight)
 
 # Optional extra selection on top (boolean mask on features)
 sel_fn = None
@@ -125,23 +118,11 @@ if scaler is None or args.overwrite:
     n_events = 0
     n_shards = len(base)
     for shard in range(n_shards):
-        # Views should already apply masks in their features_and_observers
-        if hasattr(loader, "features_and_observers"):
-            X, G = loader.features_and_observers(shard=shard, n=None)
-        else:
-            X, G = base.features_and_observers(shard=shard, n=None)
-            if hasattr(loader, "mask"):
-                m = loader.mask(shard)
-                m = np.asarray(m)
-                if m.dtype != bool or m.ndim != 1 or len(m) != len(X):
-                    raise RuntimeError("View mask must be a 1D boolean array matching X length.")
-                X = X[m]
-                G = G[m]
+        # Fetch features and (functional/default) weights in one go.
+        # NOTE: materialize signature is assumed (shard, order="fw", n=None, ...)
+        X, w = loader.materialize(shard=shard, what="fw", n=None)
 
-        # Extract weights
-        w = G[:, w_idx].astype(np.float64, copy=False)
-
-        # Apply optional extra selection on top (if provided) — mask on X
+        # Optional extra selection on top (mask on features)
         if sel_fn is not None:
             mask_top = sel_fn(X)
             mask_top = np.asarray(mask_top) if mask_top is not None else None

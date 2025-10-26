@@ -1,198 +1,207 @@
 #!/usr/bin/env python
-# Standard imports
-import cProfile
+from __future__ import annotations
 import sys
-sys.path.insert( 0, '..')
-sys.path.insert( 0, '../..')
-import time
-import pickle
-import copy
-import itertools
-import numpy as np
-import operator
-import functools
+sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 
-from data_loader.data_loader_2 import H5DataLoader
+import pickle
+import functools, operator
+import numpy as np
 
 class InclusiveCrosssectionParametrization:
-    def __init__( self, config=None, combinations=None, nominal_base_point=None, base_points=None, parameters=None):
+    """
+    Log-polynomial parametrization of inclusive cross section ratios:
+      σ(nu) / σ(nominal) = exp( sum_c A_c * prod_{p in c} nu_p )
 
+    Supports multi-parameter and mixed-combination terms.
+    """
+    def __init__(
+        self,
+        config=None,
+        combinations=None,
+        nominal_base_point=None,
+        base_points=None,
+        parameters=None,
+    ):
         if config is not None:
-            self.config      = config
-            self.config_name = config.__name__ 
-            self.base_points   = np.array(config.base_points)
-            self.n_base_points = len(self.base_points)
-    
-            self.nominal_base_point = np.array( config.nominal_base_point, dtype='float')
-            self.combinations       = config.combinations
-            self.parameters         = config.parameters
+            # legacy-style config module
+            self.config_name        = config.__name__
+            self.base_points        = np.array(config.base_points, dtype=float)
+            self.n_base_points      = len(self.base_points)
+            self.nominal_base_point = np.array(config.nominal_base_point, dtype=float)
+            self.combinations       = [tuple(c) for c in config.combinations]
+            self.parameters         = list(config.parameters)
         elif (combinations is not None) and (nominal_base_point is not None) and (base_points is not None) and (parameters is not None):
-            #print("Config not provided, the ICP can only be used for prediction.")
-            self.config_name   = None
-            self.base_points   = np.array(base_points)
-            self.n_base_points = len(self.base_points)
-    
-            self.nominal_base_point = np.array( nominal_base_point, dtype='float')
-            self.combinations       = combinations
-            self.parameters         = parameters
+            self.config_name        = None
+            self.base_points        = np.array(base_points, dtype=float)
+            self.n_base_points      = len(self.base_points)
+            self.nominal_base_point = np.array(nominal_base_point, dtype=float)
+            self.combinations       = [tuple(c) for c in combinations]
+            self.parameters         = list(parameters)
         else:
-            raise Exception("Please provide either a config or all other parameters (combinations, nominal_base_point, base_points, parameters).")
+            raise RuntimeError("Provide either a legacy config module or (combinations, nominal_base_point, base_points, parameters).")
 
-        # Base point matrix
-        self.VkA  = np.zeros( [len(self.base_points), len(self.combinations) ], dtype='float64')
-        for i_base_point, base_point in enumerate(self.base_points):
-            for i_comb1, comb1 in enumerate(self.combinations):
-                self.VkA[i_base_point][i_comb1] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)], 1)
-            
-        # Dissect inputs into nominal sample and variied
-        nominal_base_point_index = np.where(np.all(self.base_points==self.nominal_base_point,axis=1))[0]
-        assert len(nominal_base_point_index)>0, "Could not find nominal base %r point in training data keys %r"%( self.nominal_base_point, self.base_points)
-        self.nominal_base_point_index = nominal_base_point_index[0]
-        self.nominal_base_point_key   = tuple(self.nominal_base_point)
+        # Locate nominal index
+        nom_idx = np.where(np.all(self.base_points == self.nominal_base_point, axis=1))[0]
+        if len(nom_idx) == 0:
+            raise RuntimeError(f"Nominal base point {self.nominal_base_point} not found in base_points.")
+        self.nominal_base_point_index = int(nom_idx[0])
+        self.nominal_base_point_key   = tuple(self.nominal_base_point.tolist())
 
-        nu_mask = np.ones(len(self.base_points), bool)
-        nu_mask[self.nominal_base_point_index] = 0
+        # Masked (non-nominal) base points
+        mask = np.ones(self.n_base_points, dtype=bool)
+        mask[self.nominal_base_point_index] = False
+        self.masked_base_points = self.base_points[mask]
 
-        # remove the nominal from the list of all the base_points
-        self.masked_base_points = self.base_points[nu_mask]
+        # Build C matrix: C_{ab} = sum_k ( Π nu_k^{comb_a+comb_b} ) over non-nominal base points
+        # Implemented via explicit products from the combination tuples.
+        nC = len(self.combinations)
+        C  = np.zeros((nC, nC), dtype=np.float64)
+        for bp in self.masked_base_points:
+            for ia, ca in enumerate(self.combinations):
+                for ib, cb in enumerate(self.combinations):
+                    prod_terms = list(ca) + list(cb)
+                    val = 1.0
+                    for p in prod_terms:
+                        val *= bp[self.parameters.index(p)]
+                    C[ia, ib] += val
 
-        # computing base-point matrix
-        C    = np.zeros( [len(self.combinations), len(self.combinations) ], dtype='float64')
-        for i_base_point, base_point in enumerate(self.masked_base_points):
-            for i_comb1, comb1 in enumerate(self.combinations):
-                for i_comb2, comb2 in enumerate(self.combinations):
-                    C[i_comb1][i_comb2] += functools.reduce(operator.mul, [base_point[self.parameters.index(c)] for c in list(comb1)+list(comb2)], 1)
-
-        assert np.linalg.matrix_rank(C)==C.shape[0], "Base point matrix does not have full rank. Check base points & combinations."
-
+        if np.linalg.matrix_rank(C) != C.shape[0]:
+            raise RuntimeError("Base point matrix does not have full rank. Check base_points & combinations.")
         self.CInv = np.linalg.inv(C)
 
-        # Compute matrix VkA from non-nominal base_points
-        self._VKA = np.zeros( (len(self.masked_base_points), len(self.combinations)) )
-        for i_base_point, base_point in enumerate(self.masked_base_points):
-            for i_combination, combination in enumerate(self.combinations):
-                res=1
-                for var in combination:
-                    res*=base_point[self.parameters.index(var)]
+        # Precompute V matrix over non-nominal base points: V_{k,a} = Π nu_k^{comb_a}
+        self._V = np.zeros((len(self.masked_base_points), len(self.combinations)), dtype=np.float64)
+        for k, bp in enumerate(self.masked_base_points):
+            for a, comb in enumerate(self.combinations):
+                val = 1.0
+                for p in comb:
+                    val *= bp[self.parameters.index(p)]
+                self._V[k, a] = val
 
-                self._VKA[i_base_point, i_combination ] = res
+        # Filled during training
+        self.DeltaA = None
 
-    def load_training_data( self, datasets_hephy, selection, process=None, n_split=10):
-        self.training_data = {}
-        for base_point in self.base_points:
-            base_point  = tuple(base_point)
-            values      = self.config.get_alpha(base_point)
-            data_loader = datasets_hephy.get_data_loader( selection=selection, values=values, process=process, selection_function=None, n_split=n_split)
-            print ("ICP training data: Base point nu = %r, alpha = %r, file = %s"%( base_point, values, data_loader.file_path)) 
-            self.training_data[base_point] = data_loader
+    # ---------------- training (from already-computed yields) ----------------
+    def train(self, small=False, train_ratio=True, yields=None, selection=None):
+        """
+        Parameters
+        ----------
+        yields : dict { base_point_tuple -> total_weight }
+            e.g. { (-1.0,): Y_down, (0.0,): Y_nom, (1.0,): Y_up }
+        train_ratio : bool
+            True: fit log ratios log σ(nu)/σ(nom).
+            False: fit absolute log σ(nu); requires inclusion of the constant term () in combinations.
+        """
+        if not isinstance(yields, dict) or not yields:
+            raise RuntimeError("ICP.train requires a non-empty dict of yields keyed by base_point tuples.")
 
-    def train( self, small=False, train_ratio=True, yields={}, selection=None):
+        # Ordered list of yields for the masked (non-nominal) base points
+        y_masked = []
+        for bp in self.masked_base_points:
+            key = tuple(bp.tolist())
+            if key not in yields:
+                raise RuntimeError(f"Missing yield for base point {key}.")
+            y_masked.append(float(yields[key]))
+        y_masked = np.asarray(y_masked, dtype=np.float64)
 
-        # We might pass yields externally
-        self.yields = yields
+        y_nom = float(yields[self.nominal_base_point_key])
 
-        # Fetch from data loader if not externally provided
-        if len(yields)==0:
-            for base_point, loader in self.training_data.items():
-                self.yields[base_point] = H5DataLoader.get_weight_sum(self.training_data[base_point], small=small, selection=selection)
-
-        # The default case: We devide by the nominal base-point yield and 
         if train_ratio:
-            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]/self.yields[self.nominal_base_point_key]) for i_base_point, base_point in enumerate(self.masked_base_points)]))
-        # Parametrize including a constant offset
+            # log σ(nu_k)/σ(nom)
+            rhs = np.log(np.maximum(y_masked, 1e-300)) - np.log(max(y_nom, 1e-300))
         else:
-            if ( tuple() not in self.combinations ):
-                raise RuntimeError("We must have the constant term (an empty tuple) in the combinations unless we're training ratios. Please add it.")
- 
-            self.DeltaA = np.dot( self.CInv, sum([ self._VKA[i_base_point]*np.log(self.yields[tuple(base_point)]) for i_base_point, base_point in enumerate(self.masked_base_points)])) 
+            # absolute: must include constant term ()
+            if tuple() not in self.combinations:
+                raise RuntimeError("Absolute fit requires the constant term () in combinations.")
+            rhs = np.log(np.maximum(y_masked, 1e-300))
 
-    def __str__( self ):
-        return " ".join( [(f"{deltaA:+.2e}")+( "*"+c if c!="" else "") for deltaA, c  in zip( self.DeltaA, [ "*".join( comb ) for comb in self.combinations])] )
+        # Solve (V C^{-1}) * DeltaA = rhs  -> DeltaA = C^{-1} * sum_k V_k * rhs_k
+        # Here implemented as DeltaA = CInv · sum_k V[k,:] * rhs[k]
+        accum = np.zeros(len(self.combinations), dtype=np.float64)
+        for k in range(self._V.shape[0]):
+            accum += self._V[k, :] * rhs[k]
+        self.DeltaA = self.CInv.dot(accum)
 
-    @classmethod
-    def load(cls, filename):
-        with open(filename,'rb') as file_:
-            import importlib
-            old_instance = pickle.load(file_)
-            if old_instance.config_name is not None:
-                config_ = importlib.import_module(old_instance.config_name) 
-                new_instance = cls(   
-                        config               = config_,
-                        )
-            else:
-                new_instance = cls(   
-                        nominal_base_point  = old_instance.nominal_base_point,
-                        parameters          = old_instance.parameters,
-                        combinations        = old_instance.combinations,
-                        base_points         = old_instance.base_points,
-                        )
+    # ---------------- prediction ----------------
+    def _nu_A(self, nu_vec):
+        """Return vector [ Π nu^{comb} ] for all combinations."""
+        out = np.zeros(len(self.combinations), dtype=np.float64)
+        for a, comb in enumerate(self.combinations):
+            val = 1.0
+            for p in comb:
+                val *= nu_vec[self.parameters.index(p)]
+            out[a] = val
+        return out
 
-            # Everything we need for prediction should come from the old instance, not the config
-            new_instance.DeltaA         = old_instance.DeltaA
-            new_instance.combinations   = old_instance.combinations
-            new_instance.parameters     = old_instance.parameters
+    def log_predict(self, nu: dict | list | tuple):
+        if self.DeltaA is None:
+            raise RuntimeError("ICP not trained.")
+        # Accept dict {param: value} or plain vector in parameter order
+        if isinstance(nu, dict):
+            vec = [float(nu[p]) for p in self.parameters]
+        else:
+            vec = [float(x) for x in nu]
+        return float(self._nu_A(vec).dot(self.DeltaA))
 
-            return new_instance  
+    def predict(self, nu):
+        return np.exp(self.log_predict(nu))
 
-    def save(self, filename):
-        _config = self.config
-        self.config=None
-        with open(filename,'wb') as file_:
-            pickle.dump( self, file_ )
-        self.config = _config
-
-    def __setstate__(self, state):
-        self.__dict__ = state
-
-    def nu_A(self, nu):
-        return np.array( [ functools.reduce(operator.mul, [nu[self.parameters.index(c)] for c in list(comb)], 1) for comb in self.combinations] )
-
+    # Handy derivative if you need it downstream
     def nu_A_diff(self, nu, param):
         param_idx = self.parameters.index(param)
+        if isinstance(nu, dict):
+            vec = [float(nu[p]) for p in self.parameters]
+        else:
+            vec = [float(x) for x in nu]
 
         def diff_term(comb):
-            # Count how often 'param' appears
-            count = comb.count(param)
-            if count == 0:
-                return 0
-
-            total = 0
+            cnt = comb.count(param)
+            if cnt == 0:
+                return 0.0
+            total = 0.0
             for i, p in enumerate(comb):
                 if p != param:
                     continue
-                # Product of all entries except the i-th occurrence of 'param'
-                product = 1
+                prod = 1.0
                 for j, q in enumerate(comb):
-                    if j == i:
+                    if j == i:  # skip one occurrence
                         continue
-                    product *= nu[self.parameters.index(q)]
-                total += product
+                    prod *= vec[self.parameters.index(q)]
+                total += prod
             return total
 
-        return np.array([diff_term(comb) for comb in self.combinations])
+        return np.array([diff_term(c) for c in self.combinations], dtype=np.float64)
 
-    def log_predict( self, nu):
-        return np.dot( self.nu_A(nu), self.DeltaA )
+    # ---------------- persistence ----------------
+    @classmethod
+    def load(cls, filename):
+        with open(filename, 'rb') as fh:
+            old = pickle.load(fh)
+        if getattr(old, "config_name", None):
+            # Try to rebuild from the stored module name, then copy learned params
+            import importlib
+            cfg_mod = importlib.import_module(old.config_name)
+            new = cls(config=cfg_mod)
+        else:
+            new = cls(
+                combinations=old.combinations,
+                nominal_base_point=old.nominal_base_point,
+                base_points=old.base_points,
+                parameters=old.parameters,
+            )
+        new.DeltaA = old.DeltaA
+        return new
 
-    def predict( self, nu):
-        return np.exp( self.log_predict(nu) )
+    def save(self, filename):
+        cfg = getattr(self, "config", None)
+        self.config = None
+        with open(filename, 'wb') as fh:
+            pickle.dump(self, fh)
+        self.config = cfg
 
-    # Predictor of log-DCR for usage in PNN
-    def get_predictor( self ):
+    def __str__(self):
+        labels = ["*".join(c) if len(c) else "" for c in self.combinations]
+        terms  = [f"{d:+.3e}{('*'+lab) if lab else ''}" for d, lab in zip(self.DeltaA, labels)]
+        return " ".join(terms)
 
-        def predictor(  DeltaA=self.DeltaA, parameters=self.parameters, combinations=self.combinations, **kwargs,):
-            
-            nu = [ 0 for _ in range(3)]
-
-            for p in parameters:
-                if p not in kwargs:
-                    raise RuntimeError(f"Must set all parameters: {parameters}")
-
-            for k, v in kwargs.items():
-                nu[parameters.index(k)] = v
-
-            nu_A = np.array( [ functools.reduce(operator.mul, [nu[parameters.index(c)] for c in list(comb)], 1) for comb in combinations] )
-
-            return np.exp(np.dot( nu_A, DeltaA ))
-
-        return predictor

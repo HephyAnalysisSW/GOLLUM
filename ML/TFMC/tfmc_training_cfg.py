@@ -43,7 +43,7 @@ with open(cfg_path, "r") as f:
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
-observer_weight = defaults.get("observer_weight", "weight")
+observer_weight = defaults.get("observer_weight", "weight")  # retained but no longer used directly
 default_batch = defaults.get("batch_size", 65536)
 default_seed = defaults.get("seed", 1)
 
@@ -124,11 +124,7 @@ for L in loaders[1:]:
         raise RuntimeError("Feature mismatch across class loaders.")
 input_dim = len(feat_names)
 
-# Weight column index (must exist)
-observer_names = getattr(loaders[0], "observer_names", None)
-if not observer_names or observer_weight not in observer_names:
-    raise RuntimeError(f"Observer '{observer_weight}' not found in first loader.observer_names.")
-w_idx = observer_names.index(observer_weight)
+# (No explicit observer weight index anymore — weights come from materialize("w"))
 
 # ---------------- load Scaler + IC ----------------
 if use_scaler:
@@ -151,7 +147,7 @@ if use_scaler:
         scalers = {}
         for name in classes_names:
             path = os.path.join(user.model_directory, cfg_base, "Scaler", f"Scaler_{name}.pkl")
-            scalars[name] = Scaler.load(path)
+            scalers[name] = Scaler.load(path)  # fixed typo
             print(f"Loaded Scaler {path}")
     s0 = scalers[classes_names[0]]
     if list(s0.feature_names) != list(feat_names):
@@ -188,6 +184,7 @@ if use_ic:
 else:
     ic_weights = {name: 1.0 for name in classes_names}
     print("No IC used.")
+
 # ---------------- build model ----------------
 model = TFMC(
     input_dim=input_dim,
@@ -216,17 +213,8 @@ def iterate_epoch(shard_limit: int | None = None):
     for shard in range(n_shards):
         Xs, Ys, Ws = [], [], []
         for ci, (name, L) in enumerate(zip(classes_names, loaders)):
-            if hasattr(L, "features_and_observers"):
-                X, G = L.features_and_observers(shard=shard, n=None)
-            else:
-                base = getattr(L, "base", L)
-                X, G = base.features_and_observers(shard=shard, n=None)
-                if hasattr(L, "mask"):
-                    m = np.asarray(L.mask(shard))
-                    if m.dtype != bool or m.ndim != 1 or len(m) != len(X):
-                        raise RuntimeError("View mask must be 1D bool and match rows.")
-                    X, G = X[m], G[m]
-            w = G[:, w_idx].astype(np.float64, copy=False)
+            # Use materialize to fetch features and weights; views apply masks internally.
+            X, w = L.materialize(shard=shard, what="fw", n=None)
             y = np.zeros((len(X), len(classes_names)), dtype=np.float32)
             y[:, ci] = 1.0
             Xs.append(X); Ys.append(y); Ws.append(w)
@@ -420,3 +408,4 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         plot_convergence_root(true_h, pred_h, epoch, plot_dir, list(plot_feats), classes_names)
 
 print(f"Done. Model stored in {model_dir}")
+

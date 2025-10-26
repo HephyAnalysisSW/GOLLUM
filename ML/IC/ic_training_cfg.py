@@ -4,7 +4,7 @@
 # YAML-driven IC trainer.
 # - Runs selected IC job via --job ID
 # - If --job is omitted, prints runnable commands and exits(0)
-# - Output path = common.user.model_directory / "IC" / <filename from YAML>
+# - Output path = common.user.model_directory / <cfg_base> / "IC" / <filename from YAML>
 
 import os
 import sys
@@ -36,7 +36,6 @@ with open(cfg_path, "r") as f:
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
-observer_weight = defaults.get("observer_weight", "weight")
 
 # ---------------------- list mode ----------------------
 if args.job is None:
@@ -68,7 +67,7 @@ if not process_name:
 
 selection_name = job.get("selection", None)
 
-# Output path: common.user.model_directory / "IC" / filename
+# Output path: common.user.model_directory / <cfg_base> / "IC" / filename
 out = job.get("output", {}) or {}
 cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]  # e.g. "../configs/no_reg.yaml" -> "no_reg"
 filename = out.get("filename", f"IC_{process_name}.pkl")
@@ -83,13 +82,6 @@ samples_mod = importlib.import_module(module_samples)
 if not hasattr(samples_mod, process_name):
     raise RuntimeError(f"Process/view '{process_name}' not found in module '{module_samples}'.")
 loader = getattr(samples_mod, process_name)
-base = getattr(loader, "base", loader)
-
-# Strict: require weight observer
-observer_names = list(getattr(loader, "observer_names", None) or getattr(base, "observer_names", []) or [])
-if observer_weight not in observer_names:
-    raise RuntimeError(f"Observer '{observer_weight}' required but not found in loader/base.observer_names.")
-w_idx = observer_names.index(observer_weight)
 
 # Optional extra selection on top (boolean mask on features)
 sel_fn = None
@@ -116,24 +108,14 @@ if ic is None or args.overwrite:
     ic.process = process_name
     ic.selection = selection_name or ""
 
-    n_shards = len(base)
+    n_shards = len(loader if hasattr(loader, "__len__") else getattr(loader, "base", loader))
     for shard in range(n_shards):
-        # Views implement features_and_observers with mask applied
-        if hasattr(loader, "features_and_observers"):
-            X, G = loader.features_and_observers(shard=shard, n=None)
+        # If no extra top-level selection: we only need weights
+        if sel_fn is None:
+            (w,) = loader.materialize(shard=shard, what="w", n=None)
         else:
-            X, G = base.features_and_observers(shard=shard, n=None)
-            if hasattr(loader, "mask"):
-                m = loader.mask(shard)
-                m = np.asarray(m)
-                if m.dtype != bool or m.ndim != 1 or len(m) != len(X):
-                    raise RuntimeError("View mask must be a 1D boolean array matching X length.")
-                X = X[m]
-                G = G[m]
-
-        w = G[:, w_idx].astype(np.float64, copy=False)
-
-        if sel_fn is not None:
+            # Need features to evaluate sel_fn, then mask weights
+            X, w = loader.materialize(shard=shard, what="fw", n=None)
             mask = sel_fn(X)
             mask = np.asarray(mask) if mask is not None else None
             if mask is not None:
@@ -142,7 +124,6 @@ if ic is None or args.overwrite:
                 w = w[mask]
 
         ic.accumulate(w)
-
         if args.small:
             break
 

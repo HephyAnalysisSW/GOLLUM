@@ -82,7 +82,7 @@ jobs:
       activation: relu
       hidden_layers: [128, 128]
     optim:
-      epochs: 1
+      epochs: 500
       phaseout_epochs: 0
       learning_rate: 0.02
     runtime:
@@ -101,5 +101,39 @@ jobs:
         - scaler_tt2l_QG
         - scaler_tt2l_QQ
     output:
-      filename: "tfmc_no_reg.h5"    # or .pt / .pkl as you prefer
+      filename: "tfmc_no_reg.pkl"    
 
+# --- ICP job --------------------------------------------------------------
+  - id: icp_lSF_quad_GG
+    type: icp
+
+    # Which loaders to use for each base point (keys must match base_points)
+    # Use any loader/view name from your samples module (e.g. tt2l_GG, tt2l_GG_LeptonSFUp/Down).
+    base_point_loaders:
+      0: tt2l_GG_LeptonSFDown
+      1: tt2l_GG
+      2: tt2l_GG_LeptonSFUp
+
+    # Nuisance parameters and log-poly terms we fit
+    parameters: [nu_lSF]
+    combinations:
+      - [nu_lSF]           # linear
+      - [nu_lSF, nu_lSF]   # quadratic
+
+    # Base-point coordinates in the nuisance space (flexible & multi-dim ready)
+    base_points:
+      0: [-1.0]
+      1: [ 0.0]
+      2: [ 1.0]
+
+    nominal_index: 1        # which base point is the nominal (SM)
+
+    # Train ratios (log σ(nu)/σ(nominal)); set false to fit absolute (requires constant term ())
+    train_ratio: true
+
+    # Optional: extra selection on features (refers to common/selections.py key)
+    # selection: lowMT_VBFJet
+    # mva_selection: SomeMVAKey
+
+    output:
+      filename: "icp_tt2l_GG_lSF_quad.pkl"

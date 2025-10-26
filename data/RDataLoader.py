@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import glob
 import warnings
-from typing import Callable, List, Optional, Sequence, Union
+from typing import Callable, List, Optional, Sequence, Union, Tuple
 
 import numpy as np
 import awkward as ak
@@ -16,6 +16,7 @@ import SelectionView
 
 PathLike = Union[str, os.PathLike]
 SelectionFn = Optional[Callable[[ak.Array], Union[ak.Array, np.ndarray]]]
+WeightFn = Callable[[dict[str, np.ndarray]], np.ndarray]
 
 class RDataLoader:
     def __init__(
@@ -32,6 +33,10 @@ class RDataLoader:
         # ---- NEW (optional, does not break callers) ----
         feature_names: Optional[Sequence[str]] = None,
         observer_names: Optional[Sequence[str]] = None,
+        # ---- NEW: weight handling ----
+        # allow: str | list[str] (product) | callable
+        weight: Union[str, Sequence[str], WeightFn] = "weight",
+        weight_branches: Optional[Sequence[str]] = None,
     ) -> None:
         self.tree_name = tree_name
         self.selection = selection
@@ -42,6 +47,10 @@ class RDataLoader:
         # Persist configured features/observers (optional)
         self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
         self.observer_names: Optional[List[str]] = list(observer_names) if observer_names else None
+
+        # NEW: weight config
+        self.weight: Union[str, Sequence[str], WeightFn] = weight
+        self.weight_branches: List[str] = list(weight_branches) if weight_branches else []
 
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
@@ -75,6 +84,18 @@ class RDataLoader:
         if self.observer_names:
             _requested = list(dict.fromkeys(list(_requested) + list(self.observer_names)))
 
+        # Ensure requested branches include what the weight needs
+        if isinstance(self.weight, str):
+            if self.weight:
+                _requested = list(dict.fromkeys(list(_requested) + [self.weight]))
+        elif isinstance(self.weight, (list, tuple)):
+            # product of these branches
+            _requested = list(dict.fromkeys(list(_requested) + list(self.weight)))
+        else:
+            # callable -> ensure needed inputs are present
+            if self.weight_branches:
+                _requested = list(dict.fromkeys(list(_requested) + list(self.weight_branches)))
+
         self._requested_branches = _requested
 
         # Compute split layout
@@ -82,10 +103,8 @@ class RDataLoader:
             raise ValueError("splitting_strategy must be 'files' or 'events'")
         self._file_splits: List[List[str]] = self._make_file_splits(self._all_files, self.n_split)
 
-        # -------- NEW: simple in-memory caches (per shard) --------
-        # cache of post-selection awkward shards: {shard_index: ak.Array}
+        # -------- caches (per shard) --------
         self._arr_cache: dict[int, ak.Array] = {}
-        # cache of boolean masks per selection name and shard: {sel_name: {shard_index: np.ndarray}}
         self._mask_cache: dict[str, dict[int, np.ndarray]] = {}
 
     # ---------------------------- public API ----------------------------
@@ -161,7 +180,6 @@ class RDataLoader:
     # -------- direct feature/observer access (no awkward escapes) ----------
     def observers(self, shard: int = 0, n: Optional[int] = None,
                   observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
-        """Return observers matrix (N,O) as NumPy using configured or provided observer names."""
         names = list(observer_names) if observer_names is not None else (self.observer_names or [])
         if not names:
             raise ValueError("No observer names configured. Pass observer_names=... or set observer_names in the constructor.")
@@ -171,7 +189,6 @@ class RDataLoader:
 
     def features(self, shard: int = 0, n: Optional[int] = None,
                  feature_names: Optional[Sequence[str]] = None) -> np.ndarray:
-        """Return features matrix (N,F) as NumPy using configured or provided feature names."""
         names = list(feature_names) if feature_names is not None else (self.feature_names or [])
         if not names:
             raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
@@ -182,7 +199,6 @@ class RDataLoader:
     def features_and_observers(self, shard: int = 0, n: Optional[int] = None,
                                feature_names: Optional[Sequence[str]] = None,
                                observer_names: Optional[Sequence[str]] = None) -> tuple[np.ndarray, np.ndarray]:
-        """Return (features, observers) as NumPy matrices."""
         fnames = list(feature_names) if feature_names is not None else (self.feature_names or [])
         onames = list(observer_names) if observer_names is not None else (self.observer_names or [])
         if not fnames:
@@ -197,11 +213,89 @@ class RDataLoader:
             G = G[:n]
         return X, G
 
+    # -------- NEW: weight vector & materialize API ----------
+    def weight_vector(self, shard: int = 0, n: Optional[int] = None) -> np.ndarray:
+        """
+        Compute per-event weights for a shard.
+        - str:                use that branch
+        - list/tuple of str:  element-wise product of those branches
+        - callable(dict):     compute from provided branch dict (names in self.weight_branches)
+        """
+        ar = self[shard]
+        if isinstance(self.weight, str):
+            if self.weight not in ar.fields:
+                if self.strict_branches:
+                    raise KeyError(f"Weight branch '{self.weight}' not in array fields.")
+                warnings.warn(f"weight_vector: missing '{self.weight}', filling with ones.")
+                w = np.ones(len(ar), dtype=np.float32)
+            else:
+                w = ak.to_numpy(ar[self.weight]).astype(np.float32, copy=False)
+
+        elif isinstance(self.weight, (list, tuple)):
+            names = list(self.weight)
+            if not names:
+                w = np.ones(len(ar), dtype=np.float32)
+            else:
+                cols = []
+                for nm in names:
+                    if nm not in ar.fields:
+                        if self.strict_branches:
+                            raise KeyError(f"Weight factor branch '{nm}' not in array fields.")
+                        warnings.warn(f"weight_vector: missing factor '{nm}', treating as ones.")
+                        cols.append(np.ones(len(ar), dtype=np.float32))
+                    else:
+                        cols.append(ak.to_numpy(ar[nm]).astype(np.float32, copy=False))
+                w = np.prod(np.stack(cols, axis=0), axis=0).astype(np.float32, copy=False)
+
+        else:
+            # callable — build dict of required arrays
+            needed = list(self.weight_branches or [])
+            data: dict[str, np.ndarray] = {}
+            for nme in needed:
+                if nme not in ar.fields:
+                    if self.strict_branches:
+                        raise KeyError(f"Weight input branch '{nme}' not in array fields.")
+                    warnings.warn(f"weight_vector: missing '{nme}', filling zeros for callable input.")
+                    data[nme] = np.zeros(len(ar), dtype=np.float32)
+                else:
+                    data[nme] = ak.to_numpy(ar[nme]).astype(np.float32, copy=False)
+            w = np.asarray(self.weight(data))
+            if w.ndim != 1 or len(w) != len(ar):
+                raise ValueError("Weight function must return a 1D array of length equal to the shard length.")
+            w = w.astype(np.float32, copy=False)
+
+        return w if n is None else w[:n]
+
+    def materialize(
+        self,
+        shard: int = 0,
+        what: str = "fo",
+        n: Optional[int] = None,
+        feature_names: Optional[Sequence[str]] = None,
+        observer_names: Optional[Sequence[str]] = None,
+    ) -> Tuple[np.ndarray, ...]:
+        """
+        Materialize any combination (and order) of Features/Observers/Weights.
+        `what` is a string composed of letters in {'f','o','w'}; order is preserved (e.g. 'fwo', 'wof').
+        """
+        outputs: list[np.ndarray] = []
+        for ch in what:
+            if ch == 'f':
+                outputs.append(self.features(shard=shard, n=None, feature_names=feature_names))
+            elif ch == 'o':
+                outputs.append(self.observers(shard=shard, n=None, observer_names=observer_names))
+            elif ch == 'w':
+                outputs.append(self.weight_vector(shard=shard, n=None))
+            else:
+                raise ValueError(f"materialize: unknown spec letter '{ch}' (allowed: 'f','o','w').")
+        if n is not None:
+            outputs = [arr[:n] for arr in outputs]
+        return tuple(outputs)
+
     # -------- NEW: masked materialization helpers (for views) ----------
     def features_from_mask(self, shard: int, mask: np.ndarray,
                            feature_names: Optional[Sequence[str]] = None,
                            n: Optional[int] = None) -> np.ndarray:
-        """Return features sliced by a boolean mask computed externally (e.g., by a view)."""
         X = self.features(shard=shard, n=None, feature_names=feature_names)
         if mask is not None:
             X = X[mask]
@@ -210,15 +304,19 @@ class RDataLoader:
     def observers_from_mask(self, shard: int, mask: np.ndarray,
                             observer_names: Optional[Sequence[str]] = None,
                             n: Optional[int] = None) -> np.ndarray:
-        """Return observers sliced by a boolean mask computed externally (e.g., by a view)."""
         G = self.observers(shard=shard, n=None, observer_names=observer_names)
         if mask is not None:
             G = G[mask]
         return G if n is None else G[:n]
 
+    def weight_from_mask(self, shard: int, mask: np.ndarray, n: Optional[int] = None) -> np.ndarray:
+        w = self.weight_vector(shard=shard, n=None)
+        if mask is not None:
+            w = w[mask]
+        return w if n is None else w[:n]
+
     def iter_features(self, shard: int = 0, batch_size: int = 8192,
                       feature_names: Optional[Sequence[str]] = None):
-        """Yield feature batches (B,F) as NumPy — minimal iterator without exposing awkward."""
         X = self.features(shard=shard, n=None, feature_names=feature_names)
         N = len(X)
         if batch_size <= 0:
@@ -228,25 +326,15 @@ class RDataLoader:
 
     # -------- NEW: view helpers (mask computation & minimal shard reuse) --------
     def load_selection_shard(self, shard: int) -> ak.Array:
-        """
-        Return the post-selection awkward shard (cached). Acts as the single read
-        for all views that will compute masks/weights from observers/features.
-        """
         return self[shard]
 
     def compute_mask(self, selection_name: str, selection_fn, shard: int,
                      observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
-        """
-        Compute (and cache) a boolean mask for a named selection on a given shard.
-        The selection_fn must accept (observers_matrix, observer_names) and return a boolean mask.
-        """
-        # cached?
         if selection_name not in self._mask_cache:
             self._mask_cache[selection_name] = {}
         if shard in self._mask_cache[selection_name]:
             return self._mask_cache[selection_name][shard]
 
-        # build observers once (reuses cached shard)
         G = self.observers(shard=shard, n=None, observer_names=observer_names)
         names = list(observer_names) if observer_names is not None else (self.observer_names or [])
         mask = selection_fn(G, names)
@@ -320,12 +408,6 @@ class RDataLoader:
         observer_names: Optional[Sequence[str]] = None,
         selection_feature_names: Optional[Sequence[str]] = None,
     ) -> 'SelectionView':
-        """
-        Create a first-class SelectionView that behaves like a loader.
-        - selection_fn(X_sel) -> boolean mask
-        - feature_names/observer_names: per-view overrides (fallback to base)
-        - selection_feature_names: features used to compute mask (fallback to base.feature_names)
-        """
         return SelectionView(
             base=self,
             name=name,
@@ -334,3 +416,64 @@ class RDataLoader:
             observer_names=observer_names,
             selection_feature_names=selection_feature_names,
         )
+
+
+# -----------------------------
+# Minimal in-memory test (no file I/O)
+# -----------------------------
+if __name__ == "__main__":
+    # Build a tiny awkward shard in memory
+    N = 8
+    ar = ak.Array({
+        "f1": np.linspace(0, 1, N).astype(np.float32),
+        "o1": np.arange(N).astype(np.int32),
+        "weight": np.ones(N, dtype=np.float32) * 2.0,
+        "a": np.linspace(1.0, 2.0, N).astype(np.float32),
+        "b": np.linspace(0.5, 1.5, N).astype(np.float32),
+    })
+
+    # Construct a loader without touching I/O: allocate then set required fields
+    dummy = object.__new__(RDataLoader)  # bypass __init__
+    # minimally required public config
+    dummy.tree_name = "Events"
+    dummy.selection = None
+    dummy.strict_branches = False
+    dummy.splitting_strategy = "files"
+    dummy.n_split = 1
+    dummy.feature_names = ["f1"]
+    dummy.observer_names = ["o1"]
+    dummy.weight = "weight"
+    dummy.weight_branches = []
+    # internal caches / lists used by helpers
+    dummy._all_files = ["dummy.root"]
+    dummy._requested_branches = ["f1", "o1", "weight", "a", "b"]
+    dummy._file_splits = [dummy._all_files]
+    dummy._arr_cache = {0: ar}
+    dummy._mask_cache = {}
+
+    print("\n[TEST] materialize order & defaults")
+    F, O, W = dummy.materialize(shard=0, what="fow")
+    print(" shapes:", F.shape, O.shape, W.shape, "| W[:3] =", W[:3])
+
+    W_only, = dummy.materialize(shard=0, what="w")
+    print(" w only:", W_only[:5])
+
+    print("\n[TEST] callable weight")
+    def wfn(d: dict[str, np.ndarray]) -> np.ndarray:
+        # simple function of branches ('a','b')
+        return 3.0 * d["a"] + 2.0 * d["b"]
+
+    dummy.weight = wfn
+    dummy.weight_branches = ["a", "b"]
+    Wc, Fo = dummy.materialize(shard=0, what="wf")
+    print(" callable W[:3] =", Wc[:3], "| f[:3] =", Fo[:3, 0])
+
+    print("\n[TEST] list-of-branches product")
+    dummy.weight = ["weight", "a"]
+    Wp, = dummy.materialize(shard=0, what="w")
+    print(" product W[:3] =", Wp[:3])
+
+    print("\n[TEST] ordering preserved")
+    O2, W2, F2 = dummy.materialize(shard=0, what="owf")
+    print(" order ok:", O2.shape, W2.shape, F2.shape)
+
