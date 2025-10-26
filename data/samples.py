@@ -98,7 +98,6 @@ __all__ = [
     "sel_GG", "sel_QG", "sel_QQ",
 ]
 
-
 # -----------------------------
 # Minimal demo using the new loader helpers & view masks
 # -----------------------------

@@ -1,22 +1,25 @@
 #!/usr/bin/env python
 
-# YAML-driven TFMC trainer:
-# - If --job omitted: list runnable classifier jobs and exit(0)
-# - Else: run selected job id, loop data here (not in TFMC), no plotting inside TFMC
+# YAML-driven TFMC trainer with optional plotting handled in the training loop.
 
 from __future__ import annotations
 import os, sys, time, argparse, importlib, yaml, numpy as np, math, random
-
-# project roots
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
+import tensorflow as tf
+
 import common.user as user
+from data.plot_options import plot_options
+
 from ML.TFMC.TFMC import TFMC
 from ML.Scaler.Scaler import Scaler
 from ML.IC.IC import InclusiveCrosssection
 
-# -------- args --------
+from tqdm import trange, tqdm
+import math
+
+# ---------------- args ----------------
 p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="Classifier job id to run")
@@ -25,12 +28,15 @@ p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch-size", type=int, default=None, help="Override batch size")
 p.add_argument("--seed", type=int, default=1, help="Random seed")
+# plotting
+p.add_argument("--plot", action="store_true", help="Enable convergence plots")
+p.add_argument("--plot-every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
 rng = np.random.default_rng(args.seed)
 random.seed(args.seed)
 
-# -------- load cfg --------
+# ---------------- load cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
 with open(cfg_path, "r") as f:
     cfg = yaml.safe_load(f) or {}
@@ -52,6 +58,8 @@ def list_jobs_and_exit():
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
     if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
     flags.append(f"--seed {args.seed}")
+    if args.plot: flags.append("--plot")
+    if args.plot_every != 5: flags.append(f"--plot-every {args.plot_every}")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}".strip())
@@ -60,7 +68,7 @@ def list_jobs_and_exit():
 if args.job is None:
     list_jobs_and_exit()
 
-# -------- resolve job --------
+# ---------------- resolve job ----------------
 job = next((j for j in (cfg.get("jobs") or []) if j.get("id") == args.job), None)
 if job is None:
     raise RuntimeError(f"Job id '{args.job}' not found.")
@@ -83,13 +91,23 @@ batch_size = args.batch_size if args.batch_size is not None else int(J.get("runt
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
-# Output directory: user.model_directory / "TFMC" / <job id>
-model_dir = os.path.join(user.model_directory, "TFMC", J["id"])
+# ---------------- dirs ----------------
+
+cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]  # e.g. "../configs/no_reg.yaml" -> "no_reg"
+
+model_dir = os.path.join(user.model_directory, "TFMC", cfg_base, J["id"])
+plot_dir  = os.path.join(user.plot_directory,  "TFMC", cfg_base, J["id"])
+
+from common.helpers import copyIndexPHP
+copyIndexPHP( plot_dir )
 if args.small:
     model_dir += "_small"
+    plot_dir  += "_small"
 os.makedirs(model_dir, exist_ok=True)
+if args.plot:
+    os.makedirs(plot_dir, exist_ok=True)
 
-# -------- resolve loaders --------
+# ---------------- resolve loaders ----------------
 samples_mod = importlib.import_module(module_samples)
 loaders = []
 for name in classes_names:
@@ -104,7 +122,6 @@ if not feat_names:
 for L in loaders[1:]:
     if list(getattr(L, "feature_names", [])) != list(feat_names):
         raise RuntimeError("Feature mismatch across class loaders.")
-
 input_dim = len(feat_names)
 
 # Weight column index (must exist)
@@ -113,15 +130,12 @@ if not observer_names or observer_weight not in observer_names:
     raise RuntimeError(f"Observer '{observer_weight}' not found in first loader.observer_names.")
 w_idx = observer_names.index(observer_weight)
 
-# -------- load IC + Scaler artifacts (from common.user.model_directory) --------
+# ---------------- load Scaler + IC ----------------
 if use_scaler:
-    # pick a scaler per class? your current setup uses one per process; here we allow per-class scaler
-    # resolve from dependencies if present; else fallback by name convention
     dep_ids = list(J.get("extras", {}).get("depends_on", []))
     dep_scalers = [d for d in dep_ids if d.startswith("scaler_")]
     scalers = {}
     if dep_scalers:
-        # need filenames to load; read from YAML
         for dep in dep_scalers:
             dep_job = next((jj for jj in cfg.get("jobs", []) if jj.get("id") == dep), None)
             if not dep_job:
@@ -130,17 +144,15 @@ if use_scaler:
             if not fname:
                 raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
             proc = dep_job["process"]
-            path = os.path.join(user.model_directory, "Scaler", fname)
+            path = os.path.join(user.model_directory, cfg_base, "Scaler", fname)
             scalers[proc] = Scaler.load(path)
+            print(f"Loaded Scaler {path}")
     else:
-        # single shared scaler per class name by convention
         scalers = {}
         for name in classes_names:
-            fname = f"Scaler_{name}.pkl"
-            path = os.path.join(user.model_directory, "Scaler", fname)
-            scalers[name] = Scaler.load(path)
-
-    # Check same feature order
+            path = os.path.join(user.model_directory, cfg_base, "Scaler", f"Scaler_{name}.pkl")
+            scalars[name] = Scaler.load(path)
+            print(f"Loaded Scaler {path}")
     s0 = scalers[classes_names[0]]
     if list(s0.feature_names) != list(feat_names):
         raise RuntimeError("Scaler feature_names do not match loader feature_names.")
@@ -163,19 +175,20 @@ if use_ic:
             if not fname:
                 raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
             proc = dep_job["process"]
-            path = os.path.join(user.model_directory, "IC", fname)
+            path = os.path.join(user.model_directory, cfg_base, "IC", fname)
             ic = InclusiveCrosssection.load(path)
             ic_weights[proc] = ic.total_weight
+            print(f"Loaded IC {path}")
     else:
         for name in classes_names:
-            fname = f"IC_{name}.pkl"
-            path = os.path.join(user.model_directory, "IC", fname)
+            path = os.path.join(user.model_directory, cfg_base, "IC", f"IC_{name}.pkl")
             ic = InclusiveCrosssection.load(path)
             ic_weights[name] = ic.total_weight
+            print(f"Loaded IC {path}")
 else:
     ic_weights = {name: 1.0 for name in classes_names}
-
-# -------- build model --------
+    print("No IC used.")
+# ---------------- build model ----------------
 model = TFMC(
     input_dim=input_dim,
     classes=classes_names,
@@ -193,10 +206,9 @@ model.set_scaler(feature_means, feature_variances)
 if use_ic:
     model.set_ic_weights_from_sums(classes_names, ic_weights)
 
-# -------- training loop (iterate over shards; batch inside) --------
+# ---------------- data iterator ----------------
 def iterate_epoch(shard_limit: int | None = None):
     """Yield one mixed batch (X, y1hot, w) by concatenating per-class shards."""
-    # assume all classes have same shard count (same base), else take min
     shard_counts = [len(getattr(L, "base", L)) for L in loaders]
     n_shards = min(shard_counts)
     if shard_limit is not None:
@@ -221,45 +233,190 @@ def iterate_epoch(shard_limit: int | None = None):
         X = np.concatenate(Xs, axis=0) if Xs else np.empty((0, input_dim))
         y = np.concatenate(Ys, axis=0) if Ys else np.empty((0, len(classes_names)))
         w = np.concatenate(Ws, axis=0) if Ws else np.empty((0,))
-        # shuffle
         idx = rng.permutation(len(X))
         yield X[idx], y[idx], w[idx]
 
-# resume?
+# ---------------- plotting utils (in training loop only) ----------------
+# Only plot features that are actually in the training feature list.
+plot_feats = [f for f in feat_names if f in plot_options]
+feat2col   = {f: i for i, f in enumerate(feat_names)}
+
+def init_histograms(plot_features):
+    h_true, h_pred, bins = {}, {}, {}
+    for feat in plot_features:
+        n, lo, hi = plot_options[feat]['binning']
+        h_true[feat] = np.zeros((n, len(classes_names)), dtype=np.float64)
+        h_pred[feat] = np.zeros((n, len(classes_names)), dtype=np.float64)
+        bins[feat] = np.linspace(lo, hi, n+1)
+    return h_true, h_pred, bins
+
+def accumulate_histograms(h_true, h_pred, bins, X_raw, y_onehot, pred_dcrs, weights, plot_features, f2c):
+    # Use column indices from feat_names
+    for feat in plot_features:
+        col = f2c[feat]
+        vals = X_raw[:, col]
+        edges = bins[feat]
+        for c in range(len(classes_names)):
+            ht, _ = np.histogram(vals, bins=edges, weights=weights * y_onehot[:, c])
+            h_true[feat][:, c] += ht
+    
+            hp, _ = np.histogram(vals, bins=edges, weights=weights * pred_dcrs[:, c])
+            h_pred[feat][:, c] += hp
+
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes):
+    import common.syncer as syncer
+    import ROOT, os
+    ROOT.gStyle.SetOptStat(0)
+    # Load TDR if available; ignore if missing
+    try:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
+        ROOT.setTDRStyle()
+    except Exception:
+        pass
+
+    os.makedirs(out_dir, exist_ok=True)
+    num_features = len(feature_names)
+    num_classes = len(classes)
+    colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen + 2, ROOT.kOrange, ROOT.kMagenta]
+
+    for normalized in [False, True]:
+        # work on copies to avoid in-place modifications across epochs
+        th = {k: v.copy() for k, v in true_h.items()}
+        ph = {k: v.copy() for k, v in pred_h.items()}
+        if normalized:
+            for feat in feature_names:
+                tot = th[feat].sum(axis=1, keepdims=True)
+                tot = np.where(tot == 0, 1, tot)
+                th[feat] /= tot
+                ph[feat] /= tot
+
+        total_pads = num_features + 1
+        gx = int(math.ceil(math.sqrt(total_pads)))
+        gy = int(math.ceil(total_pads / gx))
+        canvas = ROOT.TCanvas("c_convergence", "Convergence Plot", 500*gx, 500*gy)
+        canvas.Divide(gx, gy)
+
+        stuff = []
+        for i, feat in enumerate(feature_names):
+            pad = canvas.cd(i + 1)
+            pad.SetTicks(1, 1)
+            pad.SetBottomMargin(0.15)
+            pad.SetLeftMargin(0.15)
+            pad.SetLogy(not normalized and plot_options[feat]['logY'])
+
+            n_bins, x_min, x_max = plot_options[feat]["binning"]
+            x_axis_title = plot_options[feat]["tex"]
+            max_y = 0
+            max_y = max(max_y, th[feat].max(), ph[feat].max())
+            hframe = ROOT.TH2F(f"hframe_{feat}", f";{x_axis_title};Probability", n_bins, x_min, x_max, 100, 0, 1.2*max_y if max_y>0 else 1.)
+            hframe.GetYaxis().SetTitleOffset(1.3)
+            hframe.Draw()
+            stuff.append(hframe)
+
+            for c in range(num_classes):
+                # true dashed
+                ht = ROOT.TH1F(f"t_{feat}_{c}", "", n_bins, x_min, x_max)
+                for b, y in enumerate(th[feat][:, c]): ht.SetBinContent(b+1, y)
+                ht.SetLineColor(colors[c % len(colors)]); ht.SetLineStyle(2); ht.SetLineWidth(2); ht.Draw("HIST SAME")
+                stuff.append(ht)
+                # pred solid
+                hp = ROOT.TH1F(f"p_{feat}_{c}", "", n_bins, x_min, x_max)
+                for b, y in enumerate(ph[feat][:, c]): hp.SetBinContent(b+1, y)
+                hp.SetLineColor(colors[c % len(colors)]); hp.SetLineStyle(1); hp.SetLineWidth(2); hp.Draw("HIST SAME")
+                stuff.append(hp)
+
+        # legend pad
+        canvas.cd(num_features + 1)
+        leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9); leg.SetBorderSize(0); leg.SetShadowColor(0)
+        dtrue, dpred = [], []
+        for c, name in enumerate(classes):
+            ht = ROOT.TH1F(f"dt_{c}", "", 1, 0, 1); ht.SetLineColor(colors[c % len(colors)]); ht.SetLineStyle(2); ht.SetLineWidth(2)
+            hp = ROOT.TH1F(f"dp_{c}", "", 1, 0, 1); hp.SetLineColor(colors[c % len(colors)]); hp.SetLineStyle(1); hp.SetLineWidth(2)
+            dtrue.append(ht); dpred.append(hp)
+            leg.AddEntry(ht, f"{name} (true)", "l"); leg.AddEntry(hp, f"{name} (pred)", "l")
+        leg.Draw()
+        tex = ROOT.TLatex(); tex.SetNDC(); tex.SetTextSize(0.07); tex.SetTextAlign(11)
+        tex.DrawLatex(0.3, 0.95, f"Epoch = {epoch:5d}")
+
+        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
+        canvas.SaveAs(fname)
+    syncer.sync()
+
+# ---------------- resume if available ----------------
 start_epoch = 0
 if not args.overwrite:
     try:
         latest = tf.train.latest_checkpoint(model_dir)
         if latest:
             start_epoch = int(os.path.basename(latest)) + 1
-            model = TFMC.load(model_dir)  # reload full state
+            model = TFMC.load(model_dir)
             print(f"Resuming from epoch {start_epoch}.")
     except Exception:
         pass
 
-for epoch in range(start_epoch, epochs):
-    # update LR
+# Build fresh model if not resumed
+if 'model' not in locals():
+    model = TFMC(
+        input_dim=input_dim,
+        classes=classes_names,
+        activation=activation,
+        hidden_layers=hidden_layers,
+        l1_reg=l1,
+        l2_reg=l2,
+        dropout_rate=dropout_rate,
+        learning_rate=lr,
+        n_epochs=epochs,
+        n_epochs_phaseout=phaseout_epochs,
+        reweighting=True,
+    )
+    model.set_scaler(feature_means, feature_variances)
+    if use_ic:
+        model.set_ic_weights_from_sums(classes_names, ic_weights)
+
+# ---------------- train ----------------
+for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     lr_now = float(model.lr_schedule(epoch).numpy())
     model.optimizer.learning_rate.assign(lr_now)
-    print(f"Epoch {epoch}/{epochs} - LR {lr_now:.6f}")
+
+    # hist accumulation (only when plotting this epoch)
+    do_plot = args.plot and (epoch % args.plot_every == 0)
+    if do_plot:
+        true_h, pred_h, bins = init_histograms(plot_feats)
 
     shard_limit = 1 if args.small else None
     seen = 0
     losses = []
+
+    # iterate shards; for each mixed shard make a per-batch bar
     for X, y, w in iterate_epoch(shard_limit=shard_limit):
-        # batch within shard
         N = len(X)
         if N == 0:
             continue
-        for start in range(0, N, batch_size):
-            stop = min(start + batch_size, N)
-            loss = model.train_on_batch(X[start:stop], y[start:stop], w[start:stop])
-            losses.append(loss)
-        seen += N
-    print(f"  seen {seen} events, mean loss {np.mean(losses) if losses else float('nan'):.4f}")
 
-    # save each epoch
+        eff_bs = N if batch_size == -1 else batch_size
+        num_batches = math.ceil(N / eff_bs)
+
+        with tqdm(total=num_batches, desc=f"e{epoch} batches", leave=False) as pbar:
+            for start in range(0, N, eff_bs):
+                stop = min(start + eff_bs, N)
+                Xb, yb, wb = X[start:stop], y[start:stop], w[start:stop]
+                loss = model.train_on_batch(Xb, yb, wb)
+                losses.append(loss)
+
+                if do_plot:
+                    dcrs = model.predict(Xb, probability=False)
+                    accumulate_histograms(true_h, pred_h, bins, Xb, yb, dcrs, wb, plot_feats, feat2col)
+
+                pbar.set_postfix(loss=float(loss))
+                pbar.update(1)
+
+        seen += N
+
+    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean loss {np.mean(losses) if losses else float('nan'):.4f}")
     model.save(model_dir, epoch=epoch)
 
-print("Done.")
+    if do_plot:
+        plot_convergence_root(true_h, pred_h, epoch, plot_dir, list(plot_feats), classes_names)
 
+print(f"Done. Model stored in {model_dir}")

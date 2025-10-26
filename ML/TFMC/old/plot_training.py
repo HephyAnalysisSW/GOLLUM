@@ -57,7 +57,7 @@ bin_edges = np.linspace(x_min, x_max, n_bins + 1)
 total_batches = len(data_loader)
 for i_batch, batch in enumerate(tqdm(data_loader, total=total_batches, desc="Batches")):
     features, weights, labels = data_loader.split(batch)
-    predictions = tfmc.predict(features, ic_scaling=False)
+    predictions = tfmc.predict(features, probability=False)
 
     # Accumulate predicted probabilities for each class and label
     for c in range(tfmc.num_classes):

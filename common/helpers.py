@@ -41,3 +41,72 @@ def copyIndexPHP( directory ):
     if not os.path.exists( directory ): os.makedirs( directory )
     shutil.copyfile( os.path.join(os.path.dirname(__file__), 'scripts/php/index.php'), index_php )
 
+#import os, glob, subprocess
+#
+#def _derive_eos_remote_dir(local_dir: str) -> str:
+#    """
+#    Map a local dir like
+#      /groups/hephy/cms/<user>/www/<rest>
+#    to
+#      root://eosuser.cern.ch///eos/user/<initial>/<user>/www/<rest>
+#    using $CERN_USER (fallback to $USER).
+#    """
+#    user = os.environ.get("CERN_USER") or os.environ.get("USER")
+#    if not user:
+#        raise RuntimeError("Cannot determine username: set $CERN_USER or $USER.")
+#
+#    # split on 'www' and keep the suffix (including any leading '/')
+#    parts = local_dir.split(os.sep + "www" + os.sep, 1)
+#    if len(parts) == 2:
+#        suffix = parts[1]  # e.g. 'SBIPDF/TFMC/tfmc_toy'
+#        suffix = suffix.lstrip("/")
+#        remote = f"root://eosuser.cern.ch///eos/user/{user[0]}/{user}/www/{suffix}"
+#    else:
+#        # no '/www/' in path → default to the user's www root
+#        remote = f"root://eosuser.cern.ch///eos/user/{user[0]}/{user}/www"
+#
+#    return remote.rstrip("/")
+#
+#
+#def make_and_push_gifs(
+#    local_dir: str,
+#    items = (("epoch_*.png", "epoch.gif"), ("norm_epoch_*.png", "norm_epoch.gif")),
+#    delay: int = 10,
+#    optimize: bool = True,
+#):
+#    """
+#    Create animated GIFs from PNG sequences (locally) and xrdcp them to EOS.
+#    remote_dir is auto-derived from local_dir by truncating at 'www'.
+#    """
+#    # sanity: tools
+#    for tool in ("convert", "xrdcp"):
+#        if subprocess.call(["which", tool], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+#            raise RuntimeError(f"Required tool '{tool}' not found in PATH.")
+#
+#    os.makedirs(local_dir, exist_ok=True)
+#    remote_dir = _derive_eos_remote_dir(os.path.abspath(local_dir))
+#
+#    made = []
+#    for pattern, gif_name in items:
+#        frames = sorted(glob.glob(os.path.join(local_dir, pattern)))
+#        if not frames:
+#            print(f"[make_and_push_gifs] No frames for '{pattern}' in {local_dir}. Skipping.")
+#            continue
+#
+#        out_gif = os.path.join(local_dir, gif_name)
+#        cmd = ["convert", "-delay", str(delay), "-loop", "0"]
+#        if optimize:
+#            cmd += ["-dispose", "previous", "-layers", "Optimize"]
+#        cmd += frames + [out_gif]
+#
+#        print(f"[make_and_push_gifs] Creating {out_gif} from {len(frames)} frames…")
+#        subprocess.check_call(cmd)
+#
+#        dst = f"{remote_dir}/{gif_name}"
+#        print(f"[make_and_push_gifs] xrdcp -> {dst}")
+#        subprocess.check_call(["xrdcp", "-f", out_gif, dst])
+#
+#        made.append(out_gif)
+#
+#    return made
+#

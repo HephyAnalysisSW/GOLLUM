@@ -104,7 +104,7 @@ for batch in tqdm(data_loader, total=(len(data_loader) if max_batch < 0 else max
     # Reweighting
     weights = weights * class_weights[labels.astype('int')]
     # Get predictions from the model
-    predictions = tfmc.predict(features, ic_scaling=False)
+    predictions = tfmc.predict(features, probability=True)
     if args.calib is not None:
         predictions_calib = calib.predict(predictions)
     # Remap labels to sequential indices (for one-hot conversion)

@@ -72,7 +72,8 @@ selection_name = job.get("selection", None)
 # Output path: common.user.model_directory / "Scaler" / filename
 out = job.get("output", {}) or {}
 filename = out.get("filename", f"Scaler_{process_name}.pkl")
-model_directory = os.path.join(user.model_directory, "Scaler")
+cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]  # e.g. "../configs/no_reg.yaml" -> "no_reg"
+model_directory = os.path.join(user.model_directory, cfg_base, "Scaler")
 os.makedirs(model_directory, exist_ok=True)
 out_path = os.path.join(model_directory, filename)
 

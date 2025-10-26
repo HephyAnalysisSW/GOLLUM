@@ -105,16 +105,23 @@ class TFMC:
     def _normalize(self, X: np.ndarray) -> np.ndarray:
         return (X - self.feature_means) / np.sqrt(self.feature_variances)
 
-    def predict(self, X: np.ndarray, ic_scaling: bool = True) -> np.ndarray:
+    # In contrast to GOLLUM, we report either the probability ratio or the DCR. We do not report 1/classweights*probability which has yet to be normalized.
+    def predict(self, X: np.ndarray, probability: bool = False) -> np.ndarray:
         Xn = self._normalize(X)
         y = self.model(Xn, training=False).numpy()
-        return y / self.class_weights if ic_scaling else y
+        if probability:
+            return y
+        else: #DCR
+            y /= self.class_weights
+            return y / (y.sum(axis=1, keepdims=True) + 1e-12)
 
     # ---------------- training primitives ----------------
     @tf.function
     def _train_step_tf(self, X, y_onehot, w):
         with tf.GradientTape() as tape:
             pred = self.model(X, training=True)
+            #print("hello:lower",pred[X[:,0]<0.5], )
+            #print("hello:higher",pred[X[:,0]>0.5], )
             loss_per = self.loss_fn(y_onehot, pred)  # shape [N]
             if w is not None:
                 loss = tf.reduce_mean(loss_per * w)
@@ -165,8 +172,10 @@ class TFMC:
             meta.update(extra)
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(meta, f)
+        print("Written to", os.path.join(save_dir, "config.pkl"))
         with open(os.path.join(save_dir, "checkpoint"), "w") as f:
             f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
+        print("Written to", os.path.join(save_dir, "checkpoint"))
 
     @classmethod
     def load(cls, save_dir: str) -> "TFMC":
