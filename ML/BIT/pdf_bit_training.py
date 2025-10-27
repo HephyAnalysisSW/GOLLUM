@@ -115,13 +115,19 @@ DER_all = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targe
 
 # Build the dict that BIT expects: {combination: vector}; () term is now the nominal weight
 training_weights = {combos[i]: DER_all[:, i] for i in range(len(combos))}
+if args.small:
+    n_max = len(X_all)//30
+    X_all   = X_all[:n_max]
+    DER_all = DER_all[:n_max]
+    training_weights = {key:val[:n_max] for key, val in training_weights.items()}
 
 # ---------------- build & train BIT ----------------
 cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]
 model_dir = os.path.join(user.model_directory, "BIT", cfg_base, J["id"])
 os.makedirs(model_dir, exist_ok=True)
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
-
+if args.small:
+    model_path = model_path[:-4]+"_small.pkl"
 bit = None
 if (not args.overwrite) and os.path.exists(model_path):
     try:
@@ -173,65 +179,199 @@ if bool(rt.get("training_plots", False)):
     iters = list(range(1, min(10, bit.n_trees)+1)) + list(range(10, bit.n_trees+1, 10))
     w0 = training_weights[()]  # () term from derivatives
 
-    def _safe_div(n, d):
-        d2 = d.reshape(-1,1)
-        out = np.zeros_like(n, dtype=float)
-        np.divide(n, d2, out=out, where=(d2!=0))
-        return out
+    # --- matrix plotting per iteration (one canvas, many pads) ---
+    # expects: iters, bit, X_all (features), w0 (nominal weights),
+    #          training_weights (dict keyed by derivative tuples),
+    #          feat_names, user, cfg_base, J, PLOT_OPTS, colors (map der->color)
+    import ROOT, os, math
+    ROOT.gStyle.SetOptStat(0)
+
+    stuff = []  # keep ROOT objects alive
 
     for t in iters:
-        pred = bit.vectorized_predict(X_all, max_n_tree=t)  # shape (N, M-1) ? in BIT code it's aligned to derivatives[1:]
-        # Build truth ratios per derivative (skip () which is index 0 in combos)
-        # Map derivatives order to combos order held by BIT:
-        ders = bit.derivatives
-        truth_mat = np.stack([training_weights.get(der if der in training_weights else tuple(reversed(der))) for der in ders], axis=1)
-        # feature-binned overview
-        from data.plot_options import plot_options as PLOT_OPTS
-        feat_bins = {f: np.linspace(PLOT_OPTS[f]['binning'][1], PLOT_OPTS[f]['binning'][2], PLOT_OPTS[f]['binning'][0]+1) for f in feat_names}
+        # predictions: shape (N, M-1) aligned to derivatives[1:]
+        pred = bit.vectorized_predict(X_all, max_n_tree=t)
 
+        # Build truth ratios per derivative (all, including () at position 0)
+        ders = bit.derivatives
+        truth_mat = np.stack([
+            training_weights.get(der, training_weights.get(tuple(reversed(der))))
+            for der in ders
+        ], axis=1)  # (N, M)
+
+        # binning cache
+        feat_bins = {
+            f: np.linspace(PLOT_OPTS[f]['binning'][1],
+                           PLOT_OPTS[f]['binning'][2],
+                           PLOT_OPTS[f]['binning'][0] + 1)
+            for f in feat_names
+        }
+
+        # --- build all histos first, then draw in a matrix ---
+        # Per feature we’ll collect yield, truth and pred histos for all derivatives
+        per_feat = {}  # f -> dict(yield, truth{der}, pred{der}, bins)
         for feat in feat_names:
             bins = feat_bins[feat]
             idx  = feat_names.index(feat)
             binned = np.digitize(X_all[:, idx], bins)
-            mask = (binned.reshape(-1,1) == np.arange(1, len(bins))).T  # (B,N)
+            mask = (binned.reshape(-1, 1) == np.arange(1, len(bins))).T  # (B, N)
 
+            # yields per bin
             h_w0 = np.array([w0[m].sum() for m in mask])  # (B,)
-            # pred is missing the () column; align:
-            # build pred_full with ()=zeros then following derivatives:
-            pred_full = np.zeros((pred.shape[0], len(ders)), dtype=float)
-            pred_full[:,1:] = pred
-            h_pred = np.array([(w0.reshape(-1,1)*pred_full)[m].sum(axis=0) for m in mask])  # (B, M)
-            h_truth = np.array([(truth_mat)[m].sum(axis=0) for m in mask])                   # (B, M)
 
-            r_pred  = _safe_div(h_pred,  h_w0)   # (B, M)
-            r_truth = _safe_div(h_truth, h_w0)
+            # sums per derivative per bin
+            h_pred   = np.array([(w0.reshape(-1, 1) * pred)[m].sum(axis=0) for m in mask])   # (B, M)
+            h_truth  = np.array([ truth_mat[m].sum(axis=0)                    for m in mask])      # (B, M)
 
-            # quick plot for a couple of first derivatives
-            import ROOT
-            c = ROOT.TCanvas(f"c_{feat}_{t}", "", 900, 700); ROOT.gStyle.SetOptStat(0)
-            leg = ROOT.TLegend(0.2,0.1,0.9,0.85); leg.SetNColumns(2); leg.SetBorderSize(0); leg.SetFillStyle(0)
-            first = True
-            for i_der, der in enumerate(ders[: min(6, len(ders))]):  # limit clutter
-                hT = ROOT.TH1F(f"hT_{i_der}", "", len(bins)-1, bins[0], bins[-1])
-                hP = ROOT.TH1F(f"hP_{i_der}", "", len(bins)-1, bins[0], bins[-1])
+            # ratios
+            def _safe_div(numer, denom):
+                denom2 = denom.reshape(-1, 1)
+                out = np.zeros_like(numer, dtype=float)
+                np.divide(numer, denom2, out=out, where=(denom2 != 0))
+                return out
+
+            r_pred  = _safe_div(h_pred,  h_w0)  # (B, M)
+            r_truth = _safe_div(h_truth, h_w0)  # (B, M)
+
+            # ROOT histos
+            # yield (normalize into visible band later)
+            hY = ROOT.TH1F(f"hY_{feat}", "", len(bins)-1, bins[0], bins[-1])
+            for b in range(1, len(bins)):
+                hY.SetBinContent(b, h_w0[b-1])
+            hY.SetLineColor(ROOT.kGray + 2); hY.SetMarkerStyle(0); hY.SetLineWidth(2)
+            hY.GetXaxis().SetTitle(PLOT_OPTS[feat]['tex']); hY.SetTitle("")
+            stuff.append(hY)
+
+            H_truth = {}
+            H_pred  = {}
+            for i_der, der in enumerate(ders):
+                # skip drawing the () baseline ratio (always 1); keep objects small but stable
+                if len(der) == 0:
+                    continue
+                hT = ROOT.TH1F(f"hT_{feat}_{i_der}", "", len(bins)-1, bins[0], bins[-1])
+                hP = ROOT.TH1F(f"hP_{feat}_{i_der}", "", len(bins)-1, bins[0], bins[-1])
                 for b in range(1, len(bins)):
                     hT.SetBinContent(b, r_truth[b-1, i_der])
-                    hP.SetBinContent(b, r_pred[b-1, i_der])
-                col = colors[der]
-                for h, sty in [(hT, 2), (hP, 1)]:
+                    hP.SetBinContent(b, r_pred[b-1,  i_der])
+                col = colors.get(der, ROOT.kBlue)
+                for h, sty in ((hT, 2), (hP, 1)):
                     h.SetLineColor(col); h.SetLineStyle(sty); h.SetLineWidth(2); h.SetMarkerStyle(0)
                     h.GetXaxis().SetTitle(PLOT_OPTS[feat]['tex'])
-                    if first: h.Draw("hist")
-                    else:     h.Draw("histsame")
-                    first = False
-                leg.AddEntry(hT, f"R{der}", "l"); leg.AddEntry(hP, f"Rhat{der}", "l")
-            leg.Draw()
-            out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "train", feat)
-            os.makedirs(out_dir, exist_ok=True)
-            c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
-            c.Close()
+                    stuff.append(h)
+                H_truth[der] = hT; H_pred[der] = hP
 
-    syncer.sync()
+            per_feat[feat] = dict(yield_=hY, truth=H_truth, pred=H_pred, bins=bins)
+
+        # --- draw on a single canvas with pads (features + legend) ---
+        n_feat = len(feat_names)
+        total_pads = n_feat + 1
+        gx = int(math.ceil(math.sqrt(total_pads)))
+        gy = int(math.ceil(total_pads / gx))
+        c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*gx, 500*gy)
+        c.Divide(gx, gy)
+
+        # Legend goes into last pad
+        leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+        leg.SetBorderSize(0); leg.SetFillStyle(0)
+        leg.SetNColumns( min(3, 1 + len(ders)//10) )
+        stuff.append(leg)
+
+        # Determine y-range based on truth curves across all features (data-driven)
+        # We use per-feature truth ranges when drawing; this is just for reference.
+
+        # Draw each feature into its pad
+        for i, feat in enumerate(feat_names):
+            pad = c.cd(i + 1)
+            pad.SetTicks(1, 1); pad.SetBottomMargin(0.15); pad.SetLeftMargin(0.15)
+            pad.SetLogy(False)  # ratio-like plots
+
+            bins = per_feat[feat]['bins']
+            n_bins = len(bins) - 1
+
+            # find dynamic Y range from truth curves (data-driven)
+            y_max = 0.0
+            y_min = +1e9
+            for der, hT in per_feat[feat]['truth'].items():
+                if hT.GetMaximum() > y_max: y_max = hT.GetMaximum()
+                # scan bins for min > 0 (allow negative if present)
+                for b in range(1, n_bins+1):
+                    y = hT.GetBinContent(b)
+                    if y < y_min: y_min = y
+            if not np.isfinite(y_min): y_min = 0.0
+            if not np.isfinite(y_max): y_max = 1.0
+            # pad margins
+            y_pad = 0.2 * (y_max - y_min if y_max > y_min else 1.0)
+            y_low = y_min - y_pad
+            y_hi  = y_max + y_pad
+            if y_hi <= y_low: y_hi = y_low + 1.0
+
+            # frame
+            hframe = ROOT.TH2F(f"hf_{feat}", f";{PLOT_OPTS[feat]['tex']};ratio",
+                               n_bins, bins[0], bins[-1], 100, y_low, y_hi)
+            hframe.GetYaxis().SetTitleOffset(1.3)
+            hframe.Draw()
+            stuff.append(hframe)
+
+            # draw yield normalized into the same band
+            hY = per_feat[feat]['yield_']
+            # normalize yield into [y_low, y_hi] gently
+            y_min0, y_max0 = 0.0, hY.GetMaximum()
+            if y_max0 > 0:
+                for b in range(1, n_bins+1):
+                    v = hY.GetBinContent(b)
+                    scaled = y_low + 0.92*(y_hi - y_low) * (v - y_min0) / max(1e-12, y_max0)
+                    hY.SetBinContent(b, scaled)
+            hY.SetLineColor(ROOT.kGray + 2)
+            hY.Draw("hist same")
+
+            first = True
+            # draw all derivatives (truth dashed, pred solid)
+            for der in ders:
+                if len(der) == 0:  # skip ()
+                    continue
+                hT = per_feat[feat]['truth'][der]
+                hP = per_feat[feat]['pred'][der]
+                if first:
+                    hT.Draw("hist same"); hP.Draw("hist same")
+                    first = False
+                else:
+                    hT.Draw("hist same"); hP.Draw("hist same")
+
+        # Legend in the last pad
+        pad = c.cd(n_feat + 1)
+        pad.SetTicks(1,1); pad.SetBottomMargin(0.15); pad.SetLeftMargin(0.15)
+        # Fill legend entries once
+        added = set()
+        for der in ders:
+            if len(der) == 0:  # skip ()
+                continue
+            # take any feature’s histos for legend prototypes
+            sample_feat = feat_names[0]
+            hT = per_feat[sample_feat]['truth'][der]
+            hP = per_feat[sample_feat]['pred'][der]
+            if der not in added:
+                tex = "R" + str(der)
+                texh= "#hat{R}" + str(der)
+                leg.AddEntry(hT, tex, "l")
+                leg.AddEntry(hP, texh, "l")
+                added.add(der)
+
+        # also add yield descriptor
+        leg.AddEntry(per_feat[feat_names[0]]['yield_'], "yield (SM, scaled)", "l")
+        leg.Draw()
+        stuff.append(leg)
+
+        # annotate iteration
+        tl = ROOT.TLatex(); tl.SetNDC(); tl.SetTextSize(0.07); tl.SetTextAlign(11)
+        tl.DrawLatex(0.30, 0.95, f"Trees = {t:04d}")
+        stuff.append(tl)
+
+        out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "train")
+        os.makedirs(out_dir, exist_ok=True)
+        c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
+        c.Close()
+
+        syncer.sync()
 
 print("Done.")
 
