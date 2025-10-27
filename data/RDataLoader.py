@@ -356,6 +356,20 @@ class RDataLoader:
             warnings.warn(f"RDataLoader: missing branches will be skipped: {missing}")
         return [b for b in requested if b in available]
 
+    def __str__(self) -> str:
+        files = getattr(self, "_all_files", [])
+        fshow = (files[0] if files else "[]")
+        parts = [
+            "RDataLoader(",
+            f"  tree='{self.tree_name}', split='{self.splitting_strategy}', n_split={self.n_split},",
+            f"  files={len(files)}@{os.path.basename(fshow)}" + ("..." if len(files) > 1 else ""),
+            f"  features={len(self.feature_names or [])}, observers={len(self.observer_names or [])},",
+            f"  weight_branches={getattr(self, 'weight_branches', [])}",
+            ")",
+        ]
+        return " ".join(parts)
+
+
     def view(
         self,
         name: str,

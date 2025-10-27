@@ -1,1 +1,24 @@
-python icp_training_cfg.py ../configs/no_reg.yaml --job icp_lSF_quad_GG
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_Trigger_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_L1Prefire_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_PU_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_LeptonSF_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_BTag_b_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_BTag_l_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_Trigger_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_L1Prefire_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_PU_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_LeptonSF_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_BTag_b_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_GG_BTag_l_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_Trigger_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_L1Prefire_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_PU_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_LeptonSF_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_BTag_b_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QG_BTag_l_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_Trigger_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_L1Prefire_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_PU_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_LeptonSF_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_BTag_b_quad
+python icp_training_cfg.py ../configs/no_reg.yaml --overwrite --job icp_tt2l_QQ_BTag_l_quad
