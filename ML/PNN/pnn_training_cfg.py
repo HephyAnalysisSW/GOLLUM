@@ -250,6 +250,7 @@ def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, icp_predictor,
 
 def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1):
     import ROOT, os, math
+    import numpy as np
     try:
         ROOT.gStyle.SetOptStat(0)
         # try to set TDR if present, ignore otherwise
@@ -267,7 +268,6 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
     colors = [ROOT.kBlue, ROOT.kRed, ROOT.kGreen+2, ROOT.kOrange+1, ROOT.kMagenta+1, ROOT.kCyan+2,
               ROOT.kViolet+1, ROOT.kAzure+1, ROOT.kPink+7, ROOT.kTeal+3]
     if n_bp > len(colors):
-        # repeat if needed
         colors = (colors * (n_bp // len(colors) + 1))[:n_bp]
     colors[nom_idx] = ROOT.kBlack
 
@@ -303,15 +303,35 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
             n_bins, x_min, x_max = PLOT_OPTS[feat]['binning']
             n_bins = max(1, n_bins // max(1, int(rebin)))
 
-            max_y = 0.0
-            for k in range(n_bp):
-                max_y = max(max_y, th[feat][:, k].max(), ph[feat][:, k].max())
             if normalized:
-                y_min, y_max = PLOT_OPTS[feat].get('y_ratio_range', [max(0, 1-(1.2*max_y-1)), 1.2*max_y])
+                # ---- DATA-DRIVEN AXIS FROM TRUTH ONLY ----
+                # take min/max across all base points for the truth ratios
+                arr = th[feat]  # shape (bins, n_bp), includes nominal which is ~1
+                finite = np.isfinite(arr)
+                if not finite.any():
+                    tmin, tmax = 0.95, 1.05
+                else:
+                    tmin = float(np.min(arr[finite]))
+                    tmax = float(np.max(arr[finite]))
+                    # Handle pathological all-ones (or zero span) case
+                    if not np.isfinite(tmin) or not np.isfinite(tmax) or abs(tmax - tmin) < 1e-9:
+                        tmin, tmax = 0.95, 1.05
+                # small padding around the observed range
+                span = max(1e-9, tmax - tmin)
+                pad_frac = 0.10
+                y_min = max(0.0, tmin - pad_frac * span)
+                y_max = tmax + pad_frac * span
             else:
-                y_min, y_max = 0.0, (1.2*max_y if max_y>0 else 1.0)
+                # original behavior for raw (non-normalized)
+                max_y = 0.0
+                for k in range(n_bp):
+                    max_y = max(max_y, th[feat][:, k].max(), ph[feat][:, k].max())
+                y_min, y_max = 0.0, (1.2*max_y if max_y > 0 else 1.0)
 
-            hframe = ROOT.TH2F(f"h_{feat}", f";{PLOT_OPTS[feat]['tex']};Probability",
+            y_title = "Probability" if not normalized else "Ratio to nominal"
+
+            hframe = ROOT.TH2F(f"h_{feat}_{'norm' if normalized else 'raw'}",
+                               f";{PLOT_OPTS[feat]['tex']};{y_title}",
                                n_bins, x_min, x_max, 100, y_min, y_max)
             hframe.GetYaxis().SetTitleOffset(1.3)
             hframe.Draw()
@@ -319,13 +339,13 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
 
             for k, nu in enumerate(base_points):
                 # true dashed
-                ht = ROOT.TH1F(f"t_{feat}_{k}", "", n_bins, x_min, x_max)
+                ht = ROOT.TH1F(f"t_{feat}_{k}_{'n' if normalized else 'r'}", "", n_bins, x_min, x_max)
                 for b, y in enumerate(th[feat][:, k]): ht.SetBinContent(b+1, y)
                 ht.SetLineColor(colors[k]); ht.SetLineStyle(2); ht.SetLineWidth(2); ht.Draw("HIST SAME")
                 keep.append(ht)
 
                 # pred solid
-                hp = ROOT.TH1F(f"p_{feat}_{k}", "", n_bins, x_min, x_max)
+                hp = ROOT.TH1F(f"p_{feat}_{k}_{'n' if normalized else 'r'}", "", n_bins, x_min, x_max)
                 for b, y in enumerate(ph[feat][:, k]): hp.SetBinContent(b+1, y)
                 hp.SetLineColor(colors[k]); hp.SetLineStyle(1); hp.SetLineWidth(2); hp.Draw("HIST SAME")
                 keep.append(hp)
@@ -336,8 +356,8 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
         leg.SetNColumns(1 + n_bp//20)
         dtrue, dpred = [], []
         for k, nu in enumerate(base_points):
-            t = ROOT.TH1F(f"dt_{k}", "", 1, 0, 1); t.SetLineColor(colors[k]); t.SetLineStyle(2); t.SetLineWidth(2)
-            p = ROOT.TH1F(f"dp_{k}", "", 1, 0, 1); p.SetLineColor(colors[k]); p.SetLineStyle(1); p.SetLineWidth(2)
+            t = ROOT.TH1F(f"dt_{k}_{'n' if normalized else 'r'}", "", 1, 0, 1); t.SetLineColor(colors[k]); t.SetLineStyle(2); t.SetLineWidth(2)
+            p = ROOT.TH1F(f"dp_{k}_{'n' if normalized else 'r'}", "", 1, 0, 1); p.SetLineColor(colors[k]); p.SetLineStyle(1); p.SetLineWidth(2)
             dtrue.append(t); dpred.append(p)
             leg.AddEntry(t, f"{tuple(nu)} (true)", "l")
             leg.AddEntry(p, f"{tuple(nu)} (pred)", "l")

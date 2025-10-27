@@ -13,9 +13,8 @@ from SelectionView import SelectionView
 import observables
 import common.user as user
 
-
-# add these two names once
-_EXTRA_REWEIGHTS = ["reweightLeptonSFUp", "reweightLeptonSFDown"]
+# Add these once so they're loaded from ROOT (include central SF!)
+_EXTRA_REWEIGHTS = ["reweightLeptonSF", "reweightLeptonSFUp", "reweightLeptonSFDown"]
 
 # -----------------------------
 # Base sample (no selection)
@@ -28,17 +27,16 @@ tt2l = RDataLoader(
         "TTLep_Summer16_preVFP/TTLep_Summer16_preVFP.root",
     )],
     tree_name="Events",
-    # Load the union needed for training + observers
+    # Load the union needed for training + observers (+ reweights)
     branches=observables.OBSERVERS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY + _EXTRA_REWEIGHTS,
     selection=None,
     n_split=1,
     splitting_strategy="events",
     strict_branches=False,
+    # NEW: explicit product for base weights; if you remove this, weights default to ones.
+    weight_branches=["weight", "reweightLeptonSF"],
     feature_names=observables.TOP_KINEMATICS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
-    observer_names=observables.OBSERVERS+ _EXTRA_REWEIGHTS,  # must include "weight", id1, id2, etc.
-    # weight defaults to "weight"; override here if needed:
-    # weight="weight",
-    # weight_branches=[],  # if using a callable, list required branches
+    observer_names=observables.OBSERVERS + _EXTRA_REWEIGHTS,  # includes "weight", Generator_id*, and SF branches
 )
 
 # -----------------------------
@@ -66,52 +64,51 @@ def sel_QQ(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
     abs_ids = np.array([1, 2, 3, 4, 5, 6], dtype=int)
     return (np.isin(np.abs(id1), abs_ids) & np.isin(np.abs(id2), abs_ids) & (id1 * id2 < 0))
 
-# Names of observer columns needed to evaluate the mask fast
-_SELECTION_OBS = ["Generator_id1", "Generator_id2"]
-
 # -----------------------------
-# First-class views (behave like loaders)
+# Views (inherit features/observers; optional selection and weight override)
+# NOTE: weight override REPLACES the base weight when provided (no multiplication with base).
+#       Pass None to inherit the base product ["weight","reweightLeptonSF"].
 # -----------------------------
 
-# Up variation: weight * reweightLeptonSFUp
+# Global Up/Down (no further selection); replace with weight * reweightLeptonSFUp/Down
 tt2l_LeptonSFUp = SelectionView(
     base=tt2l,
     name="LeptonSFUp",
-    weight="reweightLeptonSFUp",
+    selection_fn=None,
+    weight=["weight", "reweightLeptonSFUp"],
 )
 
-# Down variation: weight * reweightLeptonSFDown
 tt2l_LeptonSFDown = SelectionView(
     base=tt2l,
     name="LeptonSFDown",
-    weight="reweightLeptonSFDown",
+    selection_fn=None,
+    weight=["weight", "reweightLeptonSFDown"],
 )
 
-# Nominal GG (uses base weight)
+# Nominal GG (inherits base weight: ["weight","reweightLeptonSF"])
 tt2l_GG = SelectionView(
     base=tt2l,
     name="GG",
     selection_fn=lambda obs_mat, names: sel_GG(obs_mat, names),
     selection_feature_names=["Generator_id1", "Generator_id2"],
-    # weight=None  # default: use base weight
+    # weight=None  -> inherit base weight
 )
 
-# Up variation: weight * reweightLeptonSFUp
+# GG with LeptonSF Up/Down (explicit replacement with product)
 tt2l_GG_LeptonSFUp = SelectionView(
     base=tt2l,
     name="GG_LeptonSFUp",
     selection_fn=lambda obs_mat, names: sel_GG(obs_mat, names),
     selection_feature_names=["Generator_id1", "Generator_id2"],
-    weight="reweightLeptonSFUp",
+    weight=["weight", "reweightLeptonSFUp"],
 )
 
-# Down variation: weight * reweightLeptonSFDown
 tt2l_GG_LeptonSFDown = SelectionView(
     base=tt2l,
     name="GG_LeptonSFDown",
     selection_fn=lambda obs_mat, names: sel_GG(obs_mat, names),
     selection_feature_names=["Generator_id1", "Generator_id2"],
-    weight="reweightLeptonSFDown",
+    weight=["weight", "reweightLeptonSFDown"],
 )
 
 tt2l_QG = SelectionView(
@@ -119,6 +116,7 @@ tt2l_QG = SelectionView(
     name="QG",
     selection_fn=lambda obs_mat, names: sel_QG(obs_mat, names),
     selection_feature_names=["Generator_id1", "Generator_id2"],
+    # weight=None -> inherit base weight
 )
 
 tt2l_QQ = SelectionView(
@@ -126,16 +124,19 @@ tt2l_QQ = SelectionView(
     name="QQ",
     selection_fn=lambda obs_mat, names: sel_QQ(obs_mat, names),
     selection_feature_names=["Generator_id1", "Generator_id2"],
+    # weight=None -> inherit base weight
 )
 
 __all__ = [
     "tt2l",
-    "tt2l_GG", "tt2l_QG", "tt2l_QQ",
+    "tt2l_LeptonSFUp", "tt2l_LeptonSFDown",
+    "tt2l_GG", "tt2l_GG_LeptonSFUp", "tt2l_GG_LeptonSFDown",
+    "tt2l_QG", "tt2l_QQ",
     "sel_GG", "sel_QG", "sel_QQ",
 ]
 
 # -----------------------------
-# Minimal demo using the new materialize API
+# Minimal demo using the materialize API
 # -----------------------------
 if __name__ == "__main__":
     print("\n=== Demo: base.materialize ===")

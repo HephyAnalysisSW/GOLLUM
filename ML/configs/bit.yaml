@@ -1,0 +1,20 @@
+# add under your existing top-level config
+jobs:
+  - id: bit_pdf
+    type: bit
+    process: tt2l                 # loader/view name from data.samples
+    selection: null               # optional extra selection layered on top
+    pdf:
+      cheb_n: 5                   # <-- controls the number of Chebyshev coeffs (c0..cN)
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: false
+    runtime:
+      n_split: 30
+      training_plots: true        # keep if you want training plots
+      feature_plots: true        # as you had before
+    output:
+      filename: "BIT_pdf.pkl"
+

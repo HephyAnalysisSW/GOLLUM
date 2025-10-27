@@ -121,12 +121,14 @@ if __name__ == "__main__":
 
     # --- n = 0 case: f(x, id) = 1 + c0 * (id == 21) ---
     pdf0 = PDFParametrization(n=0)
+    print(pdf0.combinations)
     c0 = (0.7,)  # length n+1 = 1
     print("n=0, gluon (id=21):   ", pdf0.evaluate(0.3, 21, c0))  # -> 1 + 0.7 = 1.7
     print("n=0, quark (id=1):    ", pdf0.evaluate(0.3, 1,  c0))  # -> 1.0
 
     # --- n = 3, vectorized x and mixed ids ---
     pdf = PDFParametrization(n=3)
+    print(pdf.combinations)
     x = np.linspace(0.0, 1.0, 6)  # vector input
     coeffs = (0.1, 0.2, -0.05, 0.01)  # (c0..c3), length n+1 = 4
 
