@@ -27,7 +27,7 @@ args = p.parse_args()
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
 import common.yaml_loader as yaml_loader
-CFG = yaml_loader.load_yaml_recursive(cfg_path)
+CFG = yaml_loader.load_yaml(cfg_path)
 
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
@@ -92,32 +92,6 @@ else:
     scaler_vars  = np.ones(input_dim,  dtype=np.float64)
     print("No Scaler configured; using identity.")
 
-# ICP (by job id) -> lightweight predictor
-icp_predictor = None
-icp_id = J["extras"].get("use_icp", None)
-if icp_id:
-    from ML.ICP.ICP import InclusiveCrosssectionParametrization
-    ij      = next(jj for jj in (CFG.get("jobs") or []) if jj.get("id") == icp_id)
-    icp_fn  = ij["output"]["filename"]
-    icp_path= os.path.join(user.model_directory, cfg_base, "ICP", icp_fn)
-    icp     = InclusiveCrosssectionParametrization.load(icp_path)
-    print(f"Loaded ICP: {icp_path}")
-
-    # Build a lightweight predictor from the saved payload
-    _params = list(icp.parameters)
-    _combs  = [tuple(c) for c in icp.combinations]
-    _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
-
-    def icp_predictor(**kwargs):
-        # kwargs like {"nu_trigger": val, ...} matching _params names
-        nu_vec = [kwargs[p] for p in _params]
-        def _prod(comb):
-            v = 1.0
-            for p in comb: v *= nu_vec[_params.index(p)]
-            return v
-        nu_A = np.array([_prod(c) for c in _combs], dtype=np.float64)
-        return float(np.exp(nu_A @ _DeltaA))
-
 # ---------------- build model ----------------
 parameters      = list(J["parameters"])
 combinations    = [tuple(c) for c in J["combinations"]]
@@ -156,6 +130,22 @@ if pnn is None:
 
 pnn.set_scaler(scaler_means, scaler_vars)
 
+# ICP (by job id) -> inject ΔA bias into the PNN (so epoch-0 == ICP-only if initialize_zero)
+icp_id = J["extras"].get("use_icp", None)
+if icp_id:
+    from ML.ICP.ICP import InclusiveCrosssectionParametrization
+    ij       = next(jj for jj in (CFG.get("jobs") or []) if jj.get("id") == icp_id)
+    icp_fn   = ij["output"]["filename"]
+    icp_path = os.path.join(user.model_directory, cfg_base, "ICP", icp_fn)
+    icp      = InclusiveCrosssectionParametrization.load(icp_path)
+    print(f"Loaded ICP: {icp_path}")
+
+    _params = list(icp.parameters)
+    _combs  = [tuple(c) for c in icp.combinations]
+    _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
+    # Consistency with YAML is already enforced upstream; set bias:
+    pnn.set_icp(parameters=_params, combinations=_combs, DeltaA=_DeltaA)
+
 # ---------------- training utils ----------------
 def lr_schedule(epoch):
     if phaseout <= 0: return lr
@@ -189,10 +179,10 @@ def init_histograms(plot_features, n_bp, rebin=1):
         bins[feat]   = np.linspace(lo, hi, n+1)
     return h_true, h_pred, bins
 
-def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, icp_predictor, base_points, nom_idx, plot_features, feat2col):
-    # true: from Xi, wi; pred: from X0, w0 * bias * exp(DeltaA0·V_k)
+def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, base_points, nom_idx, plot_features, feat2col):
+    # true: from Xi, wi; pred: from X0, w0 * exp((ΔA_net+ΔA_icp)·V_k)
     X0, w0 = Xs[nom_idx], Ws[nom_idx]
-    dA0 = pnn.deltaA(X0)  # (N0, C)
+    dA0 = pnn.deltaA(X0)  # (N0, C) includes ICP bias if set
 
     # --- fill NOMINAL column so normalization has a real reference ---
     for feat in plot_features:
@@ -201,7 +191,7 @@ def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, icp_predictor,
         # true nominal = histogram of nominal sample
         ht0, _ = np.histogram(X0[:, col], bins=edges, weights=w0)
         h_true[feat][:, nom_idx] += ht0
-        # pred nominal equals true nominal (bias=1, exp(DeltaA0·0)=1)
+        # pred nominal equals true nominal (bias=1, exp(ΔA·0)=1)
         h_pred[feat][:, nom_idx] += ht0
     # -----------------------------------------------------------------
 
@@ -209,15 +199,7 @@ def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, icp_predictor,
         if i_bp == nom_idx:
             continue
         vk = VkA[i_bp]  # (C,)
-
-        # ICP bias for this base point
-        if icp_predictor:
-            nu_map = {k: v for k, v in zip(pnn.parameters, base_points[i_bp])}
-            bias = float(icp_predictor(**nu_map))
-        else:
-            bias = 1.0
-
-        pred_w = w0 * (bias * np.exp(dA0 @ vk))
+        pred_w = w0 * np.exp(dA0 @ vk)
 
         for feat in plot_features:
             col   = feat2col[feat]
@@ -285,25 +267,20 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
             n_bins = max(1, n_bins // max(1, int(rebin)))
 
             if normalized:
-                # ---- DATA-DRIVEN AXIS FROM TRUTH ONLY ----
-                # take min/max across all base points for the truth ratios
-                arr = th[feat]  # shape (bins, n_bp), includes nominal which is ~1
+                # data-driven axis from truth only
+                arr = th[feat]
                 finite = np.isfinite(arr)
                 if not finite.any():
                     tmin, tmax = 0.95, 1.05
                 else:
-                    tmin = float(np.min(arr[finite]))
-                    tmax = float(np.max(arr[finite]))
-                    # Handle pathological all-ones (or zero span) case
+                    tmin = float(np.min(arr[finite])); tmax = float(np.max(arr[finite]))
                     if not np.isfinite(tmin) or not np.isfinite(tmax) or abs(tmax - tmin) < 1e-9:
                         tmin, tmax = 0.95, 1.05
-                # small padding around the observed range
                 span = max(1e-9, tmax - tmin)
                 pad_frac = 0.10
                 y_min = max(0.0, tmin - pad_frac * span)
                 y_max = tmax + pad_frac * span
             else:
-                # original behavior for raw (non-normalized)
                 max_y = 0.0
                 for k in range(n_bp):
                     max_y = max(max_y, th[feat][:, k].max(), ph[feat][:, k].max())
@@ -386,24 +363,17 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
         X0, w0 = Xs[nom_idx], Ws[nom_idx]
         X0n = pnn._normalize(X0)
         with tf.GradientTape() as tape:
-            DeltaA0 = pnn.model(tf.convert_to_tensor(X0n, dtype=tf.float32), training=True)
+            DeltaA0 = pnn.deltaA_tf(tf.convert_to_tensor(X0n, dtype=tf.float32), training=True)
 
             loss = 0.0
             for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
                 if i_bp == nom_idx: continue
                 Xin = pnn._normalize(Xi)
-                DeltaAi = pnn.model(tf.convert_to_tensor(Xin, dtype=tf.float32), training=True)
-
-                # ICP bias for this base point
-                if icp_predictor:
-                    nu_map = {k: v for k, v in zip(parameters, base_points[i_bp])}
-                    bias = float(icp_predictor(**nu_map))
-                else:
-                    bias = 1.0
+                DeltaAi = pnn.deltaA_tf(tf.convert_to_tensor(Xin, dtype=tf.float32), training=True)
 
                 v = tf.convert_to_tensor(VkA[i_bp], dtype=tf.float32)  # (C,)
                 term0 = tf.reduce_sum(tf.convert_to_tensor(w0) * tf.nn.softplus(tf.linalg.matvec(DeltaA0, v)))
-                termi = (1.0 / bias) * tf.reduce_sum(tf.convert_to_tensor(wi) * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v)))
+                termi = tf.reduce_sum(tf.convert_to_tensor(wi) * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v)))
                 const = (np.sum(w0) + np.sum(wi)) * math.log(2.0)
                 loss += term0 + termi - const
 
@@ -413,7 +383,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
 
         # accumulate plots from this shard
         if do_plot and len(X0) and all(len(Xi) for Xi in Xs):
-            accumulate_histograms(true_h, pred_h, bins, Xs, Ws, pnn, VkA, icp_predictor,
+            accumulate_histograms(true_h, pred_h, bins, Xs, Ws, pnn, VkA,
                                   base_points, nom_idx, plot_feats, feat2col)
 
     tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {float(new_lr):.6f} - loss {total_loss:.4f}")

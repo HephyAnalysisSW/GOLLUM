@@ -32,7 +32,7 @@ args = p.parse_args()
 
 # ---------------------- load cfg ----------------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-cfg = yaml_loader.load_yaml_recursive(cfg_path)
+cfg = yaml_loader.load_yaml(cfg_path)
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")

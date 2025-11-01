@@ -72,6 +72,9 @@ class PNN:
         self.feature_means     = None
         self.feature_variances = None
 
+        # ICP bias (ΔA-space), applied additively to model outputs
+        self._icp_bias = None  # tf.Tensor shape (C,)
+
         # checkpoint wrapper
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self.model)
 
@@ -113,17 +116,45 @@ class PNN:
             for comb in self.combinations
         ], dtype=np.float64)
 
+    # ---------------------- ICP bias ----------------------
+    def set_icp(self, parameters, combinations, DeltaA):
+        """
+        Store ICP bias in ΔA-space so the effective output is: ΔA_net(x) + ΔA_icp.
+        Requires identical parameters & (non-empty) combinations order as this PNN.
+        """
+        import numpy as _np
+        # parameters must match exactly
+        if list(parameters) != list(self.parameters):
+            raise ValueError(f"ICP parameters mismatch: {parameters} vs {self.parameters}")
+        # compare non-empty combinations only (model outputs those)
+        pnn_combs = [tuple(c) for c in self.combinations if len(c) > 0]
+        icp_combs = [tuple(c) for c in combinations     if len(c) > 0]
+        if icp_combs != pnn_combs:
+            raise ValueError(f"ICP combinations mismatch:\nICP: {icp_combs}\nPNN: {pnn_combs}")
+        DeltaA = _np.asarray(DeltaA, dtype=_np.float32).reshape(-1)
+        if DeltaA.shape[0] != len(pnn_combs):
+            raise ValueError(f"DeltaA length {DeltaA.shape[0]} != #combos {len(pnn_combs)}")
+        self._icp_bias = tf.constant(DeltaA, dtype=tf.float32)
+
     # ---------------------- inference helpers ----------------------
     def deltaA(self, X: np.ndarray) -> np.ndarray:
         Xn = self._normalize(X)
-        return self.model(tf.convert_to_tensor(Xn, dtype=tf.float32), training=False).numpy()
+        out = self.model(tf.convert_to_tensor(Xn, dtype=tf.float32), training=False)
+        if self._icp_bias is not None:
+            out = out + self._icp_bias
+        return out.numpy()
 
-    def predict_ratio(self, X: np.ndarray, nu_vec, icp_predictor=None) -> np.ndarray:
+    def deltaA_tf(self, X_tf: tf.Tensor, training: bool) -> tf.Tensor:
+        """X_tf must be already normalized."""
+        out = self.model(X_tf, training=training)
+        if self._icp_bias is not None:
+            out = out + self._icp_bias
+        return out
+
+    def predict_ratio(self, X: np.ndarray, nu_vec) -> np.ndarray:
         """Return local DCR at features X and nuisance values nu."""
-        bias = icp_predictor(**{k: v for k, v in zip(self.parameters, nu_vec)}) if icp_predictor else 1.0
         dA = self.deltaA(X)
-        vk = self.nu_A(nu_vec)
-        return bias * np.exp(dA @ vk)
+        return np.exp(dA @ vk)
 
     # ---------------------- IO ----------------------
     def save(self, save_dir, epoch: int):
@@ -146,6 +177,7 @@ class PNN:
             initialize_zero=self.initialize_zero,
             feature_means=self.feature_means,
             feature_variances=self.feature_variances,
+            icp_bias=None if self._icp_bias is None else self._icp_bias.numpy(),
         )
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(payload, f)
@@ -170,5 +202,10 @@ class PNN:
         if not latest:
             raise FileNotFoundError(f"No checkpoint found in {save_dir}")
         p.checkpoint.restore(latest).expect_partial()
+
+        icp_bias = payload.get("icp_bias", None)
+        if icp_bias is not None:
+            p._icp_bias = tf.constant(icp_bias, dtype=tf.float32)
+
         return p
 

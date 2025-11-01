@@ -40,7 +40,7 @@ jobs:
   # =========================
   # Base sample: tt2l
   # =========================
-  - id: icp_tt2l_Trigger_quad
+  - id: icp_tt2l_Trigger
     type: icp
     region: SR
     base_point_loaders:
@@ -50,7 +50,6 @@ jobs:
     parameters: [nu_trigger]
     combinations:
       - [nu_trigger]
-      - [nu_trigger, nu_trigger]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -58,9 +57,9 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_Trigger_quad.pkl
+      filename: icp_tt2l_Trigger.pkl
 
-  - id: icp_tt2l_L1Prefire_quad
+  - id: icp_tt2l_L1Prefire
     type: icp
     region: SR
     base_point_loaders:
@@ -70,7 +69,6 @@ jobs:
     parameters: [nu_l1prefire]
     combinations:
       - [nu_l1prefire]
-      - [nu_l1prefire, nu_l1prefire]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -78,9 +76,9 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_L1Prefire_quad.pkl
+      filename: icp_tt2l_L1Prefire.pkl
 
-  - id: icp_tt2l_PU_quad
+  - id: icp_tt2l_PU
     type: icp
     region: SR
     base_point_loaders:
@@ -90,7 +88,6 @@ jobs:
     parameters: [nu_pu]
     combinations:
       - [nu_pu]
-      - [nu_pu, nu_pu]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -98,9 +95,9 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_PU_quad.pkl
+      filename: icp_tt2l_PU.pkl
 
-  - id: icp_tt2l_LeptonSF_quad
+  - id: icp_tt2l_LeptonSF
     type: icp
     region: SR
     base_point_loaders:
@@ -110,7 +107,6 @@ jobs:
     parameters: [nu_leptonsf]
     combinations:
       - [nu_leptonsf]
-      - [nu_leptonsf, nu_leptonsf]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -118,9 +114,9 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_LeptonSF_quad.pkl
+      filename: icp_tt2l_LeptonSF.pkl
 
-  - id: icp_tt2l_BTag_b_quad
+  - id: icp_tt2l_BTag_b
     type: icp
     region: SR
     base_point_loaders:
@@ -130,7 +126,6 @@ jobs:
     parameters: [nu_btag_b]
     combinations:
       - [nu_btag_b]
-      - [nu_btag_b, nu_btag_b]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -138,9 +133,9 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_BTag_b_quad.pkl
+      filename: icp_tt2l_BTag_b.pkl
 
-  - id: icp_tt2l_BTag_l_quad
+  - id: icp_tt2l_BTag_l
     type: icp
     region: SR
     base_point_loaders:
@@ -150,7 +145,6 @@ jobs:
     parameters: [nu_btag_l]
     combinations:
       - [nu_btag_l]
-      - [nu_btag_l, nu_btag_l]
     base_points:
       0: [-1.0]
       1: [ 0.0]
@@ -158,7 +152,7 @@ jobs:
     nominal_index: 1
     train_ratio: true
     output:
-      filename: icp_tt2l_BTag_l_quad.pkl
+      filename: icp_tt2l_BTag_l.pkl
 
   # -------------------------------
   # PNN (Parametric NN for local DCR) using the same lSF setup
@@ -174,7 +168,6 @@ jobs:
     process: tt2l
     parameters: [nu_trigger]
     combinations: [["nu_trigger"]]           # linear
-    # combinations: [["nu_trigger"], ["nu_trigger","nu_trigger"]]  # quadratic
     base_points:
       - coords: [-1.0]
         loader: tt2l_TriggerDown
@@ -187,7 +180,7 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_Trigger_quad
+      use_icp: icp_tt2l_Trigger
     output: 
       filename: "pnn_tt2l_Trigger.pkl"
 
@@ -211,7 +204,7 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_L1Prefire_quad
+      use_icp: icp_tt2l_L1Prefire
     output: { filename: "pnn_tt2l_L1Prefire.pkl" }
   
   - id: pnn_tt2l_PU
@@ -234,7 +227,7 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_PU_quad
+      use_icp: icp_tt2l_PU
     output: { filename: "pnn_tt2l_PU.pkl" }
   
   - id: pnn_tt2l_LeptonSF
@@ -257,7 +250,7 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_LeptonSF_quad
+      use_icp: icp_tt2l_LeptonSF
     output: { filename: "pnn_tt2l_LeptonSF.pkl" }
   
   - id: pnn_tt2l_BTag_b
@@ -280,7 +273,7 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_BTag_b_quad
+      use_icp: icp_tt2l_BTag_b
     output: { filename: "pnn_tt2l_BTag_b.pkl" }
   
   - id: pnn_tt2l_BTag_l
@@ -303,5 +296,5 @@ jobs:
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l
-      use_icp: icp_tt2l_BTag_l_quad
+      use_icp: icp_tt2l_BTag_l
     output: { filename: "pnn_tt2l_BTag_l.pkl" }

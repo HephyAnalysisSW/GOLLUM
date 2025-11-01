@@ -28,7 +28,7 @@ else:
 
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-CFG = yaml_loader.load_yaml_recursive(cfg_path)
+CFG = yaml_loader.load_yaml(cfg_path)
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
 

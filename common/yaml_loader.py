@@ -122,7 +122,7 @@ def _print_include_tree(root_file: str, trace):
 
 def _collect_id_deps(job):
     """
-    New dependency model:
+    Dependency model (by IDs):
       - extras.use_scaler: <scaler_job_id>
       - extras.use_ic:     <ic_job_id>
       - extras.use_icp:    <icp_job_id>
@@ -214,9 +214,12 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     For each job in cfg (IC, Scaler, ICP, TFMC, BIT):
       - try to load its saved artifact
       - on failure, print the training command the user should run.
+
     After the first pass, do a small second pass:
       - For each TFMC job, pull referenced scaler/IC (by ID) from cfg and attach
         scaler_means/scaler_vars and ic_weight_sum onto the TFMC job entry.
+      - For each PNN job with extras.use_icp, verify its (parameters, combinations)
+        match the referenced ICP artifact; print a check result.
     """
     import os, sys
     sys.path.insert(0, '..'); sys.path.insert(0, '../..')  # project roots
@@ -388,10 +391,10 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
 
         # (ignore other types here)
 
-    # ---------- Second pass: attach TFMC scaler/IC payloads by ID ----------
-    # We do not mutate any TFMC model object here (it might not be loadable),
-    # we just stash the needed numbers on the TFMC job for later use.
+    # ---------- Second pass ----------
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
+
+    # (A) Attach TFMC scaler/IC payloads by ID
     for j in (cfg.get("jobs") or []):
         if not isinstance(j, dict):
             continue
@@ -423,6 +426,40 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                         print(f"[TFMC attach] {j['id']}: ic <- {iid} (sum={sumw:g})")
                     except Exception:
                         pass
+
+    # (B) PNN ↔ ICP consistency check (parameters & combinations)
+    for j in (cfg.get("jobs") or []):
+        if not isinstance(j, dict):
+            continue
+        if j.get("type") == "pnn":
+            extras = j.get("extras", {}) or {}
+            icp_id = extras.get("use_icp")
+            if isinstance(icp_id, str) and icp_id in id2job:
+                icp_job = id2job[icp_id]
+                icp = icp_job.get("predictor", None)
+                if icp is not None:
+                    # PNN spec
+                    pnn_params = list(j.get("parameters", []) or [])
+                    pnn_combs  = [tuple(c) for c in (j.get("combinations", []) or [])]
+                    # ICP artifact
+                    try:
+                        icp_params = list(getattr(icp, "parameters"))
+                        icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
+                    except Exception:
+                        print(f"[PNN↔ICP check] {j['id']} vs {icp_id}: unable to read ICP fields.")
+                        j["icp_consistency_ok"] = False
+                        continue
+                    ok_params = (pnn_params == icp_params)
+                    ok_combs  = (pnn_combs  == icp_combs)
+                    j["icp_consistency_ok"] = bool(ok_params and ok_combs)
+                    if j["icp_consistency_ok"]:
+                        print(f"[PNN↔ICP check] {j['id']} vs {icp_id}: OK")
+                    else:
+                        print(f"[PNN↔ICP check] {j['id']} vs {icp_id}: MISMATCH")
+                        if not ok_params:
+                            print(f"  parameters: PNN={pnn_params}  ICP={icp_params}")
+                        if not ok_combs:
+                            print(f"  combinations: PNN={pnn_combs}  ICP={icp_combs}")
 
     # ---- Summary block ----
     print("\n=== SUMMARY ===")
