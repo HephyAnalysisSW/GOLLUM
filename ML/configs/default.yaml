@@ -1,26 +1,16 @@
-# File: configs/train_config.yaml
+# File: configs/no_reg.yaml
 version: 1
 
 project:
   name: SBI-PDF
 
 defaults:
-  module_samples: "data.samples"           # jobs import datasets/views by name from here
+  module_samples: "data.samples"     # jobs import datasets/views by name from here
   observer_weight: "weight"
   batch_size: 65536
-  num_workers: 0                           # if you later parallelize I/O
+  num_workers: 0
   seed: 1
-  # When true, a trainer may skip re-running deps if their artifacts exist
   reuse_existing_artifacts: true
-
-datasets:
-  # The code will import these by name from `data.samples`.
-  # Listed here only for discoverability / validation.
-  available:
-    - tt2l
-    - tt2l_GG
-    - tt2l_QG
-    - tt2l_QQ
 
 jobs:
   # -------------------------------
@@ -28,8 +18,8 @@ jobs:
   # -------------------------------
   - id: ic_tt2l_GG
     type: ic
-    process: tt2l_GG               # sample or view name from data.samples
-    selection: null                # optional extra selection layered on top (None for now)
+    process: tt2l_GG
+    selection: null
     output:
       filename: "IC_tt2l_GG.pkl"
 
@@ -50,6 +40,13 @@ jobs:
   # -------------------------------
   # Scalers (one per class/view)
   # -------------------------------
+  - id: scaler_tt2l
+    type: scaler
+    process: tt2l
+    selection: null
+    output:
+      filename: "Scaler_tt2l.pkl"
+
   - id: scaler_tt2l_GG
     type: scaler
     process: tt2l_GG
@@ -71,32 +68,28 @@ jobs:
     output:
       filename: "Scaler_tt2l_QQ.pkl"
 
+  # -------------------------------
+  # TFMC classifier (split processes)
+  # -------------------------------
   - id: tfmc_split_processes
     type: classifier
-    framework: "tfmc"              # free-form tag your trainer can switch on
+    framework: "tfmc"
     data:
-      classes: [tt2l_GG, tt2l_QG, tt2l_QQ]   # import these from data.samples
-      # features/observers come from each loader; trainer should validate they share same feature layout
-      weight: "${observer_weight}"
+      classes: [tt2l_GG, tt2l_QG, tt2l_QQ]
     model:
       activation: relu
-      hidden_layers: [64, 64, 64]
-      dropout_rate: 0.20
-      regularization:
-        l1: 0.10
-        l2: 0.05
+      hidden_layers: [128, 128]
     optim:
-      epochs: 300
-      phaseout_epochs: 100
-      learning_rate: 0.1
+      epochs: 500
+      phaseout_epochs: 0
+      learning_rate: 0.02
     runtime:
-      batch_size: 65536 
-      num_workers: 1 
-      seed: 1 
+      batch_size: 65536
+      num_workers: 1
+      seed: 1
     extras:
       use_ic: true
       use_scaler: true
-      # Optionally declare dependencies; your runner can ensure they exist or trigger them first
       depends_on:
         - ic_tt2l_GG
         - ic_tt2l_QG
@@ -105,5 +98,6 @@ jobs:
         - scaler_tt2l_QG
         - scaler_tt2l_QQ
     output:
-      filename: "tfmc_2_reg.h5"    # or .pt / .pkl as you prefer
+      filename: "tfmc_no_reg.pkl"
 
+  - include: [default_icp_pnn.yaml, bit.yaml]
