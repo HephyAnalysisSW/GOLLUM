@@ -8,6 +8,7 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 import common.user as user
+import common.yaml_loader as yaml_loader
 from ML.ICP.ICP import InclusiveCrosssectionParametrization
 
 # ---------------- args ----------------
@@ -20,8 +21,7 @@ args = p.parse_args()
 
 # ---------------- load cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-with open(cfg_path, "r") as f:
-    cfg = yaml.safe_load(f) or {}
+cfg = yaml_loader.load_yaml_recursive(cfg_path)
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
@@ -63,7 +63,7 @@ if nominal_index not in bp_dict:
 
 # ---------------- output path ----------------
 out = J.get("output", {}) or {}
-cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]
+cfg_base = os.path.join( cfg.get("version", "default"), job['region'] )
 filename = out.get("filename", f"ICP_{J['id']}.pkl")
 model_directory = os.path.join(user.model_directory, cfg_base, "ICP")
 os.makedirs(model_directory, exist_ok=True)

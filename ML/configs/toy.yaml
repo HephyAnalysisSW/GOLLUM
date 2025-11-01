@@ -1,7 +1,6 @@
-version: 1
+version: v1
 
-project:
-  name: TFMC-toy
+region: SR
 
 defaults:
   module_samples: "data.toy_data"
@@ -9,11 +8,6 @@ defaults:
   batch_size: 2048
   seed: null
   reuse_existing_artifacts: true
-
-datasets:
-  available:
-    - toy_uniform
-    - toy_step
 
 jobs:
   - id: tfmc_toy

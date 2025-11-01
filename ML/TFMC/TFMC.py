@@ -172,10 +172,10 @@ class TFMC:
             meta.update(extra)
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(meta, f)
-        print("Written to", os.path.join(save_dir, "config.pkl"))
+        #print("Written to", os.path.join(save_dir, "config.pkl"))
         with open(os.path.join(save_dir, "checkpoint"), "w") as f:
             f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
-        print("Written to", os.path.join(save_dir, "checkpoint"))
+        #print("Written to", os.path.join(save_dir, "checkpoint"))
 
     @classmethod
     def load(cls, save_dir: str) -> "TFMC":

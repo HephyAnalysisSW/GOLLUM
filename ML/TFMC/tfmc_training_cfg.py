@@ -10,6 +10,7 @@ sys.path.insert(0, '../..')
 import tensorflow as tf
 
 import common.user as user
+import common.yaml_loader as yaml_loader
 from data.plot_options import plot_options
 
 from ML.TFMC.TFMC import TFMC
@@ -38,8 +39,7 @@ random.seed(args.seed)
 
 # ---------------- load cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-with open(cfg_path, "r") as f:
-    cfg = yaml.safe_load(f) or {}
+cfg = yaml_loader.load_yaml_recursive(cfg_path)
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
@@ -93,10 +93,10 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
 # ---------------- dirs ----------------
 
-cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]  # e.g. "../configs/no_reg.yaml" -> "no_reg"
+cfg_base = os.path.join( cfg.get("version", "default"), job['region'] )
 
-model_dir = os.path.join(user.model_directory, "TFMC", cfg_base, J["id"])
-plot_dir  = os.path.join(user.plot_directory,  "TFMC", cfg_base, J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base, "TFMC", J["id"])
 
 from common.helpers import copyIndexPHP
 copyIndexPHP( plot_dir )
@@ -341,6 +341,7 @@ if not args.overwrite:
             model = TFMC.load(model_dir)
             print(f"Resuming from epoch {start_epoch}.")
     except Exception:
+        print("Failed!")
         pass
 
 # Build fresh model if not resumed

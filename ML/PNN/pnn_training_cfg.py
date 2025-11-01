@@ -26,8 +26,9 @@ args = p.parse_args()
 
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-with open(cfg_path, "r") as f:
-    CFG = yaml.safe_load(f) or {}
+import common.yaml_loader as yaml_loader
+CFG = yaml_loader.load_yaml_recursive(cfg_path)
+
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
 
@@ -76,7 +77,7 @@ feat2col = {f: i for i, f in enumerate(feat_names)}
 # ---------------- artifacts: scaler & ICP ----------------
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 use_icp    = bool(J.get("extras", {}).get("use_icp",   False))
-cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]
+cfg_base = os.path.join( CFG.get("version", "default"), J['region'] )
 
 scaler_means = np.zeros(input_dim, dtype=np.float64)
 scaler_vars  = np.ones(input_dim, dtype=np.float64)
@@ -150,16 +151,18 @@ phaseout     = int(J.get("optim", {}).get("phaseout_epochs", 0))
 lr           = float(J.get("optim", {}).get("learning_rate", 1e-3))
 
 pnn = None
-model_dir = os.path.join(user.model_directory, "PNN", cfg_base, J["id"])
-plot_dir  = os.path.join(user.plot_directory,  "PNN", cfg_base, J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base, "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base, "PNN", J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 if not args.overwrite:
     try:
         print(f"Trying to load PNN from {model_dir}")
         pnn = PNN.load(model_dir)
+        print("Success!")
     except Exception:
         pnn = None
+        print("Failed!")
 
 if pnn is None:
     pnn = PNN(parameters=parameters,

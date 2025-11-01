@@ -1,8 +1,5 @@
 # File: configs/no_reg.yaml
-version: 1
-
-project:
-  name: SBI-PDF
+version: v1
 
 defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here

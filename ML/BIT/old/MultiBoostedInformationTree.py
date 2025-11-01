@@ -12,8 +12,7 @@ import numpy as np
 import operator
 import functools
 
-sys.path.insert(0, '..'); sys.path.insert(0, '../..')
-import ML.BIT.MultiNode as MultiNode
+import MultiNode
 
 default_cfg = {
     "n_trees" : 100,

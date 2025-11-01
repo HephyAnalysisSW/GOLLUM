@@ -8,8 +8,8 @@ sys.path.insert(0, '..'); sys.path.insert(0, '../..')
 
 import common.user as user
 import common.syncer as syncer
+import common.yaml_loader as yaml_loader
 
-from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
 from pdf.PDFParametrization import PDFParametrization
 
 # ---------------- args ----------------
@@ -18,12 +18,17 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+p.add_argument("--numba", action="store_true", help="Use the numba implementation")
 args = p.parse_args()
+
+if args.numba:
+    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+else:
+    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
 
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-with open(cfg_path, "r") as f:
-    CFG = yaml.safe_load(f) or {}
+CFG = yaml_loader.load_yaml_recursive(cfg_path)
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
 
@@ -35,6 +40,7 @@ def list_and_exit():
     flags = []
     if args.overwrite: flags.append("--overwrite")
     if args.small:     flags.append("--small")
+    if args.numba:     flags.append("--numba")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
@@ -122,19 +128,25 @@ if args.small:
     training_weights = {key:val[:n_max] for key, val in training_weights.items()}
 
 # ---------------- build & train BIT ----------------
-cfg_base = os.path.splitext(os.path.basename(cfg_path))[0]
-model_dir = os.path.join(user.model_directory, "BIT", cfg_base, J["id"])
+cfg_base = os.path.join( CFG.get("version", "default"), J['region'] )
+model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
 os.makedirs(model_dir, exist_ok=True)
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
 if args.small:
     model_path = model_path[:-4]+"_small.pkl"
+
 bit = None
-if (not args.overwrite) and os.path.exists(model_path):
-    try:
-        print(f"Trying to load BIT from {model_path}")
-        bit = MultiBoostedInformationTree.load(model_path)
-    except Exception:
-        bit = None
+if not args.overwrite:
+    print(f"Attempt to load BIT from {model_path}")
+    if os.path.exists(model_path):
+        try:
+            bit = MultiBoostedInformationTree.load(model_path)
+            print(f"Loaded BIT from {model_path}")
+        except Exception:
+            pass
+            print("Failed. Training new.")
+    else:
+        print("Not found. Training new.")
 
 if bit is None:
     # pull BIT hyperparameters from YAML
@@ -149,8 +161,6 @@ if bit is None:
     bit.boost()
     bit.save(model_path)
     print(f"Saved BIT -> {model_path}")
-else:
-    print("Loaded existing BIT.")
 
 # ---------------- optional training plots ----------------
 rt = J.get("runtime", {}) or {}
