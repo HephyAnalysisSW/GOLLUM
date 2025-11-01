@@ -186,10 +186,8 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_Trigger_quad]
-      icp_job_id: icp_tt2l_Trigger_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_Trigger_quad
     output: 
       filename: "pnn_tt2l_Trigger.pkl"
 
@@ -212,10 +210,8 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_L1Prefire_quad]
-      icp_job_id: icp_tt2l_L1Prefire_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_L1Prefire_quad
     output: { filename: "pnn_tt2l_L1Prefire.pkl" }
   
   - id: pnn_tt2l_PU
@@ -237,10 +233,8 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_PU_quad]
-      icp_job_id: icp_tt2l_PU_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_PU_quad
     output: { filename: "pnn_tt2l_PU.pkl" }
   
   - id: pnn_tt2l_LeptonSF
@@ -262,10 +256,8 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_LeptonSF_quad]
-      icp_job_id: icp_tt2l_LeptonSF_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_LeptonSF_quad
     output: { filename: "pnn_tt2l_LeptonSF.pkl" }
   
   - id: pnn_tt2l_BTag_b
@@ -287,10 +279,8 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_BTag_b_quad]
-      icp_job_id: icp_tt2l_BTag_b_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_BTag_b_quad
     output: { filename: "pnn_tt2l_BTag_b.pkl" }
   
   - id: pnn_tt2l_BTag_l
@@ -312,10 +302,6 @@ jobs:
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
     extras:
-      use_scaler: true
-      use_icp: true
-      depends_on: [scaler_tt2l, icp_tt2l_BTag_l_quad]
-      icp_job_id: icp_tt2l_BTag_l_quad
+      use_scaler: scaler_tt2l
+      use_icp: icp_tt2l_BTag_l_quad
     output: { filename: "pnn_tt2l_BTag_l.pkl" }
-  
-  

@@ -39,7 +39,7 @@ random.seed(args.seed)
 
 # ---------------- load cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
-cfg = yaml_loader.load_yaml_recursive(cfg_path)
+cfg = yaml_loader.load_yaml(cfg_path)
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
@@ -126,64 +126,34 @@ input_dim = len(feat_names)
 
 # (No explicit observer weight index anymore — weights come from materialize("w"))
 
-# ---------------- load Scaler + IC ----------------
-if use_scaler:
-    dep_ids = list(J.get("extras", {}).get("depends_on", []))
-    dep_scalers = [d for d in dep_ids if d.startswith("scaler_")]
-    scalers = {}
-    if dep_scalers:
-        for dep in dep_scalers:
-            dep_job = next((jj for jj in cfg.get("jobs", []) if jj.get("id") == dep), None)
-            if not dep_job:
-                raise RuntimeError(f"Dependency '{dep}' not found in YAML.")
-            fname = dep_job.get("output", {}).get("filename")
-            if not fname:
-                raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
-            proc = dep_job["process"]
-            path = os.path.join(user.model_directory, cfg_base, "Scaler", fname)
-            scalers[proc] = Scaler.load(path)
-            print(f"Loaded Scaler {path}")
-    else:
-        scalers = {}
-        for name in classes_names:
-            path = os.path.join(user.model_directory, cfg_base, "Scaler", f"Scaler_{name}.pkl")
-            scalers[name] = Scaler.load(path)  # fixed typo
-            print(f"Loaded Scaler {path}")
-    s0 = scalers[classes_names[0]]
-    if list(s0.feature_names) != list(feat_names):
-        raise RuntimeError("Scaler feature_names do not match loader feature_names.")
-    feature_means = s0.feature_means
-    feature_variances = s0.feature_variances
+# ---------------- load Scaler (by job id; set means/variances) ----------------
+scaler_id = J["extras"].get("use_scaler", None)
+if scaler_id:
+    sj    = next(jj for jj in (cfg.get("jobs") or []) if jj.get("id") == scaler_id)
+    sname = sj["output"]["filename"]
+    spath = os.path.join(user.model_directory, cfg_base, "Scaler", sname)
+    sc    = Scaler.load(spath)
+    feature_means     = sc.feature_means
+    feature_variances = sc.feature_variances
+    print(f"Loaded Scaler {spath}")
 else:
-    feature_means = np.zeros(input_dim, dtype=np.float64)
-    feature_variances = np.ones(input_dim, dtype=np.float64)
+    feature_means     = np.zeros(input_dim, dtype=np.float64)
+    feature_variances = np.ones(input_dim,  dtype=np.float64)
+    print("No Scaler used (identity).")
 
-if use_ic:
-    dep_ids = list(J.get("extras", {}).get("depends_on", []))
-    dep_ics = [d for d in dep_ids if d.startswith("ic_")]
-    ic_weights = {}
-    if dep_ics:
-        for dep in dep_ics:
-            dep_job = next((jj for jj in cfg.get("jobs", []) if jj.get("id") == dep), None)
-            if not dep_job:
-                raise RuntimeError(f"Dependency '{dep}' not found in YAML.")
-            fname = dep_job.get("output", {}).get("filename")
-            if not fname:
-                raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
-            proc = dep_job["process"]
-            path = os.path.join(user.model_directory, cfg_base, "IC", fname)
-            ic = InclusiveCrosssection.load(path)
-            ic_weights[proc] = ic.total_weight
-            print(f"Loaded IC {path}")
-    else:
-        for name in classes_names:
-            path = os.path.join(user.model_directory, cfg_base, "IC", f"IC_{name}.pkl")
-            ic = InclusiveCrosssection.load(path)
-            ic_weights[name] = ic.total_weight
-            print(f"Loaded IC {path}")
+# ---------------- load IC (by job id; broadcast to all classes) ----------------
+ic_id = J["extras"].get("use_ic", None)
+if ic_id:
+    ij    = next(jj for jj in (cfg.get("jobs") or []) if jj.get("id") == ic_id)
+    iname = ij["output"]["filename"]
+    ipath = os.path.join(user.model_directory, cfg_base, "IC", iname)
+    ic    = InclusiveCrosssection.load(ipath)
+    w     = float(ic.total_weight)
+    ic_weights = {name: w for name in classes_names}
+    print(f"Loaded IC {ipath} (broadcast w={w})")
 else:
     ic_weights = {name: 1.0 for name in classes_names}
-    print("No IC used.")
+    print("No IC used (all weights = 1.0).")
 
 # ---------------- build model ----------------
 model = TFMC(
@@ -200,8 +170,7 @@ model = TFMC(
     reweighting=True,
 )
 model.set_scaler(feature_means, feature_variances)
-if use_ic:
-    model.set_ic_weights_from_sums(classes_names, ic_weights)
+model.set_ic_weights_from_sums(classes_names, ic_weights)
 
 # ---------------- data iterator ----------------
 def iterate_epoch(shard_limit: int | None = None):

@@ -74,81 +74,59 @@ for L in loaders[1:]:
 input_dim = len(feat_names)
 feat2col = {f: i for i, f in enumerate(feat_names)}
 
-# ---------------- artifacts: scaler & ICP ----------------
-use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
-use_icp    = bool(J.get("extras", {}).get("use_icp",   False))
-cfg_base = os.path.join( CFG.get("version", "default"), J['region'] )
+# ---------------- artifacts: scaler & ICP (IDs in YAML) ----------------
+cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
 
-scaler_means = np.zeros(input_dim, dtype=np.float64)
-scaler_vars  = np.ones(input_dim, dtype=np.float64)
-if use_scaler:
-    from ML.Scaler.Scaler import Scaler
-    dep_ids = list(J.get("extras", {}).get("depends_on", []))
-    dep_scalers = [d for d in dep_ids if d.startswith("scaler_")]
-    if dep_scalers:
-        dep = dep_scalers[0]
-        dep_job = next((jj for jj in CFG.get("jobs", []) if jj.get("id") == dep), None)
-        if not dep_job:
-            raise RuntimeError(f"Dependency '{dep}' not found in YAML.")
-        fname = dep_job.get("output", {}).get("filename")
-        if not fname:
-            raise RuntimeError(f"Dependency '{dep}' missing output.filename.")
-        path = os.path.join(user.model_directory, cfg_base, "Scaler", fname)
-    else:
-        proc = J.get("process")
-        path = os.path.join(user.model_directory, cfg_base, "Scaler", f"Scaler_{proc}.pkl")
-    sc = Scaler.load(path)
+# Scaler (by job id)
+from ML.Scaler.Scaler import Scaler
+scaler_id = J["extras"].get("use_scaler", None)
+if scaler_id:
+    sj     = next(jj for jj in (CFG.get("jobs") or []) if jj.get("id") == scaler_id)
+    sname  = sj["output"]["filename"]
+    spath  = os.path.join(user.model_directory, cfg_base, "Scaler", sname)
+    sc     = Scaler.load(spath)
     scaler_means, scaler_vars = sc.feature_means, sc.feature_variances
-    print(f"Loaded Scaler: {path}")
+    print(f"Loaded Scaler: {spath}")
+else:
+    scaler_means = np.zeros(input_dim, dtype=np.float64)
+    scaler_vars  = np.ones(input_dim,  dtype=np.float64)
+    print("No Scaler configured; using identity.")
 
+# ICP (by job id) -> lightweight predictor
 icp_predictor = None
-if use_icp:
+icp_id = J["extras"].get("use_icp", None)
+if icp_id:
     from ML.ICP.ICP import InclusiveCrosssectionParametrization
-    icp_id = J.get("extras", {}).get("icp_job_id", None)
-    dep_ids = list(J.get("extras", {}).get("depends_on", []))
-    dep_ics = [d for d in dep_ids if d.startswith("ic_") or d.startswith("icp_")]
-    if not icp_id and dep_ics:
-        icp_id = dep_ics[0]
-    if not icp_id:
-        raise RuntimeError("use_icp=True but no icp_job_id / depends_on ICP provided.")
-    icp_job = next((jj for jj in CFG.get("jobs", []) if jj.get("id") == icp_id), None)
-    if not icp_job:
-        raise RuntimeError(f"ICP job '{icp_id}' not found in YAML.")
-    icp_fname = icp_job.get("output", {}).get("filename")
-    if not icp_fname:
-        raise RuntimeError(f"ICP job '{icp_id}' has no output.filename.")
-    icp_path = os.path.join(user.model_directory, cfg_base, "ICP", icp_fname)
-    icp = InclusiveCrosssectionParametrization.load(icp_path)
+    ij      = next(jj for jj in (CFG.get("jobs") or []) if jj.get("id") == icp_id)
+    icp_fn  = ij["output"]["filename"]
+    icp_path= os.path.join(user.model_directory, cfg_base, "ICP", icp_fn)
+    icp     = InclusiveCrosssectionParametrization.load(icp_path)
+    print(f"Loaded ICP: {icp_path}")
 
-    # Build a lightweight predictor from the saved ICP payload (no get_predictor needed)
+    # Build a lightweight predictor from the saved payload
     _params = list(icp.parameters)
     _combs  = [tuple(c) for c in icp.combinations]
     _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
 
-    def _icp_predictor(**kwargs):
-        # kwargs like {"nu_lSF": value, ...} in the same order/names as _params
+    def icp_predictor(**kwargs):
+        # kwargs like {"nu_trigger": val, ...} matching _params names
         nu_vec = [kwargs[p] for p in _params]
-        # construct ν_A vector for the given combinations
         def _prod(comb):
             v = 1.0
-            for p in comb:
-                v *= nu_vec[_params.index(p)]
+            for p in comb: v *= nu_vec[_params.index(p)]
             return v
         nu_A = np.array([_prod(c) for c in _combs], dtype=np.float64)
         return float(np.exp(nu_A @ _DeltaA))
 
-    icp_predictor = _icp_predictor
-    print(f"Loaded ICP: {icp_path}")
-
 # ---------------- build model ----------------
-parameters   = list(J["parameters"])
-combinations = [tuple(c) for c in J["combinations"]]
-hidden_layers = J.get("model", {}).get("hidden_layers", [128,128])
-activation    = J.get("model", {}).get("activation", "relu")
+parameters      = list(J["parameters"])
+combinations    = [tuple(c) for c in J["combinations"]]
+hidden_layers   = J.get("model", {}).get("hidden_layers", [128, 128])
+activation      = J.get("model", {}).get("activation", "relu")
 initialize_zero = bool(J.get("model", {}).get("initialize_zero", False))
-epochs       = int(J.get("optim", {}).get("epochs", 200))
-phaseout     = int(J.get("optim", {}).get("phaseout_epochs", 0))
-lr           = float(J.get("optim", {}).get("learning_rate", 1e-3))
+epochs          = int(J.get("optim", {}).get("epochs", 200))
+phaseout        = int(J.get("optim", {}).get("phaseout_epochs", 0))
+lr              = float(J.get("optim", {}).get("learning_rate", 1e-3))
 
 pnn = None
 model_dir = os.path.join(user.model_directory, cfg_base, "PNN", J["id"])

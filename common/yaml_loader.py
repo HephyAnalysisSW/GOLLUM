@@ -87,7 +87,7 @@ def _expand(node, current_file: str, seen, parent_key: str | None):
 
     return node  # scalars unchanged
 
-def load_yaml_recursive(path: str):
+def load_yaml(path: str):
     doc = _read_yaml(path)
     return _expand(doc, os.path.abspath(path), seen=set(), parent_key=None)
 
@@ -120,21 +120,37 @@ def _print_include_tree(root_file: str, trace):
     else:
         print("Include tree: (none)")
 
+def _collect_id_deps(job):
+    """
+    New dependency model:
+      - extras.use_scaler: <scaler_job_id>
+      - extras.use_ic:     <ic_job_id>
+      - extras.use_icp:    <icp_job_id>
+    Only string values are treated as dependencies.
+    """
+    deps = []
+    extras = job.get("extras", {}) or {}
+    for k in ("use_scaler", "use_ic", "use_icp"):
+        v = extras.get(k, None)
+        if isinstance(v, str):
+            deps.append(v)
+    return deps
+
 def _build_job_layers(jobs):
-    # Build DAG from extras.depends_on
-    idx = {j.get("id"): j for j in jobs if isinstance(j, dict)}
+    # Build DAG from ID-based references (see _collect_id_deps)
+    idx = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
     indeg = defaultdict(int)
     adj = defaultdict(list)
     for j in jobs:
-        if not isinstance(j, dict): continue
+        if not isinstance(j, dict): 
+            continue
         jid = j.get("id")
-        deps = []
-        extras = j.get("extras", {})
-        if isinstance(extras, dict):
-            deps = extras.get("depends_on", []) or []
+        if not jid:
+            continue
+        deps = _collect_id_deps(j)
         for d in deps:
             if d not in idx:
-                # Ignore edges to unknown nodes; they might come from other files not loaded here
+                # Ignore edges to unknown nodes; they might be in other files not loaded here
                 continue
             adj[d].append(jid)
             indeg[jid] += 1
@@ -148,7 +164,8 @@ def _build_job_layers(jobs):
         layer = []
         for _ in range(len(q)):
             u = q.popleft()
-            if u in seen: continue
+            if u in seen: 
+                continue
             layer.append(u); seen.add(u)
             for v in sorted(adj[u]):
                 indeg[v] -= 1
@@ -175,10 +192,10 @@ def _print_jobs(cfg):
     print(f"Jobs overview: {total} total, {roots} root(s), {len(layers)} layer(s).")
     for li, layer in enumerate(layers):
         print(f"  Layer {li}: " + ", ".join(layer))
-    # Optional: per-job dependency listing in a compact form
+    # Per-job dependency listing (ID-based)
     print("Job dependencies:")
     for jid in sorted(idx.keys()):
-        deps = idx[jid].get("extras", {}).get("depends_on", []) or []
+        deps = _collect_id_deps(idx[jid])
         deps_str = ", ".join(deps) if deps else "—"
         jtype = idx[jid].get("type", "unknown")
         print(f"  - {jid} [{jtype}]  <=  {deps_str}")
@@ -192,19 +209,18 @@ def print_summary(cfg, root_file, include_trace):
     # Jobs layout
     _print_jobs(cfg)
 
-def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
+def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     """
     For each job in cfg (IC, Scaler, ICP, TFMC, BIT):
       - try to load its saved artifact
       - on failure, print the training command the user should run.
+    After the first pass, do a small second pass:
+      - For each TFMC job, pull referenced scaler/IC (by ID) from cfg and attach
+        scaler_means/scaler_vars and ic_weight_sum onto the TFMC job entry.
     """
     import os, sys
-    from importlib import import_module
+    sys.path.insert(0, '..'); sys.path.insert(0, '../..')  # project roots
 
-    # project roots (like in your trainers)
-    sys.path.insert(0, '..'); sys.path.insert(0, '../..')
-
-    # user dirs
     import common.user as user
 
     # helpers
@@ -221,8 +237,7 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
     if overwrite: same_flags.append("--overwrite")
     FLAGS = " " + " ".join(same_flags) if same_flags else ""
 
-    # Import model classes on demand
-    # (Keep imports local so environments that lack TF don’t choke until needed)
+    # On-demand imports to avoid heavy deps until needed
     def try_load_scaler(path):
         try:
             from ML.Scaler.Scaler import Scaler
@@ -252,12 +267,8 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
             return None
 
     def try_load_tfmc(model_dir):
-        # Prefer a lightweight existence check; if your TFMC has .load(dir), use it.
+        # If TFMC has .load(model_dir), you can use it; otherwise check for a TF checkpoint
         try:
-            from ML.TFMC.TFMC import TFMC
-            # If you have TFMC.load(model_dir), uncomment:
-            # return TFMC.load(model_dir)
-            # Otherwise, rely on TensorFlow checkpoint presence:
             import tensorflow as tf
             latest = tf.train.latest_checkpoint(model_dir)
             return object() if latest else None
@@ -277,12 +288,14 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
     # Summary accumulators
     ok, missing = [], []
 
-    # Walk all jobs once
+    # ---------- First pass: load artifacts ----------
     for i_job, job in enumerate((cfg.get("jobs") or [])):
-        if not isinstance(job, dict): continue
+        if not isinstance(job, dict): 
+            continue
         jid  = job.get("id")
         jtyp = job.get("type")
-        if not jid or not jtyp: continue
+        if not jid or not jtyp: 
+            continue
 
         base = cfg_base_for(job)
 
@@ -355,10 +368,7 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] TFMC {jid}  (expected at {model_dir})")
-                # optional extra flags shown like your script
-                extra = []
-                # You can tweak defaults here if you want to echo epochs/batch overrides
-                print_flags = FLAGS  # keep same overwrite/small
+                print_flags = FLAGS  # keep same overwrite/small echo
                 missing.append(f"python TFMC/tfmc_training_cfg.py {config_path}{print_flags} --job {jid}")
 
         # ---------- BIT ----------
@@ -378,6 +388,42 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
 
         # (ignore other types here)
 
+    # ---------- Second pass: attach TFMC scaler/IC payloads by ID ----------
+    # We do not mutate any TFMC model object here (it might not be loadable),
+    # we just stash the needed numbers on the TFMC job for later use.
+    id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
+    for j in (cfg.get("jobs") or []):
+        if not isinstance(j, dict):
+            continue
+        if j.get("type") == "classifier" and j.get("framework") == "tfmc":
+            extras = j.get("extras", {}) or {}
+            # Scaler stats
+            sid = extras.get("use_scaler")
+            if isinstance(sid, str) and sid in id2job:
+                sj = id2job[sid]
+                sc = sj.get("predictor", None)
+                if sc is not None:
+                    try:
+                        means = list(getattr(sc, "feature_means"))
+                        vars_ = list(getattr(sc, "feature_variances"))
+                        j["scaler_means"] = means
+                        j["scaler_vars"]  = vars_
+                        print(f"[TFMC attach] {j['id']}: scaler <- {sid}")
+                    except Exception:
+                        pass
+            # IC total weight
+            iid = extras.get("use_ic")
+            if isinstance(iid, str) and iid in id2job:
+                ij = id2job[iid]
+                ic = ij.get("predictor", None)
+                if ic is not None:
+                    try:
+                        sumw = float(getattr(ic, "total_weight"))
+                        j["ic_weight_sum"] = sumw
+                        print(f"[TFMC attach] {j['id']}: ic <- {iid} (sum={sumw:g})")
+                    except Exception:
+                        pass
+
     # ---- Summary block ----
     print("\n=== SUMMARY ===")
     print(f"Found {len(ok)} ready artifact(s), {len(missing)} missing.")
@@ -386,14 +432,11 @@ def verify_or_suggest(cfg, config_path, overwrite=False, prefer_numba=False):
         for cmd in missing:
             print(cmd)
 
-
 # --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
-    import sys, json
+    import sys
     root = sys.argv[1]
-    cfg = load_yaml_recursive(root)
+    cfg = load_yaml(root)
     print_summary(cfg, root, _INCLUDE_TRACE)
-    #print()  # spacer
-    #print(json.dumps(cfg, indent=2))
-    verify_or_suggest(cfg, root, overwrite=False, prefer_numba=False)
+    load_surrogates(cfg, root, overwrite=False, prefer_numba=False)
 
