@@ -33,23 +33,23 @@ likelihood:
                 - id: L1Prefire
                   type: pnn
                   job: pnn_tt2l_GG_L1Prefire
-                  parameters: [nu_trigger]
+                  parameters: [nu_l1prefire]
                 - id: PU
                   type: pnn
                   job: pnn_tt2l_GG_PU
-                  parameters: [nu_trigger]
+                  parameters: [nu_pu]
                 - id: LeptonSF
                   type: pnn
                   job: pnn_tt2l_GG_LeptonSF
-                  parameters: [nu_trigger]
+                  parameters: [nu_leptonsf]
                 - id: BTag_b
                   type: pnn
                   job: pnn_tt2l_GG_BTag_b
-                  parameters: [nu_trigger]
+                  parameters: [nu_btag_b]
                 - id: BTag_l
                   type: pnn
                   job: pnn_tt2l_GG_BTag_l
-                  parameters: [nu_trigger]
+                  parameters: [nu_btag_l]
             - id: tt2l_QG
               sample: tt2l_QG
               POI:
@@ -68,23 +68,23 @@ likelihood:
                 - id: L1Prefire
                   type: pnn
                   job: pnn_tt2l_QG_L1Prefire
-                  parameters: [nu_trigger]
+                  parameters: [nu_l1prefire]
                 - id: PU
                   type: pnn
                   job: pnn_tt2l_QG_PU
-                  parameters: [nu_trigger]
+                  parameters: [nu_pu]
                 - id: LeptonSF
                   type: pnn
                   job: pnn_tt2l_QG_LeptonSF
-                  parameters: [nu_trigger]
+                  parameters: [nu_leptonsf]
                 - id: BTag_b
                   type: pnn
                   job: pnn_tt2l_QG_BTag_b
-                  parameters: [nu_trigger]
+                  parameters: [nu_btag_b]
                 - id: BTag_l
                   type: pnn
                   job: pnn_tt2l_QG_BTag_l
-                  parameters: [nu_trigger]
+                  parameters: [nu_btag_l]
             - id: tt2l_QQ
               sample: tt2l_QQ
               POI:
@@ -103,24 +103,23 @@ likelihood:
                 - id: L1Prefire
                   type: pnn
                   job: pnn_tt2l_QQ_L1Prefire
-                  parameters: [nu_trigger]
+                  parameters: [nu_l1prefire]
                 - id: PU
                   type: pnn
                   job: pnn_tt2l_QQ_PU
-                  parameters: [nu_trigger]
+                  parameters: [nu_pu]
                 - id: LeptonSF
                   type: pnn
                   job: pnn_tt2l_QQ_LeptonSF
-                  parameters: [nu_trigger]
+                  parameters: [nu_leptonsf]
                 - id: BTag_b
                   type: pnn
                   job: pnn_tt2l_QQ_BTag_b
-                  parameters: [nu_trigger]
+                  parameters: [nu_btag_b]
                 - id: BTag_l
                   type: pnn
                   job: pnn_tt2l_QQ_BTag_l
-                  parameters: [nu_trigger]
-
+                  parameters: [nu_btag_l]
 
 jobs:
   - include: bit_split.yaml
