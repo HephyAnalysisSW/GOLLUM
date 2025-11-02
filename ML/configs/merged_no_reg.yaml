@@ -8,6 +8,50 @@ defaults:
   seed: 1
   reuse_existing_artifacts: true
 
+likelihood:
+    regions:
+        - id: SR # main signal region
+          classifier: 
+            type: null
+            id: null    # no classifier needed for a single process
+          classes:
+            - id: tt2l
+              sample: tt2l
+              POI:
+                job: bit_tt2l
+                type: bit
+                paramaters: [c0, c1, c2, c3, c4, c5]
+
+              systematics: 
+                - id: Normalization
+                  type: lnN
+                  value: 0.05 
+                  parameters: [nu_norm]
+                - id: Trigger
+                  type: pnn
+                  job: pnn_tt2l_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: pnn
+                  job: pnn_tt2l_L1Prefire
+                  parameters: [nu_trigger]
+                - id: PU
+                  type: pnn
+                  job: pnn_tt2l_PU
+                  parameters: [nu_trigger]
+                - id: LeptonSF
+                  type: pnn
+                  job: pnn_tt2l_LeptonSF
+                  parameters: [nu_trigger]
+                - id: BTag_b
+                  type: pnn
+                  job: pnn_tt2l_BTag_b
+                  parameters: [nu_trigger]
+                - id: BTag_l
+                  type: pnn
+                  job: pnn_tt2l_BTag_l
+                  parameters: [nu_trigger]
+
 jobs:
   - include: bit_merged.yaml
 

@@ -8,8 +8,121 @@ defaults:
   seed: 1
   reuse_existing_artifacts: true
 
-jobs:
+likelihood:
+    regions:
+        - id: SR # main signal region
+          classifier: 
+            type: tfmc
+            id: tfmc_split_processes 
+          classes: # Warning! The classes here must be in the same order as the output nodes of the tfmc
+            - id: tt2l_GG
+              sample: tt2l_GG
+              POI:
+                job: bit_tt2l_GG
+                type: bit
+                paramaters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_GG
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_GG]
+                - id: Trigger
+                  type: pnn
+                  job: pnn_tt2l_GG_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: pnn
+                  job: pnn_tt2l_GG_L1Prefire
+                  parameters: [nu_trigger]
+                - id: PU
+                  type: pnn
+                  job: pnn_tt2l_GG_PU
+                  parameters: [nu_trigger]
+                - id: LeptonSF
+                  type: pnn
+                  job: pnn_tt2l_GG_LeptonSF
+                  parameters: [nu_trigger]
+                - id: BTag_b
+                  type: pnn
+                  job: pnn_tt2l_GG_BTag_b
+                  parameters: [nu_trigger]
+                - id: BTag_l
+                  type: pnn
+                  job: pnn_tt2l_GG_BTag_l
+                  parameters: [nu_trigger]
+            - id: tt2l_QG
+              sample: tt2l_QG
+              POI:
+                job: bit_tt2l_QG
+                type: bit
+                paramaters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_QG
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_QG]
+                - id: Trigger
+                  type: pnn
+                  job: pnn_tt2l_QG_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: pnn
+                  job: pnn_tt2l_QG_L1Prefire
+                  parameters: [nu_trigger]
+                - id: PU
+                  type: pnn
+                  job: pnn_tt2l_QG_PU
+                  parameters: [nu_trigger]
+                - id: LeptonSF
+                  type: pnn
+                  job: pnn_tt2l_QG_LeptonSF
+                  parameters: [nu_trigger]
+                - id: BTag_b
+                  type: pnn
+                  job: pnn_tt2l_QG_BTag_b
+                  parameters: [nu_trigger]
+                - id: BTag_l
+                  type: pnn
+                  job: pnn_tt2l_QG_BTag_l
+                  parameters: [nu_trigger]
+            - id: tt2l_QQ
+              sample: tt2l_QQ
+              POI:
+                job: bit_tt2l_QQ
+                type: bit
+                paramaters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_QQ
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_QQ]
+                - id: Trigger
+                  type: pnn
+                  job: pnn_tt2l_QQ_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: pnn
+                  job: pnn_tt2l_QQ_L1Prefire
+                  parameters: [nu_trigger]
+                - id: PU
+                  type: pnn
+                  job: pnn_tt2l_QQ_PU
+                  parameters: [nu_trigger]
+                - id: LeptonSF
+                  type: pnn
+                  job: pnn_tt2l_QQ_LeptonSF
+                  parameters: [nu_trigger]
+                - id: BTag_b
+                  type: pnn
+                  job: pnn_tt2l_QQ_BTag_b
+                  parameters: [nu_trigger]
+                - id: BTag_l
+                  type: pnn
+                  job: pnn_tt2l_QQ_BTag_l
+                  parameters: [nu_trigger]
 
+
+jobs:
   - include: bit_split.yaml
   # -------------------------------
   # Inclusive Cross Section (IC)
@@ -253,6 +366,7 @@ jobs:
 
   - id: icp_tt2l_QG_L1Prefire
     type: icp
+    region: SR
     base_point_loaders:
       0: tt2l_QG_L1PrefireDown
       1: tt2l_QG

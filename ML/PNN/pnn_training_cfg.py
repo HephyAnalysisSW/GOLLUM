@@ -391,8 +391,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
 
     if do_plot:
         plot_convergence_root(true_h, pred_h, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin)
-        syncer.makeRemoteGif(plot_dir, pattern="epoch_*.png",      name="epoch")
-        syncer.makeRemoteGif(plot_dir, pattern="norm_epoch_*.png", name="norm_epoch")
+        #syncer.makeRemoteGif(plot_dir, pattern="epoch_*.png",      name="epoch")
+        #syncer.makeRemoteGif(plot_dir, pattern="norm_epoch_*.png", name="norm_epoch")
         syncer.sync()
     elif not args.small:
         syncer.sync()
