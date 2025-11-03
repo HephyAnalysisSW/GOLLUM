@@ -14,13 +14,13 @@ likelihood:
           classifier: 
             type: tfmc
             id: tfmc_split_processes 
+            asimov: [tt2l]
           classes: # Warning! The classes here must be in the same order as the output nodes of the tfmc
             - id: tt2l_GG
-              sample: tt2l_GG
               POI:
                 job: bit_tt2l_GG
                 type: bit
-                paramaters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1, c2, c3, c4, c5]
               systematics:
                 - id: Normalization_GG
                   type: lnN
@@ -51,11 +51,10 @@ likelihood:
                   job: pnn_tt2l_GG_BTag_l
                   parameters: [nu_btag_l]
             - id: tt2l_QG
-              sample: tt2l_QG
               POI:
                 job: bit_tt2l_QG
                 type: bit
-                paramaters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1, c2, c3, c4, c5]
               systematics:
                 - id: Normalization_QG
                   type: lnN
@@ -86,11 +85,10 @@ likelihood:
                   job: pnn_tt2l_QG_BTag_l
                   parameters: [nu_btag_l]
             - id: tt2l_QQ
-              sample: tt2l_QQ
               POI:
                 job: bit_tt2l_QQ
                 type: bit
-                paramaters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1, c2, c3, c4, c5]
               systematics:
                 - id: Normalization_QQ
                   type: lnN

@@ -1,3 +1,4 @@
+import copy
 # ----------------------------- Parameter & Hypothesis scaffolding ----------
 class ModelParameter:
     """

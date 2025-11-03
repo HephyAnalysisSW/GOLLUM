@@ -270,11 +270,9 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
             return None
 
     def try_load_tfmc(model_dir):
-        # If TFMC has .load(model_dir), you can use it; otherwise check for a TF checkpoint
         try:
-            import tensorflow as tf
-            latest = tf.train.latest_checkpoint(model_dir)
-            return object() if latest else None
+            from ML.TFMC.TFMC import TFMC
+            return TFMC.load(model_dir) 
         except Exception:
             return None
 
