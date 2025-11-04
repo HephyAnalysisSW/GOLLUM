@@ -1,5 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple, Any, Optional
+from iminuit import Minuit
+
 
 import os
 import yaml
@@ -312,6 +314,7 @@ class N2LL:
         self._meta: Dict[Tuple[str, str], Dict[str, Any]] = {}
         self._N_region: Dict[str, int] = {}                            # region id -> number of events
         self._class_ids_by_region: Dict[str, List[str]] = {}           # region id -> [class ids in order]
+        self._lnN_by_class: Dict[Tuple[str, str], List[Tuple[str, float]]] = {}
 
         # attach predictors from likelihood (already set by yaml_loader.load_likelihood)
         self._prepare_structure()
@@ -354,6 +357,17 @@ class N2LL:
                         raise RuntimeError(f"[N2LL] Missing PNN predictor for {rid}/{cid} systematic '{S.get('id','?')}'")
                     sys_list.append(S)
                 C['_pnn_systs'] = sys_list
+
+                # --- stash lnN normalization pieces: (nuisance_name, log1p(alpha)) ---
+                lnN_terms = []
+                for S in (C.get('systematics') or []):
+                    if S.get('type') == 'lnN':
+                        alpha = float(S.get('value', 0.0))
+                        # assume a single parameter name (usual pattern); if multiple, include all
+                        for pname in (S.get('parameters') or []):
+                            lnN_terms.append((str(pname), math.log1p(alpha)))
+                self._lnN_by_class[key] = lnN_terms
+
 
     # --------- helpers: paths ----------
     def _region_cache_dir(self, region_id: str) -> str:
@@ -715,6 +729,10 @@ class N2LL:
                     groups.append((gm, nuA))
                 nuA_per_group[cid] = groups
 
+            # --- precompute per-class normalization bias ---
+            ln_bias = {cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                                for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                       for cid in class_ids}
             # Chunked evaluation
             chunk = self.eval_chunk_size
             for start in range(0, N, chunk):
@@ -742,15 +760,20 @@ class N2LL:
                             raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid} sys '{gm['id']}'")
                         expo += dA @ nuA
 
-                    exp_expo = np.exp(expo)
+                    exp_expo = np.exp(expo + ln_bias[cid])
                     T_sum += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
 
                 # weights from first class (shared event set)
                 W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
                 total_contrib += _weighted_sum_log1p_minus_x(T_sum, W)
-
+    
         # u_Asimov = -2 * sum W * (log1p(T) - T)
-        return float(-2.0 * total_contrib)
+        total_contrib *=-2     
+
+        # Add nuisance penalty
+        total_contrib += hypothesis.penalty() 
+
+        return total_contrib 
 
     # --------- dataset appends (HDF5) ---------
     @staticmethod
@@ -768,6 +791,76 @@ class N2LL:
         dset[n_old:n_old+n_add, :] = arr
 
 
+class _MinuitArrayAdapter:
+    """Array-based FCN for Minuit (keeps names, prints progress)."""
+    def __init__(self, n2ll, hypothesis, names, print_every=25):
+        self.n2ll = n2ll
+        self.hyp = hypothesis
+        self.names = list(names)
+        self.free = [p for p in hypothesis.parameters if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        self.eval = 0
+        self.print_every = max(1, int(print_every))
+
+    def __call__(self, x):
+        for i, p in enumerate(self.free):
+            p.val = float(x[i])
+        self.eval += 1
+        f = float(self.n2ll(self.hyp))
+        if self.eval % self.print_every == 1:
+            print(f"\n[eval {self.eval:6d}] f = {f: .6e}")
+            self.hyp.print()
+        return f
+
+def make_minuit(n2ll, hypothesis, *, step=0.1, print_every=25):
+    free = [p for p in hypothesis.parameters if not p.isFrozen and not getattr(p, "isIgnored", False)]
+    if not free:
+        raise RuntimeError("No free parameters to fit.")
+    names = [p.name for p in free]
+    x0 = np.array([float(p.val) for p in free], dtype=float)
+
+    adapter = _MinuitArrayAdapter(n2ll, hypothesis, names, print_every=print_every)
+
+    # FCN for iminuit with positional args; keep names via name=...
+    def _fcn_positional(*x):
+        return adapter(np.asarray(x, dtype=float))
+
+    m = Minuit(_fcn_positional, *x0, name=names)
+    m.errordef = 1.0  # -2logL / chi2 objective
+
+    # set step sizes
+    if isinstance(step, dict):
+        for i, n in enumerate(names):
+            m.errors[i] = float(step.get(n, 0.1))
+    else:
+        for i in range(len(names)):
+            m.errors[i] = float(step)
+
+    print("\n[make_minuit] Floating parameters:")
+    for i, n in enumerate(names):
+        print(f"  - {n:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
+    return m, adapter
+
+def run_minuit_fit(n2ll, hypothesis, *, step=0.1, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False):
+    m, adapter = make_minuit(n2ll, hypothesis, step=step, print_every=print_every)
+
+    if do_migrad:
+        print("\n[MIGRAD]"); m.migrad(); print(m)
+    if do_hesse:
+        print("\n[HESSE]"); m.hesse(); print(m)
+    if do_minos:
+        poi_names = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters]
+        if not poi_names:
+            poi_names = list(m.parameters)
+        print("\n[MINOS]", poi_names); m.minos(*poi_names)
+
+    # push best-fit back
+    for i, p in enumerate(adapter.free):
+        p.val = float(m.values[i])
+
+    print("\n[final] Best-fit hypothesis:")
+    hypothesis.print()
+    return m, adapter
 
 # --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
@@ -792,4 +885,12 @@ if __name__ == "__main__":
     n2ll = N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
     n2ll.build_cache()
     n2ll.prepare_runtime()
-    _n2ll = n2ll(hyp) 
+    #_n2ll = n2ll(hyp) 
+
+
+    # run Minuit; prints the model every 25 evaluations by default
+    m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=25, do_migrad=True, do_hesse=True, do_minos=False)
+
+    # best-fit -2logL
+    print("Best -2logL =", m.fval)
+

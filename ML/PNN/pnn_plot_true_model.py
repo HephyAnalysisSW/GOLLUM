@@ -173,12 +173,28 @@ def draw_panel(normalized: bool):
         max_y = 0.0
         for k in range(n_bp):
             max_y = max(max_y, th[feat][:, k].max())
+
         if normalized:
-            y_min, y_max = PLOT_OPTS[feat].get('y_ratio_range', [0.0, (1.2*max_y if max_y>0 else 2.0)])
             y_title = "Ratio to nominal"
+            # data-driven axis from truth only
+            arr = th[feat]
+            finite = np.isfinite(arr)
+            if not finite.any():
+                tmin, tmax = 0.95, 1.05
+            else:
+                tmin = float(np.min(arr[finite])); tmax = float(np.max(arr[finite]))
+                if not np.isfinite(tmin) or not np.isfinite(tmax) or abs(tmax - tmin) < 1e-9:
+                    tmin, tmax = 0.95, 1.05
+            span = max(1e-9, tmax - tmin)
+            pad_frac = 0.10
+            y_min = max(0.0, tmin - pad_frac * span)
+            y_max = tmax + pad_frac * span
         else:
-            y_min, y_max = 0.0, (1.2*max_y if max_y>0 else 1.0)
             y_title = "Weighted counts"
+            max_y = 0.0
+            for k in range(n_bp):
+                max_y = max(max_y, th[feat][:, k].max())
+            y_min, y_max = 0.0, (1.2*max_y if max_y > 0 else 1.0)
 
         hframe = ROOT.TH2F(f"h_{feat}", f";{PLOT_OPTS[feat]['tex']};{y_title}",
                            n_bins, x_min, x_max, 100, y_min, y_max)

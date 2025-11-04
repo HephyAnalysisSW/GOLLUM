@@ -5,13 +5,12 @@ class ModelParameter:
     Lightweight model parameter representation with convenient helpers.
     """
     def __init__(self, name, val=0.0, *, isPOI=False,
-                 isFrozen=False, isPenalized=False, isIgnored=False):
+                 isFrozen=False, isPenalized=False):
         self.name        = str(name)
         self.val         = float(val)
         self.isPOI       = bool(isPOI)
         self.isFrozen    = bool(isFrozen)
         self.isPenalized = bool(isPenalized)
-        self.isIgnored   = bool(isIgnored)
 
     def __repr__(self):
         tags = []
@@ -19,7 +18,6 @@ class ModelParameter:
         else:                tags.append("Nuis.")
         if self.isFrozen:    tags.append("frozen")
         if self.isPenalized: tags.append("pen.")
-        if self.isIgnored:   tags.append("ign.")
         return f"<{self.name}({','.join(tags)})={self.val:.6e}>"
 
     def __str__(self):
@@ -47,7 +45,6 @@ class ModelParameter:
     @classmethod
     def makePenalizedNuisance(cls, name, val=0.0):
         return cls(name=name, val=val, isPenalized=True, isPOI=False)
-
 
 class Hypothesis:
     """
@@ -83,6 +80,11 @@ class Hypothesis:
     @property
     def POIs(self):
         return [p for p in self.parameters if p.isPOI]
+
+    def penalty( self ):
+        ''' Compute the penalty (sum v**2) from all penalized nuisance
+        '''
+        return sum( [ p.val**2 for p in self.parameters if p.isPenalized ] )
 
     @property
     def nuisances(self):
@@ -140,4 +142,3 @@ class Hypothesis:
         print()
         for j, p in enumerate(self.nuisances, start=len(self.POIs)):
             print(f"{j:02d}  {p}")
-
