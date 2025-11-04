@@ -4,7 +4,7 @@ sys.path.insert(0, '../..')
 
 # Load trained TFMC
 from ML.TFMC.TFMC import TFMC
-model_dir = "/groups/hephy/cms/robert.schoefbeck/SBIPDF/models/TFMC/tfmc_split_processes/"
+model_dir = "/groups/hephy/cms/robert.schoefbeck/SBIPDF/models/v1/SR/TFMC/tfmc_split_processes/"
 tfmc = TFMC.load(model_dir)
 
 # Import the new datasets directly (RDataLoader / SelectionView objects)
