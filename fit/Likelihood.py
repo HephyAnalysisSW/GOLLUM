@@ -363,9 +363,10 @@ class N2LL:
                 for S in (C.get('systematics') or []):
                     if S.get('type') == 'lnN':
                         alpha = float(S.get('value', 0.0))
-                        # assume a single parameter name (usual pattern); if multiple, include all
-                        for pname in (S.get('parameters') or []):
-                            lnN_terms.append((str(pname), math.log1p(alpha)))
+                        # assume a single parameter name (usual pattern); if multiple, raise error
+                        if len(S.get('parameters'))!=1: 
+                            raise RuntimeError("Problem in this lnN uncertainty: %r"%S)
+                        lnN_terms.append((S.get('parameters')[0], math.log1p(alpha)))
                 self._lnN_by_class[key] = lnN_terms
 
 
