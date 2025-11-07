@@ -43,7 +43,6 @@ cfg = yaml_loader.load_yaml(cfg_path)
 
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
-observer_weight = defaults.get("observer_weight", "weight")  # retained but no longer used directly
 default_batch = defaults.get("batch_size", 65536)
 default_seed = defaults.get("seed", 1)
 

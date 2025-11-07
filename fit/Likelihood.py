@@ -215,9 +215,16 @@ def _expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, fl
     N = len(poi_names)
     c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names], dtype=np.float64)
     quads = []
+
+    #FIXME careful here, double sum
+    # This is the logic:
+    # BIT predicts and works with *derivatives*, so R = 1 + c_A R_A = 1 + Sum_a ca Ra + 1/2 Sum_{a, b} ca cb Ra Rb (Taylor expansion)
+    # Now, the double sum is slow so we write
+    # R = 1 + Sum_a ca Ra + Sum_{a, b>=a} factor ca cb Ra Rb where factor = 1/2 if a=b (same factor as before) but factor=1 if b>a (counting twice)
+    # My silicon friend didn't see that. (For the PNN I rather work with unique ordered sequences, so no prefactor)
     for i in range(N):
-        for j in range(i,N): #FIXME careful here, double sum
-            quads.append(0.5 * c[i] * c[j])  # 1/2 c_i c_j
+        for j in range(i,N): 
+            quads.append((0.5 if i==j else 1) * c[i] * c[j])  # 1/2 c_i c_j
     return np.concatenate([c, np.asarray(quads, dtype=np.float64)], axis=0) if quads else c
 
 
@@ -244,13 +251,13 @@ def _predict_classifier(model, X: np.ndarray) -> np.ndarray:
     return P.astype(np.float64, copy=False)
 
 
-def _predict_bit_ratio_A(model, X: np.ndarray) -> np.ndarray:
+def _predict_bit_ratio(model, X: np.ndarray) -> np.ndarray:
     if hasattr(model, "predict"):
         Y = model.predict(X)
-    elif hasattr(model, "predict_A"):
-        Y = model.predict_A(X)
+    #elif hasattr(model, "predict_A"):
+    #    Y = model.predict_A(X)
     else:
-        raise RuntimeError("BIT predictor lacks predict/predict_A.")
+        raise RuntimeError("BIT predictor lacks predict.")
     Y = np.asarray(Y)
     if Y.ndim == 1:
         Y = Y[:, None]
@@ -523,7 +530,7 @@ class N2LL:
 
                         # BIT R_A
                         poi_pred = (C.get('POI') or {}).get('predictor')
-                        R_A = _predict_bit_ratio_A(poi_pred, X)  # (Nb, nA)
+                        R_A = _predict_bit_ratio(poi_pred, X)  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -751,7 +758,7 @@ class N2LL:
                         raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
 
                     c_dot_R = R_slice @ cA
-
+            
                     # accumulate exponent from all Δ-groups
                     expo = np.zeros_like(g_slice)
                     for gm, nuA in nuA_per_group[cid]:
@@ -807,7 +814,7 @@ class _MinuitArrayAdapter:
             p.val = float(x[i])
         self.eval += 1
         f = float(self.n2ll(self.hyp))
-        if self.eval % self.print_every == 1:
+        if (self.eval - 1) % self.print_every == 0:
             print(f"\n[eval {self.eval:6d}] f = {f: .6e}")
             self.hyp.print()
         return f
@@ -886,12 +893,13 @@ if __name__ == "__main__":
     n2ll = N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
     n2ll.build_cache()
     n2ll.prepare_runtime()
-    #_n2ll = n2ll(hyp) 
+    #n2ll = n2ll(hyp) 
 
-
-    # run Minuit; prints the model every 25 evaluations by default
-    m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=25, do_migrad=True, do_hesse=True, do_minos=False)
+    ## run Minuit; prints the model every 25 evaluations by default
+    m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
 
     # best-fit -2logL
     print("Best -2logL =", m.fval)
 
+    print("Correlation")
+    print(m.covariance.correlation())

@@ -262,8 +262,6 @@ class MultiBoostedInformationTree:
                 out[t] *= learning_rates[t]
             return out
 
-
-
     def losses( self, feature_array, weight_dict, max_n_tree = None, last_tree_counts_full = False):
         ## list learning rates
         #learning_rates = self.learning_rate*np.ones(max_n_tree if max_n_tree is not None else self.n_trees)

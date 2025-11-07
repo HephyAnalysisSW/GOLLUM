@@ -2,11 +2,8 @@ version: v1
 
 defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here
-  observer_weight: "weight"
   batch_size: 65536
-  num_workers: 0
   seed: 1
-  reuse_existing_artifacts: true
 
 likelihood:
     regions:
@@ -54,18 +51,6 @@ likelihood:
 
 jobs:
   - include: bit_merged.yaml
-
-  # -------------------------------
-  # Inclusive Cross Section (IC)
-  # -------------------------------
-  - id: ic_tt2l
-    type: ic
-    process: tt2l
-    region: SR
-    selection: null
-    output:
-      filename: "IC_tt2l.pkl"
-
   # -------------------------------
   # Scalers (one per class/view)
   # -------------------------------
@@ -208,7 +193,6 @@ jobs:
   - id: pnn_tt2l_Trigger
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_trigger]
     combinations: [["nu_trigger"]]           # linear
@@ -231,7 +215,6 @@ jobs:
   - id: pnn_tt2l_L1Prefire
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_l1prefire]
     combinations: [["nu_l1prefire"]]
@@ -254,7 +237,6 @@ jobs:
   - id: pnn_tt2l_PU
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_pu]
     combinations: [["nu_pu"]]
@@ -277,7 +259,6 @@ jobs:
   - id: pnn_tt2l_LeptonSF
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_leptonsf]
     combinations: [["nu_leptonsf"]]
@@ -300,7 +281,6 @@ jobs:
   - id: pnn_tt2l_BTag_b
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_btag_b]
     combinations: [["nu_btag_b"]]
@@ -323,7 +303,6 @@ jobs:
   - id: pnn_tt2l_BTag_l
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l
     parameters: [nu_btag_l]
     combinations: [["nu_btag_l"]]
@@ -342,3 +321,35 @@ jobs:
       use_scaler: scaler_tt2l
       use_icp: icp_tt2l_BTag_l
     output: { filename: "pnn_tt2l_BTag_l.pkl" }
+#  - id: pnn_tt2l_scales
+#    type: pnn
+#    region: SR
+#    process: tt2l
+#    parameters: [nu_mu_ren, nu_mu_fac]
+#    combinations: [["nu_mu_ren"], ["nu_mu_fac"], ["nu_mu_ren", "nu_mu_ren"], ["nu_mu_ren", "nu_mu_fac"], ["nu_mu_fac", "nu_mu_fac"]]
+#    base_points:
+#      - coords: [-1.0, -1.0]
+#        loader: tt2l_scales
+#      - coords: [-1.0, 0]
+#        loader: tt2l_scales
+#      - coords: [-1.0, 1.0]
+#        loader: tt2l_scales
+#      - coords: [0, -1.0]
+#        loader: tt2l_scales
+#      - coords: [0, 0]
+#        loader: tt2l_scales
+#      - coords: [0, 1.0]
+#        loader: tt2l_scales
+#      - coords: [1.0, -1.0]
+#        loader: tt2l_scales
+#      - coords: [1.0, 0]
+#        loader: tt2l_scales
+#      - coords: [1.0, 1.0]
+#        loader: tt2l_scales
+#    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+#    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+#    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+#    extras:
+#      use_scaler: scaler_tt2l
+#      use_icp: icp_tt2l_scales
+#    output: { filename: "pnn_tt2l_scales.pkl" }

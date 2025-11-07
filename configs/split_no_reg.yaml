@@ -2,11 +2,8 @@ version: v1
 
 defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here
-  observer_weight: "weight"
   batch_size: 65536
-  num_workers: 0
   seed: 1
-  reuse_existing_artifacts: true
 
 likelihood:
     regions:
@@ -583,7 +580,6 @@ jobs:
   - id: pnn_tt2l_GG_Trigger
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_trigger]
     combinations: [["nu_trigger"]]
@@ -605,7 +601,6 @@ jobs:
   - id: pnn_tt2l_GG_L1Prefire
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_l1prefire]
     combinations: [["nu_l1prefire"]]
@@ -627,7 +622,6 @@ jobs:
   - id: pnn_tt2l_GG_PU
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_pu]
     combinations: [["nu_pu"]]
@@ -649,7 +643,6 @@ jobs:
   - id: pnn_tt2l_GG_LeptonSF
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_leptonsf]
     combinations: [["nu_leptonsf"]]
@@ -671,7 +664,6 @@ jobs:
   - id: pnn_tt2l_GG_BTag_b
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_btag_b]
     combinations: [["nu_btag_b"]]
@@ -693,7 +685,6 @@ jobs:
   - id: pnn_tt2l_GG_BTag_l
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_GG
     parameters: [nu_btag_l]
     combinations: [["nu_btag_l"]]
@@ -719,7 +710,6 @@ jobs:
   - id: pnn_tt2l_QG_Trigger
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_trigger]
     combinations: [["nu_trigger"]]
@@ -741,7 +731,6 @@ jobs:
   - id: pnn_tt2l_QG_L1Prefire
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_l1prefire]
     combinations: [["nu_l1prefire"]]
@@ -763,7 +752,6 @@ jobs:
   - id: pnn_tt2l_QG_PU
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_pu]
     combinations: [["nu_pu"]]
@@ -785,7 +773,6 @@ jobs:
   - id: pnn_tt2l_QG_LeptonSF
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_leptonsf]
     combinations: [["nu_leptonsf"]]
@@ -807,7 +794,6 @@ jobs:
   - id: pnn_tt2l_QG_BTag_b
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_btag_b]
     combinations: [["nu_btag_b"]]
@@ -829,7 +815,6 @@ jobs:
   - id: pnn_tt2l_QG_BTag_l
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QG
     parameters: [nu_btag_l]
     combinations: [["nu_btag_l"]]
@@ -855,7 +840,6 @@ jobs:
   - id: pnn_tt2l_QQ_Trigger
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_trigger]
     combinations: [["nu_trigger"]]
@@ -877,7 +861,6 @@ jobs:
   - id: pnn_tt2l_QQ_L1Prefire
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_l1prefire]
     combinations: [["nu_l1prefire"]]
@@ -899,7 +882,6 @@ jobs:
   - id: pnn_tt2l_QQ_PU
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_pu]
     combinations: [["nu_pu"]]
@@ -921,7 +903,6 @@ jobs:
   - id: pnn_tt2l_QQ_LeptonSF
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_leptonsf]
     combinations: [["nu_leptonsf"]]
@@ -943,7 +924,6 @@ jobs:
   - id: pnn_tt2l_QQ_BTag_b
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_btag_b]
     combinations: [["nu_btag_b"]]
@@ -965,7 +945,6 @@ jobs:
   - id: pnn_tt2l_QQ_BTag_l
     type: pnn
     region: SR
-    selection: lowMT_VBFJet
     process: tt2l_QQ
     parameters: [nu_btag_l]
     combinations: [["nu_btag_l"]]
