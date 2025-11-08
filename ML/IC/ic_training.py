@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# ic_training_cfg.py
+# ic_training.py
 # YAML-driven IC trainer.
 # - Runs selected IC job via --job ID
 # - If --job is omitted, prints runnable commands and exits(0)
@@ -48,7 +48,7 @@ if args.job is None:
     if args.small:
         same_flags.append("--small")
     for j in jobs:
-        print(f"python ic_training_cfg.py {args.config} {' '.join(same_flags)} --job {j['id']}".strip())
+        print(f"python ic_training.py {args.config} {' '.join(same_flags)} --job {j['id']}".strip())
     sys.exit(0)
 
 # ---------------------- run selected IC job ----------------------

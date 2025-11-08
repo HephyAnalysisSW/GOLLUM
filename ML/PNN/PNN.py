@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Dense
 class PNN:
     """
     Parametric Neural Net (local DCR) — model & IO only.
-    Training loop, data iteration, and plotting live in pnn_training_cfg.py
+    Training loop, data iteration, and plotting live in pnn_training.py
     """
 
     def __init__(self,

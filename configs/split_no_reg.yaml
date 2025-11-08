@@ -218,356 +218,491 @@ jobs:
   # Base points: {-1, 0, +1} using GG views
   # -------------------------------
 
-  # =========================
-  # Selection: tt2l_GG
-  # =========================
   - id: icp_tt2l_GG_Trigger
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_TriggerDown
-      1: tt2l_GG
-      2: tt2l_GG_TriggerUp
     parameters: [nu_trigger]
-    combinations:
-      - [nu_trigger]
-    base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
+    combinations: [[nu_trigger]]
     train_ratio: true
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerDown"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerUp"]
     output:
       filename: icp_tt2l_GG_Trigger.pkl
 
   - id: icp_tt2l_GG_L1Prefire
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_L1PrefireDown
-      1: tt2l_GG
-      2: tt2l_GG_L1PrefireUp
     parameters: [nu_l1prefire]
-    combinations:
-      - [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
-    train_ratio: true
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireDown"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireUp"]
     output:
       filename: icp_tt2l_GG_L1Prefire.pkl
 
   - id: icp_tt2l_GG_PU
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_PUDown
-      1: tt2l_GG
-      2: tt2l_GG_PUUp
     parameters: [nu_pu]
-    combinations:
-      - [nu_pu]
+    combinations: [[nu_pu]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUDown"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_GG_PU.pkl
 
   - id: icp_tt2l_GG_LeptonSF
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_LeptonSFDown
-      1: tt2l_GG
-      2: tt2l_GG_LeptonSFUp
     parameters: [nu_leptonsf]
-    combinations:
-      - [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFDown"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_GG_LeptonSF.pkl
 
   - id: icp_tt2l_GG_BTag_b
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_BTag_b_Down
-      1: tt2l_GG
-      2: tt2l_GG_BTag_b_Up
     parameters: [nu_btag_b]
-    combinations:
-      - [nu_btag_b]
+    combinations: [[nu_btag_b]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_GG_BTag_b.pkl
 
   - id: icp_tt2l_GG_BTag_l
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_GG_BTag_l_Down
-      1: tt2l_GG
-      2: tt2l_GG_BTag_l_Up
     parameters: [nu_btag_l]
-    combinations:
-      - [nu_btag_l]
+    combinations: [[nu_btag_l]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_GG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_GG_BTag_l.pkl
 
-  # =========================
-  # Selection: tt2l_QG
-  # =========================
+  - id: icp_tt2l_GG_scales
+    type: icp
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_GG
+        addweights: []
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac2p0"]
+    output:
+      filename: icp_tt2l_GG_scales.pkl
+
   - id: icp_tt2l_QG_Trigger
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_TriggerDown
-      1: tt2l_QG
-      2: tt2l_QG_TriggerUp
     parameters: [nu_trigger]
-    combinations:
-      - [nu_trigger]
-    base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
+    combinations: [[nu_trigger]]
     train_ratio: true
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerUp"]
     output:
       filename: icp_tt2l_QG_Trigger.pkl
 
   - id: icp_tt2l_QG_L1Prefire
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_L1PrefireDown
-      1: tt2l_QG
-      2: tt2l_QG_L1PrefireUp
     parameters: [nu_l1prefire]
-    combinations:
-      - [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
-    train_ratio: true
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireUp"]
     output:
       filename: icp_tt2l_QG_L1Prefire.pkl
 
   - id: icp_tt2l_QG_PU
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_PUDown
-      1: tt2l_QG
-      2: tt2l_QG_PUUp
     parameters: [nu_pu]
-    combinations:
-      - [nu_pu]
+    combinations: [[nu_pu]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QG_PU.pkl
 
   - id: icp_tt2l_QG_LeptonSF
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_LeptonSFDown
-      1: tt2l_QG
-      2: tt2l_QG_LeptonSFUp
     parameters: [nu_leptonsf]
-    combinations:
-      - [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QG_LeptonSF.pkl
 
   - id: icp_tt2l_QG_BTag_b
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_BTag_b_Down
-      1: tt2l_QG
-      2: tt2l_QG_BTag_b_Up
     parameters: [nu_btag_b]
-    combinations:
-      - [nu_btag_b]
+    combinations: [[nu_btag_b]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QG_BTag_b.pkl
 
   - id: icp_tt2l_QG_BTag_l
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QG_BTag_l_Down
-      1: tt2l_QG
-      2: tt2l_QG_BTag_l_Up
     parameters: [nu_btag_l]
-    combinations:
-      - [nu_btag_l]
+    combinations: [[nu_btag_l]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_QG
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QG_BTag_l.pkl
 
-  # =========================
-  # Selection: tt2l_QQ
-  # =========================
+  - id: icp_tt2l_QG_scales
+    type: icp
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_QG
+        addweights: []
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac2p0"]
+    output:
+      filename: icp_tt2l_QG_scales.pkl
+
   - id: icp_tt2l_QQ_Trigger
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_TriggerDown
-      1: tt2l_QQ
-      2: tt2l_QQ_TriggerUp
     parameters: [nu_trigger]
-    combinations:
-      - [nu_trigger]
-    base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
+    combinations: [[nu_trigger]]
     train_ratio: true
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightTrigger"]
+        addweights: ["reweightTriggerUp"]
     output:
       filename: icp_tt2l_QQ_Trigger.pkl
 
   - id: icp_tt2l_QQ_L1Prefire
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_L1PrefireDown
-      1: tt2l_QQ
-      2: tt2l_QQ_L1PrefireUp
     parameters: [nu_l1prefire]
-    combinations:
-      - [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
-    nominal_index: 1
-    train_ratio: true
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightL1Prefire"]
+        addweights: ["reweightL1PrefireUp"]
     output:
       filename: icp_tt2l_QQ_L1Prefire.pkl
 
   - id: icp_tt2l_QQ_PU
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_PUDown
-      1: tt2l_QQ
-      2: tt2l_QQ_PUUp
     parameters: [nu_pu]
-    combinations:
-      - [nu_pu]
+    combinations: [[nu_pu]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightPU"]
+        addweights: ["reweightPUUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QQ_PU.pkl
 
   - id: icp_tt2l_QQ_LeptonSF
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_LeptonSFDown
-      1: tt2l_QQ
-      2: tt2l_QQ_LeptonSFUp
     parameters: [nu_leptonsf]
-    combinations:
-      - [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFDown"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightLeptonSF"]
+        addweights: ["reweightLeptonSFUp"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QQ_LeptonSF.pkl
 
   - id: icp_tt2l_QQ_BTag_b
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_BTag_b_Down
-      1: tt2l_QQ
-      2: tt2l_QQ_BTag_b_Up
     parameters: [nu_btag_b]
-    combinations:
-      - [nu_btag_b]
+    combinations: [[nu_btag_b]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF_b"]
+        addweights: ["reweightBTagSF1a_SF_b_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QQ_BTag_b.pkl
 
   - id: icp_tt2l_QQ_BTag_l
     type: icp
     region: SR
-    base_point_loaders:
-      0: tt2l_QQ_BTag_l_Down
-      1: tt2l_QQ
-      2: tt2l_QQ_BTag_l_Up
     parameters: [nu_btag_l]
-    combinations:
-      - [nu_btag_l]
+    combinations: [[nu_btag_l]]
     base_points:
-      0: [-1.0]
-      1: [ 0.0]
-      2: [ 1.0]
+      - coords: [-1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Down"]
+      - coords: [ 0.0]
+        loader: tt2l_QQ
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF_l"]
+        addweights: ["reweightBTagSF1a_SF_l_Up"]
     nominal_index: 1
-    train_ratio: true
     output:
       filename: icp_tt2l_QQ_BTag_l.pkl
+
+  - id: icp_tt2l_QQ_scales
+    type: icp
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_QQ
+        addweights: []
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac2p0"]
+    output:
+      filename: icp_tt2l_QQ_scales.pkl
 
   # -------------------------------
   # PNN (Parametric NN for local DCR) using the same lSF setup
@@ -579,16 +714,19 @@ jobs:
   - id: pnn_tt2l_GG_Trigger
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_trigger]
-    combinations: [["nu_trigger"]]
+    combinations: [[nu_trigger]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_TriggerDown
+        loader: tt2l_GG
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_TriggerUp
+        loader: tt2l_GG
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -600,16 +738,19 @@ jobs:
   - id: pnn_tt2l_GG_L1Prefire
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_l1prefire]
-    combinations: [["nu_l1prefire"]]
+    combinations: [[nu_l1prefire]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_L1PrefireDown
+        loader: tt2l_GG
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_L1PrefireUp
+        loader: tt2l_GG
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -621,16 +762,19 @@ jobs:
   - id: pnn_tt2l_GG_PU
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_pu]
-    combinations: [["nu_pu"]]
+    combinations: [[nu_pu]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_PUDown
+        loader: tt2l_GG
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_PUUp
+        loader: tt2l_GG
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -638,20 +782,24 @@ jobs:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_PU
     output: { filename: "pnn_tt2l_GG_PU.pkl" }
-  
+
+ 
   - id: pnn_tt2l_GG_LeptonSF
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_leptonsf]
-    combinations: [["nu_leptonsf"]]
+    combinations: [[nu_leptonsf]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_LeptonSFDown
+        loader: tt2l_GG
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_LeptonSFUp
+        loader: tt2l_GG
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -663,16 +811,19 @@ jobs:
   - id: pnn_tt2l_GG_BTag_b
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_btag_b]
-    combinations: [["nu_btag_b"]]
+    combinations: [[nu_btag_b]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_BTag_b_Down
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_BTag_b_Up
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -684,16 +835,19 @@ jobs:
   - id: pnn_tt2l_GG_BTag_l
     type: pnn
     region: SR
-    process: tt2l_GG
     parameters: [nu_btag_l]
-    combinations: [["nu_btag_l"]]
+    combinations: [[nu_btag_l]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_GG_BTag_l_Down
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
       - coords: [ 0.0]
         loader: tt2l_GG
       - coords: [ 1.0]
-        loader: tt2l_GG_BTag_l_Up
+        loader: tt2l_GG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -702,6 +856,46 @@ jobs:
       use_icp: icp_tt2l_GG_BTag_l
     output: { filename: "pnn_tt2l_GG_BTag_l.pkl" }
   
+  - id: pnn_tt2l_GG_scales
+    type: pnn
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac1p0"]
+      - coords: [0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac2p0"]
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_GG
+      use_icp: icp_tt2l_GG_scales
+    output: { filename: "pnn_tt2l_GG_scales.pkl" }
   
   # =========================
   # PNN — selection: tt2l_QG
@@ -709,16 +903,19 @@ jobs:
   - id: pnn_tt2l_QG_Trigger
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_trigger]
-    combinations: [["nu_trigger"]]
+    combinations: [[nu_trigger]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_TriggerDown
+        loader: tt2l_QG
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_TriggerUp
+        loader: tt2l_QG
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -730,16 +927,19 @@ jobs:
   - id: pnn_tt2l_QG_L1Prefire
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_l1prefire]
-    combinations: [["nu_l1prefire"]]
+    combinations: [[nu_l1prefire]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_L1PrefireDown
+        loader: tt2l_QG
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_L1PrefireUp
+        loader: tt2l_QG
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -751,16 +951,19 @@ jobs:
   - id: pnn_tt2l_QG_PU
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_pu]
-    combinations: [["nu_pu"]]
+    combinations: [[nu_pu]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_PUDown
+        loader: tt2l_QG
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_PUUp
+        loader: tt2l_QG
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -768,20 +971,24 @@ jobs:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_PU
     output: { filename: "pnn_tt2l_QG_PU.pkl" }
-  
+
+ 
   - id: pnn_tt2l_QG_LeptonSF
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_leptonsf]
-    combinations: [["nu_leptonsf"]]
+    combinations: [[nu_leptonsf]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_LeptonSFDown
+        loader: tt2l_QG
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_LeptonSFUp
+        loader: tt2l_QG
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -793,16 +1000,19 @@ jobs:
   - id: pnn_tt2l_QG_BTag_b
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_btag_b]
-    combinations: [["nu_btag_b"]]
+    combinations: [[nu_btag_b]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_BTag_b_Down
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_BTag_b_Up
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -814,16 +1024,19 @@ jobs:
   - id: pnn_tt2l_QG_BTag_l
     type: pnn
     region: SR
-    process: tt2l_QG
     parameters: [nu_btag_l]
-    combinations: [["nu_btag_l"]]
+    combinations: [[nu_btag_l]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QG_BTag_l_Down
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
       - coords: [ 0.0]
         loader: tt2l_QG
       - coords: [ 1.0]
-        loader: tt2l_QG_BTag_l_Up
+        loader: tt2l_QG
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -832,6 +1045,46 @@ jobs:
       use_icp: icp_tt2l_QG_BTag_l
     output: { filename: "pnn_tt2l_QG_BTag_l.pkl" }
   
+  - id: pnn_tt2l_QG_scales
+    type: pnn
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_QG
+        addweights: ["scale_ren1p0_fac1p0"]
+      - coords: [0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_QG
+        addweights: ["scale_ren2p0_fac2p0"]
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_QG
+      use_icp: icp_tt2l_QG_scales
+    output: { filename: "pnn_tt2l_QG_scales.pkl" }
   
   # =========================
   # PNN — selection: tt2l_QQ
@@ -839,16 +1092,19 @@ jobs:
   - id: pnn_tt2l_QQ_Trigger
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_trigger]
-    combinations: [["nu_trigger"]]
+    combinations: [[nu_trigger]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_TriggerDown
+        loader: tt2l_QQ
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_TriggerUp
+        loader: tt2l_QQ
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -860,16 +1116,19 @@ jobs:
   - id: pnn_tt2l_QQ_L1Prefire
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_l1prefire]
-    combinations: [["nu_l1prefire"]]
+    combinations: [[nu_l1prefire]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_L1PrefireDown
+        loader: tt2l_QQ
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_L1PrefireUp
+        loader: tt2l_QQ
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -881,16 +1140,19 @@ jobs:
   - id: pnn_tt2l_QQ_PU
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_pu]
-    combinations: [["nu_pu"]]
+    combinations: [[nu_pu]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_PUDown
+        loader: tt2l_QQ
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_PUUp
+        loader: tt2l_QQ
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -898,20 +1160,24 @@ jobs:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_PU
     output: { filename: "pnn_tt2l_QQ_PU.pkl" }
-  
+
+ 
   - id: pnn_tt2l_QQ_LeptonSF
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_leptonsf]
-    combinations: [["nu_leptonsf"]]
+    combinations: [[nu_leptonsf]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_LeptonSFDown
+        loader: tt2l_QQ
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_LeptonSFUp
+        loader: tt2l_QQ
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -923,16 +1189,19 @@ jobs:
   - id: pnn_tt2l_QQ_BTag_b
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_btag_b]
-    combinations: [["nu_btag_b"]]
+    combinations: [[nu_btag_b]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_BTag_b_Down
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_BTag_b_Up
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -944,16 +1213,19 @@ jobs:
   - id: pnn_tt2l_QQ_BTag_l
     type: pnn
     region: SR
-    process: tt2l_QQ
     parameters: [nu_btag_l]
-    combinations: [["nu_btag_l"]]
+    combinations: [[nu_btag_l]]
     base_points:
       - coords: [-1.0]
-        loader: tt2l_QQ_BTag_l_Down
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
       - coords: [ 0.0]
         loader: tt2l_QQ
       - coords: [ 1.0]
-        loader: tt2l_QQ_BTag_l_Up
+        loader: tt2l_QQ
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
     runtime: { n_split: 10, plot_every: 5, rebin: 2 }
@@ -961,4 +1233,44 @@ jobs:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_BTag_l
     output: { filename: "pnn_tt2l_QQ_BTag_l.pkl" }
-
+  
+  - id: pnn_tt2l_QQ_scales
+    type: pnn
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren1p0_fac1p0"]
+      - coords: [0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_QQ
+        addweights: ["scale_ren2p0_fac2p0"]
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_QQ
+      use_icp: icp_tt2l_QQ_scales
+    output: { filename: "pnn_tt2l_QQ_scales.pkl" }

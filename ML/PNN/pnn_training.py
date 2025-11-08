@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import annotations
-import os, sys, time, argparse, importlib, yaml, math
+import os, sys, time, argparse, importlib, warnings, yaml, math
 import numpy as np
 import tensorflow as tf
 
@@ -51,30 +51,168 @@ if args.job is None:
 J = next((j for j in (CFG.get("jobs") or []) if j.get("id") == args.job), None)
 if J is None or J.get("type") != "pnn":
     raise RuntimeError(f"Job '{args.job}' not found or not type 'pnn'.")
-
 # ---------------- resolve loaders ----------------
+from data.RDataLoader import RDataLoader
+from data.SelectionView import SelectionView
+
 samples_mod = importlib.import_module(module_samples)
 
-bp_specs = J["base_points"]  # list of {coords: [...], loader: "name"}
+bp_specs = J["base_points"]  # list of {coords: [...], loader: "name", optional removeweights/addweights}
 base_points = [spec["coords"] for spec in bp_specs]
-loader_names = [spec["loader"] for spec in bp_specs]
+
 loaders = []
-for nm in loader_names:
+
+for i, spec in enumerate(bp_specs):
+    nm = spec["loader"]
     if not hasattr(samples_mod, nm):
         raise RuntimeError(f"Loader/view '{nm}' not found in module {module_samples}.")
-    loaders.append(getattr(samples_mod, nm))
+    base = getattr(samples_mod, nm)
 
-# sanity: same features across loaders
+    remove = list(spec.get("removeweights", []) or [])
+    add    = list(spec.get("addweights", []) or [])
+
+    # No weight modifications for this base point -> keep as-is
+    if not remove and not add:
+        loaders.append(base)
+        continue
+
+    # --------------------------------------------------------
+    # 1) Get starting weight list depending on loader type
+    # --------------------------------------------------------
+    if isinstance(base, RDataLoader):
+        # Start from the loader's own weight_branches
+        base_weights = list(base.weight_branches or [])
+        root_loader = base
+
+    elif isinstance(base, SelectionView):
+        # For a SelectionView:
+        #   - if it has an override -> start from that
+        #   - else inherit from its base loader's weight_branches
+        if base._w_override is not None:
+            base_weights = list(base._w_override)
+        else:
+            if not isinstance(base.base, RDataLoader):
+                raise RuntimeError(
+                    f"SelectionView '{base.name}' has a non-RDataLoader base. "
+                    "Layered views are not supported in this job logic."
+                )
+            base_weights = list(base.base.weight_branches or [])
+        root_loader = base.base if isinstance(base.base, RDataLoader) else None
+        if root_loader is None:
+            raise RuntimeError(
+                f"Could not find underlying RDataLoader for SelectionView '{base.name}'."
+            )
+    else:
+        raise RuntimeError(
+            f"Loader/view '{nm}' has unsupported type {type(base)} for automatic weight variations."
+        )
+
+    new_weights = list(base_weights)
+
+    # --------------------------------------------------------
+    # 2) Remove requested weights (warn if not present)
+    # --------------------------------------------------------
+    for w in remove:
+        if w in new_weights:
+            new_weights.remove(w)
+        else:
+            warnings.warn(
+                f"[job {J.get('id', '<unknown>')}] weight '{w}' requested for removal "
+                f"but not found in loader '{nm}' (current weights: {base_weights})."
+            )
+
+    # --------------------------------------------------------
+    # 3) Add requested weights (avoid duplicates)
+    # --------------------------------------------------------
+    for w in add:
+        if w not in new_weights:
+            new_weights.append(w)
+
+    # --------------------------------------------------------
+    # 4) Ensure the underlying RDataLoader reads any new branches
+    # --------------------------------------------------------
+    # (we are guaranteed to have root_loader here)
+    if hasattr(root_loader, "_requested_branches"):
+        for b in add:
+            if b not in root_loader._requested_branches:
+                root_loader._requested_branches.append(b)
+
+    if root_loader.observer_names is None:
+        # If there were no observer names set, start with the added ones
+        root_loader.observer_names = list(add)
+    else:
+        for b in add:
+            if b not in root_loader.observer_names:
+                root_loader.observer_names.append(b)
+
+    # --------------------------------------------------------
+    # 5) Construct the effective loader for this base point
+    # --------------------------------------------------------
+    if isinstance(base, RDataLoader):
+        # Base is a loader -> make a simple view that only changes weights
+        vname = f"{nm}_wvar{i}"
+        eff_loader = SelectionView(
+            base=base,
+            name=vname,
+            selection_fn=None,                    # no extra selection here
+            feature_names=base.feature_names,
+            observer_names=base.observer_names,
+            selection_feature_names=None,
+            weight=new_weights,
+        )
+
+    else:  # isinstance(base, SelectionView)
+        # Base is a view -> copy its behavior, but adjust weights
+        vname = f"{base.name}_wvar{i}"
+        eff_loader = SelectionView(
+            base=base.base,                       # directly use the loader as base
+            name=vname,
+            selection_fn=base._selection_fns,     # keep existing selections
+            feature_names=base._feature_names,
+            observer_names=base._observer_names,
+            selection_feature_names=base._sel_feats,
+            weight=new_weights,
+        )
+
+    loaders.append(eff_loader)
+
+# ---------------- sanity: same features across loaders ----------------
 feat_names = list(getattr(loaders[0], "feature_names", []))
 if not feat_names:
     raise RuntimeError("First loader has no feature_names.")
 for L in loaders[1:]:
     if list(getattr(L, "feature_names", [])) != feat_names:
         raise RuntimeError("Feature mismatch across base-point loaders.")
+
+# ---------------- debug printout ----------------
+print(f"\nResolved loaders for job '{J.get('id', '<unknown>')}':")
+for idx, (spec, L) in enumerate(zip(bp_specs, loaders)):
+    print(f"  base point {idx}, coords={spec['coords']}, loader spec='{spec['loader']}':")
+    print(L)  # uses __str__ of RDataLoader / SelectionView
+    print("-" * 60)
+
 input_dim = len(feat_names)
 feat2col = {f: i for i, f in enumerate(feat_names)}
 
-#assert False, ""
+## ---------------- resolve loaders ----------------
+#samples_mod = importlib.import_module(module_samples)
+#
+#bp_specs = J["base_points"]  # list of {coords: [...], loader: "name"}
+#base_points = [spec["coords"] for spec in bp_specs]
+#loader_names = [spec["loader"] for spec in bp_specs]
+#loaders = []
+#for nm in loader_names:
+#    if not hasattr(samples_mod, nm):
+#        raise RuntimeError(f"Loader/view '{nm}' not found in module {module_samples}.")
+#    loaders.append(getattr(samples_mod, nm))
+#
+## sanity: same features across loaders
+#feat_names = list(getattr(loaders[0], "feature_names", []))
+#if not feat_names:
+#    raise RuntimeError("First loader has no feature_names.")
+#for L in loaders[1:]:
+#    if list(getattr(L, "feature_names", [])) != feat_names:
+#        raise RuntimeError("Feature mismatch across base-point loaders.")
 
 # ---------------- artifacts: scaler & ICP (IDs in YAML) ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
@@ -114,9 +252,10 @@ if not args.overwrite:
         print(f"Trying to load PNN from {model_dir}")
         pnn = PNN.load(model_dir)
         print("Success!")
-    except Exception:
+    except Exception as e:
         pnn = None
         print("Failed!")
+        raise e
 
 if pnn is None:
     pnn = PNN(parameters=parameters,

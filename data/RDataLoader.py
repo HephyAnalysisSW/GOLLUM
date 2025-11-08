@@ -1,3 +1,5 @@
+
+# RDataLoader.py
 """
 RDataLoader — lightweight ROOT/UPROOT data loader with group-aware branch handling.
 """
@@ -15,7 +17,12 @@ import uproot
 import SelectionView
 
 PathLike = Union[str, os.PathLike]
-SelectionFn = Optional[Callable[[ak.Array], Union[ak.Array, np.ndarray]]]
+
+# A single selection function: ar -> boolean mask (or awkward array mask)
+SelectionFn = Callable[[ak.Array], Union[ak.Array, np.ndarray]]
+# For the public interface we now allow: None, a single SelectionFn, or a list of SelectionFn
+SelectionLike = Union[SelectionFn, Sequence[SelectionFn], None]
+
 
 class RDataLoader:
     def __init__(
@@ -23,7 +30,7 @@ class RDataLoader:
         input_paths: Union[PathLike, Sequence[PathLike]],
         tree_name: str = "Events",
         branches: Optional[Sequence[str]] = None,
-        selection: SelectionFn = None,
+        selection: SelectionLike = None,
         file_pattern: str = "*.root",
         n_split: int = 1,
         splitting_strategy: str = "files",  # "files" or "events"
@@ -36,10 +43,22 @@ class RDataLoader:
         weight_branches: Optional[Sequence[str]] = None,
     ) -> None:
         self.tree_name = tree_name
+        # keep the original attribute for backwards-compatibility / introspection
         self.selection = selection
         self.strict_branches = strict_branches
         self.splitting_strategy = splitting_strategy
         self.n_split = max(1, int(n_split))
+
+        # normalize selection(s) to an internal list of callables
+        self._selection_fns: List[SelectionFn] = []
+        if selection is None:
+            self._selection_fns = []
+        else:
+            # allow single callable or iterable of callables
+            if callable(selection):
+                self._selection_fns = [selection]  # type: ignore[arg-type]
+            else:
+                self._selection_fns = list(selection)  # type: ignore[arg-type]
 
         # Persist configured features/observers (optional)
         self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
@@ -100,7 +119,7 @@ class RDataLoader:
         return len(self._file_splits) if self.splitting_strategy == "files" else self.n_split
 
     def __getitem__(self, idx: int) -> ak.Array:
-        """Load one shard as an awkward Array, apply selection if present. Result is cached."""
+        """Load one shard as an awkward Array, apply all configured selections if present. Result is cached."""
         key = self._wrap_index(idx)
         if key in self._arr_cache:
             return self._arr_cache[key]
@@ -114,14 +133,16 @@ class RDataLoader:
             lo, hi = self._event_bounds(n, self.n_split)[key]
             ar = ar_all[lo:hi]
 
-        # selection after split
-        if self.selection is not None:
-            mask = self.selection(ar)
+        # apply all base selections consecutively
+        for i, sel in enumerate(getattr(self, "_selection_fns", []) or []):
+            if sel is None:
+                continue
+            mask = sel(ar)
             mask = ak.to_numpy(mask) if isinstance(mask, ak.Array) else mask
             if mask is None:
-                warnings.warn("RDataLoader: selection returned None; skipping.")
-            else:
-                ar = ar[mask]
+                warnings.warn(f"RDataLoader: selection function {i} returned None; skipping.")
+                continue
+            ar = ar[mask]
 
         self._arr_cache[key] = ar
         return ar
@@ -248,59 +269,9 @@ class RDataLoader:
             outputs = [arr[:n] for arr in outputs]
         return tuple(outputs)
 
-    # -------- masked helpers (for views) ----------
-    #def features_from_mask(self, shard: int, mask: np.ndarray,
-    #                       feature_names: Optional[Sequence[str]] = None,
-    #                       n: Optional[int] = None) -> np.ndarray:
-    #    X = self.features(shard=shard, n=None, feature_names=feature_names)
-    #    if mask is not None:
-    #        X = X[mask]
-    #    return X if n is None else X[:n]
-
-    #def observers_from_mask(self, shard: int, mask: np.ndarray,
-    #                        observer_names: Optional[Sequence[str]] = None,
-    #                        n: Optional[int] = None) -> np.ndarray:
-    #    G = self.observers(shard=shard, n=None, observer_names=observer_names)
-    #    if mask is not None:
-    #        G = G[mask]
-    #    return G if n is None else G[:n]
-
-    #def weight_from_mask(self, shard: int, mask: np.ndarray, n: Optional[int] = None) -> np.ndarray:
-    #    w = self.weight_vector(shard=shard, n=None)
-    #    if mask is not None:
-    #        w = w[mask]
-    #    return w if n is None else w[:n]
-
-    #def iter_features(self, shard: int = 0, batch_size: int = 8192,
-    #                  feature_names: Optional[Sequence[str]] = None):
-    #    X = self.features(shard=shard, n=None, feature_names=feature_names)
-    #    N = len(X)
-    #    if batch_size <= 0:
-    #        raise ValueError("batch_size must be > 0")
-    #    for i in range(0, N, batch_size):
-    #        yield X[i:i + batch_size]
-
     # -------- view helpers --------
     def load_selection_shard(self, shard: int) -> ak.Array:
         return self[shard]
-
-    #def compute_mask(self, selection_name: str, selection_fn, shard: int,
-    #                 observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
-    #    if selection_name not in self._mask_cache:
-    #        self._mask_cache[selection_name] = {}
-    #    if shard in self._mask_cache[selection_name]:
-    #        return self._mask_cache[selection_name][shard]
-
-    #    G = self.observers(shard=shard, n=None, observer_names=observer_names)
-    #    names = list(observer_names) if observer_names is not None else (self.observer_names or [])
-    #    mask = selection_fn(G, names)
-    #    if not isinstance(mask, np.ndarray) or mask.dtype != bool or mask.ndim != 1:
-    #        raise ValueError(f"Selection '{selection_name}' did not return a 1D boolean mask.")
-    #    if len(mask) != len(G):
-    #        raise ValueError(f"Selection '{selection_name}' mask length mismatch: {len(mask)} vs {len(G)}.")
-
-    #    self._mask_cache[selection_name][shard] = mask
-    #    return mask
 
     # --------------------------- internals ----------------------------
     def _wrap_index(self, idx: int) -> int:
@@ -358,27 +329,34 @@ class RDataLoader:
 
     def __str__(self) -> str:
         files = getattr(self, "_all_files", [])
-        fshow = (files[0] if files else "[]")
-        parts = [
+        first = files[0] if files else None
+        feat = self.feature_names or []
+        obs = self.observer_names or []
+        wbs = getattr(self, "weight_branches", []) or []
+        weight_expr = "1" if not wbs else " * ".join(wbs)
+        n_sel = len(getattr(self, "_selection_fns", []) or [])
+        lines = [
             "RDataLoader(",
-            f"  tree='{self.tree_name}', split='{self.splitting_strategy}', n_split={self.n_split},",
-            f"  files={len(files)}@{os.path.basename(fshow)}" + ("..." if len(files) > 1 else ""),
-            f"  features={len(self.feature_names or [])}, observers={len(self.observer_names or [])},",
-            f"  weight_branches={getattr(self, 'weight_branches', [])}",
+            f"  tree_name='{self.tree_name}', splitting='{self.splitting_strategy}', n_split={self.n_split},",
+            f"  files={len(files)}"
+            + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            f"  features ({len(feat)}): {feat}",
+            f"  observers ({len(obs)}): {obs}",
+            f"  weights (product): {weight_expr}",
+            f"  selections: {n_sel} function(s) applied consecutively",
             ")",
         ]
-        return " ".join(parts)
-
+        return "\n".join(lines)
 
     def view(
         self,
         name: str,
-        selection_fn,
+        selection_fn: SelectionLike,
         feature_names: Optional[Sequence[str]] = None,
         observer_names: Optional[Sequence[str]] = None,
         selection_feature_names: Optional[Sequence[str]] = None,
-    ) -> 'SelectionView':
-        return SelectionView(
+    ) -> 'SelectionView.SelectionView':
+        return SelectionView.SelectionView(
             base=self,
             name=name,
             selection_fn=selection_fn,
@@ -416,6 +394,7 @@ if __name__ == "__main__":
     dummy._file_splits = [dummy._all_files]
     dummy._arr_cache = {0: ar}
     dummy._mask_cache = {}
+    dummy._selection_fns = []  # since we bypassed __init__
 
     F, O, W = dummy.materialize(shard=0, what="fow")
     print("shapes:", F.shape, O.shape, W.shape, "| W[:3] =", W[:3])
@@ -423,4 +402,6 @@ if __name__ == "__main__":
     dummy.weight_branches = []  # -> ones
     W1, = dummy.materialize(shard=0, what="w")
     print("ones W[:3] =", W1[:3])
+    print()
+    print(dummy)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# scaler_training_cfg.py
+# scaler_training.py
 # YAML-driven Scaler trainer.
 # - Runs selected scaler job via --job ID
 # - If --job is omitted, prints runnable commands and exits(0)

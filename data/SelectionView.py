@@ -1,13 +1,24 @@
+# SelectionView.py
 from __future__ import annotations
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, Callable, Union, Iterable
+
 import numpy as np
 import awkward as ak  # needed to read raw arrays from base shard
+
+SelectionFnView = Callable[[np.ndarray, Sequence[str]], np.ndarray]
+SelectionLikeView = Union[SelectionFnView, Sequence[SelectionFnView], None]
 
 class SelectionView:
     """
     First-class loader view over a base RDataLoader.
 
-    - selection_fn(G_sel, names) -> 1D boolean mask (same length as shard), or None for no selection
+    - selection_fn can be:
+        * None                -> no additional selection
+        * a single callable   -> one selection
+        * a sequence of callables -> multiple selections applied consecutively
+
+      Each selection_fn(G_sel, names) -> 1D boolean mask (same length as shard), or None for no selection.
+
     - feature_names / observer_names: optional per-view overrides
     - selection_feature_names: observer names used to compute mask (defaults to base.observer_names)
 
@@ -23,7 +34,7 @@ class SelectionView:
         self,
         base,
         name: str,
-        selection_fn: Optional[callable] = None,
+        selection_fn: SelectionLikeView = None,
         feature_names: Optional[Sequence[str]] = None,
         observer_names: Optional[Sequence[str]] = None,
         selection_feature_names: Optional[Sequence[str]] = None,
@@ -31,7 +42,19 @@ class SelectionView:
     ):
         self.base = base
         self.name = name
+
+        # Keep original attribute for backwards compatibility
         self.selection_fn = selection_fn
+
+        # Normalize selection(s) to a list of callables
+        if selection_fn is None:
+            self._selection_fns: list[SelectionFnView] = []
+        else:
+            if callable(selection_fn):
+                self._selection_fns = [selection_fn]  # type: ignore[list-item]
+            else:
+                self._selection_fns = list(selection_fn)  # type: ignore[arg-type]
+
         self._feature_names = list(feature_names) if feature_names is not None else None
         self._observer_names = list(observer_names) if observer_names is not None else None
         self._sel_feats = list(selection_feature_names) if selection_feature_names is not None else None
@@ -52,12 +75,18 @@ class SelectionView:
         return self._observer_names if self._observer_names is not None else list(self.base.observer_names or [])
 
     def _mask(self, shard: int) -> np.ndarray:
-        """Compute (or fetch cached) boolean mask for this shard. If selection_fn is None, return all-True."""
+        """
+        Compute (or fetch cached) boolean mask for this shard.
+
+        - If no selection functions are configured, return an all-True mask.
+        - Otherwise, apply each selection in self._selection_fns consecutively
+          (logical AND of all masks).
+        """
         if shard in self._mask_cache:
             return self._mask_cache[shard]
 
         # No selection -> identity mask
-        if self.selection_fn is None:
+        if not self._selection_fns:
             ar = self.base.load_selection_shard(shard)
             m = np.ones(len(ar), dtype=bool)
             self._mask_cache[shard] = m
@@ -72,12 +101,21 @@ class SelectionView:
             feature_names=self.base.feature_names,
             observer_names=sel_feats
         )
-        m = self.selection_fn(G_sel, sel_feats)
-        m = np.asarray(m)
-        if m.dtype != bool or m.ndim != 1 or len(m) != len(G_sel):
-            raise RuntimeError(
-                f"SelectionView[{self.name}]: selection_fn must return a 1D boolean mask of length {len(G_sel)}."
-            )
+
+        # start from all-True and AND all selection masks
+        m = np.ones(len(G_sel), dtype=bool)
+        for i, fn in enumerate(self._selection_fns):
+            if fn is None:
+                continue
+            m_i = fn(G_sel, sel_feats)
+            m_i = np.asarray(m_i)
+            if m_i.dtype != bool or m_i.ndim != 1 or len(m_i) != len(G_sel):
+                raise RuntimeError(
+                    f"SelectionView[{self.name}]: selection_fn[{i}] must return a 1D boolean mask "
+                    f"of length {len(G_sel)}."
+                )
+            m &= m_i
+
         self._mask_cache[shard] = m
         return m
 
@@ -149,19 +187,34 @@ class SelectionView:
         return tuple(outs)
 
     def __str__(self) -> str:
-        sel = getattr(self, "selection_fn", None)
-        sel_name = getattr(sel, "__name__", None) if sel is not None else None
         try:
             base_name = getattr(self.base, "name", None)
         except Exception:
             base_name = None
-        parts = [
-            "SelectionView(",
-            f"  name='{self.name}', base={base_name or 'RDataLoader'},",
-            f"  features={len(self.feature_names or [])}, observers={len(self.observer_names or [])},",
-            f"  weight_override={'inherit' if self._w_override is None else self._w_override},",
-            f"  selection={sel_name or ('<lambda>' if sel else 'None')}",
-            ")",
+        base_name = base_name or "RDataLoader"
+
+        feats = self.feature_names
+        obs = self.observer_names
+
+        if self._w_override is None:
+            weight_info = "inherit base"
+        else:
+            if len(self._w_override) == 0:
+                weight_info = "ones"
+            else:
+                weight_info = " * ".join(self._w_override)
+
+        sel_count = len(self._selection_fns)
+        sel_names = [getattr(fn, "__name__", "<lambda>") for fn in self._selection_fns]
+
+        lines = [
+            f"SelectionView('{self.name}')",
+            f"  base: {base_name}",
+            f"  features ({len(feats)}): {feats}",
+            f"  observers ({len(obs)}): {obs}",
+            f"  weight: {weight_info}",
+            f"  selections: {sel_count} function(s) applied consecutively"
+            + (f", names={sel_names}" if sel_names else ""),
         ]
-        return " ".join(parts)
+        return "\n".join(lines)
 
