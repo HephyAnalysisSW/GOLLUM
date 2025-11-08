@@ -196,7 +196,6 @@ jobs:
     framework: "tfmc"
     data:
       classes: [tt2l_GG, tt2l_QG, tt2l_QQ]
-      #weight: "${observer_weight}"
     model:
       activation: relu
       hidden_layers: [128, 128]

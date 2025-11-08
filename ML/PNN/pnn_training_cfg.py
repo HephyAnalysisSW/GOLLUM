@@ -74,6 +74,8 @@ for L in loaders[1:]:
 input_dim = len(feat_names)
 feat2col = {f: i for i, f in enumerate(feat_names)}
 
+#assert False, ""
+
 # ---------------- artifacts: scaler & ICP (IDs in YAML) ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
 

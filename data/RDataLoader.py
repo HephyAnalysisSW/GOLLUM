@@ -249,58 +249,58 @@ class RDataLoader:
         return tuple(outputs)
 
     # -------- masked helpers (for views) ----------
-    def features_from_mask(self, shard: int, mask: np.ndarray,
-                           feature_names: Optional[Sequence[str]] = None,
-                           n: Optional[int] = None) -> np.ndarray:
-        X = self.features(shard=shard, n=None, feature_names=feature_names)
-        if mask is not None:
-            X = X[mask]
-        return X if n is None else X[:n]
+    #def features_from_mask(self, shard: int, mask: np.ndarray,
+    #                       feature_names: Optional[Sequence[str]] = None,
+    #                       n: Optional[int] = None) -> np.ndarray:
+    #    X = self.features(shard=shard, n=None, feature_names=feature_names)
+    #    if mask is not None:
+    #        X = X[mask]
+    #    return X if n is None else X[:n]
 
-    def observers_from_mask(self, shard: int, mask: np.ndarray,
-                            observer_names: Optional[Sequence[str]] = None,
-                            n: Optional[int] = None) -> np.ndarray:
-        G = self.observers(shard=shard, n=None, observer_names=observer_names)
-        if mask is not None:
-            G = G[mask]
-        return G if n is None else G[:n]
+    #def observers_from_mask(self, shard: int, mask: np.ndarray,
+    #                        observer_names: Optional[Sequence[str]] = None,
+    #                        n: Optional[int] = None) -> np.ndarray:
+    #    G = self.observers(shard=shard, n=None, observer_names=observer_names)
+    #    if mask is not None:
+    #        G = G[mask]
+    #    return G if n is None else G[:n]
 
-    def weight_from_mask(self, shard: int, mask: np.ndarray, n: Optional[int] = None) -> np.ndarray:
-        w = self.weight_vector(shard=shard, n=None)
-        if mask is not None:
-            w = w[mask]
-        return w if n is None else w[:n]
+    #def weight_from_mask(self, shard: int, mask: np.ndarray, n: Optional[int] = None) -> np.ndarray:
+    #    w = self.weight_vector(shard=shard, n=None)
+    #    if mask is not None:
+    #        w = w[mask]
+    #    return w if n is None else w[:n]
 
-    def iter_features(self, shard: int = 0, batch_size: int = 8192,
-                      feature_names: Optional[Sequence[str]] = None):
-        X = self.features(shard=shard, n=None, feature_names=feature_names)
-        N = len(X)
-        if batch_size <= 0:
-            raise ValueError("batch_size must be > 0")
-        for i in range(0, N, batch_size):
-            yield X[i:i + batch_size]
+    #def iter_features(self, shard: int = 0, batch_size: int = 8192,
+    #                  feature_names: Optional[Sequence[str]] = None):
+    #    X = self.features(shard=shard, n=None, feature_names=feature_names)
+    #    N = len(X)
+    #    if batch_size <= 0:
+    #        raise ValueError("batch_size must be > 0")
+    #    for i in range(0, N, batch_size):
+    #        yield X[i:i + batch_size]
 
     # -------- view helpers --------
     def load_selection_shard(self, shard: int) -> ak.Array:
         return self[shard]
 
-    def compute_mask(self, selection_name: str, selection_fn, shard: int,
-                     observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
-        if selection_name not in self._mask_cache:
-            self._mask_cache[selection_name] = {}
-        if shard in self._mask_cache[selection_name]:
-            return self._mask_cache[selection_name][shard]
+    #def compute_mask(self, selection_name: str, selection_fn, shard: int,
+    #                 observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
+    #    if selection_name not in self._mask_cache:
+    #        self._mask_cache[selection_name] = {}
+    #    if shard in self._mask_cache[selection_name]:
+    #        return self._mask_cache[selection_name][shard]
 
-        G = self.observers(shard=shard, n=None, observer_names=observer_names)
-        names = list(observer_names) if observer_names is not None else (self.observer_names or [])
-        mask = selection_fn(G, names)
-        if not isinstance(mask, np.ndarray) or mask.dtype != bool or mask.ndim != 1:
-            raise ValueError(f"Selection '{selection_name}' did not return a 1D boolean mask.")
-        if len(mask) != len(G):
-            raise ValueError(f"Selection '{selection_name}' mask length mismatch: {len(mask)} vs {len(G)}.")
+    #    G = self.observers(shard=shard, n=None, observer_names=observer_names)
+    #    names = list(observer_names) if observer_names is not None else (self.observer_names or [])
+    #    mask = selection_fn(G, names)
+    #    if not isinstance(mask, np.ndarray) or mask.dtype != bool or mask.ndim != 1:
+    #        raise ValueError(f"Selection '{selection_name}' did not return a 1D boolean mask.")
+    #    if len(mask) != len(G):
+    #        raise ValueError(f"Selection '{selection_name}' mask length mismatch: {len(mask)} vs {len(G)}.")
 
-        self._mask_cache[selection_name][shard] = mask
-        return mask
+    #    self._mask_cache[selection_name][shard] = mask
+    #    return mask
 
     # --------------------------- internals ----------------------------
     def _wrap_index(self, idx: int) -> int:
