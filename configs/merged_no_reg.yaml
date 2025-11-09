@@ -48,6 +48,14 @@ likelihood:
                   type: pnn
                   job: pnn_tt2l_BTag_l
                   parameters: [nu_btag_l]
+                - id: Scales
+                  type: pnn
+                  job: pnn_tt2l_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
+                - id: JES
+                  type: pnn
+                  job: pnn_tt2l_jesTotal
+                  parameters: [nu_jes]
 
 jobs:
   - include: bit_merged.yaml
