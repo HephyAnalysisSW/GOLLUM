@@ -380,6 +380,34 @@ jobs:
     output:
       filename: icp_tt2l_GG_scales.pkl
 
+  - id: icp_tt2l_GG_jesTotal
+    type: icp
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_GG_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_GG_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_GG_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_GG_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_GG_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_GG_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_GG_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_GG_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_GG_2p0_jesTotalUp
+    output:
+      filename: icp_tt2l_GG_jesTotal.pkl
+
   - id: icp_tt2l_QG_Trigger
     type: icp
     region: SR
@@ -542,6 +570,34 @@ jobs:
     output:
       filename: icp_tt2l_QG_scales.pkl
 
+  - id: icp_tt2l_QG_jesTotal
+    type: icp
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_QG_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_QG_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_QG_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_QG_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_QG_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_QG_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_QG_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_QG_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_QG_2p0_jesTotalUp
+    output:
+      filename: icp_tt2l_QG_jesTotal.pkl
+
   - id: icp_tt2l_QQ_Trigger
     type: icp
     region: SR
@@ -703,6 +759,34 @@ jobs:
         addweights: ["scale_ren2p0_fac2p0"]
     output:
       filename: icp_tt2l_QQ_scales.pkl
+
+  - id: icp_tt2l_QQ_jesTotal
+    type: icp
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_QQ_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_QQ_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_QQ_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_QQ_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_QQ_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_QQ_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_QQ_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_QQ_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_QQ_2p0_jesTotalUp
+    output:
+      filename: icp_tt2l_QQ_jesTotal.pkl
 
   # -------------------------------
   # PNN (Parametric NN for local DCR) using the same lSF setup
@@ -896,7 +980,73 @@ jobs:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_scales
     output: { filename: "pnn_tt2l_GG_scales.pkl" }
-  
+
+  - id: pnn_tt2l_GG_jesTotal
+    type: pnn
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_GG_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_GG_1p5_jesTotalDown
+      - coords: [-1.0]
+        loader: tt2l_GG_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_GG_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_GG_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_GG_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_GG_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_GG_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_GG_2p0_jesTotalUp
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_GG
+      use_icp: icp_tt2l_GG_jesTotal
+    output: { filename: "pnn_tt2l_GG_jesTotal.pkl" }
+
+  - id: pnn_tt2l_GG_jesTotal
+    type: pnn
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      #- coords: [-2.0]
+      #  loader: tt2l_GG_2p0_jesTotalDown
+      #- coords: [-1.5]
+      #  loader: tt2l_GG_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_GG_1p0_jesTotalDown
+      #- coords: [-0.5]
+      #  loader: tt2l_GG_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_GG_jesNominal
+      #- coords: [0.5]
+      #  loader: tt2l_GG_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_GG_1p0_jesTotalUp
+      #- coords: [1.5]
+      #  loader: tt2l_GG_1p5_jesTotalUp
+      #- coords: [2.0]
+      #  loader: tt2l_GG_2p0_jesTotalUp
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_GG
+      use_icp: icp_tt2l_GG_jesTotal
+    output: { filename: "pnn_tt2l_GG_jesTotal.pkl" }
+ 
+ 
   # =========================
   # PNN — selection: tt2l_QG
   # =========================
@@ -1085,7 +1235,39 @@ jobs:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_scales
     output: { filename: "pnn_tt2l_QG_scales.pkl" }
-  
+
+  - id: pnn_tt2l_QG_jesTotal
+    type: pnn
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      #- coords: [-2.0]
+      #  loader: tt2l_QG_2p0_jesTotalDown
+      #- coords: [-1.5]
+      #  loader: tt2l_QG_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_QG_1p0_jesTotalDown
+      #- coords: [-0.5]
+      #  loader: tt2l_QG_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_QG_jesNominal
+      #- coords: [0.5]
+      #  loader: tt2l_QG_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_QG_1p0_jesTotalUp
+      #- coords: [1.5]
+      #  loader: tt2l_QG_1p5_jesTotalUp
+      #- coords: [2.0]
+      #  loader: tt2l_QG_2p0_jesTotalUp
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_QG
+      use_icp: icp_tt2l_QG_jesTotal
+    output: { filename: "pnn_tt2l_QG_jesTotal.pkl" }
+
   # =========================
   # PNN — selection: tt2l_QQ
   # =========================
@@ -1274,3 +1456,68 @@ jobs:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_scales
     output: { filename: "pnn_tt2l_QQ_scales.pkl" }
+
+  - id: pnn_tt2l_QQ_jesTotal
+    type: pnn
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_QQ_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_QQ_1p5_jesTotalDown
+      - coords: [-1.0]
+        loader: tt2l_QQ_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_QQ_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_QQ_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_QQ_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_QQ_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_QQ_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_QQ_2p0_jesTotalUp
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_QQ
+      use_icp: icp_tt2l_QQ_jesTotal
+    output: { filename: "pnn_tt2l_QQ_jesTotal.pkl" }
+
+  - id: pnn_tt2l_QQ_jesTotal
+    type: pnn
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    base_points:
+      #- coords: [-2.0]
+      #  loader: tt2l_QQ_2p0_jesTotalDown
+      #- coords: [-1.5]
+      #  loader: tt2l_QQ_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_QQ_1p0_jesTotalDown
+      #- coords: [-0.5]
+      #  loader: tt2l_QQ_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_QQ_jesNominal
+      #- coords: [0.5]
+      #  loader: tt2l_QQ_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_QQ_1p0_jesTotalUp
+      #- coords: [1.5]
+      #  loader: tt2l_QQ_1p5_jesTotalUp
+      #- coords: [2.0]
+      #  loader: tt2l_QQ_2p0_jesTotalUp
+    model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
+    optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
+    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    extras:
+      use_scaler: scaler_tt2l_QQ
+      use_icp: icp_tt2l_QQ_jesTotal
+    output: { filename: "pnn_tt2l_QQ_jesTotal.pkl" }

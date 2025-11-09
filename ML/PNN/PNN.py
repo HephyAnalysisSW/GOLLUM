@@ -140,6 +140,7 @@ class PNN:
     def deltaA(self, X: np.ndarray) -> np.ndarray:
         Xn = self._normalize(X)
         out = self.model(tf.convert_to_tensor(Xn, dtype=tf.float32), training=False)
+        #print ("TF out", out)
         if self._icp_bias is not None:
             out = out + self._icp_bias
         return out.numpy()
@@ -147,6 +148,7 @@ class PNN:
     def deltaA_tf(self, X_tf: tf.Tensor, training: bool) -> tf.Tensor:
         """X_tf must be already normalized."""
         out = self.model(X_tf, training=training)
+        #print ("TF_tf out", out)
         if self._icp_bias is not None:
             out = out + self._icp_bias
         return out

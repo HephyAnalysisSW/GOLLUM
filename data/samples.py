@@ -21,9 +21,7 @@ import common.user as user
 tt2l = RDataLoader(
     input_paths=[os.path.join(
         user.training_data_dir,
-        "training-ntuples-v8/MVA-training/"
-        "PDF_tr-minDLmass20-dilepM-offZ1-njet3p-btagM2p/"
-        "TTLep_Summer16_preVFP/TTLep_Summer16_preVFP.root",
+        "training-ntuples-v8/MVA-training/PDF_tr-minDLmass20-dilepM-offZ1-njet3p-btagM2p/TTLep_Summer16_preVFP/TTLep_Summer16_preVFP.root",
     )],
     tree_name="Events",
     branches=observables.OBSERVERS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
@@ -43,6 +41,19 @@ tt2l = RDataLoader(
     feature_names=observables.TOP_KINEMATICS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
     observer_names=observables.OBSERVERS,
 )
+
+jes_dir = "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/training-ntuples-v8-jec/MVA-training/"
+
+# Forgot to add the weights in the make_ntuple step. But we don't need them.
+tt2l_0p5_jesTotalDown = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_0p5_jesTotalDown/TTLep_0p5_jesTotalDown.root"))
+tt2l_0p5_jesTotalUp   = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_0p5_jesTotalUp/TTLep_0p5_jesTotalUp.root"))
+tt2l_1p0_jesTotalDown = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_1p0_jesTotalDown/TTLep_1p0_jesTotalDown.root"))
+tt2l_1p0_jesTotalUp   = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_1p0_jesTotalUp/TTLep_1p0_jesTotalUp.root"))
+tt2l_1p5_jesTotalDown = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_1p5_jesTotalDown/TTLep_1p5_jesTotalDown.root"))
+tt2l_1p5_jesTotalUp   = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_1p5_jesTotalUp/TTLep_1p5_jesTotalUp.root"))
+tt2l_2p0_jesTotalDown = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_2p0_jesTotalDown/TTLep_2p0_jesTotalDown.root"))
+tt2l_2p0_jesTotalUp   = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_2p0_jesTotalUp/TTLep_2p0_jesTotalUp.root"))
+tt2l_jesNominal       = tt2l.clone_from_files(os.path.join( jes_dir, "JEC_for_PDF_minDLmass20-dilepM-offZ1/TTLep_nominal/TTLep_nominal.root"))
 
 def _replace(items: List[str], nominal: str, new_value: str) -> List[str]:
     """Return a copy of items with 'nominal' replaced by new_value (if present)."""
@@ -90,13 +101,43 @@ tt2l_QQ = SelectionView(tt2l, name="tt2l_QQ",
                         selection_fn=lambda G,n: sel_QQ(G,n),
                         selection_feature_names=["Generator_id1","Generator_id2"])
 
-__all__ = [
-    "tt2l",
-    # nominal selections:
-    "tt2l_GG", "tt2l_QG", "tt2l_QQ",
-    # selection helpers:
-    "sel_GG", "sel_QG", "sel_QQ",
-]
+tt2l_GG_0p5_jesTotalDown = SelectionView(tt2l_0p5_jesTotalDown , name = "tt2l_GG_0p5_jesTotalDown", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_GG_0p5_jesTotalUp   = SelectionView(tt2l_0p5_jesTotalUp   , name = "tt2l_GG_0p5_jesTotalUp", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_GG_1p0_jesTotalDown = SelectionView(tt2l_1p0_jesTotalDown , name = "tt2l_GG_1p0_jesTotalDown", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_GG_1p0_jesTotalUp   = SelectionView(tt2l_1p0_jesTotalUp   , name = "tt2l_GG_1p0_jesTotalUp", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_GG_1p5_jesTotalDown = SelectionView(tt2l_1p5_jesTotalDown , name = "tt2l_GG_1p5_jesTotalDown", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_GG_1p5_jesTotalUp   = SelectionView(tt2l_1p5_jesTotalUp   , name = "tt2l_GG_1p5_jesTotalUp", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_GG_2p0_jesTotalDown = SelectionView(tt2l_2p0_jesTotalDown , name = "tt2l_GG_2p0_jesTotalDown", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_GG_2p0_jesTotalUp   = SelectionView(tt2l_2p0_jesTotalUp   , name = "tt2l_GG_2p0_jesTotalUp", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_GG_jesNominal       = SelectionView(tt2l_jesNominal       , name = "tt2l_GG_jesNominal", selection_fn=lambda G,n: sel_GG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+
+tt2l_QG_0p5_jesTotalDown = SelectionView(tt2l_0p5_jesTotalDown , name = "tt2l_QG_0p5_jesTotalDown", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QG_0p5_jesTotalUp   = SelectionView(tt2l_0p5_jesTotalUp   , name = "tt2l_QG_0p5_jesTotalUp", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QG_1p0_jesTotalDown = SelectionView(tt2l_1p0_jesTotalDown , name = "tt2l_QG_1p0_jesTotalDown", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QG_1p0_jesTotalUp   = SelectionView(tt2l_1p0_jesTotalUp   , name = "tt2l_QG_1p0_jesTotalUp", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QG_1p5_jesTotalDown = SelectionView(tt2l_1p5_jesTotalDown , name = "tt2l_QG_1p5_jesTotalDown", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QG_1p5_jesTotalUp   = SelectionView(tt2l_1p5_jesTotalUp   , name = "tt2l_QG_1p5_jesTotalUp", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QG_2p0_jesTotalDown = SelectionView(tt2l_2p0_jesTotalDown , name = "tt2l_QG_2p0_jesTotalDown", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QG_2p0_jesTotalUp   = SelectionView(tt2l_2p0_jesTotalUp   , name = "tt2l_QG_2p0_jesTotalUp", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QG_jesNominal       = SelectionView(tt2l_jesNominal       , name = "tt2l_QG_jesNominal", selection_fn=lambda G,n: sel_QG(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+
+tt2l_QQ_0p5_jesTotalDown = SelectionView(tt2l_0p5_jesTotalDown , name = "tt2l_QQ_0p5_jesTotalDown", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QQ_0p5_jesTotalUp   = SelectionView(tt2l_0p5_jesTotalUp   , name = "tt2l_QQ_0p5_jesTotalUp", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QQ_1p0_jesTotalDown = SelectionView(tt2l_1p0_jesTotalDown , name = "tt2l_QQ_1p0_jesTotalDown", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"]) 
+tt2l_QQ_1p0_jesTotalUp   = SelectionView(tt2l_1p0_jesTotalUp   , name = "tt2l_QQ_1p0_jesTotalUp", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QQ_1p5_jesTotalDown = SelectionView(tt2l_1p5_jesTotalDown , name = "tt2l_QQ_1p5_jesTotalDown", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QQ_1p5_jesTotalUp   = SelectionView(tt2l_1p5_jesTotalUp   , name = "tt2l_QQ_1p5_jesTotalUp", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QQ_2p0_jesTotalDown = SelectionView(tt2l_2p0_jesTotalDown , name = "tt2l_QQ_2p0_jesTotalDown", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QQ_2p0_jesTotalUp   = SelectionView(tt2l_2p0_jesTotalUp   , name = "tt2l_QQ_2p0_jesTotalUp", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+tt2l_QQ_jesNominal       = SelectionView(tt2l_jesNominal       , name = "tt2l_QQ_jesNominal", selection_fn=lambda G,n: sel_QQ(G,n), selection_feature_names=["Generator_id1","Generator_id2"])
+
+#__all__ = [
+#    "tt2l",
+#    # nominal selections:
+#    "tt2l_GG", "tt2l_QG", "tt2l_QQ",
+#    # selection helpers:
+#    "sel_GG", "sel_QG", "sel_QQ",
+#]
 
 if __name__ == "__main__":
     print("Base:", tt2l)

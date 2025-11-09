@@ -5,6 +5,7 @@ python icp_training.py ../../configs/merged_no_reg.yaml --overwrite --job icp_tt
 python icp_training.py ../../configs/merged_no_reg.yaml --overwrite --job icp_tt2l_BTag_b
 python icp_training.py ../../configs/merged_no_reg.yaml --overwrite --job icp_tt2l_BTag_l
 python icp_training.py ../../configs/merged_no_reg.yaml --overwrite --job icp_tt2l_scales
+python icp_training.py ../../configs/merged_no_reg.yaml --overwrite --job icp_tt2l_jesTotal
 
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_Trigger
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_L1Prefire
@@ -13,6 +14,7 @@ python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_BTag_b
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_BTag_l
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_scales
+python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_GG_jesTotal
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_Trigger
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_L1Prefire
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_PU
@@ -20,6 +22,7 @@ python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_BTag_b
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_BTag_l
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_scales
+python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QG_jesTotal
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_Trigger
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_L1Prefire
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_PU
@@ -27,4 +30,5 @@ python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_BTag_b
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_BTag_l
 python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_scales
+python icp_training.py ../../configs/split_no_reg.yaml --overwrite --job icp_tt2l_QQ_jesTotal
 

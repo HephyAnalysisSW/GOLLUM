@@ -348,6 +348,38 @@ class RDataLoader:
         ]
         return "\n".join(lines)
 
+    def clone_from_files(self, input_paths: Union[PathLike, Sequence[PathLike]], weight_branches: Sequence[str] = None) -> "RDataLoader":
+        """
+        Shallow clone of this loader, but reading from a different file or list of files.
+
+        - Copies all configuration (tree_name, branches, selection(s), features, observers, weights, splits, etc.)
+        - Does NOT copy caches; the clone starts "fresh".
+        """
+        # Use the fully resolved branch list (including weights, added branches, etc.)
+        branches = list(self._requested_branches) if getattr(self, "_requested_branches", None) is not None else None
+
+        # Reuse the normalized list of selection functions; if empty, pass None
+        selection = list(getattr(self, "_selection_fns", [])) or None
+
+        # Reuse original file_pattern if we have it, else default
+        file_pattern = getattr(self, "file_pattern", "*.root")
+
+        clone = RDataLoader(
+            input_paths=input_paths,
+            tree_name=self.tree_name,
+            branches=branches,
+            selection=selection,
+            file_pattern=file_pattern,
+            n_split=self.n_split,
+            splitting_strategy=self.splitting_strategy,
+            strict_branches=self.strict_branches,
+            max_files=None,  # usually not meaningful for a clone; change if you want
+            feature_names=self.feature_names,
+            observer_names=self.observer_names,
+            weight_branches=self.weight_branches if weight_branches is None else weight_branches,
+        )
+        return clone
+
     def view(
         self,
         name: str,
