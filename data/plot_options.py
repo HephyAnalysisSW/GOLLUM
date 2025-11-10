@@ -105,7 +105,7 @@ plot_options = {
     "tr_topBar_W_eta"             : { 'binning': [30,  -3,     3],   'tex': '#eta(W(t_{2}))',              'logY': False },
 
     "tr_ttbar_pt"                 : { 'binning': [20,   0,   500],   'tex': 'p_{T}(t#bar{t})',             'logY': True  },
-    "tr_ttbar_mass"               : { 'binning': [20, 750,  1750],   'tex': 'M(t#bar{t})',                 'logY': True  },
+    "tr_ttbar_mass"               : { 'binning': [22, 300,  2500],   'tex': 'M(t#bar{t})',                 'logY': True  },
     "tr_ttbar_eta"                : { 'binning': [26,  -2.6,  2.6],  'tex': '#eta(t#bar{t})',              'logY': False },
     "tr_ttbar_dEta"               : { 'binning': [26,  -2.6,  2.6],  'tex': '#Delta#eta(t#bar{t})',        'logY': False },
     "tr_ttbar_dAbsEta"            : { 'binning': [26,  -2.6,  2.6],  'tex': '#Delta|#eta|(t#bar{t})',      'logY': False },

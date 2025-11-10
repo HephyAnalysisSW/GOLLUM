@@ -202,6 +202,6 @@ class InclusiveCrosssectionParametrization:
 
     def __str__(self):
         labels = ["*".join(c) if len(c) else "" for c in self.combinations]
-        terms  = [f"{d:+.3e}{('*'+lab) if lab else ''}" for d, lab in zip(self.DeltaA, labels)]
+        terms  = [f"exp({d:+.3e}{('*'+lab) if lab else ''})" for d, lab in zip(self.DeltaA, labels)]
         return " ".join(terms)
 

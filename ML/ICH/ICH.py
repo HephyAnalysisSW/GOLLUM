@@ -210,22 +210,114 @@ class InclusiveCrosssectionHistogram:
         alphas = np.array([self._combo_weight(c, coeffs) for c in self.combinations], dtype=float)
         # contracted over combination axis (0)
         return np.tensordot(alphas, self.histograms, axes=(0, 0))
-
     # ---------------- nice printing ----------------
 
     def __str__(self) -> str:
+        """
+        Per-bin human-readable printout of the polynomial
+
+            σ_bin(c) = h_()
+                       + ∑_a        c_a       h_(a)
+                       + ∑_{a<b}    c_a c_b   h_(a,b)
+                       + 1/2 ∑_a    c_a^2     h_(a,a)
+
+        For diagonal quadratics the effective printed coefficient is 0.5*h_(a,a),
+        matching the runtime _combo_weight logic.
+
+        If the constant term in a bin is > 0, the expression is factored as
+
+            h_() * ( 1 + ... )
+
+        otherwise the unfactored sum is printed.
+        """
         proc = self.process or "None"
         sel  = self.selection or "None"
         axes = ", ".join(self.axis_names)
         shape = self.histograms.shape
-        return (
+
+        lines: list[str] = []
+        lines.append(
             f"ICH — process: \033[1m{proc}\033[0m, selection: \033[1m{sel}\033[0m\n"
             f"  axes: {axes}\n"
             f"  combinations: {len(self.combinations)}\n"
             f"  histogram shape: {shape}\n"
         )
 
+        # labels like "", "c0", "c0*c1", ...
+        labels = ["*".join(c) if len(c) else "" for c in self.combinations]
 
-# Optional alias for backward-compat naming if ever needed
-InclusiveCrosssection = InclusiveCrosssectionHistogram
+        # helper: build bin expression from raw per-comb values
+        def _format_bin(raw_vals: np.ndarray) -> str:
+            raw_vals = np.asarray(raw_vals, dtype=float)
+
+            coeffs_eff: list[float] = []
+            const_idx: Optional[int] = None
+
+            for idx, (comb, val) in enumerate(zip(self.combinations, raw_vals)):
+                v = float(val)
+                if len(comb) == 0:
+                    const_idx = idx
+                elif len(comb) == 2 and comb[0] == comb[1]:
+                    # diagonal quadratic -> 1/2 c_a^2 h_(a,a)
+                    v *= 0.5
+                coeffs_eff.append(v)
+
+            # Try to factor out positive constant term
+            if const_idx is not None and coeffs_eff[const_idx] > 0.0:
+                c0 = coeffs_eff[const_idx]
+
+                # build inner terms normalized by c0, skipping the constant itself
+                inner_terms = []
+                for idx, (v, lab) in enumerate(zip(coeffs_eff, labels)):
+                    if idx == const_idx:
+                        continue
+                    norm_v = v / c0
+                    inner_terms.append(
+                        f"{norm_v:+.3e}{('*' + lab) if lab else ''}"
+                    )
+
+                if inner_terms:
+                    inner_expr = " ".join(inner_terms)
+                    return f"{c0:.3e} * (1 {inner_expr})"
+                else:
+                    # only constant term present
+                    return f"{c0:.3e}"
+
+            # Fall back: unfactored representation
+            terms = [
+                f"{v:+.3e}{('*' + lab) if lab else ''}"
+                for v, lab in zip(coeffs_eff, labels)
+            ]
+            return " ".join(terms) if terms else "0.0"
+
+        # 1D case: histograms shape (n_combinations, n_bins)
+        if self.histograms.ndim == 2:
+            n_bins = self.histograms.shape[1]
+            edges1 = self.bin_edges[0]
+
+            for ib in range(n_bins):
+                expr = _format_bin(self.histograms[:, ib])
+                lo, hi = edges1[ib], edges1[ib + 1]
+                lines.append(f"bin[{ib}] [{lo:.3g}, {hi:.3g}): {expr}")
+
+        # 2D case: histograms shape (n_combinations, n_bins1, n_bins2)
+        elif self.histograms.ndim == 3:
+            n_bins1, n_bins2 = self.histograms.shape[1], self.histograms.shape[2]
+            edges1 = self.bin_edges[0]
+            edges2 = self.bin_edges[1]
+
+            for i1 in range(n_bins1):
+                for i2 in range(n_bins2):
+                    expr = _format_bin(self.histograms[:, i1, i2])
+                    lo1, hi1 = edges1[i1], edges1[i1 + 1]
+                    lo2, hi2 = edges2[i2], edges2[i2 + 1]
+                    lines.append(
+                        f"bin[{i1},{i2}] "
+                        f"[{lo1:.3g}, {hi1:.3g}) x [{lo2:.3g}, {hi2:.3g}): {expr}"
+                    )
+
+        else:
+            lines.append("ICH.__str__: unsupported histogram ndim (expected 2 or 3).")
+
+        return "\n".join(lines)
 

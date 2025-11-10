@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 from __future__ import annotations
-
 import pickle
 import numpy as np
 import sys
-from typing import List, Sequence, Tuple, Union, Optional
+from typing import Sequence, Tuple, Union, Optional
 
 # project roots
 sys.path.insert(0, '..')
@@ -17,16 +16,10 @@ class InclusiveCrosssectionParametrizationHistogram:
     """
     ICPH — Inclusive Cross Section Parametrization (Histogram-valued)
 
-    Stores histogram-valued coefficients Δ_A for the exponential model
+    Histogram-valued analogue of ICP:
+        σ_bin(ν) = exp( ∑_A (Π_p∈A ν_p) Δ_A(bin) )
 
-        σ_bin(ν) = exp( ∑_A ν_A Δ_A(bin) )
-
-    where:
-      - each Δ_A(bin) is the histogram value for parameter combination A
-      - no constant term is stored (by construction, exp(0)=1)
-
-    The predict() method returns a 1D or 2D histogram of values exp(∑_A ν_A Δ_A),
-    such that ν=0 yields a histogram of ones.
+    where combinations A correspond exactly to the ICP combination list.
     """
 
     def __init__(
@@ -78,7 +71,18 @@ class InclusiveCrosssectionParametrizationHistogram:
     def __setstate__(self, state):
         self.__dict__ = state
 
-    # ---------------- training interface ----------------
+    # ---------------- helpers ----------------
+    def _nu_A(self, nu_vec: Sequence[float]) -> np.ndarray:
+        """Return vector [ Π_p∈comb ν_p ] for all combinations."""
+        out = np.ones(len(self.combinations), dtype=np.float64)
+        for a, comb in enumerate(self.combinations):
+            val = 1.0
+            for p in comb:
+                val *= nu_vec[self.parameters.index(p)]
+            out[a] = val
+        return out
+
+    # ---------------- training ----------------
     def train(
         self,
         yields: dict[Tuple[float, ...], np.ndarray],
@@ -87,20 +91,15 @@ class InclusiveCrosssectionParametrizationHistogram:
         selection: Optional[str] = None,
     ):
         """
-        Given per-base-point histograms (yields), determine Δ_A histograms by
-        solving the same linear system as the scalar ICP but bin-by-bin.
-
-        Parameters
-        ----------
-        yields : dict
-            Mapping from base_point (tuple of coords) → histogram (1D or 2D array).
+        Given per-base-point histograms (yields), determine Δ_A histograms
+        by solving the same linear system as the scalar ICP, bin-by-bin.
         """
         base_pts = np.array(self.base_points, dtype=float)
         nominal = np.array(self.nominal_base_point, dtype=float)
         n_bp = len(base_pts)
         n_comb = len(self.combinations)
 
-        # Flatten histograms to shape (n_bp, n_bins_flat)
+        # flatten histograms to shape (n_bp, n_bins_flat)
         sample_hist = next(iter(yields.values()))
         hist_shape = sample_hist.shape
         n_bins_flat = np.prod(hist_shape)
@@ -108,66 +107,87 @@ class InclusiveCrosssectionParametrizationHistogram:
         for i, bp in enumerate(self.base_points):
             Y[i, :] = np.asarray(yields[bp], dtype=np.float64).reshape(-1)
 
-        # Construct design matrix M (same as scalar ICP)
+        # Construct design matrix M using combinations, like in ICP
         M = np.zeros((n_bp, n_comb), dtype=np.float64)
         for i_bp, coords in enumerate(self.base_points):
-            ν = np.array(coords) - nominal
+            nu_vec = np.array(coords) - nominal
             for j, comb in enumerate(self.combinations):
-                if len(comb) == 1:
-                    idx = self.parameters.index(comb[0])
-                    M[i_bp, j] = ν[idx]
-                elif len(comb) == 2:
-                    i1 = self.parameters.index(comb[0])
-                    i2 = self.parameters.index(comb[1])
-                    M[i_bp, j] = 0.5 * ν[i1] * ν[i2] if i1 == i2 else ν[i1] * ν[i2]
-                else:
-                    M[i_bp, j] = 0.0
+                val = 1.0
+                for p in comb:
+                    val *= nu_vec[self.parameters.index(p)]
+                M[i_bp, j] = val
 
-        # Solve per-bin linear regression: log(Y / Y_nominal) = M * Δ
+        # Solve log(Y/Y_nominal) = M * Δ, per bin
         Y_nom = yields[self.nominal_base_point].reshape(-1)
         Y_ratio = np.maximum(Y / np.maximum(Y_nom, 1e-15), 1e-15)
         T = np.log(Y_ratio)
 
         MTM_inv = np.linalg.pinv(M.T @ M)
-        MT = M.T
-        coeff = MTM_inv @ MT @ T  # (n_comb, n_bins_flat)
-
+        coeff = MTM_inv @ M.T @ T  # (n_comb, n_bins_flat)
         self.deltas = coeff.reshape((n_comb,) + hist_shape)
 
     # ---------------- prediction ----------------
     def predict(self, nu: Sequence[float]) -> np.ndarray:
         """
-        Return histogram exp(∑_A ν_A Δ_A).
-
-        ν=0 returns histogram of ones (by construction).
+        Return histogram exp(∑_A Π_p∈A ν_p Δ_A).
         """
-        nu = np.asarray(nu, dtype=float)
-        if nu.shape[0] != len(self.parameters):
-            raise ValueError(f"ICPH.predict: expected {len(self.parameters)} coefficients.")
-
-        alphas = np.zeros(len(self.combinations), dtype=np.float64)
-        for i, comb in enumerate(self.combinations):
-            if len(comb) == 1:
-                idx = self.parameters.index(comb[0])
-                alphas[i] = nu[idx]
-            elif len(comb) == 2:
-                i1 = self.parameters.index(comb[0])
-                i2 = self.parameters.index(comb[1])
-                alphas[i] = 0.5 * nu[i1] * nu[i2] if i1 == i2 else nu[i1] * nu[i2]
-            else:
-                alphas[i] = 0.0
-
+        nu_vec = np.asarray(nu, dtype=float)
+        if nu_vec.shape[0] != len(self.parameters):
+            raise ValueError(f"ICPH.predict: expected {len(self.parameters)} parameters.")
+        alphas = self._nu_A(nu_vec)
         exponent = np.tensordot(alphas, self.deltas, axes=(0, 0))
         return np.exp(exponent)
 
+    # ---------------- nice printing ----------------
     def __str__(self) -> str:
+        """
+        Human-readable per-bin printout of the learned exponent:
+
+            log σ_bin(ν) = ∑_A Π_p∈A ν_p Δ_A(bin)
+        """
+        labels = ["*".join(c) if len(c) else "" for c in self.combinations]
+        lines = []
         proc = self.process or "None"
-        shape = self.deltas.shape
-        return (
-            f"ICPH — process: \033[1m{proc}\033[0m\n"
-            f"  combinations: {len(self.combinations)}\n"
-            f"  histogram shape: {shape}\n"
+        lines.append(
+            f"ICPH — process: \033[1m{proc}\033[0m, "
+            f"axes: {', '.join(self.axis_names)}, "
+            f"combinations: {len(self.combinations)}, "
+            f"histogram shape: {self.deltas.shape}"
         )
 
+        if self.deltas.ndim == 2:
+            n_bins = self.deltas.shape[1]
+            edges1 = self.bin_edges[0]
+            for ib in range(n_bins):
+                coeffs = self.deltas[:, ib]
+                terms = [
+                    f"{d:+.3e}{('*' + lab) if lab else ''}"
+                    for d, lab in zip(coeffs, labels)
+                ]
+                expr = " ".join(terms)
+                lo, hi = edges1[ib], edges1[ib + 1]
+                lines.append(f"bin[{ib}] [{lo:.3g}, {hi:.3g}): exp({expr})")
 
-#InclusiveCrosssectionParametrizationHistogram = InclusiveCrosssectionParametrizationHistogram
+        elif self.deltas.ndim == 3:
+            n_bins1, n_bins2 = self.deltas.shape[1], self.deltas.shape[2]
+            edges1, edges2 = self.bin_edges
+            for i1 in range(n_bins1):
+                for i2 in range(n_bins2):
+                    coeffs = self.deltas[:, i1, i2]
+                    terms = [
+                        f"{d:+.3e}{('*' + lab) if lab else ''}"
+                        for d, lab in zip(coeffs, labels)
+                    ]
+                    expr = " ".join(terms)
+                    lo1, hi1 = edges1[i1], edges1[i1 + 1]
+                    lo2, hi2 = edges2[i2], edges2[i2 + 1]
+                    lines.append(
+                        f"bin[{i1},{i2}] "
+                        f"[{lo1:.3g}, {hi1:.3g}) x [{lo2:.3g}, {hi2:.3g}): exp({expr})"
+                    )
+
+        else:
+            lines.append("Unsupported deltas.ndim (expected 2 or 3).")
+
+        return "\n".join(lines)
+
