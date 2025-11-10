@@ -487,45 +487,6 @@ rebin       = int(J.get("runtime", {}).get("rebin", 1))
 VkA = pnn.VkA
 nom_idx = pnn.nominal_base_point_index
 
-#for epoch in trange(start_epoch, epochs, desc="Epoch"):
-#    # LR
-#    new_lr = lr_schedule(epoch)
-#    pnn.optimizer.learning_rate.assign(float(new_lr))
-#
-#    total_loss = 0.0
-#
-#    # plotting accumulation
-#    do_plot = (epoch % plot_every == 0)
-#    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
-#    if do_plot:
-#        true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
-#
-#    for Xs, Ws in iterate_epoch(shard_limit=shard_limit):
-#        X0, w0 = Xs[nom_idx], Ws[nom_idx]
-#        X0n = pnn._normalize(X0)
-#        with tf.GradientTape() as tape:
-#            DeltaA0 = pnn.deltaA_tf(tf.convert_to_tensor(X0n, dtype=tf.float32), training=True)
-#
-#            loss = 0.0
-#            for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
-#                if i_bp == nom_idx: continue
-#                Xin = pnn._normalize(Xi)
-#                DeltaAi = pnn.deltaA_tf(tf.convert_to_tensor(Xin, dtype=tf.float32), training=True)
-#
-#                v = tf.convert_to_tensor(VkA[i_bp], dtype=tf.float32)  # (C,)
-#                term0 = tf.reduce_sum(tf.convert_to_tensor(w0) * tf.nn.softplus(tf.linalg.matvec(DeltaA0, v)))
-#                termi = tf.reduce_sum(tf.convert_to_tensor(wi) * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v)))
-#                const = (np.sum(w0) + np.sum(wi)) * math.log(2.0)
-#                loss += term0 + termi - const
-#
-#            grads = tape.gradient(loss, pnn.model.trainable_variables)
-#            pnn.optimizer.apply_gradients(zip(grads, pnn.model.trainable_variables))
-#            total_loss += float(loss.numpy())
-#
-#        # accumulate plots from this shard
-#        if do_plot and len(X0) and all(len(Xi) for Xi in Xs):
-#            accumulate_histograms(true_h, pred_h, bins, Xs, Ws, pnn, VkA,
-#                                  base_points, nom_idx, plot_feats, feat2col)
 for epoch in trange(start_epoch, epochs, desc="Epoch"):
     # LR
     new_lr = lr_schedule(epoch)
