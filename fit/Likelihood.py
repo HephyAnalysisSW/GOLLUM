@@ -870,7 +870,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=0.1, print_every=25,
     hypothesis.print()
     return m, adapter
 
-# --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
