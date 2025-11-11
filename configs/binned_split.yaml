@@ -7,7 +7,7 @@ defaults:
 
 likelihood:
     binned:
-        - id: SR # main signal region
+        - id: SR_binned # main signal region
           asimov: [tt2l]
           classes: 
             - id: tt2l_GG
@@ -144,38 +144,38 @@ likelihood:
 jobs:
   - id: ich_tt2l_GG
     type: ich
-    region: SR
+    region: SR_binned
     process: tt2l_GG
     binning:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
       cheb_n: 5
-      filename: "ICH_tt2l_GG.pkl"
+    output: { filename: "ICH_tt2l_GG.pkl"}
   - id: ich_tt2l_QG
     type: ich
-    region: SR
+    region: SR_binned
     process: tt2l_QG
     binning:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
       cheb_n: 5
-      filename: "ICH_tt2l_QG.pkl"
+    output: { filename: "ICH_tt2l_QG.pkl" }
   - id: ich_tt2l_QQ
     type: ich
-    region: SR
+    region: SR_binned
     process: tt2l_QQ
     binning:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
       cheb_n: 5
-      filename: "ICH_tt2l_QQ.pkl"
+    output: { filename: "ICH_tt2l_QQ.pkl" }
 
   - id: icph_tt2l_GG_Trigger
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_trigger]
     combinations: [[nu_trigger]]
     binning:
@@ -197,7 +197,7 @@ jobs:
   
   - id: icph_tt2l_GG_L1Prefire
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     binning:
@@ -219,7 +219,7 @@ jobs:
   
   - id: icph_tt2l_GG_PU
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     binning:
@@ -242,7 +242,7 @@ jobs:
  
   - id: icph_tt2l_GG_LeptonSF
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_leptonsf]
     combinations: [[nu_leptonsf]]
     binning:
@@ -264,7 +264,7 @@ jobs:
   
   - id: icph_tt2l_GG_BTag_b
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     binning:
@@ -286,7 +286,7 @@ jobs:
   
   - id: icph_tt2l_GG_BTag_l
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     binning:
@@ -308,7 +308,7 @@ jobs:
 
   - id: icph_tt2l_GG_scales
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     binning:
@@ -347,7 +347,7 @@ jobs:
 
   - id: icph_tt2l_GG_jesTotal
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
@@ -377,7 +377,7 @@ jobs:
 
   - id: icph_tt2l_QG_Trigger
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_trigger]
     combinations: [[nu_trigger]]
     binning:
@@ -399,7 +399,7 @@ jobs:
   
   - id: icph_tt2l_QG_L1Prefire
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     binning:
@@ -421,7 +421,7 @@ jobs:
   
   - id: icph_tt2l_QG_PU
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     binning:
@@ -444,7 +444,7 @@ jobs:
  
   - id: icph_tt2l_QG_LeptonSF
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_leptonsf]
     combinations: [[nu_leptonsf]]
     binning:
@@ -466,7 +466,7 @@ jobs:
   
   - id: icph_tt2l_QG_BTag_b
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     binning:
@@ -488,7 +488,7 @@ jobs:
   
   - id: icph_tt2l_QG_BTag_l
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     binning:
@@ -510,7 +510,7 @@ jobs:
 
   - id: icph_tt2l_QG_scales
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     binning:
@@ -549,7 +549,7 @@ jobs:
 
   - id: icph_tt2l_QG_jesTotal
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
@@ -579,7 +579,7 @@ jobs:
 
   - id: icph_tt2l_QQ_Trigger
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_trigger]
     combinations: [[nu_trigger]]
     binning:
@@ -601,7 +601,7 @@ jobs:
   
   - id: icph_tt2l_QQ_L1Prefire
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     binning:
@@ -623,7 +623,7 @@ jobs:
   
   - id: icph_tt2l_QQ_PU
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     binning:
@@ -646,7 +646,7 @@ jobs:
  
   - id: icph_tt2l_QQ_LeptonSF
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_leptonsf]
     combinations: [[nu_leptonsf]]
     binning:
@@ -668,7 +668,7 @@ jobs:
   
   - id: icph_tt2l_QQ_BTag_b
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     binning:
@@ -690,7 +690,7 @@ jobs:
   
   - id: icph_tt2l_QQ_BTag_l
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     binning:
@@ -712,7 +712,7 @@ jobs:
 
   - id: icph_tt2l_QQ_scales
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     binning:
@@ -751,7 +751,7 @@ jobs:
 
   - id: icph_tt2l_QQ_jesTotal
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:

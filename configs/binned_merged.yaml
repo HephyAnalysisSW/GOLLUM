@@ -7,7 +7,7 @@ defaults:
 
 likelihood:
     binned:
-        - id: SR # main signal region
+        - id: SR_binned 
           asimov: [tt2l]
           classes:
             - id: tt2l
@@ -57,18 +57,18 @@ likelihood:
 jobs:
   - id: ich_tt2l
     type: ich
-    region: SR
+    region: SR_binned
     process: tt2l
     binning:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
       cheb_n: 5                   
-      filename: "ICH_tt2l.pkl"
+    output: {filename: "ICH_tt2l.pkl"}
 
   - id: icph_tt2l_Trigger
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_trigger]
     combinations: [[nu_trigger]]
     binning:
@@ -90,7 +90,7 @@ jobs:
   
   - id: icph_tt2l_L1Prefire
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     binning:
@@ -112,7 +112,7 @@ jobs:
   
   - id: icph_tt2l_PU
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     binning:
@@ -135,7 +135,7 @@ jobs:
  
   - id: icph_tt2l_LeptonSF
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_leptonsf]
     combinations: [[nu_leptonsf]]
     binning:
@@ -157,7 +157,7 @@ jobs:
   
   - id: icph_tt2l_BTag_b
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     binning:
@@ -179,7 +179,7 @@ jobs:
   
   - id: icph_tt2l_BTag_l
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     binning:
@@ -201,7 +201,7 @@ jobs:
 
   - id: icph_tt2l_scales
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     binning:
@@ -240,7 +240,7 @@ jobs:
 
   - id: icph_tt2l_jesTotal
     type: icph
-    region: SR
+    region: SR_binned
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:

@@ -885,6 +885,8 @@ if __name__ == "__main__":
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
     yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
 
+    assert False, ""
+
     like_info = load_likelihood(cfg)
 
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
