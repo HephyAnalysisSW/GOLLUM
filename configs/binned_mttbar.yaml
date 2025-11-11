@@ -1,0 +1,74 @@
+version: v1
+
+defaults:
+  module_samples: "data.samples" 
+
+
+jobs:
+  - id: icph_tt2l_GG_scales
+    type: icph
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    binning: 
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac1p0"]
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l_GG
+        addweights: ["scale_ren2p0_fac2p0"]
+    output: { filename: "icph_tt2l_GG_scales.pkl" }
+
+  - id: binned_tt2l_GG
+    type: ich
+    region: SR
+    process: tt2l_GG                 
+    binning: 
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    pdf:
+      cheb_n: 5                   # <-- controls the number of Chebyshev coeffs (c0..cN)
+      filename: "ICH_tt2l_GG.pkl"
+  - id: binned_tt2l_QG
+    type: ich
+    process: tt2l_QG                 # loader/view name from data.samples
+    region: SR
+    binning: 
+        - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500 ]] 
+    pdf:
+      cheb_n: 5                   # <-- controls the number of Chebyshev coeffs (c0..cN)
+      filename: "ICH_tt2l_QG.pkl"
+  - id: binned_tt2l_QQ
+    type: ich
+    process: tt2l_QQ                 # loader/view name from data.samples
+    region: SR
+    binning: 
+        - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500 ]] 
+    pdf:
+      cheb_n: 5                   # <-- controls the number of Chebyshev coeffs (c0..cN)
+      filename: "ICH_tt2l_QQ.pkl"

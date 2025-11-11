@@ -1,0 +1,780 @@
+version: v1
+
+defaults:
+  module_samples: "data.samples"     # jobs import datasets/views by name from here
+  batch_size: 65536
+  seed: 1
+
+likelihood:
+    binned:
+        - id: SR # main signal region
+          asimov: [tt2l]
+          classes: 
+            - id: tt2l_GG
+              sample: tt2l_GG
+              POI:
+                job: ich_tt2l_GG
+                type: ich
+                parameters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_GG
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_GG]
+                - id: Trigger
+                  type: ichp
+                  job: ichp_tt2l_GG_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: ichp
+                  job: ichp_tt2l_GG_L1Prefire
+                  parameters: [nu_l1prefire]
+                - id: PU
+                  type: ichp
+                  job: ichp_tt2l_GG_PU
+                  parameters: [nu_pu]
+                - id: LeptonSF
+                  type: ichp
+                  job: ichp_tt2l_GG_LeptonSF
+                  parameters: [nu_leptonsf]
+                - id: BTag_b
+                  type: ichp
+                  job: ichp_tt2l_GG_BTag_b
+                  parameters: [nu_btag_b]
+                - id: BTag_l
+                  type: ichp
+                  job: ichp_tt2l_GG_BTag_l
+                  parameters: [nu_btag_l]
+                - id: Scales
+                  type: icph
+                  job: icph_tt2l_GG_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
+                - id: JES
+                  type: icph
+                  job: icph_tt2l_GG_jesTotal
+                  parameters: [nu_jes]
+            - id: tt2l_QG
+              sample: tt2l_QG
+              POI:
+                job: ich_tt2l_QG
+                type: ich
+                parameters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_QG
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_QG]
+                - id: Trigger
+                  type: ichp
+                  job: ichp_tt2l_QG_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: ichp
+                  job: ichp_tt2l_QG_L1Prefire
+                  parameters: [nu_l1prefire]
+                - id: PU
+                  type: ichp
+                  job: ichp_tt2l_QG_PU
+                  parameters: [nu_pu]
+                - id: LeptonSF
+                  type: ichp
+                  job: ichp_tt2l_QG_LeptonSF
+                  parameters: [nu_leptonsf]
+                - id: BTag_b
+                  type: ichp
+                  job: ichp_tt2l_QG_BTag_b
+                  parameters: [nu_btag_b]
+                - id: BTag_l
+                  type: ichp
+                  job: ichp_tt2l_QG_BTag_l
+                  parameters: [nu_btag_l]
+                - id: Scales
+                  type: icph
+                  job: icph_tt2l_QG_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
+                - id: JES
+                  type: icph
+                  job: icph_tt2l_QG_jesTotal
+                  parameters: [nu_jes]
+            - id: tt2l_QQ
+              sample: tt2l_QQ
+              POI:
+                job: ich_tt2l_QQ
+                type: ich
+                parameters: [c0, c1, c2, c3, c4, c5]
+              systematics:
+                - id: Normalization_QQ
+                  type: lnN
+                  value: 0.05
+                  parameters: [nu_norm_QQ]
+                - id: Trigger
+                  type: ichp
+                  job: ichp_tt2l_QQ_Trigger
+                  parameters: [nu_trigger]
+                - id: L1Prefire
+                  type: ichp
+                  job: ichp_tt2l_QQ_L1Prefire
+                  parameters: [nu_l1prefire]
+                - id: PU
+                  type: ichp
+                  job: ichp_tt2l_QQ_PU
+                  parameters: [nu_pu]
+                - id: LeptonSF
+                  type: ichp
+                  job: ichp_tt2l_QQ_LeptonSF
+                  parameters: [nu_leptonsf]
+                - id: BTag_b
+                  type: ichp
+                  job: ichp_tt2l_QQ_BTag_b
+                  parameters: [nu_btag_b]
+                - id: BTag_l
+                  type: ichp
+                  job: ichp_tt2l_QQ_BTag_l
+                  parameters: [nu_btag_l]
+                - id: Scales
+                  type: icph
+                  job: icph_tt2l_QQ_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
+                - id: JES
+                  type: icph
+                  job: icph_tt2l_QQ_jesTotal
+                  parameters: [nu_jes]
+
+
+jobs:
+  - id: ich_tt2l_GG
+    type: ich
+    region: SR
+    process: tt2l_GG
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    pdf:
+      cheb_n: 5
+      filename: "ICH_tt2l_GG.pkl"
+  - id: ich_tt2l_QG
+    type: ich
+    region: SR
+    process: tt2l_QG
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    pdf:
+      cheb_n: 5
+      filename: "ICH_tt2l_QG.pkl"
+  - id: ich_tt2l_QQ
+    type: ich
+    region: SR
+    process: tt2l_QQ
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    pdf:
+      cheb_n: 5
+      filename: "ICH_tt2l_QQ.pkl"
+
+  - id: icph_tt2l_GG_Trigger
+    type: icph
+    region: SR
+    parameters: [nu_trigger]
+    combinations: [[nu_trigger]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
+    output: { filename: "icph_tt2l_GG_Trigger.pkl" }
+  
+  - id: icph_tt2l_GG_L1Prefire
+    type: icph
+    region: SR
+    parameters: [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
+    output: { filename: "icph_tt2l_GG_L1Prefire.pkl" }
+  
+  - id: icph_tt2l_GG_PU
+    type: icph
+    region: SR
+    parameters: [nu_pu]
+    combinations: [[nu_pu]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
+    output: { filename: "icph_tt2l_GG_PU.pkl" }
+
+ 
+  - id: icph_tt2l_GG_LeptonSF
+    type: icph
+    region: SR
+    parameters: [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
+    output: { filename: "icph_tt2l_GG_LeptonSF.pkl" }
+  
+  - id: icph_tt2l_GG_BTag_b
+    type: icph
+    region: SR
+    parameters: [nu_btag_b]
+    combinations: [[nu_btag_b]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
+    output: { filename: "icph_tt2l_GG_BTag_b.pkl" }
+  
+  - id: icph_tt2l_GG_BTag_l
+    type: icph
+    region: SR
+    parameters: [nu_btag_l]
+    combinations: [[nu_btag_l]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
+    output: { filename: "icph_tt2l_GG_BTag_l.pkl" }
+
+  - id: icph_tt2l_GG_scales
+    type: icph
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac1p0"]
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac2p0"]
+    output: { filename: "icph_tt2l_GG_scales.pkl" }
+
+  - id: icph_tt2l_GG_jesTotal
+    type: icph
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    binning:
+      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_2p0_jesTotalUp
+    output: { filename: "icph_tt2l_GG_jesTotal.pkl" }
+
+  - id: icph_tt2l_QG_Trigger
+    type: icph
+    region: SR
+    parameters: [nu_trigger]
+    combinations: [[nu_trigger]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
+    output: { filename: "icph_tt2l_QG_Trigger.pkl" }
+  
+  - id: icph_tt2l_QG_L1Prefire
+    type: icph
+    region: SR
+    parameters: [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
+    output: { filename: "icph_tt2l_QG_L1Prefire.pkl" }
+  
+  - id: icph_tt2l_QG_PU
+    type: icph
+    region: SR
+    parameters: [nu_pu]
+    combinations: [[nu_pu]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
+    output: { filename: "icph_tt2l_QG_PU.pkl" }
+
+ 
+  - id: icph_tt2l_QG_LeptonSF
+    type: icph
+    region: SR
+    parameters: [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
+    output: { filename: "icph_tt2l_QG_LeptonSF.pkl" }
+  
+  - id: icph_tt2l_QG_BTag_b
+    type: icph
+    region: SR
+    parameters: [nu_btag_b]
+    combinations: [[nu_btag_b]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
+    output: { filename: "icph_tt2l_QG_BTag_b.pkl" }
+  
+  - id: icph_tt2l_QG_BTag_l
+    type: icph
+    region: SR
+    parameters: [nu_btag_l]
+    combinations: [[nu_btag_l]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
+    output: { filename: "icph_tt2l_QG_BTag_l.pkl" }
+
+  - id: icph_tt2l_QG_scales
+    type: icph
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac1p0"]
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac2p0"]
+    output: { filename: "icph_tt2l_QG_scales.pkl" }
+
+  - id: icph_tt2l_QG_jesTotal
+    type: icph
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    binning:
+      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_2p0_jesTotalUp
+    output: { filename: "icph_tt2l_QG_jesTotal.pkl" }
+
+  - id: icph_tt2l_QQ_Trigger
+    type: icph
+    region: SR
+    parameters: [nu_trigger]
+    combinations: [[nu_trigger]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightTrigger"] 
+        addweights: ["reweightTriggerUp"] 
+    output: { filename: "icph_tt2l_QQ_Trigger.pkl" }
+  
+  - id: icph_tt2l_QQ_L1Prefire
+    type: icph
+    region: SR
+    parameters: [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightL1Prefire"] 
+        addweights: ["reweightL1PrefireUp"] 
+    output: { filename: "icph_tt2l_QQ_L1Prefire.pkl" }
+  
+  - id: icph_tt2l_QQ_PU
+    type: icph
+    region: SR
+    parameters: [nu_pu]
+    combinations: [[nu_pu]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightPU"] 
+        addweights: ["reweightPUUp"] 
+    output: { filename: "icph_tt2l_QQ_PU.pkl" }
+
+ 
+  - id: icph_tt2l_QQ_LeptonSF
+    type: icph
+    region: SR
+    parameters: [nu_leptonsf]
+    combinations: [[nu_leptonsf]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFDown"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightLeptonSF"] 
+        addweights: ["reweightLeptonSFUp"] 
+    output: { filename: "icph_tt2l_QQ_LeptonSF.pkl" }
+  
+  - id: icph_tt2l_QQ_BTag_b
+    type: icph
+    region: SR
+    parameters: [nu_btag_b]
+    combinations: [[nu_btag_b]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_b_Up"] 
+    output: { filename: "icph_tt2l_QQ_BTag_b.pkl" }
+  
+  - id: icph_tt2l_QQ_BTag_l
+    type: icph
+    region: SR
+    parameters: [nu_btag_l]
+    combinations: [[nu_btag_l]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Down"] 
+      - coords: [ 0.0]
+        loader: tt2l
+        nominal: true
+      - coords: [ 1.0]
+        loader: tt2l
+        removeweights: ["reweightBTagSF1a_SF"] 
+        addweights: ["reweightBTagSF1a_SF_l_Up"] 
+    output: { filename: "icph_tt2l_QQ_BTag_l.pkl" }
+
+  - id: icph_tt2l_QQ_scales
+    type: icph
+    region: SR
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    binning:
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac1p0"]
+        nominal: true
+      - coords: [0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: tt2l
+        addweights: ["scale_ren2p0_fac2p0"]
+    output: { filename: "icph_tt2l_QQ_scales.pkl" }
+
+  - id: icph_tt2l_QQ_jesTotal
+    type: icph
+    region: SR
+    parameters: [nu_jes]
+    combinations: [[nu_jes], [nu_jes, nu_jes]]
+    binning:
+      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+    base_points:
+      - coords: [-2.0]
+        loader: tt2l_2p0_jesTotalDown
+      - coords: [-1.5]
+        loader: tt2l_1p5_jesTotalDown 
+      - coords: [-1.0]
+        loader: tt2l_1p0_jesTotalDown
+      - coords: [-0.5]
+        loader: tt2l_0p5_jesTotalDown
+      - coords: [0]
+        loader: tt2l_jesNominal
+        nominal: true
+      - coords: [0.5]
+        loader: tt2l_0p5_jesTotalUp
+      - coords: [1.0]
+        loader: tt2l_1p0_jesTotalUp
+      - coords: [1.5]
+        loader: tt2l_1p5_jesTotalUp
+      - coords: [2.0]
+        loader: tt2l_2p0_jesTotalUp
+    output: { filename: "icph_tt2l_QQ_jesTotal.pkl" }

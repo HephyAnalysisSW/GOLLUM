@@ -55,7 +55,7 @@ likelihood:
                   parameters: [nu_jes]
 
 jobs:
-  - id: binned_tt2l
+  - id: ich_tt2l
     type: ich
     region: SR
     process: tt2l
