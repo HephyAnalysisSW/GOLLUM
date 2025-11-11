@@ -68,8 +68,9 @@ def load_likelihood(cfg):
         # classifier (TFMC)
         clf = R.get("classifier", {}) or {}
         if clf.get("type") == "tfmc":
-            tfmc_id = clf.get("id")
+            tfmc_id = clf.get("job")
             tfmc_job = id2job.get(tfmc_id) or _job_by_id(cfg, tfmc_id)
+
             tfmc_pred = _predictor_from_job(tfmc_job)
             clf['predictor'] = tfmc_pred
             if tfmc_pred is None:

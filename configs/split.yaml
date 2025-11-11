@@ -10,7 +10,7 @@ likelihood:
         - id: SR # main signal region
           classifier: 
             type: tfmc
-            id: tfmc_split_processes 
+            job: tfmc_split_processes 
             asimov: [tt2l]
           classes: # Warning! The classes here must be in the same order as the output nodes of the tfmc
             - id: tt2l_GG
