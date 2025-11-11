@@ -224,6 +224,8 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     import os, sys
     sys.path.insert(0, '..'); sys.path.insert(0, '../..')  # project roots
 
+    cfg_full = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
+
     import common.user as user
 
     # helpers
@@ -314,7 +316,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] Scaler {jid}  (expected at {path})")
-                missing.append(f"python scaler_training.py {config_path}{FLAGS} --job {jid}")
+                missing.append(f"python Scaler/scaler_training.py {full_path}{FLAGS} --job {jid}")
 
         # ---------- IC ----------
         elif jtyp == "ic":
@@ -330,7 +332,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] IC {jid}  (expected at {path})")
-                missing.append(f"python IC/ic_training.py {config_path}{FLAGS} --job {jid}")
+                missing.append(f"python IC/ic_training.py {full_path}{FLAGS} --job {jid}")
 
         # ---------- ICP ----------
         elif jtyp == "icp":
@@ -345,7 +347,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] ICP {jid}  (expected at {path})")
-                missing.append(f"python ICP/icp_training.py {config_path}{FLAGS} --job {jid}")
+                missing.append(f"python ICP/icp_training.py {full_path}{FLAGS} --job {jid}")
 
         # ---------- PNN ----------
         elif jtyp == "pnn":
@@ -357,7 +359,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] PNN {jid}  (expected at {model_dir})")
-                missing.append(f"python PNN/pnn_training.py {config_path}{FLAGS} --job {jid}")
+                missing.append(f"python PNN/pnn_training.py {full_path}{FLAGS} --job {jid}")
 
         # ---------- TFMC classifier ----------
         elif jtyp == "classifier" and job.get("framework") == "tfmc":
@@ -370,7 +372,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
             else:
                 print(f"[MISS] TFMC {jid}  (expected at {model_dir})")
                 print_flags = FLAGS  # keep same overwrite/small echo
-                missing.append(f"python TFMC/tfmc_training.py {config_path}{print_flags} --job {jid}")
+                missing.append(f"python TFMC/tfmc_training.py {full_path}{print_flags} --job {jid}")
 
         # ---------- BIT ----------
         elif jtyp == "bit":
@@ -385,7 +387,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
             else:
                 print(f"[MISS] BIT {jid}  (expected at {path})")
                 nb = " --numba" if prefer_numba else ""
-                missing.append(f"python BIT/pdf_bit_training.py {config_path}{FLAGS}{nb} --job {jid}")
+                missing.append(f"python BIT/pdf_bit_training.py {full_path}{FLAGS}{nb} --job {jid}")
 
         # (ignore other types here)
 
