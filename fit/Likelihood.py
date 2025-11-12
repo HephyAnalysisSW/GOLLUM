@@ -304,6 +304,11 @@ class N2LL:
         self.overwrite = overwrite
         self.eval_chunk_size = int(eval_chunk_size)
 
+        # ----- Asimov (off-nominal) support -----
+        self._asimov_hyp = None                       # Hypothesis used for Asimov (c', ν')
+        self._asimov_active = False                   # quick guard: any nonzero param?
+        self._asimov_T: Dict[str, list[np.ndarray]] = {}   # region_id -> list of T'(chunk) arrays
+
         # where caches live
         try:
             import common.user as user
@@ -434,6 +439,21 @@ class N2LL:
                     L.n_split = old_split
                 except Exception:
                     pass
+
+    # --------- dataset appends (HDF5) ---------
+    @staticmethod
+    def _append_1d(dset, arr: np.ndarray):
+        n_old = dset.shape[0]
+        n_add = arr.shape[0]
+        dset.resize((n_old + n_add,))
+        dset[n_old:n_old+n_add] = arr
+
+    @staticmethod
+    def _append_2d(dset, arr: np.ndarray):
+        n_old = dset.shape[0]
+        n_add = arr.shape[0]
+        dset.resize((n_old + n_add, dset.shape[1]))
+        dset[n_old:n_old+n_add, :] = arr
 
     # --------- cache builder (HDF5) ----------
     def build_cache(self):
@@ -681,7 +701,6 @@ class N2LL:
 
             self._N_region[rid] = N_region or 0
 
-
     def close(self):
         """Close all opened HDF5 files."""
         for f in list(self._h5.values()):
@@ -691,114 +710,177 @@ class N2LL:
                 pass
         self._h5.clear()
 
-    # --------- eval (no I/O; only slicing) ---------
+    # ---- assemble A-basis for POIs and nuisances from a hypothesis ----
+    def _assemble_cA_per_class(self, rid: str, hypothesis) -> Dict[str, np.ndarray]:
+        """Build c_A vectors per class for a given hypothesis."""
+        cA_per_class: Dict[str, np.ndarray] = {}
+        c_vec = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
+        for cid in self._class_ids_by_region.get(rid, []):
+            poi_names = self._poi_order[(rid, cid)]
+            cA_per_class[cid] = _expand_pois_linear_quadratic(poi_names, c_vec)
+        return cA_per_class
+
+    def _assemble_nuA_groups(self, rid: str, hypothesis) -> Dict[str, list[tuple[dict, np.ndarray]]]:
+        """Build ν_A vectors per Δ-group for a given hypothesis."""
+        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nuA_per_group: Dict[str, list[tuple[dict, np.ndarray]]] = {}
+        for cid in self._class_ids_by_region.get(rid, []):
+            meta = self._meta[(rid, cid)]
+            groups = []
+            for gm in meta.get("delta_groups", []):
+                params = list(gm.get("params", gm.get("parameters", [])) or [])
+                combs  = [tuple(c) for c in gm.get("combs", gm.get("combinations", [])) or []]
+                nuA    = _nuis_to_A_vector(params, combs, nu_vals)
+                groups.append((gm, nuA))
+            nuA_per_group[cid] = groups
+        return nuA_per_group
+
+    def _compute_T_chunk(self, rid: str, cA_per_class, nuA_per_group, ln_bias_map, start: int, stop: int) -> np.ndarray:
+        """
+        Compute T(x; c, ν) on [start:stop) for a single region rid, summing over classes.
+        T_i = Σ_p g_p(x_i) * [ (c⋅R_p)(x_i) * e^{Σ_s ν_B Δ_{p,B}(x_i)} + (e^{...} - 1) ].
+        """
+        f_first = self._h5[(rid, self._class_ids_by_region[rid][0])]
+        M = stop - start
+        T = np.zeros(M, dtype=np.float64)
+
+        for cid in self._class_ids_by_region[rid]:
+            f = self._h5[(rid, cid)]
+            g_slice = f['g'][start:stop]                # (M,)
+            R_slice = f['R'][start:stop, :]             # (M, nA)
+            cA      = cA_per_class[cid]
+            if R_slice.shape[1] != cA.shape[0]:
+                raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
+            c_dot_R = R_slice @ cA                      # (M,)
+
+            # build exponent from all Δ-groups
+            expo = np.zeros_like(g_slice)
+            for gm, nuA in nuA_per_group[cid]:
+                dset = gm.get("dset", f"Delta::{gm['id']}")
+                dA   = f[dset][start:stop, :]           # (M, nB)
+                if dA.shape[1] != nuA.shape[0]:
+                    raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
+                expo += dA @ nuA                        # (M,)
+
+            # include per-class lnN bias additively in exponent
+            exp_expo = np.exp(expo + ln_bias_map[cid])  # (M,)
+            T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+
+        return T
+
+    def setAsimov(self, hypothesis) -> None:
+        """
+        Set an off-nominal Asimov hypothesis (c', ν') and precompute T'(x; c', ν')
+        on the cached event set. If all parameters are zero, disables the bias.
+        """
+        if not self._h5:
+            raise RuntimeError("[N2LL.setAsimov] Call prepare_runtime() before setting Asimov.")
+
+        # quick check: any parameter nonzero?
+        any_nonzero = any(abs(float(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
+        self._asimov_active = bool(any_nonzero)
+        self._asimov_hyp = hypothesis if self._asimov_active else None
+        self._asimov_T.clear()
+
+        if not self._asimov_active:
+            return  # nothing to cache; bias term will be skipped
+
+        # Precompute per region
+        for R in self.regions:
+            rid = R['id']
+            class_ids = self._class_ids_by_region.get(rid, [])
+            if not class_ids:
+                continue
+            N = self._N_region.get(rid, 0)
+            if N == 0:
+                continue
+
+            # A-basis and lnN bias for Asimov hypothesis
+            cA_per_class = self._assemble_cA_per_class(rid, hypothesis)
+            nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
+            ln_bias = {
+                cid: sum(log1p_alpha * float(hypothesis[nm].val) if nm in hypothesis else 0.0
+                         for nm, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                for cid in class_ids
+            }
+
+            # chunked compute and store
+            chunk = self.eval_chunk_size
+            Ts: list[np.ndarray] = []
+            for start in range(0, N, chunk):
+                stop = min(start + chunk, N)
+                T_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                Ts.append(T_chunk)
+            self._asimov_T[rid] = Ts
+
     def __call__(self, hypothesis) -> float:
         """
-        Return u_Asimov(c, ν) = -2 * sum_i w0_i * (log1p(T_i) - T_i),
-        with T_i = Σ_p g_p(x_i) [ (c⋅R_p)(x_i) e^{Σ_s ν_{s,B} Δ_{p,s,B}(x_i)} + (e^{Σ_s ν_{s,B} Δ_{p,s,B}(x_i)} - 1) ].
+        Return  -2 * Σ_i w0_i * ( log1p(T_i) - T_i )   [baseline Asimov at (0,0)]
+            plus bias term if an off-nominal Asimov hypothesis (c',ν') is set:
 
-        Streams arrays in chunks from *already-open* HDF5 handles prepared by prepare_runtime().
+            +  -2 * Σ_i w0_i * T'_i * log1p(T_i)
+
+        where:
+          T_i  = T(x_i; c,  ν)  (current hypothesis)
+          T'_i = T(x_i; c', ν') (precomputed via setAsimov)
         """
-        import numpy as np, math
-        from tqdm import tqdm
+        import numpy as np
 
         if not self._h5:
             raise RuntimeError("[N2LL] Call prepare_runtime() before evaluating.")
 
-        # Prepare ν dict once per call
+        # ----- build A-basis for current hypothesis -----
+        # nuisances for lnN bias
         nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
-        total_contrib = 0.0
+
+        total_sum = 0.0         # Σ w * (log1p(T) - T)
+        bias_sum  = 0.0         # Σ w * T'(asimov) * log1p(T)
 
         for R in self.regions:
             rid = R['id']
             class_ids = self._class_ids_by_region.get(rid, [])
             if not class_ids:
                 continue
-
             N = self._N_region.get(rid, 0)
             if N == 0:
                 continue
 
-            # Precompute c_A per class (depends on hypothesis POIs)
-            cA_per_class: Dict[str, np.ndarray] = {}
-            for cid in class_ids:
-                poi_names = self._poi_order[(rid, cid)]
-                c_vec = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
-                cA_per_class[cid] = _expand_pois_linear_quadratic(poi_names, c_vec)
+            # current hypothesis: c_A and ν_A groups
+            cA_per_class  = self._assemble_cA_per_class(rid, hypothesis)
+            nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
+            ln_bias = {
+                cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                         for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                for cid in class_ids
+            }
 
-            # Precompute ν_A per Δ-group per class (depends on ν, but only vector algebra)
-            nuA_per_group: Dict[str, List[Tuple[Dict[str, Any], np.ndarray]]] = {}
-            for cid in class_ids:
-                meta = self._meta[(rid, cid)]
-                groups = []
-                for gm in meta.get("delta_groups", []):
-                    params = list(gm.get("params", gm.get("parameters", [])) or [])
-                    combs  = [tuple(c) for c in gm.get("combs", gm.get("combinations", [])) or []]
-                    nuA = _nuis_to_A_vector(params, combs, nu_vals)
-                    groups.append((gm, nuA))
-                nuA_per_group[cid] = groups
-
-            # --- precompute per-class normalization bias ---
-            ln_bias = {cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
-                                for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
-                       for cid in class_ids}
-            # Chunked evaluation
+            # chunked evaluation
             chunk = self.eval_chunk_size
-            for start in range(0, N, chunk):
+            asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
+            for ichunk, start in enumerate(range(0, N, chunk)):
                 stop = min(start + chunk, N)
-                M = stop - start
-                T_sum = np.zeros(M, dtype=np.float64)
 
-                for cid in class_ids:
-                    f = self._h5[(rid, cid)]
-                    g_slice = f['g'][start:stop]                     # (M,)
-                    R_slice = f['R'][start:stop, :]                  # (M, nA)
-                    cA      = cA_per_class[cid]
+                # compute T for current hypothesis on this chunk
+                T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)  # (M,)
+                W = self._h5[(rid, class_ids[0])]['w0'][start:stop]                                # (M,)
 
-                    if R_slice.shape[1] != cA.shape[0]:
-                        raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
+                # baseline contribution: Σ w * (log1p(T) - T)
+                # (use the numerically-stable helper for the sum)
+                total_sum += _weighted_sum_log1p_minus_x(T, W)
 
-                    c_dot_R = R_slice @ cA
-            
-                    # accumulate exponent from all Δ-groups
-                    expo = np.zeros_like(g_slice)
-                    for gm, nuA in nuA_per_group[cid]:
-                        dset = gm.get("dset", f"Delta::{gm['id']}")
-                        dA   = f[dset][start:stop, :]                 # (M, nB)
-                        if dA.shape[1] != nuA.shape[0]:
-                            raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid} sys '{gm['id']}'")
-                        expo += dA @ nuA
+                # bias term only if an off-nominal Asimov has been set
+                if asimov_T_chunks is not None:
+                    Tprime = asimov_T_chunks[ichunk]   # (M,)
+                    # add Σ w * T'(asimov) * log1p(T)
+                    bias_sum += float(np.sum(W * np.log1p(T) * Tprime, dtype=np.float64))
 
-                    exp_expo = np.exp(expo + ln_bias[cid])
-                    T_sum += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+        # assemble -2 log L
+        n2ll = -2.0 * (total_sum + bias_sum)
 
-                # weights from first class (shared event set)
-                W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
-                total_contrib += _weighted_sum_log1p_minus_x(T_sum, W)
-    
-        # u_Asimov = -2 * sum W * (log1p(T) - T)
-        total_contrib *=-2     
+        # nuisance penalty (gaussian prior)
+        n2ll += hypothesis.penalty()
 
-        # Add nuisance penalty
-        total_contrib += hypothesis.penalty() 
-
-        return total_contrib 
-
-    # --------- dataset appends (HDF5) ---------
-    @staticmethod
-    def _append_1d(dset, arr: np.ndarray):
-        n_old = dset.shape[0]
-        n_add = arr.shape[0]
-        dset.resize((n_old + n_add,))
-        dset[n_old:n_old+n_add] = arr
-
-    @staticmethod
-    def _append_2d(dset, arr: np.ndarray):
-        n_old = dset.shape[0]
-        n_add = arr.shape[0]
-        dset.resize((n_old + n_add, dset.shape[1]))
-        dset[n_old:n_old+n_add, :] = arr
-
+        return float(n2ll)
 
 class _MinuitArrayAdapter:
     """Array-based FCN for Minuit (keeps names, prints progress)."""
@@ -885,8 +967,6 @@ if __name__ == "__main__":
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
     yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
 
-    assert False, ""
-
     like_info = load_likelihood(cfg)
 
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
@@ -897,6 +977,9 @@ if __name__ == "__main__":
     n2ll.prepare_runtime()
     #n2ll = n2ll(hyp) 
 
+    n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
+
+    val = n2ll(hyp)
     ## run Minuit; prints the model every 25 evaluations by default
     m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
 
