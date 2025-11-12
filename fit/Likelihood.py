@@ -36,26 +36,35 @@ def _predictor_from_job(job):
 def load_likelihood(cfg):
     """
     Parse cfg['likelihood'], attach predictors by job id, and collect
-    - POI names (union across all classes)
-    - nuisance names (union across all systematics)
-    
+    - POI names (union across all classes, unbinned + binned)
+    - nuisance names (union across all systematics, unbinned + binned)
+
     Returns a dict:
       {
-        'regions': [... enriched likelihood regions ...],
-        'pois':     sorted list of POI names,
-        'nuisances':sorted list of nuisance names
+        'regions':   [... enriched unbinned regions ...],   # may be empty
+        'binned':    [... enriched binned regions ...],     # may be empty
+        'pois':      sorted list of POI names,
+        'nuisances': sorted list of nuisance names
       }
+
     The function mutates the region dictionaries to include predictor hooks:
-      region['classifier']['predictor']
-      class['POI']['predictor']
-      syst['predictor']     (for type == 'pnn')
+      Unbinned:
+        region['classifier']['predictor']   (if tfmc)
+        class['POI']['predictor']           (BIT)
+        syst['predictor']                   (for type == 'pnn')
+        syst['parameters'], syst['combinations'] propagated from job if missing
+      Binned:
+        class['POI']['predictor']           (ICH)
+        syst['predictor']                   (for type == 'icph')
+        syst['parameters'], syst['combinations'] propagated from job if missing
     """
     lk = cfg.get("likelihood", {}) or {}
     regions = list(lk.get("regions", []) or [])
+    binned  = list(lk.get("binned",  []) or [])
 
-    if not regions:
-        logger.info("No likelihood regions found.")
-        return {'regions': [], 'pois': [], 'nuisances': []}
+    if not regions and not binned:
+        logger.info("No likelihood regions (unbinned or binned) found.")
+        return {'regions': [], 'binned': [], 'pois': [], 'nuisances': []}
 
     all_pois = set()
     all_nuis = set()
@@ -63,14 +72,15 @@ def load_likelihood(cfg):
     # convenience cache of jobs by id
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
 
-    # Walk regions
+    # -------------------------
+    # Unbinned regions (BIT/PNN)
+    # -------------------------
     for R in regions:
         # classifier (TFMC)
         clf = R.get("classifier", {}) or {}
         if clf.get("type") == "tfmc":
-            tfmc_id = clf.get("job")
+            tfmc_id  = clf.get("job")
             tfmc_job = id2job.get(tfmc_id) or _job_by_id(cfg, tfmc_id)
-
             tfmc_pred = _predictor_from_job(tfmc_job)
             clf['predictor'] = tfmc_pred
             if tfmc_pred is None:
@@ -92,25 +102,23 @@ def load_likelihood(cfg):
                 all_pois.add(nm)
 
             # systematics
-            systs = C.get("systematics", []) or []
-            for S in systs:
+            for S in (C.get("systematics", []) or []):
                 styp = S.get("type")
                 if styp == "pnn":
-                    pnn_id = S.get("job")
+                    pnn_id  = S.get("job")
                     pnn_job = id2job.get(pnn_id) or _job_by_id(cfg, pnn_id)
                     S['predictor'] = _predictor_from_job(pnn_job)
                     if S['predictor'] is None:
                         logger.warning(f"[likelihood] PNN '{pnn_id}' has no predictor attached yet.")
 
-                    # NEW: expose PNN combinations (and ensure parameters present)
+                    # propagate params/combinations from job if missing
                     pnn_params = list((pnn_job or {}).get("parameters", []) or [])
                     pnn_combs  = [tuple(c) for c in ((pnn_job or {}).get("combinations", []) or [])]
                     if 'parameters' not in S or not S['parameters']:
-                        S['parameters'] = pnn_params                  
-                    S['combinations'] = pnn_combs                     
+                        S['parameters'] = pnn_params
+                    S['combinations'] = pnn_combs
 
-                    # Optional extra check: ensure PNN↔ICP match if PNN references an ICP by id in its extras
-                    # (this duplicates the checker in load_surrogates, but keeps it close to likelihood, too)
+                    # optional: check PNN↔ICP consistency if referenced
                     try:
                         extras = (pnn_job or {}).get('extras', {}) or {}
                         icp_id = extras.get('use_icp')
@@ -118,8 +126,6 @@ def load_likelihood(cfg):
                             icp_job = id2job[icp_id]
                             icp = icp_job.get('predictor', None)
                             if icp is not None:
-                                pnn_params = list((pnn_job or {}).get("parameters", []) or [])
-                                pnn_combs  = [tuple(c) for c in ((pnn_job or {}).get("combinations", []) or [])]
                                 icp_params = list(getattr(icp, "parameters"))
                                 icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
                                 if not (pnn_params == icp_params and pnn_combs == icp_combs):
@@ -127,16 +133,62 @@ def load_likelihood(cfg):
                     except Exception:
                         pass
 
-                    # collect nuisance names from YAML
+                    # collect nuisance names
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
 
                 elif styp == "lnN":
-                    # log-normal norm nuisances; they have 'parameters': [...]
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                 else:
-                    # Future syst types (jes/jer/etc.) can be added here
+                    # future unbinned syst types
+                    for nm in (S.get("parameters") or []):
+                        all_nuis.add(nm)
+
+    # -----------------------
+    # Binned regions (ICH/ICPH)
+    # -----------------------
+    for R in binned:
+        # classes
+        classes = R.get("classes", []) or []
+        for C in classes:
+            # POI (ICH)
+            poi = C.get("POI", {}) or {}
+            poi_job_id = poi.get("job")
+            if poi_job_id:
+                ich_job = id2job.get(poi_job_id) or _job_by_id(cfg, poi_job_id)
+                poi['predictor'] = _predictor_from_job(ich_job)
+                if poi['predictor'] is None:
+                    logger.warning(f"[likelihood] ICH '{poi_job_id}' has no predictor attached yet.")
+            for nm in (poi.get("paramaters") or poi.get("parameters") or []):
+                all_pois.add(nm)
+
+            # systematics
+            for S in (C.get("systematics", []) or []):
+                styp = S.get("type")
+                if styp == "icph":
+                    icph_id  = S.get("job")
+                    icph_job = id2job.get(icph_id) or _job_by_id(cfg, icph_id)
+                    S['predictor'] = _predictor_from_job(icph_job)
+                    if S['predictor'] is None:
+                        logger.warning(f"[likelihood] ICPH '{icph_id}' has no predictor attached yet.")
+
+                    # propagate params/combinations from job if missing
+                    icph_params = list((icph_job or {}).get("parameters", []) or [])
+                    icph_combs  = [tuple(c) for c in ((icph_job or {}).get("combinations", []) or [])]
+                    if 'parameters' not in S or not S['parameters']:
+                        S['parameters'] = icph_params
+                    S['combinations'] = icph_combs
+
+                    # collect nuisance names
+                    for nm in (S.get("parameters") or []):
+                        all_nuis.add(nm)
+
+                elif styp == "lnN":
+                    for nm in (S.get("parameters") or []):
+                        all_nuis.add(nm)
+                else:
+                    # future binned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
 
@@ -144,20 +196,19 @@ def load_likelihood(cfg):
     pois_list = sorted(all_pois)
     nuis_list = sorted(all_nuis)
 
-    # Write back the enriched regions for downstream consumers
-    return {'regions': regions, 'pois': pois_list, 'nuisances': nuis_list}
+    # Return both sections enriched
+    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list}
 
 def build_hypothesis_from_likelihood(like_info, *, name=None,
                                      poi_init=0.0, nuis_init=0.0,
                                      penalize_nuisances=True):
     """
     Convenience: construct a Hypothesis from load_likelihood(...) output.
+    Includes parameters discovered in BOTH unbinned and binned sections.
 
     Heuristics:
       - POIs are marked isPOI=True if name starts with 'c'.
       - Nuisances are marked penalized unless penalize_nuisances=False.
-
-    Returns Hypothesis instance.
     """
     pois = like_info.get('pois', []) or []
     nuis = like_info.get('nuisances', []) or []
@@ -168,10 +219,11 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
         params.append(ModelParameter(name=nm, val=poi_init, isPOI=True, isPenalized=False))
     for nm in nuis:
         params.append(ModelParameter(
-            name=nm, val=nuis_init, isPOI=False, 
+            name=nm, val=nuis_init, isPOI=False,
             isPenalized=bool(penalize_nuisances)
         ))
     return Hypothesis(parameters=params, name=name or "from_yaml")
+
 
 try:
     from numba import njit, prange
@@ -304,6 +356,16 @@ class N2LL:
         self.overwrite = overwrite
         self.eval_chunk_size = int(eval_chunk_size)
 
+        # ===== Binned likelihood support =====
+        self.binned = list(likelihood.get('binned', []) or [])
+
+        # Per-binned-region runtime state
+        self._binned_regions_ids: list[str] = []
+        self._binned_classes_by_region: dict[str, list[dict]] = {}   # rid -> [class dicts]
+        self._binned_unroll: dict[str, dict] = {}  # rid -> { 'shape':(nb1[,nb2]), 'flat_bins':[( (xlo,xhi), (ylo,yhi)|None )], 'axes':[...], 'edges':[...]}
+        self._binned_lambda0: dict[str, np.ndarray] = {}  # rid -> (Nflat,) nominal λ at (0,0)
+        self._binned_asimov_lambda: dict[str, np.ndarray] = {}  # rid -> (Nflat,) λ' if setAsimov used
+
         # ----- Asimov (off-nominal) support -----
         self._asimov_hyp = None                       # Hypothesis used for Asimov (c', ν')
         self._asimov_active = False                   # quick guard: any nonzero param?
@@ -331,6 +393,7 @@ class N2LL:
 
         # attach predictors from likelihood (already set by yaml_loader.load_likelihood)
         self._prepare_structure()
+        self._runtime_prepared = False
 
     # --------- structure & sanity ---------
     def _prepare_structure(self):
@@ -596,6 +659,84 @@ class N2LL:
                 print(f"[N2LL] Written cache HDF5: {h5_path}")
                 print(f"[N2LL] Written meta JSON: {meta_path}")
 
+    def _prepare_binned_structure(self):
+        """Resolve binned regions: attach predictors, unroll bins, and cache λ0."""
+        if not self.binned:
+            return
+
+        print("\n[N2LL.prepare_runtime] Preparing BINNED regions…")
+        for R in self.binned:
+            rid = R['id']
+            self._binned_regions_ids.append(rid)
+
+            # classes and predictors
+            classes = []
+            for C in R.get('classes', []) or []:
+                cid = C['id']
+                # ICH (POI)
+                poi = C.get('POI', {}) or {}
+                ich = poi.get('predictor', None)
+                if ich is None:
+                    raise RuntimeError(f"[binned] Missing ICH predictor for {rid}/{cid}")
+                poi_params = list(poi.get('parameters', []) or [])
+                # ICPh groups
+                icph_groups = []
+                for S in (C.get('systematics', []) or []):
+                    if S.get('type') != 'icph':
+                        # still stash lnN in shared map
+                        if S.get('type') == 'lnN':
+                            alpha = float(S.get('value', 0.0))
+                            if len(S.get('parameters'))!=1:
+                                raise RuntimeError("Problem in this lnN uncertainty: %r"%S)
+                            self._lnN_by_class[(rid, cid)] = self._lnN_by_class.get((rid, cid), [])
+                            self._lnN_by_class[(rid, cid)].append((S['parameters'][0], math.log1p(alpha)))
+                        continue
+                    pred = S.get('predictor', None)
+                    if pred is None:
+                        raise RuntimeError(f"[binned] Missing ICPH predictor for {rid}/{cid}/{S.get('id','?')}")
+                    # stash a meta dict we’ll enrich with deltas as numpy arrays for fast math
+                    gm = {
+                        'id': S['id'],
+                        'params': list(S.get('parameters', []) or []),
+                        'combs':  [list(t) for t in (getattr(pred, "combinations", []) or [])],
+                        # We store deltas as (nB, nb1) or (nB, nb1, nb2) in float64
+                        '_deltas': np.asarray(pred.deltas, dtype=np.float64),
+                        '_obj': pred,
+                    }
+                    icph_groups.append({'_meta': gm})
+
+                classes.append({'id': cid,
+                                '_ich': ich,
+                                '_poi_params': poi_params,
+                                '_icph_systs': icph_groups})
+
+                # keep POI order so we can build c-vectors
+                self._poi_order[(rid, cid)] = poi_params
+
+            self._binned_classes_by_region[rid] = classes
+
+            # Unroll using the ICH (all classes have same binning)
+            un = self._unroll_bins_from_ich(classes[0]['_ich'])
+            self._binned_unroll[rid] = un
+            Nflat = len(un['flat_bins'])
+
+            # Cache nominal λ0 at (c=0, ν=0)
+            # Build a zero-POI hypothesis view:
+            class _Zero:
+                def __init__(self, names): self.POIs=[type('P',(),{'name':n,'val':0.0})() for n in names]
+                def __contains__(self, k): return False
+            # assemble per-class zero vector in compute; simpler: pass zeros to ICH
+            lam0 = np.zeros(Nflat, dtype=np.float64)
+            for C in classes:
+                ich = C['_ich']
+                cvec0 = np.zeros(len(C['_poi_params']), dtype=np.float64)
+                sig0 = ich.predict(cvec0)  # (nb1,) or (nb1,nb2)
+                lam0 += sig0.reshape(-1)   # ν=0 → exp(0)=1; lnN at ν=0 adds nothing
+            self._binned_lambda0[rid] = lam0
+
+            # Debug print
+            print(f"[binned] Region '{rid}': bins={Nflat}, axes={un['axes']}, shape={un['shape']}")
+
     def prepare_runtime(self):
         """
         Open all HDF5 cache files and load metadata once.
@@ -701,6 +842,10 @@ class N2LL:
 
             self._N_region[rid] = N_region or 0
 
+        # Finally, prepare binned regions (attach predictors, unroll, cache λ0)
+        self._prepare_binned_structure()
+        self._runtime_prepared = True
+
     def close(self):
         """Close all opened HDF5 files."""
         for f in list(self._h5.values()):
@@ -709,6 +854,124 @@ class N2LL:
             except Exception:
                 pass
         self._h5.clear()
+
+    # ---------- BIN UTILS ----------
+    @staticmethod
+    def _unroll_bins_from_ich(ich) -> dict:
+        """
+        Build an unrolling map for an ICH/ICPH object:
+          returns {'shape': (nb1,) or (nb1,nb2),
+                   'flat_bins': [ ((xlo,xhi), None) ] or [((xlo,xhi),(ylo,yhi))],
+                   'axes': [...],
+                   'edges': [edges1] or [edges1, edges2] }
+        """
+        axes  = list(getattr(ich, "axis_names", []) or [])
+        edges = [np.asarray(be, dtype=float) for be in getattr(ich, "bin_edges", []) or []]
+        if not edges:
+            raise RuntimeError("Binned region requires ICH/ICPH with bin_edges.")
+        if len(edges) == 1:
+            nb1 = len(edges[0]) - 1
+            flat = [((edges[0][i], edges[0][i+1]), None) for i in range(nb1)]
+            return {'shape': (nb1,), 'flat_bins': flat, 'axes': axes, 'edges': edges}
+        elif len(edges) == 2:
+            nb1 = len(edges[0]) - 1
+            nb2 = len(edges[1]) - 1
+            flat = []
+            for i in range(nb1):
+                for j in range(nb2):
+                    flat.append(((edges[0][i], edges[0][i+1]), (edges[1][j], edges[1][j+1])))
+            return {'shape': (nb1, nb2), 'flat_bins': flat, 'axes': axes, 'edges': edges}
+        else:
+            raise RuntimeError("Only 1D/2D binning supported.")
+
+    @staticmethod
+    def _safe_log_ratio(num: np.ndarray, den: np.ndarray, eps: float = 1e-15) -> np.ndarray:
+        num = np.maximum(np.asarray(num, dtype=np.float64), eps)
+        den = np.maximum(np.asarray(den, dtype=np.float64), eps)
+        return np.log(num) - np.log(den)
+
+    # ---------- Binned A-basis assembly ----------
+    def _assemble_c_vector_for_ich(self, rid: str, hypothesis, cid: str) -> np.ndarray:
+        """
+        ICH expects the *plain* c-vector in parameter order (not expanded A-basis).
+        """
+        C = None
+        # find POI params order for this class (already stored for unbinned BIT; reuse mapping)
+        poi_names = self._poi_order.get((rid, cid), None)
+        if poi_names is None:
+            # For binned ICH we still stored _poi_order in prepare step (below)
+            raise RuntimeError(f"[binned] Missing POI names order for ({rid}/{cid}).")
+        C = np.array([float(getattr(hypothesis, name, self[name]).val) if name in hypothesis else float(self[name].val)
+                      for name in poi_names], dtype=np.float64)
+        return C
+
+    def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
+        """
+        ν_A vector per ICPh group, per class, for a given hypothesis.
+        """
+        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        out: dict[str, list[tuple[dict, np.ndarray]]] = {}
+        for C in self._binned_classes_by_region.get(rid, []):
+            cid = C['id']
+            groups = []
+            for S in C.get('_icph_systs', []):
+                gm = S['_meta']  # filled in prepare
+                params = list(gm.get("params", []))
+                combs  = [tuple(c) for c in gm.get("combs", [])]
+                nuA = _nuis_to_A_vector(params, combs, nu_vals)
+                groups.append((gm, nuA))
+            out[cid] = groups
+        return out
+
+    # ---------- Binned λ builder ----------
+    def _compute_lambda_binned(self, rid: str, hypothesis) -> np.ndarray:
+        """
+        Build λ_i(c,ν) for all bins in a binned region rid by summing processes.
+        """
+        # per-class lnN (same as unbinned)
+        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        ln_bias = {}
+        for C in self._binned_classes_by_region[rid]:
+            cid = C['id']
+            ln_bias[cid] = sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                               for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+
+        # ν_A per ICPh group
+        nuA_per_group = self._assemble_nuA_groups_binned(rid, hypothesis)
+
+        # Unrolling info
+        un = self._binned_unroll[rid]
+        Nflat = len(un['flat_bins'])
+        lam = np.zeros(Nflat, dtype=np.float64)
+
+        # For each process, predict the *binned* σ_hat(c) from ICH, then apply nuisances
+        for C in self._binned_classes_by_region[rid]:
+            cid = C['id']
+            ich = C['_ich']
+            cvec = np.array([float(p.val) for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
+            # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
+            sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
+
+            # accumulate nuisance exponent per bin from all ICPh groups
+            # we’ll form a flat vector exp(exponent + ln_bias[cid])
+            if sigma_hist.ndim == 1:
+                nb1 = sigma_hist.shape[0]
+                expo = np.zeros(nb1, dtype=np.float64)
+                for gm, nuA in nuA_per_group[cid]:
+                    dA = gm['_deltas']   # shape (nB, nb1)
+                    expo += (nuA @ dA).astype(np.float64)  # (nb1,)
+                lam += sigma_hist * np.exp(expo + ln_bias[cid])
+            else:
+                nb1, nb2 = sigma_hist.shape
+                expo2d = np.zeros((nb1, nb2), dtype=np.float64)
+                for gm, nuA in nuA_per_group[cid]:
+                    dA = gm['_deltas']   # shape (nB, nb1, nb2)
+                    # tensordot over combination axis -> (nb1,nb2)
+                    expo2d += np.tensordot(nuA, dA, axes=(0, 0)).astype(np.float64)
+                lam += sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
+
+        return lam
+
 
     # ---- assemble A-basis for POIs and nuisances from a hypothesis ----
     def _assemble_cA_per_class(self, rid: str, hypothesis) -> Dict[str, np.ndarray]:
@@ -773,7 +1036,7 @@ class N2LL:
         Set an off-nominal Asimov hypothesis (c', ν') and precompute T'(x; c', ν')
         on the cached event set. If all parameters are zero, disables the bias.
         """
-        if not self._h5:
+        if not self._runtime_prepared:
             raise RuntimeError("[N2LL.setAsimov] Call prepare_runtime() before setting Asimov.")
 
         # quick check: any parameter nonzero?
@@ -813,6 +1076,13 @@ class N2LL:
                 Ts.append(T_chunk)
             self._asimov_T[rid] = Ts
 
+        # ----- also precompute binned Asimov λ'(i) if binned regions exist -----
+        self._binned_asimov_lambda.clear()
+        if self._asimov_active and self._binned_regions_ids:
+            for rid in self._binned_regions_ids:
+                lam_prime = self._compute_lambda_binned(rid, hypothesis)  # vector (Nflat,)
+                self._binned_asimov_lambda[rid] = lam_prime
+
     def __call__(self, hypothesis) -> float:
         """
         Return  -2 * Σ_i w0_i * ( log1p(T_i) - T_i )   [baseline Asimov at (0,0)]
@@ -826,7 +1096,7 @@ class N2LL:
         """
         import numpy as np
 
-        if not self._h5:
+        if not self._runtime_prepared:
             raise RuntimeError("[N2LL] Call prepare_runtime() before evaluating.")
 
         # ----- build A-basis for current hypothesis -----
@@ -874,8 +1144,26 @@ class N2LL:
                     # add Σ w * T'(asimov) * log1p(T)
                     bias_sum += float(np.sum(W * np.log1p(T) * Tprime, dtype=np.float64))
 
+        total_unbinned = total_sum + bias_sum
+
+        # ===== BINNED contribution =====
+        total_binned = 0.
+        if self._binned_regions_ids:
+            for rid in self._binned_regions_ids:
+                lam0 = self._binned_lambda0[rid]                    # (Nflat,)
+                lam  = self._compute_lambda_binned(rid, hypothesis) # (Nflat,)
+
+                # pick Asimov λ' if set, else nominal λ0
+                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)
+
+                # Accumulate per-bin:  -(λ-λ0) + λ' * log(λ/λ0)
+                # We defer the global factor (-2) to the same place as unbinned
+                log_ratio = self._safe_log_ratio(lam, lam0)         # stable
+                binned_contrib = np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
+                total_binned += binned_contrib  # note: this is still *before* the -2
+
         # assemble -2 log L
-        n2ll = -2.0 * (total_sum + bias_sum)
+        n2ll = -2.0 * (total_unbinned + total_binned)
 
         # nuisance penalty (gaussian prior)
         n2ll += hypothesis.penalty()
