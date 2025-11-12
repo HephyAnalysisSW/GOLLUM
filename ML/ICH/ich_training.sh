@@ -1,4 +1,4 @@
-python ic_training.py ../../configs/merged_no_reg.yaml --overwrite --job ic_tt2l
-python ic_training.py ../../configs/split_no_reg.yaml --overwrite --job ic_tt2l_GG
-python ic_training.py ../../configs/split_no_reg.yaml --overwrite --job ic_tt2l_QG
-python ic_training.py ../../configs/split_no_reg.yaml --overwrite --job ic_tt2l_QQ
+python ich_training.py ../../configs/binned_merged.yaml --overwrite --job ich_tt2l
+python ich_training.py ../../configs/binned_split.yaml --overwrite --job ich_tt2l_GG
+python ich_training.py ../../configs/binned_split.yaml --overwrite --job ich_tt2l_QG
+python ich_training.py ../../configs/binned_split.yaml --overwrite --job ich_tt2l_QQ

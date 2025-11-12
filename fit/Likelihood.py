@@ -23,7 +23,8 @@ import sys
 sys.path.insert(0, '..')
 
 from fit.Modeling import ModelParameter, Hypothesis
-
+from common.helpers import _binning_equal
+ 
 # ---- Likelihood wiring + model parameter scaffolding -----------------------
 
 def _job_by_id(cfg, jid):
@@ -32,6 +33,13 @@ def _job_by_id(cfg, jid):
 def _predictor_from_job(job):
     # We rely on load_surrogates having attached job['predictor'] when available.
     return None if job is None else job.get("predictor", None)
+
+# --- helper for predictor -> (axis_names, edges[]) ---
+def _pred_binning_tuple(pred):
+    names = tuple(getattr(pred, "axis_names", []) or [])
+    edges = [ np.asarray(be, dtype=float) for be in (getattr(pred, "bin_edges", []) or []) ]
+    return names, edges
+
 
 def load_likelihood(cfg):
     """
@@ -191,6 +199,43 @@ def load_likelihood(cfg):
                     # future binned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+
+    # Binning consistency check across regions:
+    for R in binned:
+        rid = R.get('id', '?')
+        ref_names, ref_edges = None, None
+        offenders = []
+
+        for C in (R.get('classes') or []):
+            # POI (ICH)
+            poi = (C.get('POI') or {})
+            pred_poi = poi.get('predictor')
+            if pred_poi is not None:
+                names, edges = _pred_binning_tuple(pred_poi)
+                if ref_names is None:
+                    ref_names, ref_edges = names, edges
+                elif not _binning_equal(names, edges, ref_names, ref_edges):
+                    offenders.append((f"{rid}/{C.get('id','?')}/POI", names, edges))
+
+            # systematics (ICPH)
+            for S in (C.get('systematics') or []):
+                if S.get('type') != 'icph':
+                    continue
+                pred_sys = S.get('predictor')
+                if pred_sys is None:
+                    continue
+                names, edges = _pred_binning_tuple(pred_sys)
+                if ref_names is None:
+                    ref_names, ref_edges = names, edges
+                elif not _binning_equal(names, edges, ref_names, ref_edges):
+                    offenders.append((f"{rid}/{C.get('id','?')}/sys[{S.get('id','?')}]", names, edges))
+
+        if offenders:
+            msg = [f"[binned binning] Inconsistent binning within region '{rid}'. "
+                   f"Reference = {ref_names} / {[e.tolist() for e in ref_edges]}"]
+            for tag, nms, eds in offenders:
+                msg.append(f"  - {tag}: {nms} / {[e.tolist() for e in eds]}")
+            raise RuntimeError("\n".join(msg))
 
     # Keep deterministic order
     pois_list = sorted(all_pois)
@@ -1265,7 +1310,7 @@ if __name__ == "__main__":
     n2ll.prepare_runtime()
     #n2ll = n2ll(hyp) 
 
-    n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
+    #n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
 
     val = n2ll(hyp)
     ## run Minuit; prints the model every 25 evaluations by default

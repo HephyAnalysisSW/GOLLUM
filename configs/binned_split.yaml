@@ -351,8 +351,7 @@ jobs:
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
-      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
-      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
     base_points:
       - coords: [-2.0]
         loader: tt2l_2p0_jesTotalDown
@@ -553,8 +552,7 @@ jobs:
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
-      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
-      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
     base_points:
       - coords: [-2.0]
         loader: tt2l_2p0_jesTotalDown
@@ -755,8 +753,7 @@ jobs:
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
-      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
-      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
     base_points:
       - coords: [-2.0]
         loader: tt2l_2p0_jesTotalDown

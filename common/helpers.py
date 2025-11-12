@@ -41,6 +41,25 @@ def copyIndexPHP( directory ):
     if not os.path.exists( directory ): os.makedirs( directory )
     shutil.copyfile( os.path.join(os.path.dirname(__file__), 'scripts/php/index.php'), index_php )
 
+def _binning_equal(names_a, edges_a, names_b, edges_b, rtol=0.0, atol=0.0):
+    """
+    Strict equality by default; you can relax with rtol/atol if needed.
+    names_*: tuple[str,...]
+    edges_*: list[np.ndarray]
+    """
+    import numpy as _np
+    if tuple(names_a) != tuple(names_b):
+        return False
+    if len(edges_a) != len(edges_b):
+        return False
+    for ea, eb in zip(edges_a, edges_b):
+        if ea.shape != eb.shape:
+            return False
+        if not _np.allclose(ea, eb, rtol=rtol, atol=atol):
+            return False
+    return True
+
+
 #import os, glob, subprocess
 #
 #def _derive_eos_remote_dir(local_dir: str) -> str:

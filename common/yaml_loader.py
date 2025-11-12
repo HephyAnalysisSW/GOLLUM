@@ -2,6 +2,10 @@ import os
 import yaml
 from collections import defaultdict, deque
 
+import sys
+sys.path.insert(0, '..')
+from common.helpers import _binning_equal
+
 class IncludeError(Exception):
     pass
 
@@ -208,6 +212,31 @@ def print_summary(cfg, root_file, include_trace):
     _print_include_tree(root_file, include_trace)
     # Jobs layout
     _print_jobs(cfg)
+
+# --- helper: normalize YAML binning into (axis_names, [edges...]) ---
+def _normalize_cfg_binning(job_binning):
+    """
+    YAML format:
+      binning:
+        - ["axis_name_1", [e0, e1, ...]]
+        - ["axis_name_2", [e0, e1, ...]]   # optional 2nd axis
+
+    Returns: (axis_names_tuple, [np.array(edges1), (optional) np.array(edges2)])
+    """
+    import numpy as _np
+    axes = []
+    edges = []
+    for item in (job_binning or []):
+        if not (isinstance(item, (list, tuple)) and len(item) == 2):
+            raise RuntimeError(f"Invalid binning entry: {item!r}")
+        nm, ed = item[0], item[1]
+        axes.append(str(nm))
+        # cast edges to float robustly (allow strings like '-1e9')
+        arr = _np.asarray([float(x) for x in ed], dtype=float)
+        if arr.ndim != 1 or arr.size < 2:
+            raise RuntimeError(f"Binning edges must be 1D with >=2 entries for axis '{nm}'.")
+        edges.append(arr)
+    return tuple(axes), edges
 
 def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     """
@@ -433,6 +462,26 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 missing.append(f"python BIT/pdf_bit_training.py {cfg_full}{FLAGS}{nb} --job {jid}")
 
         # (ignore other types here)
+
+        # --- Check binning consistency ---
+        if jtyp in {"ich", "icph"} and cfg['jobs'][i_job].get("predictor") is not None:
+            import numpy as _np
+            pred = cfg['jobs'][i_job]["predictor"]
+            try:
+                cfg_names, cfg_edges = _normalize_cfg_binning(cfg['jobs'][i_job].get("binning", []))
+            except Exception as e:
+                raise RuntimeError(f"[surrogate binning] Invalid YAML binning in job '{job.get('id','?')}': {e}")
+
+            # pull binning from the loaded surrogate
+            pred_names = tuple(getattr(pred, "axis_names", []) or [])
+            pred_edges = [_np.asarray(be, dtype=float) for be in (getattr(pred, "bin_edges", []) or [])]
+
+            if not _binning_equal(cfg_names, cfg_edges, pred_names, pred_edges):
+                raise RuntimeError(
+                    f"[surrogate binning] Mismatch for job '{job.get('id','?')}'.\n"
+                    f"  YAML axis/edges : {cfg_names} / {[e.tolist() for e in cfg_edges]}\n"
+                    f"  File axis/edges : {pred_names} / {[e.tolist() for e in pred_edges]}"
+                )
 
     # ---------- Second pass ----------
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
