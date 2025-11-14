@@ -244,26 +244,26 @@ jobs:
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
-      #- ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
-      - ["tr_ttbar_mass",   [-1e9, 1e9]]
+      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      #- ["tr_ttbar_mass",   [-1e9, 1e9]]
     base_points:
-      - coords: [-2.0]
-        loader: tt2l_2p0_jesTotalDown
-      - coords: [-1.5]
-        loader: tt2l_1p5_jesTotalDown 
+    #  - coords: [-2.0]
+    #    loader: tt2l_2p0_jesTotalDown
+    #  - coords: [-1.5]
+    #    loader: tt2l_1p5_jesTotalDown 
       - coords: [-1.0]
         loader: tt2l_1p0_jesTotalDown
-      - coords: [-0.5]
-        loader: tt2l_0p5_jesTotalDown
+    #  - coords: [-0.5]
+    #    loader: tt2l_0p5_jesTotalDown
       - coords: [0]
         loader: tt2l_jesNominal
         nominal: true
-      - coords: [0.5]
-        loader: tt2l_0p5_jesTotalUp
+    #  - coords: [0.5]
+    #    loader: tt2l_0p5_jesTotalUp
       - coords: [1.0]
         loader: tt2l_1p0_jesTotalUp
-      - coords: [1.5]
-        loader: tt2l_1p5_jesTotalUp
-      - coords: [2.0]
-        loader: tt2l_2p0_jesTotalUp
+    #  - coords: [1.5]
+    #    loader: tt2l_1p5_jesTotalUp
+    #  - coords: [2.0]
+    #    loader: tt2l_2p0_jesTotalUp
     output: { filename: "icph_tt2l_jesTotal.pkl" }

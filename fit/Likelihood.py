@@ -1292,6 +1292,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
+    p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader 
@@ -1303,6 +1304,14 @@ if __name__ == "__main__":
     like_info = load_likelihood(cfg)
 
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
+
+    # --- optionally disable all nuisances ---
+    if args.no_syst:
+        for p in hyp.nuisances:
+            p.val = 0.0
+            p.isFrozen = True
+        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+
     hyp.print()
 
     n2ll = N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
@@ -1321,3 +1330,40 @@ if __name__ == "__main__":
 
     print("Correlation")
     print(m.covariance.correlation())
+
+    # -------- persist fit result + covariance --------
+    import os, json, numpy as np
+    import common.user as user
+
+    base    = os.path.splitext(os.path.basename(args.config))[0]
+    version = str(cfg.get("version", "v0"))
+    suffix  = "_nosyst" if args.no_syst else ""
+    os.makedirs(user.output_directory, exist_ok=True)
+    out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
+
+    result_payload = {
+        "config_basename": base,
+        "version": version,
+        "no_syst": bool(args.no_syst),
+        "fval": float(m.fval),
+        "edm": float(getattr(m, "edm", np.nan)),
+        "niter": int(getattr(m, "niter", -1)),
+        "parameters": [
+            {"name": name, "value": float(m.values[i]), "error": float(m.errors[i])}
+            for i, name in enumerate(m.parameters)
+        ],
+        "free_parameter_order": list(m.parameters),
+        "covariance": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance).tolist(),
+        },
+        "correlation": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance.correlation()).tolist(),
+        },
+    }
+    with open(out_path, "w") as f:
+        json.dump(result_payload, f, indent=2)
+
+    print(f"[write] Fit result and covariance stored at:\n  {out_path}")
+
