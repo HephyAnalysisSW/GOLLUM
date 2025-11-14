@@ -3,7 +3,6 @@ version: v1
 defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here
   batch_size: 65536
-  seed: 1
 
 likelihood:
     binned:
