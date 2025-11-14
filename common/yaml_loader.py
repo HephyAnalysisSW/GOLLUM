@@ -1,6 +1,7 @@
 import os
 import yaml
 from collections import defaultdict, deque
+from typing import List, Iterable
 
 import sys
 sys.path.insert(0, '..')
@@ -10,7 +11,6 @@ class IncludeError(Exception):
     pass
 
 # --- tracing --------------------------------------------------------------
-# Records tuples of (including_file_abs, key, included_file_abs)
 _INCLUDE_TRACE = []
 
 def _record_include(parent_file: str, key: str, child_file: str):
@@ -37,7 +37,7 @@ def _merge(values):
         out = []; [out.extend(v) for v in values]; return out
     if all(isinstance(v, dict) for v in values):
         out = {}; [out.update(v) for v in values]; return out
-    return values[-1]  # keep it simple
+    return values[-1]
 
 # --- include expander -----------------------------------------------------
 def _include_for_key(parent_key: str, sources, current_file: str, seen):
@@ -47,9 +47,7 @@ def _include_for_key(parent_key: str, sources, current_file: str, seen):
         sig = (os.path.abspath(path), parent_key)
         if sig in seen:
             raise IncludeError(f"Cycle detected: {path} -> '{parent_key}'")
-        # record the inclusion edge
         _record_include(current_file, parent_key, path)
-
         seen.add(sig)
         doc = _read_yaml(path)
         if not isinstance(doc, dict) or parent_key not in doc:
@@ -59,7 +57,6 @@ def _include_for_key(parent_key: str, sources, current_file: str, seen):
     return _merge(results)
 
 def _expand(node, current_file: str, seen, parent_key: str | None):
-    # Dicts: support either field includes (key: { include: ... }) or normal recursion.
     if isinstance(node, dict):
         for k, v in list(node.items()):
             if isinstance(v, dict) and set(v.keys()) == {"include"}:
@@ -69,7 +66,6 @@ def _expand(node, current_file: str, seen, parent_key: str | None):
                 node[k] = _expand(v, current_file, seen, k)
         return node
 
-    # Lists: splice items like "- include: file.yaml"
     if isinstance(node, list):
         i = 0
         while i < len(node):
@@ -88,16 +84,113 @@ def _expand(node, current_file: str, seen, parent_key: str | None):
                 node[i] = _expand(item, current_file, seen, parent_key)
                 i += 1
         return node
-
-    return node  # scalars unchanged
+    return node
 
 def load_yaml(path: str):
     doc = _read_yaml(path)
-    return _expand(doc, os.path.abspath(path), seen=set(), parent_key=None)
+    cfg = _expand(doc, os.path.abspath(path), seen=set(), parent_key=None)
+    _apply_feature_defaults_and_checks(cfg)   # <<< NEW
+    return cfg
+
+# --- feature resolution (NEW) ---------------------------------------------
+def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
+    """
+    Expand a list like ["TOP_KINEMATICS", "ASYMMETRY", "tr_ttbar_pt"] into a flat
+    unique list of feature column names using data.observables.
+
+    Rules:
+      - If token names a list defined in data.observables (e.g. TOP_KINEMATICS),
+        extend by that list.
+      - Else, if token is in data.observables.ALL_FEATURES, append it as a single feature.
+      - Else, raise a descriptive error.
+    """
+    if not tokens:
+        return []
+    from data import observables as obs
+    out = []
+    seen = set()
+    for t in tokens:
+        if not isinstance(t, str):
+            raise RuntimeError(f"[features] All entries must be strings, got {type(t)} for {t!r}")
+        # try attribute list (e.g. TOP_KINEMATICS)
+        if hasattr(obs, t):
+            val = getattr(obs, t)
+            if isinstance(val, list) and all(isinstance(x, str) for x in val):
+                for name in val:
+                    if name not in seen:
+                        out.append(name); seen.add(name)
+                continue
+        # else, treat as single feature name present in ALL_FEATURES
+        if hasattr(obs, "ALL_FEATURES") and t in getattr(obs, "ALL_FEATURES"):
+            if t not in seen:
+                out.append(t); seen.add(t)
+            continue
+        raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
+    return out
+
+def _apply_feature_defaults_and_checks(cfg: dict):
+    """
+    - Resolve defaults.default_features via _resolve_features_list.
+    - For each job of type scaler / classifier(tfmc) / pnn / bit:
+        * If job.features missing -> set to defaults
+        * Else resolve job.features via _resolve_features_list
+    - If a PNN or TFMC has extras.use_scaler, ensure features identical to that scaler job.
+    """
+    defaults = cfg.get("defaults", {}) or {}
+    default_tokens = (defaults.get("default_features") or [])
+    default_features = _resolve_features_list(default_tokens)
+    # keep a resolved copy (optional)
+    cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
+
+    jobs = cfg.get("jobs", []) or []
+    # resolve per job
+    for j in jobs:
+        if not isinstance(j, dict):
+            continue
+        jtyp = j.get("type")
+        if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
+            continue
+        if jtyp == "classifier" and j.get("framework") != "tfmc":
+            continue
+        feat_tokens = j.get("features", None)
+        if feat_tokens is None:
+            j["features"] = list(default_features)
+        else:
+            j["features"] = _resolve_features_list(feat_tokens)
+
+    # scaler-feature consistency for TFMC/PNN that reference a scaler
+    id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
+    for j in jobs:
+        if not isinstance(j, dict):
+            continue
+        jtyp = j.get("type")
+        if jtyp == "classifier" and j.get("framework") == "tfmc":
+            extras = j.get("extras", {}) or {}
+            sid = extras.get("use_scaler")
+            if isinstance(sid, str) and sid in id2job:
+                sj = id2job[sid]
+                if sj.get("type") != "scaler":
+                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+                f_a = j.get("features", [])
+                f_b = sj.get("features", [])
+                if f_a != f_b:
+                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' features != scaler '{sid}' features.\n"
+                                       f"  TFMC : {f_a}\n  Scaler: {f_b}")
+        if jtyp == "pnn":
+            extras = j.get("extras", {}) or {}
+            sid = extras.get("use_scaler")
+            if isinstance(sid, str) and sid in id2job:
+                sj = id2job[sid]
+                if sj.get("type") != "scaler":
+                    raise RuntimeError(f"[features] PNN '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+                f_a = j.get("features", [])
+                f_b = sj.get("features", [])
+                if f_a != f_b:
+                    raise RuntimeError(f"[features] PNN '{j.get('id')}' features != scaler '{sid}' features.\n"
+                                       f"  PNN   : {f_a}\n  Scaler: {f_b}")
 
 # --- pretty printers ------------------------------------------------------
 def _print_include_tree(root_file: str, trace):
-    # Build adjacency by including file
     children = defaultdict(list)
     files = set()
     for inc, key, child in trace:
@@ -105,10 +198,8 @@ def _print_include_tree(root_file: str, trace):
         files.add(inc); files.add(child)
     root_abs = os.path.abspath(root_file)
 
-    # Build a tree starting at the given root file
     def dfs(file_path: str, indent=""):
         print(f"{indent}{os.path.basename(file_path)}")
-        # Show children grouped by key (e.g., jobs, datasets, …)
         grouped = defaultdict(list)
         for (inc, key), lst in children.items():
             if inc == file_path:
@@ -125,13 +216,6 @@ def _print_include_tree(root_file: str, trace):
         print("Include tree: (none)")
 
 def _collect_id_deps(job):
-    """
-    Dependency model (by IDs):
-      - extras.use_scaler: <scaler_job_id>
-      - extras.use_ic:     <ic_job_id>
-      - extras.use_icp:    <icp_job_id>
-    Only string values are treated as dependencies.
-    """
     deps = []
     extras = job.get("extras", {}) or {}
     for k in ("use_scaler", "use_ic", "use_icp"):
@@ -141,7 +225,6 @@ def _collect_id_deps(job):
     return deps
 
 def _build_job_layers(jobs):
-    # Build DAG from ID-based references (see _collect_id_deps)
     idx = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
     indeg = defaultdict(int)
     adj = defaultdict(list)
@@ -154,15 +237,13 @@ def _build_job_layers(jobs):
         deps = _collect_id_deps(j)
         for d in deps:
             if d not in idx:
-                # Ignore edges to unknown nodes; they might be in other files not loaded here
                 continue
             adj[d].append(jid)
             indeg[jid] += 1
-        indeg[jid] = indeg[jid]  # ensure key exists
-
-    # Kahn layering
+        indeg[jid] = indeg[jid]
     layers = []
-    q = deque(sorted([n for n in idx if indeg[n] == 0]))
+    from collections import deque as _dq
+    q = _dq(sorted([n for n in idx if indeg[n] == 0]))
     seen = set()
     while q:
         layer = []
@@ -177,8 +258,6 @@ def _build_job_layers(jobs):
                     q.append(v)
         if layer:
             layers.append(layer)
-
-    # If there are remaining nodes (cycle or cross-refs), tack them on last
     remaining = [n for n in idx if n not in set().union(*layers)]
     if remaining:
         layers.append(sorted(remaining))
@@ -190,13 +269,11 @@ def _print_jobs(cfg):
         print("Jobs: (none or not a list)")
         return
     layers, idx, adj = _build_job_layers(jobs)
-
     total = len(idx)
     roots = len(layers[0]) if layers else 0
     print(f"Jobs overview: {total} total, {roots} root(s), {len(layers)} layer(s).")
     for li, layer in enumerate(layers):
         print(f"  Layer {li}: " + ", ".join(layer))
-    # Per-job dependency listing (ID-based)
     print("Job dependencies:")
     for jid in sorted(idx.keys()):
         deps = _collect_id_deps(idx[jid])
@@ -204,25 +281,14 @@ def _print_jobs(cfg):
         jtype = idx[jid].get("type", "unknown")
         print(f"  - {jid} [{jtype}]  <=  {deps_str}")
 
-def print_summary(cfg, root_file, include_trace):
-    # Overview line
-    include_files = {os.path.abspath(a) for a,_,_ in include_trace} | {os.path.abspath(c) for _,_,c in include_trace}
-    print(f"Overview: root={os.path.abspath(root_file)}, includes={len(include_trace)} edges across {len(include_files)} file(s).")
-    # Include tree
-    _print_include_tree(root_file, include_trace)
-    # Jobs layout
+def print_summary(cfg, root_file, trace):
+    include_files = {os.path.abspath(a) for a,_,_ in trace} | {os.path.abspath(c) for _,_,c in trace}
+    print(f"Overview: root={os.path.abspath(root_file)}, includes={len(trace)} edges across {len(include_files)} file(s).")
+    _print_include_tree(root_file, trace)
     _print_jobs(cfg)
 
 # --- helper: normalize YAML binning into (axis_names, [edges...]) ---
 def _normalize_cfg_binning(job_binning):
-    """
-    YAML format:
-      binning:
-        - ["axis_name_1", [e0, e1, ...]]
-        - ["axis_name_2", [e0, e1, ...]]   # optional 2nd axis
-
-    Returns: (axis_names_tuple, [np.array(edges1), (optional) np.array(edges2)])
-    """
     import numpy as _np
     axes = []
     edges = []
@@ -231,33 +297,23 @@ def _normalize_cfg_binning(job_binning):
             raise RuntimeError(f"Invalid binning entry: {item!r}")
         nm, ed = item[0], item[1]
         axes.append(str(nm))
-        # cast edges to float robustly (allow strings like '-1e9')
         arr = _np.asarray([float(x) for x in ed], dtype=float)
         if arr.ndim != 1 or arr.size < 2:
             raise RuntimeError(f"Binning edges must be 1D with >=2 entries for axis '{nm}'.")
         edges.append(arr)
     return tuple(axes), edges
 
+# --- surrogate loader (unchanged except for import path fixes) ------------
 def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     """
-    For each job in cfg (IC, Scaler, ICP, TFMC, BIT):
-      - try to load its saved artifact
-      - on failure, print the training command the user should run.
-
-    After the first pass, do a small second pass:
-      - For each TFMC job, pull referenced scaler/IC (by ID) from cfg and attach
-        scaler_means/scaler_vars and ic_weight_sum onto the TFMC job entry.
-      - For each PNN job with extras.use_icp, verify its (parameters, combinations)
-        match the referenced ICP artifact; print a check result.
+    Load artifacts and attach predictors; also checks ICH/ICPH binnings and PNN↔ICP consistency.
     """
     import os, sys
-    sys.path.insert(0, '..'); sys.path.insert(0, '../..')  # project roots
+    sys.path.insert(0, '..'); sys.path.insert(0, '../..')
 
     cfg_full = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
-
     import common.user as user
 
-    # helpers
     def cfg_base_for(job):
         ver = cfg.get("version", "default")
         reg = job.get("region", cfg.get("region", "default"))
@@ -266,12 +322,10 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     def job_by_id(jid):
         return next((j for j in (cfg.get("jobs") or []) if j.get("id") == jid), None)
 
-    # CLI flags to echo in suggestions
     same_flags = []
     if overwrite: same_flags.append("--overwrite")
     FLAGS = " " + " ".join(same_flags) if same_flags else ""
 
-    # On-demand imports to avoid heavy deps until needed
     def try_load_scaler(path):
         try:
             from ML.Scaler.Scaler import Scaler
@@ -302,7 +356,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
 
     def try_load_icph(path):
         try:
-            from ML.ICPH.ICPH import InclusiveCrosssectionParametrizationHistogram 
+            from ML.ICPH.ICPH import InclusiveCrosssectionParametrizationHistogram
             return InclusiveCrosssectionParametrizationHistogram.load(path)
         except Exception:
             return None
@@ -317,7 +371,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     def try_load_tfmc(model_dir):
         try:
             from ML.TFMC.TFMC import TFMC
-            return TFMC.load(model_dir) 
+            return TFMC.load(model_dir)
         except Exception:
             return None
 
@@ -331,10 +385,9 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
         except Exception:
             return None
 
-    # Summary accumulators
     ok, missing = [], []
 
-    # ---------- First pass: load artifacts ----------
+    # ---------- First pass ----------
     for i_job, job in enumerate((cfg.get("jobs") or [])):
         if not isinstance(job, dict): 
             continue
@@ -345,7 +398,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
 
         base = cfg_base_for(job)
 
-        # ---------- SCALER ----------
         if jtyp == "scaler":
             process = job.get("process")
             out     = job.get("output", {}) or {}
@@ -361,7 +413,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] Scaler {jid}  (expected at {path})")
                 missing.append(f"python Scaler/scaler_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- IC ----------
         elif jtyp == "ic":
             process = job.get("process")
             out     = job.get("output", {}) or {}
@@ -377,9 +428,8 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] IC {jid}  (expected at {path})")
                 missing.append(f"python IC/ic_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- ICH ----------
         elif jtyp == "ich":
-            outdir = os.path.join(user.model_directory, base, "ICH" )
+            outdir = os.path.join(user.model_directory, base, "ICH")
             fname  = (job.get("output", {}) or {}).get("filename", "ICH.pkl")
             path   = os.path.join(outdir, fname)
             loaded = try_load_ich(path)
@@ -391,7 +441,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] ICH {jid}  (expected at {path})")
                 missing.append(f"python ICH/ich_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- ICP ----------
         elif jtyp == "icp":
             out     = job.get("output", {}) or {}
             fname   = out.get("filename", f"ICP_{jid}.pkl")
@@ -406,7 +455,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] ICP {jid}  (expected at {path})")
                 missing.append(f"python ICP/icp_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- ICPH ----------
         elif jtyp == "icph":
             out     = job.get("output", {}) or {}
             fname   = out.get("filename", f"ICPH_{jid}.pkl")
@@ -421,7 +469,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] ICPH {jid}  (expected at {path})")
                 missing.append(f"python ICPH/icph_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- PNN ----------
         elif jtyp == "pnn":
             model_dir = os.path.join(user.model_directory, base, "PNN", jid)
             loaded = try_load_pnn(model_dir)
@@ -433,7 +480,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[MISS] PNN {jid}  (expected at {model_dir})")
                 missing.append(f"python PNN/pnn_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- TFMC classifier ----------
         elif jtyp == "classifier" and job.get("framework") == "tfmc":
             model_dir = os.path.join(user.model_directory, base, "TFMC", jid)
             loaded    = try_load_tfmc(model_dir)
@@ -443,10 +489,8 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] TFMC {jid}  (expected at {model_dir})")
-                print_flags = FLAGS  # keep same overwrite/small echo
-                missing.append(f"python TFMC/tfmc_training.py {cfg_full}{print_flags} --job {jid}")
+                missing.append(f"python TFMC/tfmc_training.py {cfg_full}{FLAGS} --job {jid}")
 
-        # ---------- BIT ----------
         elif jtyp == "bit":
             outdir = os.path.join(user.model_directory, base, "BIT", jid)
             fname  = (job.get("output", {}) or {}).get("filename", "BIT.pkl")
@@ -461,9 +505,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 nb = " --numba" if prefer_numba else ""
                 missing.append(f"python BIT/pdf_bit_training.py {cfg_full}{FLAGS}{nb} --job {jid}")
 
-        # (ignore other types here)
-
-        # --- Check binning consistency ---
+        # ICH/ICPH binning consistency
         if jtyp in {"ich", "icph"} and cfg['jobs'][i_job].get("predictor") is not None:
             import numpy as _np
             pred = cfg['jobs'][i_job]["predictor"]
@@ -471,11 +513,8 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg_names, cfg_edges = _normalize_cfg_binning(cfg['jobs'][i_job].get("binning", []))
             except Exception as e:
                 raise RuntimeError(f"[surrogate binning] Invalid YAML binning in job '{job.get('id','?')}': {e}")
-
-            # pull binning from the loaded surrogate
             pred_names = tuple(getattr(pred, "axis_names", []) or [])
             pred_edges = [_np.asarray(be, dtype=float) for be in (getattr(pred, "bin_edges", []) or [])]
-
             if not _binning_equal(cfg_names, cfg_edges, pred_names, pred_edges):
                 raise RuntimeError(
                     f"[surrogate binning] Mismatch for job '{job.get('id','?')}'.\n"
@@ -486,13 +525,12 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     # ---------- Second pass ----------
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
 
-    # (A) Attach TFMC scaler/IC payloads by ID
+    # Attach TFMC scaler/IC payloads by ID
     for j in (cfg.get("jobs") or []):
         if not isinstance(j, dict):
             continue
         if j.get("type") == "classifier" and j.get("framework") == "tfmc":
             extras = j.get("extras", {}) or {}
-            # Scaler stats
             sid = extras.get("use_scaler")
             if isinstance(sid, str) and sid in id2job:
                 sj = id2job[sid]
@@ -506,7 +544,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                         print(f"[TFMC attach] {j['id']}: scaler <- {sid}")
                     except Exception:
                         pass
-            # IC total weight
             iid = extras.get("use_ic")
             if isinstance(iid, str) and iid in id2job:
                 ij = id2job[iid]
@@ -519,7 +556,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                     except Exception:
                         pass
 
-    # (B) PNN ↔ ICP consistency check (parameters & combinations)
+    # PNN ↔ ICP consistency check
     for j in (cfg.get("jobs") or []):
         if not isinstance(j, dict):
             continue
@@ -530,10 +567,8 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 icp_job = id2job[icp_id]
                 icp = icp_job.get("predictor", None)
                 if icp is not None:
-                    # PNN spec
                     pnn_params = list(j.get("parameters", []) or [])
                     pnn_combs  = [tuple(c) for c in (j.get("combinations", []) or [])]
-                    # ICP artifact
                     try:
                         icp_params = list(getattr(icp, "parameters"))
                         icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
@@ -553,7 +588,6 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                         if not ok_combs:
                             print(f"  combinations: PNN={pnn_combs}  ICP={icp_combs}")
 
-    # ---- Summary block ----
     print("\n=== SUMMARY ===")
     print(f"Found {len(ok)} ready artifact(s), {len(missing)} missing.")
     if missing:
@@ -568,3 +602,4 @@ if __name__ == "__main__":
     cfg = load_yaml(root)
     print_summary(cfg, root, _INCLUDE_TRACE)
     load_surrogates(cfg, root, overwrite=False, prefer_numba=False)
+

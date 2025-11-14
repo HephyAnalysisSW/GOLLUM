@@ -68,6 +68,8 @@ for i, spec in enumerate(bp_specs):
         raise RuntimeError(f"Loader/view '{nm}' not found in module {module_samples}.")
     base = getattr(samples_mod, nm)
 
+    base.setFeatures( J["features"] )
+
     remove = list(spec.get("removeweights", []) or [])
     add    = list(spec.get("addweights", []) or [])
 
@@ -254,8 +256,8 @@ if not args.overwrite:
         print("Success!")
     except Exception as e:
         pnn = None
-        print("Failed!")
-        raise e
+        print("Failed! Gonna train.")
+        #raise e
 
 if pnn is None:
     pnn = PNN(parameters=parameters,

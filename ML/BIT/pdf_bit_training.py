@@ -61,6 +61,7 @@ if not hasattr(samples_mod, loader_name):
 L = getattr(samples_mod, loader_name)
 
 # features
+L.setFeatures( J["features"] )
 feat_names = list(getattr(L, "feature_names", []) or [])
 if not feat_names:
     raise RuntimeError("Loader has no feature_names.")

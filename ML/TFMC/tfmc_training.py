@@ -86,7 +86,7 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
 # ---------------- dirs ----------------
 
-cfg_base = os.path.join( cfg.get("version", "default"), job['region'] )
+cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
 model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
 plot_dir  = os.path.join(user.plot_directory,  cfg_base, "TFMC", J["id"])
@@ -106,7 +106,9 @@ loaders = []
 for name in classes_names:
     if not hasattr(samples_mod, name):
         raise RuntimeError(f"Class loader '{name}' not found in {module_samples}.")
-    loaders.append(getattr(samples_mod, name))
+    loader = getattr(samples_mod, name)
+    loader.setFeatures( J['features'] )
+    loaders.append(loader)
 
 # Consistency: same feature_names across classes
 feat_names = getattr(loaders[0], "feature_names", None)

@@ -209,7 +209,6 @@ jobs:
     runtime:
       batch_size: 65536
       num_workers: 1
-      seed: 1
     extras:
       use_ic: ic_tt2l
       use_scaler: scaler_tt2l
