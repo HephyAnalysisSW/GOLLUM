@@ -563,6 +563,17 @@ class N2LL:
         dset.resize((n_old + n_add, dset.shape[1]))
         dset[n_old:n_old+n_add, :] = arr
 
+    @staticmethod
+    def make_column_mask(all_features, wanted_features):
+        pos = {f: i for i, f in enumerate(all_features)}
+        missing = [f for f in wanted_features if f not in pos]
+        if missing:
+            raise KeyError(f"Features not found in source: {missing}")
+        mask = np.zeros(len(all_features), dtype=bool)
+        for f in wanted_features:
+            mask[pos[f]] = True
+        return mask
+
     # --------- cache builder (HDF5) ----------
     def build_cache(self):
         """
@@ -629,6 +640,17 @@ class N2LL:
                 L = getattr(self.samples_mod, sname)
                 total_shards += len(getattr(L, "base", L))
 
+            # prepare column selection mask
+            if clf is not None:
+                clf['column_mask'] = self.make_column_mask(L.feature_names, clf.feature_names)
+            for C in classes:
+                poi_pred = (C.get('POI') or {}).get('predictor')
+                if poi_pred:
+                    C['POI']['column_mask'] = self.make_column_mask(L.feature_names, poi_pred.feature_names)
+                for S in C['_pnn_systs']:
+                    # I forgot to store the feature_names in the PNN class, so let's look it up from the job:
+                    S['column_mask'] = self.make_column_mask(L.feature_names, _job_by_id(cfg, S['job'])['features'])
+
             with tqdm(total=total_shards, desc=f"[N2LL] cache {rid}", unit="shard", leave=False) as pbar:
                 for feat_names, X, w0 in self._iter_asimov_batches(R):
                     Nb = len(X)
@@ -640,7 +662,7 @@ class N2LL:
                     if clf is None or n_proc <= 1:
                         G = np.ones((Nb, n_proc), dtype=np.float64)
                     else:
-                        G = _predict_classifier(clf, X)  # (Nb, n_proc)
+                        G = _predict_classifier(clf, X[:, clf['column_mask']])  # (Nb, n_proc)
                         if G.shape[1] != n_proc:
                             raise RuntimeError(f"[N2LL] Classifier outputs {G.shape[1]} != {n_proc} classes in region '{rid}'")
 
@@ -659,7 +681,7 @@ class N2LL:
 
                         # BIT R_A
                         poi_pred = (C.get('POI') or {}).get('predictor')
-                        R_A = _predict_bit_ratio(poi_pred, X)  # (Nb, nA)
+                        R_A = _predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -671,7 +693,7 @@ class N2LL:
                         for S in C['_pnn_systs']:
                             sid = S['id']
                             pnn = S['predictor']
-                            dA = _predict_pnn_deltaA(pnn, X)  # (Nb, nB)
+                            dA = _predict_pnn_deltaA(pnn, X[:, S['column_mask']])  # (Nb, nB)
                             if sid not in writer["Delta"]:
                                 nB = dA.shape[1]
                                 dset_name = f"Delta::{sid}"
