@@ -1320,6 +1320,8 @@ if __name__ == "__main__":
     #n2ll = n2ll(hyp) 
 
     #n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
+    #print("Asimov fit to:")
+    #hyp.print()
 
     val = n2ll(hyp)
     ## run Minuit; prints the model every 25 evaluations by default
