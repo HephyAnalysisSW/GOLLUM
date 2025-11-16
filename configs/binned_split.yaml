@@ -150,7 +150,8 @@ jobs:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
-      cheb_n: 5
+      pdf_n: 5
+      pdf_type: Chebyshev
     output: { filename: "ICH_tt2l_GG.pkl"}
   - id: ich_tt2l_QG
     type: ich
@@ -160,7 +161,8 @@ jobs:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
-      cheb_n: 5
+      pdf_n: 5
+      pdf_type: Chebyshev
     output: { filename: "ICH_tt2l_QG.pkl" }
   - id: ich_tt2l_QQ
     type: ich
@@ -170,7 +172,8 @@ jobs:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
-      cheb_n: 5
+	pdf_n: 5
+	pdf_type: Chebyshev
     output: { filename: "ICH_tt2l_QQ.pkl" }
 
   - id: icph_tt2l_GG_Trigger

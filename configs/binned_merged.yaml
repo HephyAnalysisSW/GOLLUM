@@ -63,7 +63,8 @@ jobs:
       - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
-      cheb_n: 5                   
+      pdf_n: 5     
+      pdf_type: Chebyshev
     output: {filename: "ICH_tt2l.pkl"}
 
   - id: icph_tt2l_Trigger

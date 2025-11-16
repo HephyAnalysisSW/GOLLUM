@@ -6,7 +6,8 @@ jobs:
     process: tt2l                 # loader/view name from data.samples
     selection: null               # optional extra selection layered on top
     pdf:
-      cheb_n: 5                   # <-- controls the number of Chebyshev coeffs (c0..cN)
+      pdf_n: 5                   # <-- controls the number of coeffs (c0..cN)
+      pdf_type: Chebyshev
     model:
       n_trees: 200
       learning_rate: 0.2
