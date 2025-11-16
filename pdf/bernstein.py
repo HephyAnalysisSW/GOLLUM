@@ -42,7 +42,6 @@ class BernsteinBasis:
         # vectorized computation of each basis i
         for i in range(n + 1):
             rows.append(comb(n, i) * (xflat**i) * ((1.0 - xflat)**(n - i)))
-        print(rows)
         M = np.stack(rows,axis=1)    # shape (m,n+1)
         print(M.shape)
         if is_scalar:
