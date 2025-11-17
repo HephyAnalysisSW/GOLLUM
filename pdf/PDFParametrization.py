@@ -4,7 +4,7 @@ from typing import Sequence, Union
 
 import numpy as np
 from numpy.polynomial.chebyshev import chebvander
-from pdf.bernstein import BernsteinBasis
+from pdf.Bernstein import BernsteinBasis
 logger = logging.getLogger(__name__)
 
 ArrayLike = Union[float, np.ndarray]
