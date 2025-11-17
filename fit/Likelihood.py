@@ -438,7 +438,11 @@ class N2LL:
 
         # attach predictors from likelihood (already set by yaml_loader.load_likelihood)
         self._prepare_structure()
-        self._runtime_prepared = False
+
+        # flow control
+        self._runtime_prepared      = False
+        self._asimov_hypothesis_set = False
+        self._observation_set       = False
 
     # --------- structure & sanity ---------
     def _prepare_structure(self):
@@ -563,6 +567,17 @@ class N2LL:
         dset.resize((n_old + n_add, dset.shape[1]))
         dset[n_old:n_old+n_add, :] = arr
 
+    @staticmethod
+    def make_column_mask(all_features, wanted_features):
+        pos = {f: i for i, f in enumerate(all_features)}
+        missing = [f for f in wanted_features if f not in pos]
+        if missing:
+            raise KeyError(f"Features not found in source: {missing}")
+        mask = np.zeros(len(all_features), dtype=bool)
+        for f in wanted_features:
+            mask[pos[f]] = True
+        return mask
+
     # --------- cache builder (HDF5) ----------
     def build_cache(self):
         """
@@ -629,6 +644,17 @@ class N2LL:
                 L = getattr(self.samples_mod, sname)
                 total_shards += len(getattr(L, "base", L))
 
+            # prepare column selection mask
+            if clf is not None:
+                clf['column_mask'] = self.make_column_mask(L.feature_names, clf.feature_names)
+            for C in classes:
+                poi_pred = (C.get('POI') or {}).get('predictor')
+                if poi_pred:
+                    C['POI']['column_mask'] = self.make_column_mask(L.feature_names, poi_pred.feature_names)
+                for S in C['_pnn_systs']:
+                    # I forgot to store the feature_names in the PNN class, so let's look it up from the job:
+                    S['column_mask'] = self.make_column_mask(L.feature_names, _job_by_id(cfg, S['job'])['features'])
+
             with tqdm(total=total_shards, desc=f"[N2LL] cache {rid}", unit="shard", leave=False) as pbar:
                 for feat_names, X, w0 in self._iter_asimov_batches(R):
                     Nb = len(X)
@@ -640,7 +666,7 @@ class N2LL:
                     if clf is None or n_proc <= 1:
                         G = np.ones((Nb, n_proc), dtype=np.float64)
                     else:
-                        G = _predict_classifier(clf, X)  # (Nb, n_proc)
+                        G = _predict_classifier(clf, X[:, clf['column_mask']])  # (Nb, n_proc)
                         if G.shape[1] != n_proc:
                             raise RuntimeError(f"[N2LL] Classifier outputs {G.shape[1]} != {n_proc} classes in region '{rid}'")
 
@@ -659,7 +685,7 @@ class N2LL:
 
                         # BIT R_A
                         poi_pred = (C.get('POI') or {}).get('predictor')
-                        R_A = _predict_bit_ratio(poi_pred, X)  # (Nb, nA)
+                        R_A = _predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -671,7 +697,7 @@ class N2LL:
                         for S in C['_pnn_systs']:
                             sid = S['id']
                             pnn = S['predictor']
-                            dA = _predict_pnn_deltaA(pnn, X)  # (Nb, nB)
+                            dA = _predict_pnn_deltaA(pnn, X[:, S['column_mask']])  # (Nb, nB)
                             if sid not in writer["Delta"]:
                                 nB = dA.shape[1]
                                 dset_name = f"Delta::{sid}"
@@ -1076,7 +1102,7 @@ class N2LL:
 
         return T
 
-    def setAsimov(self, hypothesis) -> None:
+    def setAsimov(self, hypothesis=None) -> None:
         """
         Set an off-nominal Asimov hypothesis (c', ν') and precompute T'(x; c', ν')
         on the cached event set. If all parameters are zero, disables the bias.
@@ -1084,8 +1110,17 @@ class N2LL:
         if not self._runtime_prepared:
             raise RuntimeError("[N2LL.setAsimov] Call prepare_runtime() before setting Asimov.")
 
+        # flow control. We set this to true irrespective of whether we eventually need a non-zero hypothesis
+        self._asimov_hypothesis_set = True
+
+        # n2ll.setAsimov() defaults to the null hypothesis, hence no bias term 
+        if hypothesis is None:
+            self._asimov_active = False
+            return
+
         # quick check: any parameter nonzero?
         any_nonzero = any(abs(float(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
+        # _asimov_active controls whether we have (c',nu')!=(0,0). If that's false, we need not evaluate T(x;c',nu')
         self._asimov_active = bool(any_nonzero)
         self._asimov_hyp = hypothesis if self._asimov_active else None
         self._asimov_T.clear()
@@ -1128,28 +1163,257 @@ class N2LL:
                 lam_prime = self._compute_lambda_binned(rid, hypothesis)  # vector (Nflat,)
                 self._binned_asimov_lambda[rid] = lam_prime
 
+    def setObservation(self,
+                       unbinned_loaders: dict | None = None,
+                       binned_loaders:   dict | None = None,
+                       *,
+                       ignore_weights: bool = True) -> None:
+        """
+        Register an observed dataset for likelihood evaluation.
+
+        Parameters
+        ----------
+        unbinned_loaders : dict or None
+            Mapping {region_id -> loader}, where each loader is an RDataLoader or
+            SelectionView (anything exposing `.materialize(shard=..., what=..., n=...)`
+            and `.n_split` and `.feature_names`).
+            These events will be used *event-by-event* in the unbinned likelihood.
+
+        binned_loaders : dict or None
+            Mapping {region_id -> loader} (same loader interface) from which we will
+            *compute* observed binned counts by histogramming into the region's ICH binning.
+
+            NOTE: Even for binned, we expect *unbinned* events here; we internally
+            histogram to the region's bins defined in `self._binned_unroll[rid]['edges']`.
+
+        ignore_weights : bool (default: True)
+            If True, do NOT even load weights from loaders; treat every event as weight 1.
+            This switches the `what` argument in `materialize(...)` so weights are never read.
+
+        Effects
+        -------
+        - Sets `self._observation_set = True` and disables any previously set Asimov bias.
+        - Populates:
+            * `self._obs_unbinned[rid] = {'X': features (N,d), 'w': weights (N,)}` for unbinned regions
+            * `self._obs_binned_counts[rid] = counts_flat (Nflat,)` for binned regions
+        - Clears any previous observation caches.
+        """
+        import numpy as np
+
+        if not self._runtime_prepared:
+            raise RuntimeError("[N2LL.setObservation] Call prepare_runtime() before setting observation.")
+
+        # You can’t mix observed-data mode with Asimov in the same evaluation flow.
+        # We allow switching, but make it explicit and clear.
+        if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
+            print("[N2LL.setObservation] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
+        self._asimov_hypothesis_set = False
+        self._asimov_active = False
+        self._asimov_hyp = None
+        self._asimov_T.clear()
+        self._binned_asimov_lambda.clear()
+
+        # Reset observation containers
+        self._obs_unbinned = {}
+        self._obs_binned_counts = {}
+
+        # Flag we’re now in observed-data mode
+        self._observation_set = True
+
+        # ------------- UNBINNED OBSERVATION -------------
+        if unbinned_loaders:
+            for rid, loader in (unbinned_loaders.items()):
+                # Sanity: region exists and is unbinned-configured
+                if rid not in {R['id'] for R in self.regions}:
+                    raise RuntimeError(f"[setObservation:unbinned] Unknown region id '{rid}'.")
+                # Collect features (+ optional weights) across shards
+                nsplits = int(getattr(loader, "n_split", 1))
+                want = "f" if ignore_weights else "fw"
+                Xs, Ws = [], []
+                for shard in range(nsplits):
+                    outs = loader.materialize(shard=shard, what=want, n=None)
+                    if ignore_weights:
+                        (X,) = outs
+                        w = np.ones(X.shape[0], dtype=np.float64)
+                    else:
+                        X, w = outs
+                        w = np.asarray(w, dtype=np.float64, order='C')
+                    X = np.asarray(X, dtype=np.float64, order='C')
+                    if X.ndim != 2:
+                        raise RuntimeError(f"[setObservation:unbinned:{rid}] Features must be 2D, got shape {X.shape}.")
+                    if X.shape[0] != w.shape[0]:
+                        raise RuntimeError(f"[setObservation:unbinned:{rid}] len(weights) != nEvents ({w.shape[0]} != {X.shape[0]}).")
+                    Xs.append(X); Ws.append(w)
+
+                if Xs:
+                    X_all = np.concatenate(Xs, axis=0)
+                    w_all = np.concatenate(Ws, axis=0)
+                else:
+                    X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
+                    w_all = np.empty((0,), dtype=np.float64)
+
+                self._obs_unbinned[rid] = {'X': X_all, 'w': w_all}
+                print(f"[setObservation] Unbinned region '{rid}': loaded {X_all.shape[0]:,} events "
+                      f"({'unit weights' if ignore_weights else 'with weights'}).")
+
+        # ------------- BINNED OBSERVATION (from unbinned events) -------------
+        if binned_loaders:
+            for rid, loader in (binned_loaders.items()):
+                if rid not in self._binned_unroll:
+                    raise RuntimeError(f"[setObservation:binned] Region '{rid}' has no binned definition in current likelihood.")
+                un = self._binned_unroll[rid]  # contains 'edges' (list), 'axes' (names), etc.
+                edges = un['edges']
+                axes  = un['axes']  # feature names for the binnings
+
+                # Resolve feature indices for the loader
+                feat_names = list(getattr(loader, "feature_names", []) or [])
+                if not feat_names:
+                    raise RuntimeError(f"[setObservation:binned:{rid}] Loader does not expose feature_names.")
+                try:
+                    idx = [feat_names.index(ax) for ax in axes]
+                except ValueError as e:
+                    raise RuntimeError(f"[setObservation:binned:{rid}] Loader lacks required bin axis features {axes}.") from e
+
+                nsplits = int(getattr(loader, "n_split", 1))
+                want = "f" if ignore_weights else "fw"
+
+                # Accumulate counts (sum of weights or 1s) per bin
+                if len(edges) == 1:
+                    nb1 = len(edges[0]) - 1
+                    counts = np.zeros(nb1, dtype=np.float64)
+                elif len(edges) == 2:
+                    nb1 = len(edges[0]) - 1
+                    nb2 = len(edges[1]) - 1
+                    counts2d = np.zeros((nb1, nb2), dtype=np.float64)
+                else:
+                    raise RuntimeError("[setObservation:binned] Only 1D/2D binning supported.")
+
+                for shard in range(nsplits):
+                    outs = loader.materialize(shard=shard, what=want, n=None)
+                    if ignore_weights:
+                        (X,) = outs
+                        w = None  # implies unit weights in histogramming
+                    else:
+                        X, w = outs
+                        w = np.asarray(w, dtype=np.float64)
+
+                    X = np.asarray(X, dtype=np.float64)
+                    if len(edges) == 1:
+                        x = X[:, idx[0]]
+                        H, _ = np.histogram(x, bins=edges[0], weights=(w if w is not None else None))
+                        counts += H.astype(np.float64)
+                    else:
+                        x = X[:, idx[0]]
+                        y = X[:, idx[1]]
+                        H, _, _ = np.histogram2d(x, y, bins=[edges[0], edges[1]], weights=(w if w is not None else None))
+                        counts2d += H.astype(np.float64)
+
+                flat_counts = counts if len(edges) == 1 else counts2d.reshape(-1)
+                self._obs_binned_counts[rid] = flat_counts
+                print(f"[setObservation] Binned region '{rid}': filled {flat_counts.size} bins "
+                      f"({'unit weights' if ignore_weights else 'with weights'}).")
+
     def __call__(self, hypothesis) -> float:
         """
-        Return  -2 * Σ_i w0_i * ( log1p(T_i) - T_i )   [baseline Asimov at (0,0)]
-            plus bias term if an off-nominal Asimov hypothesis (c',ν') is set:
+        Evaluate -2 log L for either:
+          (A) OBSERVED data (registered via setObservation), or
+          (B) ASIMOV expectation (registered via setAsimov).
 
-            +  -2 * Σ_i w0_i * T'_i * log1p(T_i)
-
-        where:
-          T_i  = T(x_i; c,  ν)  (current hypothesis)
-          T'_i = T(x_i; c', ν') (precomputed via setAsimov)
+        Exactly one of setObservation(...) or setAsimov(...) must be called.
+        Asimov bias term is included only in case (B) and only if an off-nominal
+        Asimov hypothesis was provided.
         """
         import numpy as np
 
         if not self._runtime_prepared:
             raise RuntimeError("[N2LL] Call prepare_runtime() before evaluating.")
 
-        # ----- build A-basis for current hypothesis -----
-        # nuisances for lnN bias
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        # Enforce exactly one mode active
+        if bool(self._observation_set) == bool(self._asimov_hypothesis_set):
+            raise RuntimeError("[N2LL] Exactly one of setObservation(...) or setAsimov(...) must be called "
+                               "before evaluating, but not both (and not neither).")
 
-        total_sum = 0.0         # Σ w * (log1p(T) - T)
-        bias_sum  = 0.0         # Σ w * T'(asimov) * log1p(T)
+        # ===================================================================
+        # (A) OBSERVATION MODE
+        # ===================================================================
+        if self._observation_set and not self._asimov_hypothesis_set:
+            total_unbinned = 0.0
+            total_binned   = 0.0
+
+            # ---------- UNBINNED (if provided) ----------
+            if getattr(self, "_obs_unbinned", None):
+                # ν values for lnN bias if we need to reconstruct T from by_class
+                nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+
+                for rid, block in self._obs_unbinned.items():
+                    # Mode A: direct T
+                    if 'T' in block:
+                        T = np.asarray(block['T'], dtype=np.float64)
+                        W = np.asarray(block['w'], dtype=np.float64)
+                        total_unbinned += _weighted_sum_log1p_minus_x(T, W)
+                        continue
+
+                    # Mode B: by_class arrays -> reconstruct T with current (c,nu)
+                    byc = block['by_class']
+                    W   = np.asarray(block['w'], dtype=np.float64)
+                    N   = len(W)
+                    T   = np.zeros(N, dtype=np.float64)
+
+                    # current hypothesis A-basis and ν_A groups
+                    cA_per_class  = self._assemble_cA_per_class(rid, hypothesis)
+                    nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
+                    ln_bias = {
+                        cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                                 for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                        for cid in byc.keys()
+                    }
+
+                    for cid, comp in byc.items():
+                        g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
+                        R_slice = np.asarray(comp['R'], dtype=np.float64)     # (N, nA)
+                        cA      = cA_per_class[cid]                           # (nA,)
+                        if R_slice.shape[1] != cA.shape[0]:
+                            raise RuntimeError(f"[N2LL:obs:unbinned] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
+                        c_dot_R = R_slice @ cA                                # (N,)
+
+                        expo = np.zeros_like(g_slice)
+                        for gm, nuA in nuA_per_group[cid]:
+                            dset = gm.get("dset", f"Delta::{gm['id']}")
+                            if dset not in comp:
+                                raise RuntimeError(f"[N2LL:obs:unbinned] Missing '{dset}' for {rid}/{cid}.")
+                            dA = np.asarray(comp[dset], dtype=np.float64)     # (N, nB)
+                            if dA.shape[1] != nuA.shape[0]:
+                                raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
+                            expo += dA @ nuA
+
+                        exp_expo = np.exp(expo + ln_bias[cid])
+                        T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+
+                    total_unbinned += _weighted_sum_log1p_minus_x(T, W)
+
+            # ---------- BINNED (always available if you provided columns for axes) ----------
+            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned", None):
+                for rid in self._binned_regions_ids:
+                    if rid not in self._obs_binned:
+                        continue  # region not histogrammed (e.g. missing axis columns)
+                    lam0 = self._binned_lambda0[rid]                    # (Nflat,)
+                    lam  = self._compute_lambda_binned(rid, hypothesis) # (Nflat,)
+                    Nobs = self._obs_binned[rid]                        # (Nflat,)
+
+                    log_ratio = self._safe_log_ratio(lam, lam0)         # stable
+                    total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
+
+            n2ll = -2.0 * (total_unbinned + total_binned)
+            n2ll += hypothesis.penalty()
+            return float(n2ll)
+
+        # ===================================================================
+        # (B) ASIMOV MODE  
+        # ===================================================================
+        total_sum = 0.0   # Σ w * (log1p(T) - T)
+        bias_sum  = 0.0   # Σ w * T'(asimov) * log1p(T)
+
+        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
 
         for R in self.regions:
             rid = R['id']
@@ -1160,7 +1424,6 @@ class N2LL:
             if N == 0:
                 continue
 
-            # current hypothesis: c_A and ν_A groups
             cA_per_class  = self._assemble_cA_per_class(rid, hypothesis)
             nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
             ln_bias = {
@@ -1169,51 +1432,252 @@ class N2LL:
                 for cid in class_ids
             }
 
-            # chunked evaluation
             chunk = self.eval_chunk_size
             asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
             for ichunk, start in enumerate(range(0, N, chunk)):
                 stop = min(start + chunk, N)
-
-                # compute T for current hypothesis on this chunk
-                T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)  # (M,)
-                W = self._h5[(rid, class_ids[0])]['w0'][start:stop]                                # (M,)
-
-                # baseline contribution: Σ w * (log1p(T) - T)
-                # (use the numerically-stable helper for the sum)
+                T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
                 total_sum += _weighted_sum_log1p_minus_x(T, W)
 
-                # bias term only if an off-nominal Asimov has been set
                 if asimov_T_chunks is not None:
-                    Tprime = asimov_T_chunks[ichunk]   # (M,)
-                    # add Σ w * T'(asimov) * log1p(T)
+                    Tprime = asimov_T_chunks[ichunk]
                     bias_sum += float(np.sum(W * np.log1p(T) * Tprime, dtype=np.float64))
 
         total_unbinned = total_sum + bias_sum
 
-        # ===== BINNED contribution =====
-        total_binned = 0.
-        if self._binned_regions_ids:
+        total_binned = 0.0
+        if getattr(self, "_binned_regions_ids", None):
             for rid in self._binned_regions_ids:
-                lam0 = self._binned_lambda0[rid]                    # (Nflat,)
-                lam  = self._compute_lambda_binned(rid, hypothesis) # (Nflat,)
-
-                # pick Asimov λ' if set, else nominal λ0
+                lam0 = self._binned_lambda0[rid]
+                lam  = self._compute_lambda_binned(rid, hypothesis)
                 lam_asimov = self._binned_asimov_lambda.get(rid, lam0)
 
-                # Accumulate per-bin:  -(λ-λ0) + λ' * log(λ/λ0)
-                # We defer the global factor (-2) to the same place as unbinned
-                log_ratio = self._safe_log_ratio(lam, lam0)         # stable
-                binned_contrib = np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
-                total_binned += binned_contrib  # note: this is still *before* the -2
+                log_ratio = self._safe_log_ratio(lam, lam0)
+                total_binned += np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
 
-        # assemble -2 log L
         n2ll = -2.0 * (total_unbinned + total_binned)
-
-        # nuisance penalty (gaussian prior)
         n2ll += hypothesis.penalty()
-
         return float(n2ll)
+
+    def fisher_information(self, hypothesis, step_scale: float = 1e-4, verbose: bool = False) -> np.ndarray:
+        """
+        Fisher information I_{ab} = E[(∂_a log L)(∂_b log L)] in Asimov mode.
+        Requires that setAsimov(...) has been called (A-simov if None, C-simov otherwise).
+        Uses the same decomposition as __call__: unbinned + binned (+ prior penalty).
+
+          - Unbinned score per event:
+                s_k(x_i) = w_i * [(T'(x_i) - T(x_i)) / (1 + T(x_i))] * ∂T/∂θ_k (x_i)
+
+          - Binned score per bin i:
+                s_k(i) = [ λ'_i / λ_i  - 1 ] * ∂λ_i/∂θ_k
+
+          - Prior (Gaussian penalty added to -2 log L) contributes Hessian of penalty/2.
+
+        Only *free* parameters (not frozen / not ignored) are included.
+        Returns:
+            (n_free, n_free) np.ndarray
+        """
+        import numpy as np
+
+        if not self._runtime_prepared:
+            raise RuntimeError("[N2LL.fisher_information] Call prepare_runtime() first.")
+        if not self._asimov_hypothesis_set or self._observation_set:
+            raise RuntimeError("[N2LL.fisher_information] Asimov mode required: call setAsimov(...), "
+                               "and do not set an observation.")
+
+        # Free parameters (order matches Minuit's)
+        names = [p.name for p in hypothesis.parameters
+                 if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        npar = len(names)
+        if npar == 0:
+            raise RuntimeError("[N2LL.fisher_information] No free parameters.")
+
+        if verbose:
+            print("[FI] Free parameters:", names)
+
+        # Small helpers kept local (no API changes elsewhere)
+        def _clone_shift(hyp, pname, delta):
+            h = hyp.clone()
+            for p in h.parameters:
+                if p.name == pname:
+                    p.val = float(p.val) + float(delta)
+                    break
+            return h
+
+        def _eps_for(pname: str, val: float) -> float:
+            base = abs(val) if abs(val) > 0 else 1.0
+            return max(1e-8, step_scale * base)
+
+        def _ln_bias_map_for(rid: str, hyp):
+            # Build per-class lnN bias for a hypothesis
+            nu_vals = {p.name: float(p.val) for p in hyp.parameters if not p.isPOI}
+            class_ids = self._class_ids_by_region.get(rid, [])
+            return {
+                cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                         for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                for cid in class_ids
+            }
+
+        FI = np.zeros((npar, npar), dtype=np.float64)
+
+        # =========================
+        # UNBinned contribution
+        # =========================
+        for R in self.regions:
+            print(f"At unbinned region {R['id']}")
+            rid = R['id']
+            class_ids = self._class_ids_by_region.get(rid, [])
+            if not class_ids:
+                continue
+            N = self._N_region.get(rid, 0)
+            if N == 0:
+                continue
+            print(f"class_ids {class_ids} N {N}")
+
+            # Current-hypothesis structures
+            cA_now  = self._assemble_cA_per_class(rid, hypothesis)
+            nuA_now = self._assemble_nuA_groups(rid, hypothesis)
+            ln_bias_now = _ln_bias_map_for(rid, hypothesis)
+
+            print ("cA_now")
+            print (cA_now)
+            print ("nuA_now")
+            print (nuA_now)
+            print ("ln_bias_now")
+            print (ln_bias_now)
+
+            # Asimov chunks T'(x) if C-simov; else None for A-simov
+            asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
+
+            print("asimov_T_chunks", asimov_T_chunks)
+
+            chunk = self.eval_chunk_size
+            for ichunk, start in enumerate(range(0, N, chunk)):
+                stop = min(start + chunk, N)
+
+                print ("ichunk", ichunk,"from",start,"to",stop)
+
+                # Baseline T and weights
+                T0 = self._compute_T_chunk(rid, cA_now, nuA_now, ln_bias_now, start, stop)    # (M,)
+                W  = self._h5[(rid, class_ids[0])]['w0'][start:stop]                           # (M,)
+
+                print ("T0",T0, "W", W)
+
+                # Coefficient (T' - T)/(1 + T)
+                if asimov_T_chunks is not None:
+                    Tprime = asimov_T_chunks[ichunk]
+                    coeff  = (Tprime - T0) / (1.0 + T0)
+                    print ("Tprime", Tprime)
+                else:
+                    coeff  = (-T0) / (1.0 + T0)  # A-simov: T' = 0
+                    print ("Tprime", None)
+
+                print ("coeff", coeff)
+
+                # Build dT/dθ_k via central finite differences
+                dT_list = []
+                for k, pname in enumerate(names):
+                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
+                    eps = _eps_for(pname, v)
+
+                    hyp_p = _clone_shift(hypothesis, pname, +eps)
+                    hyp_m = _clone_shift(hypothesis, pname, -eps)
+
+                    # Structures for +eps/-eps (must also update lnN bias if pname is a nuisance)
+                    cA_p,  nuA_p  = self._assemble_cA_per_class(rid, hyp_p), self._assemble_nuA_groups(rid, hyp_p)
+                    cA_m,  nuA_m  = self._assemble_cA_per_class(rid, hyp_m), self._assemble_nuA_groups(rid, hyp_m)
+                    ln_p,  ln_m   = _ln_bias_map_for(rid, hyp_p), _ln_bias_map_for(rid, hyp_m)
+
+                    T_p = self._compute_T_chunk(rid, cA_p, nuA_p, ln_p, start, stop)
+                    T_m = self._compute_T_chunk(rid, cA_m, nuA_m, ln_m, start, stop)
+
+                    dT_list.append((T_p - T_m) / (2.0 * eps))
+                    print ("T_p", T_p)
+                    print ("T_m", T_m)
+                    print ("dT_list",dT_list)
+
+                # Scores for this chunk: s_k = W * coeff * dT_k
+                S = np.stack([W * coeff * dT_k for dT_k in dT_list], axis=0)  # (npar, M)
+                FI += S @ S.T
+
+        # =========================
+        # BINNED contribution
+        # =========================
+        if getattr(self, "_binned_regions_ids", None):
+            for rid in self._binned_regions_ids:
+                lam0 = self._binned_lambda0[rid]
+                lam  = self._compute_lambda_binned(rid, hypothesis)
+                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)  # C-simov if active, else A-simov
+
+                ratio_factor = (lam_asimov / np.maximum(lam, 1e-15)) - 1.0  # (Nflat,)
+
+                dlam_list = []
+                for k, pname in enumerate(names):
+                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
+                    eps = _eps_for(pname, v)
+
+                    hyp_p = _clone_shift(hypothesis, pname, +eps)
+                    hyp_m = _clone_shift(hypothesis, pname, -eps)
+
+                    lam_p = self._compute_lambda_binned(rid, hyp_p)
+                    lam_m = self._compute_lambda_binned(rid, hyp_m)
+
+                    dlam_list.append((lam_p - lam_m) / (2.0 * eps))
+
+                S = np.stack([ratio_factor * dlam_k for dlam_k in dlam_list], axis=0)  # (npar, Nflat)
+                FI += S @ S.T
+
+        # =========================
+        # PRIOR / PENALTY contribution
+        # =========================
+        # __call__ adds:  n2ll += hypothesis.penalty()
+        # ⇒ log L includes a prior term  - penalty/2
+        # ⇒ Fisher adds the Hessian of (penalty/2) over the free-parameter subspace.
+        def _penalty(hyp):
+            return float(hyp.penalty())
+
+        if any(getattr(p, "isPenalized", False) and (not p.isFrozen) and (not getattr(p, "isIgnored", False))
+               for p in hypothesis.parameters):
+            Hpen = np.zeros((npar, npar), dtype=np.float64)
+            p0 = _penalty(hypothesis)
+            for a, na in enumerate(names):
+                va  = float(getattr(hypothesis, na, hypothesis[na]).val)
+                epa = _eps_for(na, va)
+
+                ha_p = _clone_shift(hypothesis, na, +epa)
+                ha_m = _clone_shift(hypothesis, na, -epa)
+
+                p_ap = _penalty(ha_p)
+                p_am = _penalty(ha_m)
+
+                Hpen[a, a] = (p_ap - 2.0*p0 + p_am) / (epa*epa)
+
+                for b in range(a+1, npar):
+                    nb  = names[b]
+                    vb  = float(getattr(hypothesis, nb, hypothesis[nb]).val)
+                    epb = _eps_for(nb, vb)
+
+                    h_pp = _clone_shift(ha_p, nb, +epb)
+                    h_pm = _clone_shift(ha_p, nb, -epb)
+                    h_mp = _clone_shift(ha_m, nb, +epb)
+                    h_mm = _clone_shift(ha_m, nb, -epb)
+
+                    p_pp = _penalty(h_pp)
+                    p_pm = _penalty(h_pm)
+                    p_mp = _penalty(h_mp)
+                    p_mm = _penalty(h_mm)
+
+                    Hab = (p_pp - p_pm - p_mp + p_mm) / (4.0 * epa * epb)
+                    Hpen[a, b] = Hab
+                    Hpen[b, a] = Hab
+
+            FI += 0.5 * Hpen
+
+        if verbose:
+            print("[FI] done.")
+        return FI
+
 
 class _MinuitArrayAdapter:
     """Array-based FCN for Minuit (keeps names, prints progress)."""
@@ -1317,13 +1781,13 @@ if __name__ == "__main__":
     n2ll = N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
     n2ll.build_cache()
     n2ll.prepare_runtime()
-    #n2ll = n2ll(hyp) 
 
-    #n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
-    #print("Asimov fit to:")
-    #hyp.print()
+    # compute A-simov
+    n2ll.setAsimov()
 
-    val = n2ll(hyp)
+    # compute C-simov (POI or nuisance injection)
+    #n2ll.setAsimov(hyp.cloneModify(c1=1))
+
     ## run Minuit; prints the model every 25 evaluations by default
     m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
 

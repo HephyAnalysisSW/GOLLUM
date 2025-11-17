@@ -3,7 +3,6 @@ version: v1
 defaults:
   module_samples: "data.samples"     
   batch_size: 65536
-  seed: 1
 
 likelihood:
     binned:
@@ -60,7 +59,7 @@ jobs:
     region: SR_binned
     process: tt2l
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     pdf:
       pdf_n: 5     
@@ -73,7 +72,7 @@ jobs:
     parameters: [nu_trigger]
     combinations: [[nu_trigger]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -95,7 +94,7 @@ jobs:
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -117,7 +116,7 @@ jobs:
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -140,7 +139,7 @@ jobs:
     parameters: [nu_leptonsf]
     combinations: [[nu_leptonsf]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -162,7 +161,7 @@ jobs:
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -184,7 +183,7 @@ jobs:
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0]
@@ -206,7 +205,7 @@ jobs:
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_pt",   [-1e9, 300, 1e9]]
     base_points:
       - coords: [-1.0, -1.0]
@@ -245,7 +244,7 @@ jobs:
     parameters: [nu_jes]
     combinations: [[nu_jes], [nu_jes, nu_jes]]
     binning:
-      - ["tr_ttbar_mass", [300, 380, 470, 620, 820, 1100, 1500, 2500]]
+      - ["tr_ttbar_mass", [500, 620, 820, 1100, 1500, 2500]]
       #- ["tr_ttbar_mass",   [-1e9, 1e9]]
     base_points:
     #  - coords: [-2.0]

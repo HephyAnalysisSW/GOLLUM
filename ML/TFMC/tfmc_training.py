@@ -3,7 +3,7 @@
 # YAML-driven TFMC trainer with optional plotting handled in the training loop.
 
 from __future__ import annotations
-import os, sys, time, argparse, importlib, yaml, numpy as np, math, random
+import os, sys, time, argparse, importlib, yaml, numpy as np, math
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
@@ -28,14 +28,10 @@ p.add_argument("--overwrite", action="store_true", help="Overwrite model directo
 p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch-size", type=int, default=None, help="Override batch size")
-p.add_argument("--seed", type=int, default=1, help="Random seed")
 # plotting
 p.add_argument("--plot", action="store_true", help="Enable convergence plots")
 p.add_argument("--plot-every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
-
-rng = np.random.default_rng(args.seed)
-random.seed(args.seed)
 
 # ---------------- load cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
@@ -44,7 +40,6 @@ cfg = yaml_loader.load_yaml(cfg_path)
 defaults = cfg.get("defaults", {}) or {}
 module_samples = defaults.get("module_samples", "data.samples")
 default_batch = defaults.get("batch_size", 65536)
-default_seed = defaults.get("seed", 1)
 
 def list_jobs_and_exit():
     jobs = [j for j in (cfg.get("jobs") or []) if j.get("type") == "classifier" and j.get("framework") == "tfmc"]
@@ -56,7 +51,6 @@ def list_jobs_and_exit():
     if args.small: flags.append("--small")
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
     if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
-    flags.append(f"--seed {args.seed}")
     if args.plot: flags.append("--plot")
     if args.plot_every != 5: flags.append(f"--plot-every {args.plot_every}")
     script = os.path.basename(__file__)
@@ -92,7 +86,7 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
 # ---------------- dirs ----------------
 
-cfg_base = os.path.join( cfg.get("version", "default"), job['region'] )
+cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
 model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
 plot_dir  = os.path.join(user.plot_directory,  cfg_base, "TFMC", J["id"])
@@ -112,7 +106,9 @@ loaders = []
 for name in classes_names:
     if not hasattr(samples_mod, name):
         raise RuntimeError(f"Class loader '{name}' not found in {module_samples}.")
-    loaders.append(getattr(samples_mod, name))
+    loader = getattr(samples_mod, name)
+    loader.setFeatures( J['features'] )
+    loaders.append(loader)
 
 # Consistency: same feature_names across classes
 feat_names = getattr(loaders[0], "feature_names", None)

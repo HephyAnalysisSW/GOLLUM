@@ -6,7 +6,6 @@ defaults:
   module_samples: "data.toy_data"
   observer_weight: "weight"
   batch_size: 2048
-  seed: null
   reuse_existing_artifacts: true
 
 jobs:
@@ -29,7 +28,6 @@ jobs:
       learning_rate: 0.02
     runtime:
       batch_size: -1 
-      seed: null 
     extras:
       use_ic: false
       use_scaler: false

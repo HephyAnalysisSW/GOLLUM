@@ -114,6 +114,60 @@ class RDataLoader:
         self._arr_cache: dict[int, ak.Array] = {}
         self._mask_cache: dict[str, dict[int, np.ndarray]] = {}
 
+    # ----------------------- reset features post-init----------------------
+    def setFeatures(
+        self,
+        feature_names: Optional[Sequence[str]] = None,
+        observer_names: Optional[Sequence[str]] = None,
+        extra_branches: Optional[Sequence[str]] = None,
+    ) -> "RDataLoader":
+        """
+        Reconfigure feature/observer names and ensure the requested-branch list
+        contains them (plus optional extra_branches). Must be called *before*
+        any shard has been loaded; otherwise raises.
+
+        Returns self to allow chaining.
+        """
+        if getattr(self, "_arr_cache", None) and len(self._arr_cache):
+            raise RuntimeError("RDataLoader.setFeatures: data already materialized; "
+                               "call only right after initialization.")
+
+        # Update configured names if provided
+        if feature_names is not None:
+            self.feature_names = list(feature_names)
+        if observer_names is not None:
+            self.observer_names = list(observer_names)
+
+        # Start from current requested list
+        req = list(self._requested_branches or [])
+
+        # Ensure features/observers are present
+        if self.feature_names:
+            req += list(self.feature_names)
+        if self.observer_names:
+            req += list(self.observer_names)
+
+        # Always ensure weight branches are included
+        if self.weight_branches:
+            req += list(self.weight_branches)
+
+        # Optional extra branches
+        if extra_branches:
+            req += list(extra_branches)
+
+        # De-duplicate while preserving order
+        seen = set()
+        req_dedup = []
+        for b in req:
+            if b not in seen:
+                seen.add(b)
+                req_dedup.append(b)
+
+        self._requested_branches = req_dedup
+        # Reset any selection-mask caches (paranoia; should be empty anyway)
+        self._mask_cache = {}
+        return self
+
     # ---------------------------- public API ----------------------------
     def __len__(self) -> int:
         return len(self._file_splits) if self.splitting_strategy == "files" else self.n_split
