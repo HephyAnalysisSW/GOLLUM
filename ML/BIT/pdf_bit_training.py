@@ -74,8 +74,9 @@ if missing_gen:
     raise RuntimeError(f"Observer_names must include {GEN_OBS}, missing {missing_gen} in loader '{loader_name}'.")
 
 # ---------------- PDF parametrization & combinations ----------------
-pdf_n = int(J.get("pdf", {}).get("cheb_n", 5))
-pdf = PDFParametrization(n=pdf_n)                     # defines variables: ['c0',..,'cN']
+pdf_n = int(J.get("pdf", {}).get("pdf_n", 5))
+pdf_type = J.get("pdf", {}).get("pdf_type", 'Chebyshev')
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type)                     # defines variables: ['c0',..,'cN']
 combos = list(pdf.combinations)                       # (), ('c0',), ..., ('ci','cj')
 # Build base_points like the legacy script (order up to 2)
 base_points = []

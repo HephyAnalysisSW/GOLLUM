@@ -4,7 +4,7 @@ from typing import Sequence, Union
 
 import numpy as np
 from numpy.polynomial.chebyshev import chebvander
-
+from pdf.Bernstein import BernsteinBasis
 logger = logging.getLogger(__name__)
 
 ArrayLike = Union[float, np.ndarray]
@@ -19,16 +19,21 @@ class PDFParametrization:
     - If n = 0, then f(x) = 1 + c0.
     """
 
-    def __init__(self, n: int = 5):
+    def __init__(self, n: int = 5, typ: str="Chebyshev"):
         self.n = int(n)
-        logger.debug(f"Using Chebyshev polynomials up to order {self.n}")
+        self.typ = typ 
+        logger.debug(f"Using {self.typ} polynomials up to order {self.n}")
         self.variables = [f"c{i}" for i in range(self.n + 1)]
 
     # 2nd entry in Fig. 1 here: https://arxiv.org/pdf/1211.1215
-    @staticmethod
-    def y(x: ArrayLike) -> ArrayLike:
+    def y(self, x: ArrayLike) -> ArrayLike:
         x_arr = np.asarray(x, dtype=float)
-        return 1.0 - 2.0 * np.sqrt(x_arr)
+        if self.typ == "Chebyshev":
+            return 1.0 - 2.0 * np.sqrt(x_arr)
+        elif self.typ == "Bernstein":
+            return 1 - 2 * (x_arr**2)
+        else:
+            raise ValueError("Unknown PDF type {self.typ}") 
 
     def evaluate(self, x: ArrayLike, id: ArrayLike, coeffs: Sequence[float]) -> ArrayLike:
         """
@@ -40,10 +45,16 @@ class PDFParametrization:
         x_arr = np.asarray(x, dtype=float)
         y_vals = self.y(x_arr)
 
-        # chebvander returns columns [T0(y), T1(y), ..., Tn(y)]
-        V = chebvander(y_vals, self.n)
-        c = np.asarray(coeffs, dtype=float)
+        if self.typ == "Chebyshev":
+            # chebvander returns columns [T0(y), T1(y), ..., Tn(y)]
+            V = chebvander(y_vals, self.n)
+        elif self.typ == "Bernstein":
+            basis = BernsteinBasis(self.n)
+            V = basis.values(y_vals)
+        else:
+            raise ValueError("Unknown PDF type {self.typ}")
 
+        c = np.asarray(coeffs, dtype=float)
         cheb_sum = np.tensordot(V, c, axes=([-1], [0]))
         mask = (np.asarray(id) == 21).astype(float)
 
@@ -80,8 +91,6 @@ class PDFParametrization:
 
         Returns a list of arrays/scalars aligned with self.combinations.
         """
-        import numpy as np
-        from numpy.polynomial.chebyshev import chebvander
 
         y1 = self.y(np.asarray(x1, float))
         y2 = self.y(np.asarray(x2, float))
@@ -89,8 +98,15 @@ class PDFParametrization:
         m2 = (np.asarray(id2) == 21).astype(float)
         y1, y2, m1, m2 = np.broadcast_arrays(y1, y2, m1, m2)
 
-        V1 = chebvander(y1, self.n)  # T_k(y1)
-        V2 = chebvander(y2, self.n)  # T_k(y2)
+        if self.typ == "Chebyshev":
+            V1 = chebvander(y1, self.n)  # T_k(y1)
+            V2 = chebvander(y2, self.n)  # T_k(y2)
+        elif self.typ == "Bernstein":
+            basis = BernsteinBasis(self.n)
+            V1 = basis.values(y1) 
+            V2 = basis.values(y2) 
+        else:
+            raise ValueError("Unknown PDF type {self.typ}") 
 
         ones = np.ones_like(y1, float)
         # First derivatives: g_k = m1*T_k(y1) + m2*T_k(y2)
@@ -118,16 +134,18 @@ class PDFParametrization:
 
 if __name__ == "__main__":
     import numpy as np
+    use_basis = "Chebyshev"
+    use_basis = "Bernstein"
 
     # --- n = 0 case: f(x, id) = 1 + c0 * (id == 21) ---
-    pdf0 = PDFParametrization(n=0)
+    pdf0 = PDFParametrization(n=0, typ=use_basis)
     print(pdf0.combinations)
     c0 = (0.7,)  # length n+1 = 1
     print("n=0, gluon (id=21):   ", pdf0.evaluate(0.3, 21, c0))  # -> 1 + 0.7 = 1.7
     print("n=0, quark (id=1):    ", pdf0.evaluate(0.3, 1,  c0))  # -> 1.0
 
     # --- n = 3, vectorized x and mixed ids ---
-    pdf = PDFParametrization(n=3)
+    pdf = PDFParametrization(n=3, typ=use_basis)
     print(pdf.combinations)
     x = np.linspace(0.0, 1.0, 6)  # vector input
     coeffs = (0.1, 0.2, -0.05, 0.01)  # (c0..c3), length n+1 = 4
@@ -135,6 +153,7 @@ if __name__ == "__main__":
     # Mixed ids: some gluons, some not
     ids_mixed = np.array([21, 21, 1, 2, 21, 3])
     vals_mixed = pdf.evaluate(x, ids_mixed, coeffs)
+
     print("\nn=3, vector x with mixed ids:")
     print("x         :", x)
     print("ids       :", ids_mixed)
@@ -192,7 +211,7 @@ if __name__ == "__main__":
         return total
 
     # ---- Nontrivial vector test ----
-    pdf = PDFParametrization(n=3)
+    pdf = PDFParametrization(n=3, typ=use_basis)
     x1 = np.linspace(0.0, 1.0, 7)
     x2 = np.linspace(1.0, 0.0, 7)
     id1 = np.array([21, 1, 21, 2, 3, 21, 4])
