@@ -22,6 +22,7 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+p.add_argument("--for_debug", action="store_true", help="Fit, but don't overwrite the nominal version")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -245,8 +246,8 @@ phaseout        = int(J.get("optim", {}).get("phaseout_epochs", 0))
 lr              = float(J.get("optim", {}).get("learning_rate", 1e-3))
 
 pnn = None
-model_dir = os.path.join(user.model_directory, cfg_base, "PNN", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base, "PNN", J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 if not args.overwrite:

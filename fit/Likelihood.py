@@ -1460,6 +1460,225 @@ class N2LL:
         n2ll += hypothesis.penalty()
         return float(n2ll)
 
+    def fisher_information(self, hypothesis, step_scale: float = 1e-4, verbose: bool = False) -> np.ndarray:
+        """
+        Fisher information I_{ab} = E[(∂_a log L)(∂_b log L)] in Asimov mode.
+        Requires that setAsimov(...) has been called (A-simov if None, C-simov otherwise).
+        Uses the same decomposition as __call__: unbinned + binned (+ prior penalty).
+
+          - Unbinned score per event:
+                s_k(x_i) = w_i * [(T'(x_i) - T(x_i)) / (1 + T(x_i))] * ∂T/∂θ_k (x_i)
+
+          - Binned score per bin i:
+                s_k(i) = [ λ'_i / λ_i  - 1 ] * ∂λ_i/∂θ_k
+
+          - Prior (Gaussian penalty added to -2 log L) contributes Hessian of penalty/2.
+
+        Only *free* parameters (not frozen / not ignored) are included.
+        Returns:
+            (n_free, n_free) np.ndarray
+        """
+        import numpy as np
+
+        if not self._runtime_prepared:
+            raise RuntimeError("[N2LL.fisher_information] Call prepare_runtime() first.")
+        if not self._asimov_hypothesis_set or self._observation_set:
+            raise RuntimeError("[N2LL.fisher_information] Asimov mode required: call setAsimov(...), "
+                               "and do not set an observation.")
+
+        # Free parameters (order matches Minuit's)
+        names = [p.name for p in hypothesis.parameters
+                 if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        npar = len(names)
+        if npar == 0:
+            raise RuntimeError("[N2LL.fisher_information] No free parameters.")
+
+        if verbose:
+            print("[FI] Free parameters:", names)
+
+        # Small helpers kept local (no API changes elsewhere)
+        def _clone_shift(hyp, pname, delta):
+            h = hyp.clone()
+            for p in h.parameters:
+                if p.name == pname:
+                    p.val = float(p.val) + float(delta)
+                    break
+            return h
+
+        def _eps_for(pname: str, val: float) -> float:
+            base = abs(val) if abs(val) > 0 else 1.0
+            return max(1e-8, step_scale * base)
+
+        def _ln_bias_map_for(rid: str, hyp):
+            # Build per-class lnN bias for a hypothesis
+            nu_vals = {p.name: float(p.val) for p in hyp.parameters if not p.isPOI}
+            class_ids = self._class_ids_by_region.get(rid, [])
+            return {
+                cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
+                         for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
+                for cid in class_ids
+            }
+
+        FI = np.zeros((npar, npar), dtype=np.float64)
+
+        # =========================
+        # UNBinned contribution
+        # =========================
+        for R in self.regions:
+            print(f"At unbinned region {R['id']}")
+            rid = R['id']
+            class_ids = self._class_ids_by_region.get(rid, [])
+            if not class_ids:
+                continue
+            N = self._N_region.get(rid, 0)
+            if N == 0:
+                continue
+            print(f"class_ids {class_ids} N {N}")
+
+            # Current-hypothesis structures
+            cA_now  = self._assemble_cA_per_class(rid, hypothesis)
+            nuA_now = self._assemble_nuA_groups(rid, hypothesis)
+            ln_bias_now = _ln_bias_map_for(rid, hypothesis)
+
+            print ("cA_now")
+            print (cA_now)
+            print ("nuA_now")
+            print (nuA_now)
+            print ("ln_bias_now")
+            print (ln_bias_now)
+
+            # Asimov chunks T'(x) if C-simov; else None for A-simov
+            asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
+
+            print("asimov_T_chunks", asimov_T_chunks)
+
+            chunk = self.eval_chunk_size
+            for ichunk, start in enumerate(range(0, N, chunk)):
+                stop = min(start + chunk, N)
+
+                print ("ichunk", ichunk,"from",start,"to",stop)
+
+                # Baseline T and weights
+                T0 = self._compute_T_chunk(rid, cA_now, nuA_now, ln_bias_now, start, stop)    # (M,)
+                W  = self._h5[(rid, class_ids[0])]['w0'][start:stop]                           # (M,)
+
+                print ("T0",T0, "W", W)
+
+                # Coefficient (T' - T)/(1 + T)
+                if asimov_T_chunks is not None:
+                    Tprime = asimov_T_chunks[ichunk]
+                    coeff  = (Tprime - T0) / (1.0 + T0)
+                    print ("Tprime", Tprime)
+                else:
+                    coeff  = (-T0) / (1.0 + T0)  # A-simov: T' = 0
+                    print ("Tprime", None)
+
+                print ("coeff", coeff)
+
+                # Build dT/dθ_k via central finite differences
+                dT_list = []
+                for k, pname in enumerate(names):
+                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
+                    eps = _eps_for(pname, v)
+
+                    hyp_p = _clone_shift(hypothesis, pname, +eps)
+                    hyp_m = _clone_shift(hypothesis, pname, -eps)
+
+                    # Structures for +eps/-eps (must also update lnN bias if pname is a nuisance)
+                    cA_p,  nuA_p  = self._assemble_cA_per_class(rid, hyp_p), self._assemble_nuA_groups(rid, hyp_p)
+                    cA_m,  nuA_m  = self._assemble_cA_per_class(rid, hyp_m), self._assemble_nuA_groups(rid, hyp_m)
+                    ln_p,  ln_m   = _ln_bias_map_for(rid, hyp_p), _ln_bias_map_for(rid, hyp_m)
+
+                    T_p = self._compute_T_chunk(rid, cA_p, nuA_p, ln_p, start, stop)
+                    T_m = self._compute_T_chunk(rid, cA_m, nuA_m, ln_m, start, stop)
+
+                    dT_list.append((T_p - T_m) / (2.0 * eps))
+                    print ("T_p", T_p)
+                    print ("T_m", T_m)
+                    print ("dT_list",dT_list)
+
+                # Scores for this chunk: s_k = W * coeff * dT_k
+                S = np.stack([W * coeff * dT_k for dT_k in dT_list], axis=0)  # (npar, M)
+                FI += S @ S.T
+
+        # =========================
+        # BINNED contribution
+        # =========================
+        if getattr(self, "_binned_regions_ids", None):
+            for rid in self._binned_regions_ids:
+                lam0 = self._binned_lambda0[rid]
+                lam  = self._compute_lambda_binned(rid, hypothesis)
+                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)  # C-simov if active, else A-simov
+
+                ratio_factor = (lam_asimov / np.maximum(lam, 1e-15)) - 1.0  # (Nflat,)
+
+                dlam_list = []
+                for k, pname in enumerate(names):
+                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
+                    eps = _eps_for(pname, v)
+
+                    hyp_p = _clone_shift(hypothesis, pname, +eps)
+                    hyp_m = _clone_shift(hypothesis, pname, -eps)
+
+                    lam_p = self._compute_lambda_binned(rid, hyp_p)
+                    lam_m = self._compute_lambda_binned(rid, hyp_m)
+
+                    dlam_list.append((lam_p - lam_m) / (2.0 * eps))
+
+                S = np.stack([ratio_factor * dlam_k for dlam_k in dlam_list], axis=0)  # (npar, Nflat)
+                FI += S @ S.T
+
+        # =========================
+        # PRIOR / PENALTY contribution
+        # =========================
+        # __call__ adds:  n2ll += hypothesis.penalty()
+        # ⇒ log L includes a prior term  - penalty/2
+        # ⇒ Fisher adds the Hessian of (penalty/2) over the free-parameter subspace.
+        def _penalty(hyp):
+            return float(hyp.penalty())
+
+        if any(getattr(p, "isPenalized", False) and (not p.isFrozen) and (not getattr(p, "isIgnored", False))
+               for p in hypothesis.parameters):
+            Hpen = np.zeros((npar, npar), dtype=np.float64)
+            p0 = _penalty(hypothesis)
+            for a, na in enumerate(names):
+                va  = float(getattr(hypothesis, na, hypothesis[na]).val)
+                epa = _eps_for(na, va)
+
+                ha_p = _clone_shift(hypothesis, na, +epa)
+                ha_m = _clone_shift(hypothesis, na, -epa)
+
+                p_ap = _penalty(ha_p)
+                p_am = _penalty(ha_m)
+
+                Hpen[a, a] = (p_ap - 2.0*p0 + p_am) / (epa*epa)
+
+                for b in range(a+1, npar):
+                    nb  = names[b]
+                    vb  = float(getattr(hypothesis, nb, hypothesis[nb]).val)
+                    epb = _eps_for(nb, vb)
+
+                    h_pp = _clone_shift(ha_p, nb, +epb)
+                    h_pm = _clone_shift(ha_p, nb, -epb)
+                    h_mp = _clone_shift(ha_m, nb, +epb)
+                    h_mm = _clone_shift(ha_m, nb, -epb)
+
+                    p_pp = _penalty(h_pp)
+                    p_pm = _penalty(h_pm)
+                    p_mp = _penalty(h_mp)
+                    p_mm = _penalty(h_mm)
+
+                    Hab = (p_pp - p_pm - p_mp + p_mm) / (4.0 * epa * epb)
+                    Hpen[a, b] = Hab
+                    Hpen[b, a] = Hab
+
+            FI += 0.5 * Hpen
+
+        if verbose:
+            print("[FI] done.")
+        return FI
+
+
 class _MinuitArrayAdapter:
     """Array-based FCN for Minuit (keeps names, prints progress)."""
     def __init__(self, n2ll, hypothesis, names, print_every=25):
@@ -1567,7 +1786,7 @@ if __name__ == "__main__":
     n2ll.setAsimov()
 
     # compute C-simov (POI or nuisance injection)
-    #n2ll.setAsimov(hyp.cloneModify(nu_jes=0.5, c1=0.1))
+    #n2ll.setAsimov(hyp.cloneModify(c1=1))
 
     ## run Minuit; prints the model every 25 evaluations by default
     m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
