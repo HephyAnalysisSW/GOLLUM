@@ -74,6 +74,43 @@ class SelectionView:
     def observer_names(self) -> list[str]:
         return self._observer_names if self._observer_names is not None else list(self.base.observer_names or [])
 
+    def setFeatures(
+        self,
+        feature_names: Optional[Sequence[str]] = None,
+        observer_names: Optional[Sequence[str]] = None,
+        extra_branches: Optional[Sequence[str]] = None,
+    ) -> "SelectionView":
+        """
+        Reconfigure this view's feature/observer names and make sure the BASE
+        loader is updated to request the necessary branches. Must be called
+        before any shard was read (base cache or view mask cache); otherwise raises.
+
+        Returns self to allow chaining.
+        """
+        # If either the base has loaded data or this view has built a mask -> forbid
+        if getattr(self.base, "_arr_cache", None) and len(self.base._arr_cache):
+            raise RuntimeError("SelectionView.setFeatures: base data already materialized; "
+                               "call only right after initialization.")
+        if getattr(self, "_mask_cache", None) and len(self._mask_cache):
+            raise RuntimeError("SelectionView.setFeatures: selection mask already built; "
+                               "call only right after initialization.")
+
+        # Update own overrides (if provided)
+        if feature_names is not None:
+            self._feature_names = list(feature_names)
+        if observer_names is not None:
+            self._observer_names = list(observer_names)
+
+        # Propagate to base so its requested-branch list is consistent
+        # (Use the view's current names if caller passed None.)
+        self.base.setFeatures(
+            feature_names=self._feature_names if self._feature_names is not None else self.base.feature_names,
+            observer_names=self._observer_names if self._observer_names is not None else self.base.observer_names,
+            extra_branches=extra_branches,
+        )
+
+        return self
+
     def _mask(self, shard: int) -> np.ndarray:
         """
         Compute (or fetch cached) boolean mask for this shard.

@@ -83,6 +83,7 @@ samples_mod = importlib.import_module(module_samples)
 if not hasattr(samples_mod, process_name):
     raise RuntimeError(f"Process/view '{process_name}' not found in module '{module_samples}'.")
 loader = getattr(samples_mod, process_name)
+loader.setFeatures( job["features"] )
 base = getattr(loader, "base", loader)
 
 # Optional extra selection on top (boolean mask on features)
