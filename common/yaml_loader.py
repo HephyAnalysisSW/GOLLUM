@@ -89,7 +89,7 @@ def _expand(node, current_file: str, seen, parent_key: str | None):
 def load_yaml(path: str):
     doc = _read_yaml(path)
     cfg = _expand(doc, os.path.abspath(path), seen=set(), parent_key=None)
-    _apply_feature_defaults_and_checks(cfg)   # <<< NEW
+    _apply_defaults_and_checks(cfg)   # <<< NEW
     return cfg
 
 # --- feature resolution (NEW) ---------------------------------------------
@@ -128,9 +128,11 @@ def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
         raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
     return out
 
-def _apply_feature_defaults_and_checks(cfg: dict):
+def _apply_defaults_and_checks(cfg: dict):
     """
     - Resolve defaults.default_features via _resolve_features_list.
+    - For each job of type ICH / ICPH:
+        * If job.binning missing -> set to defaults
     - For each job of type scaler / classifier(tfmc) / pnn / bit:
         * If job.features missing -> set to defaults
         * Else resolve job.features via _resolve_features_list
@@ -141,6 +143,8 @@ def _apply_feature_defaults_and_checks(cfg: dict):
     default_features = _resolve_features_list(default_tokens)
     # keep a resolved copy (optional)
     cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
+    # default binning, if there is one
+    default_binning = (defaults.get("default_binning") or None)
 
     jobs = cfg.get("jobs", []) or []
     # resolve per job
@@ -148,6 +152,9 @@ def _apply_feature_defaults_and_checks(cfg: dict):
         if not isinstance(j, dict):
             continue
         jtyp = j.get("type")
+        if jtyp in {"ich", "icph"} and default_binning:
+            if not "binning" in j:
+                j["binning"] = default_binning
         if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
             continue
         if jtyp == "classifier" and j.get("framework") != "tfmc":
