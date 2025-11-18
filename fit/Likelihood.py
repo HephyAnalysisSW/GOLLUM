@@ -337,6 +337,107 @@ def _nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]
         out[k] = v
     return out
 
+def _pois_jacobian_linear_quadratic(poi_names: List[str],
+                                    poi_values: Dict[str, float]) -> np.ndarray:
+    """
+    Build the Jacobian C_{Aa} = ∂c_A/∂c_a for the same A-basis and ordering
+    as `_expand_pois_linear_quadratic`.
+
+    Shape:
+      - n_par = len(poi_names)
+      - nA    = n_par + n_par*(n_par+1)//2
+      => C has shape (nA, n_par), rows = A, columns = a.
+    """
+    N = len(poi_names)
+    if N == 0:
+        return np.zeros((0, 0), dtype=np.float64)
+
+    # Base c-vector in the same order as in _expand_pois_linear_quadratic
+    c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names],
+                 dtype=np.float64)
+
+    n_quads = N * (N + 1) // 2
+    nA = N + n_quads
+
+    C = np.zeros((nA, N), dtype=np.float64)
+
+    # Linear part: c_A = c_a  ->  ∂c_A/∂c_a = δ_{Aa}
+    # A = 0..N-1 corresponds to the linear pieces
+    for a in range(N):
+        C[a, a] = 1.0
+
+    # Quadratic part: same ordering / convention as _expand_pois_linear_quadratic
+    # A runs from N onward, loops (i,j) with j>=i.
+    row = N
+    for i in range(N):
+        for j in range(i, N):
+            if i == j:
+                # c_A = 0.5 * c_i^2 -> ∂/∂c_i = c_i
+                C[row, i] = c[i]
+            else:
+                # c_A = c_i * c_j -> ∂/∂c_i = c_j, ∂/∂c_j = c_i
+                C[row, i] = c[j]
+                C[row, j] = c[i]
+            row += 1
+
+    # Sanity: row should end at nA
+    # assert row == nA
+    return C
+
+def _nuis_jacobian_A(param_names: List[str],
+                     combinations: List[Tuple[str, ...]],
+                     values: Dict[str, float]) -> np.ndarray:
+    """
+    Build the Jacobian N_{Ba} = ∂ν_B/∂ν_a for the nuisance A-basis used in
+    `_nuis_to_A_vector`.
+
+    - param_names: column ordering for ν_a
+    - combinations: list of tuples describing each monomial row B:
+        comb = ('nu1',)            -> linear
+        comb = ('nu1', 'nu2')      -> quadratic cross term
+        comb = ('nu1', 'nu1')      -> quadratic diagonal, etc.
+    - values: mapping name -> ν_name
+
+    Shape:
+      - n_par = len(param_names)
+      - nB    = len(combinations)
+      => N has shape (nB, n_par).
+    """
+    n_par = len(param_names)
+    nB = len(combinations)
+    if nB == 0 or n_par == 0:
+        return np.zeros((nB, n_par), dtype=np.float64)
+
+    N_mat = np.zeros((nB, n_par), dtype=np.float64)
+
+    # Loop over rows (each monomial ν_B)
+    for k, comb in enumerate(combinations):
+        # Fetch the ν values for each factor in the comb
+        vals = [float(values.get(p, 0.0)) for p in comb]
+
+        # For each parameter column a, compute ∂ν_B/∂ν_a
+        for a_idx, pname in enumerate(param_names):
+            # Find all positions where this pname appears in the comb
+            indices = [idx for idx, p in enumerate(comb) if p == pname]
+            if not indices:
+                continue  # derivative is zero if pname not in comb
+
+            # General case: handle possible multiple occurrences of pname
+            dval = 0.0
+            m = len(comb)
+            for idx in indices:
+                # product over all positions except idx
+                prod = 1.0
+                for j in range(m):
+                    if j == idx:
+                        continue
+                    prod *= vals[j]
+                dval += prod
+
+            N_mat[k, a_idx] = dval
+
+    return N_mat
+
 
 def _predict_classifier(model, X: np.ndarray) -> np.ndarray:
     if hasattr(model, "predict"):
@@ -1460,23 +1561,125 @@ class N2LL:
         n2ll += hypothesis.penalty()
         return float(n2ll)
 
+    def _assemble_cA_C_per_class(self, rid: str, hypothesis) -> Dict[str, Dict[str, np.ndarray]]:
+        """
+        Build c_A and C_{Aa} for each class in a region for the given hypothesis.
+
+        Returns
+        -------
+        out : dict
+          rid -> {
+             cid -> {
+               "cA": np.ndarray (nA,),
+               "C":  np.ndarray (nA, n_par_class),
+               "poi_names": [names in class order]
+             }
+          }
+        """
+        # POI values (global dict)
+        poi_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
+
+        out: Dict[str, Dict[str, np.ndarray]] = {}
+        class_dict: Dict[str, Dict[str, np.ndarray]] = {}
+
+        for cid in self._class_ids_by_region.get(rid, []):
+            poi_names = self._poi_order[(rid, cid)]  # class-specific order
+
+            # A-basis vector and Jacobian
+            cA = _expand_pois_linear_quadratic(poi_names, poi_vals)
+            C  = _pois_jacobian_linear_quadratic(poi_names, poi_vals)
+
+            class_dict[cid] = {
+                "cA": cA,
+                "C":  C,
+                "poi_names": poi_names,
+            }
+
+        out = class_dict
+        return out
+
+    def _assemble_cA_C_per_class(self, rid: str, hypothesis) -> Dict[str, dict]:
+        """
+        Build, for a given region rid and hypothesis, the structures
+        per class:
+          - cA:   A-basis POI vector c_A
+          - C:    Jacobian C_{Aa} = ∂c_A/∂c_a
+          - names: local POI names for this class
+
+        Returns:
+          { cid -> { 'cA': cA, 'C': C, 'poi_names': poi_names } }
+        """
+        # global POI values by name
+        c_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
+        out: Dict[str, dict] = {}
+        for cid in self._class_ids_by_region.get(rid, []):
+            poi_names = self._poi_order[(rid, cid)]
+            # A-basis vector and Jacobian in the SAME ordering
+            cA = _expand_pois_linear_quadratic(poi_names, c_vals)
+            C  = _pois_jacobian_linear_quadratic(poi_names, c_vals)
+            out[cid] = {
+                'cA': cA,
+                'C': C,
+                'poi_names': poi_names,
+            }
+        return out
+
+    def _assemble_nuA_N_per_group(self, rid: str, hypothesis) -> Dict[str, list]:
+        """
+        Build, for a given region rid and hypothesis, the per-class list of
+        nuisance A-basis structures per Δ-group:
+          - gm:     meta dict for the group (contains 'id', 'dset', 'params', 'combs')
+          - params: list of fundamental ν-parameter names for this group
+          - nuA:    A-basis vector ν_B
+          - N:      Jacobian N_{Ba} = ∂ν_B/∂ν_a, a over this group's 'params'
+
+        Returns:
+          { cid -> [ { 'gm': gm, 'params': params, 'nuA': nuA, 'N': N_mat }, ... ] }
+        """
+        # global nuisance values by name
+        nu_vals = {p.name: float(p.val)
+                   for p in getattr(hypothesis, 'parameters', [])
+                   if not p.isPOI}
+        out: Dict[str, list] = {}
+        for cid in self._class_ids_by_region.get(rid, []):
+            meta = self._meta[(rid, cid)]
+            groups = []
+            for gm in meta.get("delta_groups", []):
+                params = list(gm.get("params", gm.get("parameters", [])) or [])
+                combs  = [tuple(c) for c in (gm.get("combs", gm.get("combinations", [])) or [])]
+                nuA    = _nuis_to_A_vector(params, combs, nu_vals)
+                N_mat  = _nuis_jacobian_A(params, combs, nu_vals)
+                groups.append({
+                    'gm': gm,
+                    'params': params,
+                    'nuA': nuA,
+                    'N': N_mat,
+                })
+            out[cid] = groups
+        return out
+
     def fisher_information(self, hypothesis, step_scale: float = 1e-4, verbose: bool = False) -> np.ndarray:
         """
         Fisher information I_{ab} = E[(∂_a log L)(∂_b log L)] in Asimov mode.
-        Requires that setAsimov(...) has been called (A-simov if None, C-simov otherwise).
-        Uses the same decomposition as __call__: unbinned + binned (+ prior penalty).
 
-          - Unbinned score per event:
-                s_k(x_i) = w_i * [(T'(x_i) - T(x_i)) / (1 + T(x_i))] * ∂T/∂θ_k (x_i)
+        Unbinned part (Poisson point process with R = 1+T):
+            I_{ab}^{(unb)} = L_0 ∫ dσ_0 R t_a t_b
+                           ≈ Σ_i w0_i R_i t_{a,i} t_{b,i}
+                           = Σ_i w0_i (∂_a T_i)(∂_b T_i)/(1+T_i),
 
-          - Binned score per bin i:
-                s_k(i) = [ λ'_i / λ_i  - 1 ] * ∂λ_i/∂θ_k
+        with T_i ≡ T(x_i; θ), R_i = 1+T_i, and
+            t_{a,i} = ∂_a log R_i = (∂_a T_i)/(1+T_i).
 
-          - Prior (Gaussian penalty added to -2 log L) contributes Hessian of penalty/2.
+        We compute ∂_a T_i analytically using:
+          - C_{Aa} = ∂c_A/∂c_a for POIs,
+          - N_{Ba} = ∂ν_B/∂ν_a for nuisances,
+          - the stored R_A(x), Δ_B(x) and lnN biases.
 
-        Only *free* parameters (not frozen / not ignored) are included.
-        Returns:
-            (n_free, n_free) np.ndarray
+        Binned part (independent Poissons):
+            I_{ab}^{(bin)} = Σ_i (1/λ_i) (∂_a λ_i)(∂_b λ_i),
+        using finite-difference derivatives of λ_i.
+
+        Prior adds the Hessian of (penalty / 2) over free parameters.
         """
         import numpy as np
 
@@ -1486,9 +1689,10 @@ class N2LL:
             raise RuntimeError("[N2LL.fisher_information] Asimov mode required: call setAsimov(...), "
                                "and do not set an observation.")
 
-        # Free parameters (order matches Minuit's)
-        names = [p.name for p in hypothesis.parameters
-                 if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        # Free parameters
+        free_params = [p for p in hypothesis.parameters
+                       if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        names = [p.name for p in free_params]
         npar = len(names)
         if npar == 0:
             raise RuntimeError("[N2LL.fisher_information] No free parameters.")
@@ -1496,7 +1700,11 @@ class N2LL:
         if verbose:
             print("[FI] Free parameters:", names)
 
-        # Small helpers kept local (no API changes elsewhere)
+        # Maps for quick lookup
+        param_by_name = {p.name: p for p in hypothesis.parameters}
+        poi_name_set  = {p.name for p in hypothesis.parameters if p.isPOI}
+
+        # Helpers
         def _clone_shift(hyp, pname, delta):
             h = hyp.clone()
             for p in h.parameters:
@@ -1505,12 +1713,11 @@ class N2LL:
                     break
             return h
 
-        def _eps_for(pname: str, val: float) -> float:
+        def _eps_for(val: float) -> float:
             base = abs(val) if abs(val) > 0 else 1.0
             return max(1e-8, step_scale * base)
 
         def _ln_bias_map_for(rid: str, hyp):
-            # Build per-class lnN bias for a hypothesis
             nu_vals = {p.name: float(p.val) for p in hyp.parameters if not p.isPOI}
             class_ids = self._class_ids_by_region.get(rid, [])
             return {
@@ -1519,13 +1726,13 @@ class N2LL:
                 for cid in class_ids
             }
 
+        # Fisher matrix
         FI = np.zeros((npar, npar), dtype=np.float64)
 
         # =========================
-        # UNBinned contribution
+        # UNBINNED contribution (analytic dT/dθ)
         # =========================
         for R in self.regions:
-            print(f"At unbinned region {R['id']}")
             rid = R['id']
             class_ids = self._class_ids_by_region.get(rid, [])
             if not class_ids:
@@ -1533,107 +1740,187 @@ class N2LL:
             N = self._N_region.get(rid, 0)
             if N == 0:
                 continue
-            print(f"class_ids {class_ids} N {N}")
 
-            # Current-hypothesis structures
-            cA_now  = self._assemble_cA_per_class(rid, hypothesis)
-            nuA_now = self._assemble_nuA_groups(rid, hypothesis)
-            ln_bias_now = _ln_bias_map_for(rid, hypothesis)
+            if verbose:
+                print(f"[FI:unbinned] Region '{rid}', N={N}, classes={class_ids}")
 
-            print ("cA_now")
-            print (cA_now)
-            print ("nuA_now")
-            print (nuA_now)
-            print ("ln_bias_now")
-            print (ln_bias_now)
+            # Structures at current hypothesis
+            c_struct   = self._assemble_cA_C_per_class(rid, hypothesis)
+            nu_struct  = self._assemble_nuA_N_per_group(rid, hypothesis)
+            ln_bias    = _ln_bias_map_for(rid, hypothesis)
 
-            # Asimov chunks T'(x) if C-simov; else None for A-simov
-            asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
-
-            print("asimov_T_chunks", asimov_T_chunks)
+            # lnN gradient d(ln_bias_cid)/dν_pname
+            ln_bias_grad = {cid: {} for cid in class_ids}
+            for cid in class_ids:
+                for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []):
+                    ln_bias_grad[cid][pname] = ln_bias_grad[cid].get(pname, 0.0) + log1p_alpha
 
             chunk = self.eval_chunk_size
-            for ichunk, start in enumerate(range(0, N, chunk)):
+            for start in range(0, N, chunk):
                 stop = min(start + chunk, N)
+                M = stop - start
+                if M <= 0:
+                    continue
 
-                print ("ichunk", ichunk,"from",start,"to",stop)
+                # w0 from any class (same for all)
+                W = self._h5[(rid, class_ids[0])]['w0'][start:stop]  # (M,)
 
-                # Baseline T and weights
-                T0 = self._compute_T_chunk(rid, cA_now, nuA_now, ln_bias_now, start, stop)    # (M,)
-                W  = self._h5[(rid, class_ids[0])]['w0'][start:stop]                           # (M,)
+                # Build T(x) and cache per-class intermediates
+                T0 = np.zeros(M, dtype=np.float64)
+                per_cid = {}
 
-                print ("T0",T0, "W", W)
+                for cid in class_ids:
+                    f = self._h5[(rid, cid)]
+                    g_slice = f['g'][start:stop]          # (M,)
+                    R_slice = f['R'][start:stop, :]       # (M, nA)
 
-                # Coefficient (T' - T)/(1 + T)
-                if asimov_T_chunks is not None:
-                    Tprime = asimov_T_chunks[ichunk]
-                    coeff  = (Tprime - T0) / (1.0 + T0)
-                    print ("Tprime", Tprime)
-                else:
-                    coeff  = (-T0) / (1.0 + T0)  # A-simov: T' = 0
-                    print ("Tprime", None)
+                    cA = c_struct[cid]['cA']
+                    C  = c_struct[cid]['C']
+                    poi_names_local = c_struct[cid]['poi_names']
 
-                print ("coeff", coeff)
+                    if R_slice.shape[1] != cA.shape[0]:
+                        raise RuntimeError(f"[FI:unbinned] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
 
-                # Build dT/dθ_k via central finite differences
+                    c_dot_R = R_slice @ cA                # (M,)
+
+                    expo = np.zeros(M, dtype=np.float64)
+                    dA_cache = {}                         # gm_id -> dA (M, nB)
+
+                    for grp in nu_struct[cid]:
+                        gm     = grp['gm']
+                        nuA    = grp['nuA']
+                        dset   = gm.get("dset", f"Delta::{gm['id']}")
+                        dA     = f[dset][start:stop, :]    # (M, nB)
+                        if dA.shape[1] != nuA.shape[0]:
+                            raise RuntimeError(f"[FI:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
+                        dA_cache[gm['id']] = dA
+                        expo += dA @ nuA
+
+                    exp_expo = np.exp(expo + ln_bias[cid])  # (M,)
+
+                    T_cid = g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+                    T0 += T_cid
+
+                    per_cid[cid] = {
+                        "g": g_slice,
+                        "R": R_slice,
+                        "c_dot_R": c_dot_R,
+                        "exp_expo": exp_expo,
+                        "dA_cache": dA_cache,
+                        "C": C,
+                        "poi_names": poi_names_local,
+                        "nu_groups": nu_struct[cid],
+                    }
+
+                # Build weights for Fisher integrand: w0 / (1 + T)
+                denom = 1.0 + T0
+                if np.any(denom <= 0.0):
+                    raise RuntimeError("[FI:unbinned] Encountered 1+T <= 0; R=1+T must be >0.")
+                #print( "W",W)
+                #print( "minW",min(W))
+                #print( "maxW",max(W))
+                #print( "denom",denom)
+
+                weight = W / denom
+                # Compute dT/dθ_k analytically for all free parameters
                 dT_list = []
-                for k, pname in enumerate(names):
-                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
-                    eps = _eps_for(pname, v)
+                for pname in names:
+                    p_obj = param_by_name[pname]
+                    is_poi = p_obj.isPOI
+                    dT_k = np.zeros(M, dtype=np.float64)
 
-                    hyp_p = _clone_shift(hypothesis, pname, +eps)
-                    hyp_m = _clone_shift(hypothesis, pname, -eps)
+                    if is_poi:
+                        # POI derivative: ∂T = Σ_cid g * (R @ C_col) * exp_expo
+                        for cid in class_ids:
+                            data      = per_cid[cid]
+                            poi_names = data["poi_names"]
+                            if pname not in poi_names:
+                                continue
+                            local_idx = poi_names.index(pname)
+                            R_slice   = data["R"]
+                            C         = data["C"]
+                            g_slice   = data["g"]
+                            exp_expo  = data["exp_expo"]
 
-                    # Structures for +eps/-eps (must also update lnN bias if pname is a nuisance)
-                    cA_p,  nuA_p  = self._assemble_cA_per_class(rid, hyp_p), self._assemble_nuA_groups(rid, hyp_p)
-                    cA_m,  nuA_m  = self._assemble_cA_per_class(rid, hyp_m), self._assemble_nuA_groups(rid, hyp_m)
-                    ln_p,  ln_m   = _ln_bias_map_for(rid, hyp_p), _ln_bias_map_for(rid, hyp_m)
+                            # ∂(c_A R_A)/∂c_a = Σ_A C_{Aa} R_A(x)
+                            d_cR = R_slice @ C[:, local_idx]  # (M,)
+                            dT_k += g_slice * d_cR * exp_expo
 
-                    T_p = self._compute_T_chunk(rid, cA_p, nuA_p, ln_p, start, stop)
-                    T_m = self._compute_T_chunk(rid, cA_m, nuA_m, ln_m, start, stop)
+                    else:
+                        # Nuisance (shape or lnN) derivative:
+                        #   ∂T = Σ_cid g * e^Φ (c⋅R + 1) * ∂Φ/∂ν_a
+                        for cid in class_ids:
+                            data     = per_cid[cid]
+                            g_slice  = data["g"]
+                            exp_expo = data["exp_expo"]
+                            c_dot_R  = data["c_dot_R"]
 
-                    dT_list.append((T_p - T_m) / (2.0 * eps))
-                    print ("T_p", T_p)
-                    print ("T_m", T_m)
-                    print ("dT_list",dT_list)
+                            dPhi = np.zeros(M, dtype=np.float64)
 
-                # Scores for this chunk: s_k = W * coeff * dT_k
-                S = np.stack([W * coeff * dT_k for dT_k in dT_list], axis=0)  # (npar, M)
-                FI += S @ S.T
+                            # Contributions from PNN Δ-groups via ν_A(ν)
+                            for grp in data["nu_groups"]:
+                                gm     = grp["gm"]
+                                params = grp["params"]
+                                N_mat  = grp["N"]          # (nB, n_params_local)
+
+                                if pname not in params:
+                                    continue
+                                loc = params.index(pname)
+
+                                dnuA = N_mat[:, loc]      # (nB,)
+                                gm_id = gm["id"]
+                                dA    = data["dA_cache"][gm_id]  # (M, nB)
+
+                                dPhi += dA @ dnuA
+
+                            # lnN normalization contribution
+                            dPhi += ln_bias_grad[cid].get(pname, 0.0)
+
+                            dT_k += g_slice * exp_expo * (c_dot_R + 1.0) * dPhi
+
+                    dT_list.append(dT_k)
+
+                # Stack derivatives into (npar, M) and accumulate FI for this chunk:
+                # I_ab += Σ_i w_i * (∂_a T_i ∂_b T_i)/(1+T_i)
+                D = np.stack(dT_list, axis=0)  # (npar, M)
+                FI += (D * weight) @ D.T
 
         # =========================
-        # BINNED contribution
+        # BINNED contribution (finite-diff dλ; analytic Fisher weight 1/λ)
         # =========================
         if getattr(self, "_binned_regions_ids", None):
             for rid in self._binned_regions_ids:
-                lam0 = self._binned_lambda0[rid]
-                lam  = self._compute_lambda_binned(rid, hypothesis)
-                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)  # C-simov if active, else A-simov
+                lam = self._compute_lambda_binned(rid, hypothesis)
+                lam = np.asarray(lam, dtype=np.float64).reshape(-1)
+                if lam.size == 0:
+                    continue
 
-                ratio_factor = (lam_asimov / np.maximum(lam, 1e-15)) - 1.0  # (Nflat,)
+                if verbose:
+                    print(f"[FI:binned] Region '{rid}', Nbins={lam.size}, mean(λ)={float(np.mean(lam)):.3e}")
+
+                inv_lam = 1.0 / np.maximum(lam, 1e-15)
+                sqrt_inv_lam = np.sqrt(inv_lam, dtype=np.float64)
 
                 dlam_list = []
-                for k, pname in enumerate(names):
-                    v   = float(getattr(hypothesis, pname, hypothesis[pname]).val)
-                    eps = _eps_for(pname, v)
+                for pname in names:
+                    v   = float(param_by_name[pname].val)
+                    eps = _eps_for(v)
 
                     hyp_p = _clone_shift(hypothesis, pname, +eps)
                     hyp_m = _clone_shift(hypothesis, pname, -eps)
 
-                    lam_p = self._compute_lambda_binned(rid, hyp_p)
-                    lam_m = self._compute_lambda_binned(rid, hyp_m)
+                    lam_p = np.asarray(self._compute_lambda_binned(rid, hyp_p), dtype=np.float64).reshape(-1)
+                    lam_m = np.asarray(self._compute_lambda_binned(rid, hyp_m), dtype=np.float64).reshape(-1)
 
-                    dlam_list.append((lam_p - lam_m) / (2.0 * eps))
+                    dlam = (lam_p - lam_m) / (2.0 * eps)
+                    dlam_list.append(dlam)
 
-                S = np.stack([ratio_factor * dlam_k for dlam_k in dlam_list], axis=0)  # (npar, Nflat)
-                FI += S @ S.T
+                S_bin = np.stack([sqrt_inv_lam * dlam_k for dlam_k in dlam_list], axis=0)  # (npar, Nflat)
+                FI += S_bin @ S_bin.T
 
         # =========================
         # PRIOR / PENALTY contribution
         # =========================
-        # __call__ adds:  n2ll += hypothesis.penalty()
-        # ⇒ log L includes a prior term  - penalty/2
-        # ⇒ Fisher adds the Hessian of (penalty/2) over the free-parameter subspace.
         def _penalty(hyp):
             return float(hyp.penalty())
 
@@ -1641,9 +1928,11 @@ class N2LL:
                for p in hypothesis.parameters):
             Hpen = np.zeros((npar, npar), dtype=np.float64)
             p0 = _penalty(hypothesis)
+
+            # Diagonal terms
             for a, na in enumerate(names):
-                va  = float(getattr(hypothesis, na, hypothesis[na]).val)
-                epa = _eps_for(na, va)
+                va  = float(param_by_name[na].val)
+                epa = _eps_for(va)
 
                 ha_p = _clone_shift(hypothesis, na, +epa)
                 ha_m = _clone_shift(hypothesis, na, -epa)
@@ -1651,12 +1940,13 @@ class N2LL:
                 p_ap = _penalty(ha_p)
                 p_am = _penalty(ha_m)
 
-                Hpen[a, a] = (p_ap - 2.0*p0 + p_am) / (epa*epa)
+                Hpen[a, a] = (p_ap - 2.0 * p0 + p_am) / (epa * epa)
 
-                for b in range(a+1, npar):
+                # Off-diagonal terms
+                for b in range(a + 1, npar):
                     nb  = names[b]
-                    vb  = float(getattr(hypothesis, nb, hypothesis[nb]).val)
-                    epb = _eps_for(nb, vb)
+                    vb  = float(param_by_name[nb].val)
+                    epb = _eps_for(vb)
 
                     h_pp = _clone_shift(ha_p, nb, +epb)
                     h_pm = _clone_shift(ha_p, nb, -epb)
@@ -1677,7 +1967,6 @@ class N2LL:
         if verbose:
             print("[FI] done.")
         return FI
-
 
 class _MinuitArrayAdapter:
     """Array-based FCN for Minuit (keeps names, prints progress)."""

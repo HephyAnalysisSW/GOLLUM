@@ -1,4 +1,8 @@
 import copy
+import logging
+
+logger = logging.getLogger(__name__)
+
 # ----------------------------- Parameter & Hypothesis scaffolding ----------
 class ModelParameter:
     """
@@ -36,24 +40,35 @@ class ModelParameter:
         self.isFrozen = False
         return self
 
+    def penalize(self):
+        self.isPenalized = False
+        return self
+
+    def float(self):
+        self.isPenalized = False
+        self.isFrozen = False
+        return self
+
     def set(self, value):
         if self.isFrozen:
             raise RuntimeError(f"Parameter {self.name} is frozen.")
         self.val = float(value)
         return self
 
-    @classmethod
-    def makePenalizedNuisance(cls, name, val=0.0):
-        return cls(name=name, val=val, isPenalized=True, isPOI=False)
-
 class Hypothesis:
     """
-    Container of ModelParameters with convenience accessors and cloning helpers.
-    No numerics here; this is purely structural for now.
+    Container of ModelParameters with convenient accessors and cloning helpers.
+
+    Features:
+      - hyp['c0']      → ModelParameter named 'c0'
+      - hyp.c0         → same (attribute-style access; good for tab completion)
+      - hyp.c0 = 0.1   → sets value of parameter 'c0' (unless frozen)
+      - 'c0' in hyp    → True if parameter exists
     """
     def __init__(self, parameters, name=None):
-        self.parameters = list(parameters or [])
-        self.name = name
+        # Bypass __setattr__ for core attributes during init
+        object.__setattr__(self, "parameters", list(parameters or []))
+        object.__setattr__(self, "name", name)
         self._check()
 
     def _check(self):
@@ -67,6 +82,7 @@ class Hypothesis:
         if len(names) != len(set(names)):
             raise RuntimeError(f"Duplicate parameter names in hypothesis: {names}")
 
+    # ---------- mapping-style access ----------
     def __contains__(self, key):
         return any(p.name == key for p in self.parameters)
 
@@ -76,15 +92,73 @@ class Hypothesis:
                 return p
         raise KeyError(key)
 
-    # Properties
+    # ---------- attribute-style access ----------
+    def __getattr__(self, name):
+        """
+        Called only if normal attribute lookup fails.
+        If `name` matches a parameter, return that ModelParameter.
+        Otherwise raise AttributeError listing available parameter names.
+        """
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            # During very early init / weird states, just behave like normal
+            raise AttributeError(f"'Hypothesis' object has no attribute '{name}'") from None
+
+        for p in params:
+            if p.name == name:
+                return p
+
+        available = ", ".join(p.name for p in params)
+        raise AttributeError(
+            f"Hypothesis has no parameter '{name}'. "
+            f"Available parameters: {available}"
+        )
+
+    def __setattr__(self, name, value):
+        """
+        - Core attributes ('parameters', 'name', '_...') are set normally.
+        - If `name` matches a parameter, treat `hyp.name = v` as setting p.val = v.
+        - Otherwise create/overwrite a normal attribute.
+        """
+        if name in ("parameters", "name") or name.startswith("_"):
+            object.__setattr__(self, name, value)
+            return
+
+        # Try to treat it as a parameter assignment
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            # parameters not yet set (very early init) → just set attribute
+            object.__setattr__(self, name, value)
+            return
+
+        for p in params:
+            if p.name == name:
+                if p.isFrozen:
+                    raise RuntimeError(f"Parameter {name} is frozen; cannot assign.")
+                p.val = float(value)
+                return
+
+        # Fallback: ordinary attribute
+        object.__setattr__(self, name, value)
+
+    def __dir__(self):
+        """
+        Improve tab-completion: include parameter names in dir(hyp).
+        """
+        base = set(super().__dir__())
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            return sorted(base)
+        base.update(p.name for p in params)
+        return sorted(base)
+
+    # ---------- properties ----------
     @property
     def POIs(self):
         return [p for p in self.parameters if p.isPOI]
-
-    def penalty( self ):
-        ''' Compute the penalty (sum v**2) from all penalized nuisance
-        '''
-        return sum( [ p.val**2 for p in self.parameters if p.isPenalized ] )
 
     @property
     def nuisances(self):
@@ -94,7 +168,12 @@ class Hypothesis:
     def penalized(self):
         return [p for p in self.parameters if p.isPenalized]
 
-    # Mutators
+    # ---------- penalty ----------
+    def penalty(self):
+        """Compute the penalty (sum v**2) from all penalized nuisances."""
+        return sum(p.val**2 for p in self.parameters if p.isPenalized)
+
+    # ---------- mutators ----------
     def modify(self, **kwargs):
         """
         hyp.modify(c1=0.2, nu_pu=0.0, ...)
@@ -103,7 +182,7 @@ class Hypothesis:
             self[k].set(v)
         return self
 
-    # Cloners
+    # ---------- cloners ----------
     def clone(self):
         return copy.deepcopy(self)
 
@@ -119,7 +198,10 @@ class Hypothesis:
         for p in h.parameters:
             if p.val != 0.0:
                 if p.isFrozen:
-                    logger.warning("Resetting frozen parameter %s from %g to 0.", p.name, p.val)
+                    logger.warning(
+                        "Resetting frozen parameter %s from %g to 0.",
+                        p.name, p.val
+                    )
                 p.val = 0.0
         return h
 
@@ -133,7 +215,7 @@ class Hypothesis:
             h[k].isFrozen = True
         return h
 
-    # Pretty print
+    # ---------- pretty print ----------
     def print(self):
         title = self.name if self.name else "unnamed"
         print(f"Hypothesis ({title})\n")
@@ -142,3 +224,4 @@ class Hypothesis:
         print()
         for j, p in enumerate(self.nuisances, start=len(self.POIs)):
             print(f"{j:02d}  {p}")
+
