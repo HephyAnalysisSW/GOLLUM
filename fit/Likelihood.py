@@ -1816,11 +1816,14 @@ class N2LL:
                 denom = 1.0 + T0
                 if np.any(denom <= 0.0):
                     raise RuntimeError("[FI:unbinned] Encountered 1+T <= 0; R=1+T must be >0.")
-                weight = W / denom
-                sqrt_weight = np.sqrt(weight, dtype=np.float64)
+                #print( "W",W)
+                #print( "minW",min(W))
+                #print( "maxW",max(W))
+                #print( "denom",denom)
 
+                weight = W / denom
                 # Compute dT/dθ_k analytically for all free parameters
-                S_rows = []
+                dT_list = []
                 for pname in names:
                     p_obj = param_by_name[pname]
                     is_poi = p_obj.isPOI
@@ -1875,11 +1878,12 @@ class N2LL:
 
                             dT_k += g_slice * exp_expo * (c_dot_R + 1.0) * dPhi
 
-                    # Score row: sqrt(w0/(1+T)) * ∂T/∂θ_k
-                    S_rows.append(sqrt_weight * dT_k)
+                    dT_list.append(dT_k)
 
-                S = np.stack(S_rows, axis=0)  # (npar, M)
-                FI += S @ S.T
+                # Stack derivatives into (npar, M) and accumulate FI for this chunk:
+                # I_ab += Σ_i w_i * (∂_a T_i ∂_b T_i)/(1+T_i)
+                D = np.stack(dT_list, axis=0)  # (npar, M)
+                FI += (D * weight) @ D.T
 
         # =========================
         # BINNED contribution (finite-diff dλ; analytic Fisher weight 1/λ)
@@ -1963,8 +1967,6 @@ class N2LL:
         if verbose:
             print("[FI] done.")
         return FI
-
-
 
 class _MinuitArrayAdapter:
     """Array-based FCN for Minuit (keeps names, prints progress)."""

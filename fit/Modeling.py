@@ -55,17 +55,15 @@ class ModelParameter:
         self.val = float(value)
         return self
 
-
 class Hypothesis:
     """
-    Container of ModelParameters with convenience accessors and cloning helpers.
+    Container of ModelParameters with convenient accessors and cloning helpers.
 
     Features:
       - hyp['c0']      → ModelParameter named 'c0'
       - hyp.c0         → same (attribute-style access; good for tab completion)
       - hyp.c0 = 0.1   → sets value of parameter 'c0' (unless frozen)
       - 'c0' in hyp    → True if parameter exists
-      - hyp.POIs, hyp.nuisances, hyp.penalty(), clone(), cloneModify(), ...
     """
     def __init__(self, parameters, name=None):
         # Bypass __setattr__ for core attributes during init
@@ -73,7 +71,6 @@ class Hypothesis:
         object.__setattr__(self, "name", name)
         self._check()
 
-    # ---- internal consistency ----
     def _check(self):
         # POIs should not be penalized (guard user mistakes)
         for p in self.parameters:
@@ -85,7 +82,7 @@ class Hypothesis:
         if len(names) != len(set(names)):
             raise RuntimeError(f"Duplicate parameter names in hypothesis: {names}")
 
-    # ---- mapping-style access ----
+    # ---------- mapping-style access ----------
     def __contains__(self, key):
         return any(p.name == key for p in self.parameters)
 
@@ -95,17 +92,24 @@ class Hypothesis:
                 return p
         raise KeyError(key)
 
-    # ---- attribute-style access to parameters ----
+    # ---------- attribute-style access ----------
     def __getattr__(self, name):
         """
         Called only if normal attribute lookup fails.
         If `name` matches a parameter, return that ModelParameter.
         Otherwise raise AttributeError listing available parameter names.
         """
-        for p in self.parameters:
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            # During very early init / weird states, just behave like normal
+            raise AttributeError(f"'Hypothesis' object has no attribute '{name}'") from None
+
+        for p in params:
             if p.name == name:
                 return p
-        available = ", ".join(p.name for p in self.parameters)
+
+        available = ", ".join(p.name for p in params)
         raise AttributeError(
             f"Hypothesis has no parameter '{name}'. "
             f"Available parameters: {available}"
@@ -113,37 +117,45 @@ class Hypothesis:
 
     def __setattr__(self, name, value):
         """
-        - For core attributes ('parameters', 'name', anything starting with '_'):
-            behave like a normal object.
+        - Core attributes ('parameters', 'name', '_...') are set normally.
         - If `name` matches a parameter, treat `hyp.name = v` as setting p.val = v.
-        - Otherwise, create/overwrite a normal attribute on the Hypothesis.
+        - Otherwise create/overwrite a normal attribute.
         """
-        # Core/internal attributes go through the normal path
         if name in ("parameters", "name") or name.startswith("_"):
             object.__setattr__(self, name, value)
             return
 
-        # Parameter assignment: hyp.c0 = 0.1
-        for p in self.parameters:
+        # Try to treat it as a parameter assignment
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            # parameters not yet set (very early init) → just set attribute
+            object.__setattr__(self, name, value)
+            return
+
+        for p in params:
             if p.name == name:
                 if p.isFrozen:
                     raise RuntimeError(f"Parameter {name} is frozen; cannot assign.")
                 p.val = float(value)
                 return
 
-        # Fallback: normal attribute on the Hypothesis instance
+        # Fallback: ordinary attribute
         object.__setattr__(self, name, value)
 
     def __dir__(self):
         """
-        Improve tab-completion in IPython / REPL:
-        include parameter names in dir(hyp).
+        Improve tab-completion: include parameter names in dir(hyp).
         """
         base = set(super().__dir__())
-        base.update(p.name for p in self.parameters)
+        try:
+            params = object.__getattribute__(self, "parameters")
+        except AttributeError:
+            return sorted(base)
+        base.update(p.name for p in params)
         return sorted(base)
 
-    # ---- Properties ----
+    # ---------- properties ----------
     @property
     def POIs(self):
         return [p for p in self.parameters if p.isPOI]
@@ -156,12 +168,12 @@ class Hypothesis:
     def penalized(self):
         return [p for p in self.parameters if p.isPenalized]
 
-    # ---- Penalty ----
+    # ---------- penalty ----------
     def penalty(self):
         """Compute the penalty (sum v**2) from all penalized nuisances."""
         return sum(p.val**2 for p in self.parameters if p.isPenalized)
 
-    # ---- Mutators ----
+    # ---------- mutators ----------
     def modify(self, **kwargs):
         """
         hyp.modify(c1=0.2, nu_pu=0.0, ...)
@@ -170,7 +182,7 @@ class Hypothesis:
             self[k].set(v)
         return self
 
-    # ---- Cloners ----
+    # ---------- cloners ----------
     def clone(self):
         return copy.deepcopy(self)
 
@@ -203,7 +215,7 @@ class Hypothesis:
             h[k].isFrozen = True
         return h
 
-    # ---- Pretty print ----
+    # ---------- pretty print ----------
     def print(self):
         title = self.name if self.name else "unnamed"
         print(f"Hypothesis ({title})\n")
