@@ -54,6 +54,14 @@ elif user in ['claudius.krause']:
     cache_directory        = "/groups/hephy/mlearning/HiggsChallenge/claudius/caches/"
     output_directory       = "/groups/hephy/mlearning/HiggsChallenge/claudius/output/"
 
+elif user in ['sergio.sanchez.cruz']:
+    # Where the plots go:
+    plot_directory         = "/groups/hephy/cms/sergio.sanchez.cruz/www/SBIPDF/"
+    # For model output:
+    model_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/caches/"
+    output_directory       = "/scratch-cbe/users/sergio.sanchez.cruz/SBIPDF/output/"
+
 else:
 
     raise RuntimeError( "HELLO NEW USER! Configure your directories in common/user.py! Look in the file how others did it." )
