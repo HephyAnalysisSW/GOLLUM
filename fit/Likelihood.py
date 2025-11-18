@@ -1750,6 +1750,34 @@ def run_minuit_fit(n2ll, hypothesis, *, step=0.1, print_every=25,
     hypothesis.print()
     return m, adapter
 
+def serialize_result(m, base, version, args, out_path ):
+    
+    result_payload = {
+        "config_basename": base,
+        "version": version,
+        "no_syst": bool(args.no_syst),
+        "fval": float(m.fval),
+        "edm": float(getattr(m, "edm", np.nan)),
+        "niter": int(getattr(m, "niter", -1)),
+        "parameters": [
+            {"name": name, "value": float(m.values[i]), "error": float(m.errors[i])}
+            for i, name in enumerate(m.parameters)
+        ],
+        "free_parameter_order": list(m.parameters),
+        "covariance": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance).tolist(),
+        },
+        "correlation": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance.correlation()).tolist(),
+        },
+    }
+    with open(out_path, "w") as f:
+        json.dump(result_payload, f, indent=2)
+
+    print(f"[write] Fit result and covariance stored at:\n  {out_path}")
+
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
@@ -1806,30 +1834,6 @@ if __name__ == "__main__":
     suffix  = "_nosyst" if args.no_syst else ""
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
+    serialize_result(m, base, version, args, out_path)
 
-    result_payload = {
-        "config_basename": base,
-        "version": version,
-        "no_syst": bool(args.no_syst),
-        "fval": float(m.fval),
-        "edm": float(getattr(m, "edm", np.nan)),
-        "niter": int(getattr(m, "niter", -1)),
-        "parameters": [
-            {"name": name, "value": float(m.values[i]), "error": float(m.errors[i])}
-            for i, name in enumerate(m.parameters)
-        ],
-        "free_parameter_order": list(m.parameters),
-        "covariance": {
-            "order": list(m.parameters),
-            "matrix": np.asarray(m.covariance).tolist(),
-        },
-        "correlation": {
-            "order": list(m.parameters),
-            "matrix": np.asarray(m.covariance.correlation()).tolist(),
-        },
-    }
-    with open(out_path, "w") as f:
-        json.dump(result_payload, f, indent=2)
-
-    print(f"[write] Fit result and covariance stored at:\n  {out_path}")
 
