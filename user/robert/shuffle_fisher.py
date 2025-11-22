@@ -35,6 +35,7 @@ p = argparse.ArgumentParser(
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--cache-root", default=None, help="Override cache root (optional)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite caches")
+p.add_argument("--shuffle", nargs="*", default=[], help="Shuffle these features")
 p.add_argument("--module-samples", default="data.samples",
                help="Python module with sample loaders")
 p.add_argument("--step", type=float, default=1e-2,
@@ -67,6 +68,9 @@ print("\n[free] Parameters to probe:")
 for nm in free_names:
     print("   -", nm)
 
+# Everyday I'm shuffeling https://youtu.be/KQ6zr6kCPj8?t=73
+shuffle_suffix = "_".join( ["shuffle"]+sorted(args.shuffle) )
+
 # ---- Build caches, prepare runtime ----
 n2ll = N2LL(
     like_info,
@@ -74,11 +78,12 @@ n2ll = N2LL(
     os.path.join(
         "NN2LCache",
         os.path.splitext(os.path.basename(args.config))[0],
-        str(cfg.get("version", "v0")),
+        str(cfg.get("version", "v0"))+"_"+ shuffle_suffix,
     ),
     cache_root=args.cache_root,
     overwrite=args.overwrite,
 )
+n2ll.shuffle_features = args.shuffle
 n2ll.build_cache()
 n2ll.prepare_runtime()
 
@@ -177,23 +182,4 @@ for idx, d in enumerate(probes):
 print("\n[max errors]")
 print(f"  max |true - approx| = {max_abs_err:.6e}")
 print(f"  max relative error = {max_rel_err:.6e}")
-
-# Optionally store a small JSON summary next to outputs
-try:
-    import common.user as user
-    out_dir = getattr(user, "output_directory", "./outputs")
-except Exception:
-    out_dir = "./outputs"
-os.makedirs(out_dir, exist_ok=True)
-out_path = os.path.join(out_dir, "fisher_quadratic_check.json")
-with open(out_path, "w") as fjs:
-    json.dump({
-        "config": os.path.basename(args.config),
-        "free_parameters": free_names,
-        "baseline_n2ll": float(f0),
-        "max_abs_err": float(max_abs_err),
-        "max_rel_err": float(max_rel_err),
-        "probes": rows,
-    }, fjs, indent=2)
-print(f"\n[write] Saved comparison to:\n  {out_path}")
 

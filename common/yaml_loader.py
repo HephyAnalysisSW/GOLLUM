@@ -483,6 +483,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] PNN {jid}  -> {model_dir}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] PNN {jid}  (expected at {model_dir})")
                 missing.append(f"python PNN/pnn_training.py {cfg_full}{FLAGS} --job {jid}")
@@ -494,6 +495,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] TFMC {jid}  -> {model_dir}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] TFMC {jid}  (expected at {model_dir})")
                 missing.append(f"python TFMC/tfmc_training.py {cfg_full}{FLAGS} --job {jid}")
@@ -507,6 +509,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] BIT {jid}  -> {path}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] BIT {jid}  (expected at {path})")
                 nb = " --numba" if prefer_numba else ""

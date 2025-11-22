@@ -1,5 +1,6 @@
 import copy
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,13 @@ class ModelParameter:
             raise RuntimeError(f"Parameter {self.name} is frozen.")
         self.val = float(value)
         return self
+
+    def __float__(self):
+        return float(self.val)
+
+    # optional: for numpy arrays etc.
+    def __array__(self, dtype=None):
+        return np.asarray(self.val, dtype=dtype)
 
 class Hypothesis:
     """
