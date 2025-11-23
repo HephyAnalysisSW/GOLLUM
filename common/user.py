@@ -62,6 +62,14 @@ elif user in ['sergio.sanchez.cruz']:
     cache_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/caches/"
     output_directory       = "/scratch-cbe/users/sergio.sanchez.cruz/SBIPDF/output/"
 
+elif user in ['alikaan.gueven']:
+    # Where the plots go:
+    plot_directory         = "/groups/hephy/cms/alikaan.gueven/www/SBIPDF/"
+    # For model output:
+    model_directory        = "/groups/hephy/cms/alikaan.gueven/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/alikaan.gueven/SBIPDF/caches/"
+    output_directory       = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/"
+
 else:
 
     raise RuntimeError( "HELLO NEW USER! Configure your directories in common/user.py! Look in the file how others did it." )

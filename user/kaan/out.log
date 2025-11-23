@@ -1,0 +1,1049 @@
+[toys] Generating toys in mode 'fixed'.
+Overview: root=/users/alikaan.gueven/sbi-pdf/GOLLUM/configs/unbinned_merged.yaml, includes=1 edges across 2 file(s).
+Include tree:
+  unbinned_merged.yaml
+    [jobs]
+      bit_merged.yaml
+Jobs overview: 18 total, 10 root(s), 2 layer(s).
+  Layer 0: bit_tt2l, icp_tt2l_BTag_b, icp_tt2l_BTag_l, icp_tt2l_L1Prefire, icp_tt2l_LeptonSF, icp_tt2l_PU, icp_tt2l_Trigger, icp_tt2l_jesTotal, icp_tt2l_scales, scaler_tt2l
+  Layer 1: pnn_tt2l_BTag_b, pnn_tt2l_BTag_l, pnn_tt2l_L1Prefire, pnn_tt2l_LeptonSF, pnn_tt2l_PU, pnn_tt2l_Trigger, pnn_tt2l_jesTotal, pnn_tt2l_scales
+Job dependencies:
+  - bit_tt2l [bit]  <=  —
+  - icp_tt2l_BTag_b [icp]  <=  —
+  - icp_tt2l_BTag_l [icp]  <=  —
+  - icp_tt2l_L1Prefire [icp]  <=  —
+  - icp_tt2l_LeptonSF [icp]  <=  —
+  - icp_tt2l_PU [icp]  <=  —
+  - icp_tt2l_Trigger [icp]  <=  —
+  - icp_tt2l_jesTotal [icp]  <=  —
+  - icp_tt2l_scales [icp]  <=  —
+  - pnn_tt2l_BTag_b [pnn]  <=  scaler_tt2l, icp_tt2l_BTag_b
+  - pnn_tt2l_BTag_l [pnn]  <=  scaler_tt2l, icp_tt2l_BTag_l
+  - pnn_tt2l_L1Prefire [pnn]  <=  scaler_tt2l, icp_tt2l_L1Prefire
+  - pnn_tt2l_LeptonSF [pnn]  <=  scaler_tt2l, icp_tt2l_LeptonSF
+  - pnn_tt2l_PU [pnn]  <=  scaler_tt2l, icp_tt2l_PU
+  - pnn_tt2l_Trigger [pnn]  <=  scaler_tt2l, icp_tt2l_Trigger
+  - pnn_tt2l_jesTotal [pnn]  <=  scaler_tt2l, icp_tt2l_jesTotal
+  - pnn_tt2l_scales [pnn]  <=  scaler_tt2l, icp_tt2l_scales
+  - scaler_tt2l [scaler]  <=  —
+[OK] BIT bit_tt2l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/BIT/bit_tt2l/BIT_tt2l.pkl
+[OK] Scaler scaler_tt2l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/Scaler/Scaler_tt2l.pkl
+[OK] ICP icp_tt2l_Trigger  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_Trigger.pkl
+[OK] ICP icp_tt2l_L1Prefire  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_L1Prefire.pkl
+[OK] ICP icp_tt2l_PU  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_PU.pkl
+[OK] ICP icp_tt2l_LeptonSF  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_LeptonSF.pkl
+[OK] ICP icp_tt2l_BTag_b  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_BTag_b.pkl
+[OK] ICP icp_tt2l_BTag_l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_BTag_l.pkl
+[OK] ICP icp_tt2l_scales  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_scales.pkl
+[OK] ICP icp_tt2l_jesTotal  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_jesTotal.pkl
+[OK] PNN pnn_tt2l_Trigger  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_Trigger
+[OK] PNN pnn_tt2l_L1Prefire  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_L1Prefire
+[OK] PNN pnn_tt2l_PU  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_PU
+[OK] PNN pnn_tt2l_LeptonSF  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_LeptonSF
+[OK] PNN pnn_tt2l_BTag_b  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_BTag_b
+[OK] PNN pnn_tt2l_BTag_l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_BTag_l
+[OK] PNN pnn_tt2l_scales  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_scales
+[OK] PNN pnn_tt2l_jesTotal  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_jesTotal
+[PNN↔ICP check] pnn_tt2l_Trigger vs icp_tt2l_Trigger: OK
+[PNN↔ICP check] pnn_tt2l_L1Prefire vs icp_tt2l_L1Prefire: OK
+[PNN↔ICP check] pnn_tt2l_PU vs icp_tt2l_PU: OK
+[PNN↔ICP check] pnn_tt2l_LeptonSF vs icp_tt2l_LeptonSF: OK
+[PNN↔ICP check] pnn_tt2l_BTag_b vs icp_tt2l_BTag_b: OK
+[PNN↔ICP check] pnn_tt2l_BTag_l vs icp_tt2l_BTag_l: OK
+[PNN↔ICP check] pnn_tt2l_scales vs icp_tt2l_scales: OK
+[PNN↔ICP check] pnn_tt2l_jesTotal vs icp_tt2l_jesTotal: OK
+
+=== SUMMARY ===
+Found 18 ready artifact(s), 0 missing.
+
+[Hypothesis] Initial parameters:
+Hypothesis (SR)
+
+00  c0(POI)=0.000000e+00
+01  c1(POI)=0.000000e+00
+02  c2(POI)=0.000000e+00
+03  c3(POI)=0.000000e+00
+04  c4(POI)=0.000000e+00
+05  c5(POI)=0.000000e+00
+
+06  nu_btag_b(Nuis.,pen.)=0.000000e+00
+07  nu_btag_l(Nuis.,pen.)=0.000000e+00
+08  nu_jes(Nuis.,pen.)=0.000000e+00
+09  nu_l1prefire(Nuis.,pen.)=0.000000e+00
+10  nu_leptonsf(Nuis.,pen.)=0.000000e+00
+11  nu_mu_fac(Nuis.,pen.)=0.000000e+00
+12  nu_mu_ren(Nuis.,pen.)=0.000000e+00
+13  nu_norm(Nuis.,pen.)=0.000000e+00
+14  nu_pu(Nuis.,pen.)=0.000000e+00
+15  nu_trigger(Nuis.,pen.)=0.000000e+00
+
+[Test hypothesis] c1 = 1e-3:
+Hypothesis (SR)
+
+00  c0(POI)=0.000000e+00
+01  c1(POI)=1.000000e-03
+02  c2(POI)=0.000000e+00
+03  c3(POI)=0.000000e+00
+04  c4(POI)=0.000000e+00
+05  c5(POI)=0.000000e+00
+
+06  nu_btag_b(Nuis.,pen.)=0.000000e+00
+07  nu_btag_l(Nuis.,pen.)=0.000000e+00
+08  nu_jes(Nuis.,pen.)=0.000000e+00
+09  nu_l1prefire(Nuis.,pen.)=0.000000e+00
+10  nu_leptonsf(Nuis.,pen.)=0.000000e+00
+11  nu_mu_fac(Nuis.,pen.)=0.000000e+00
+12  nu_mu_ren(Nuis.,pen.)=0.000000e+00
+13  nu_norm(Nuis.,pen.)=0.000000e+00
+14  nu_pu(Nuis.,pen.)=0.000000e+00
+15  nu_trigger(Nuis.,pen.)=0.000000e+00
+[N2LL] Cache file /groups/hephy/cms/alikaan.gueven/SBIPDF/caches/NN2LCache/unbinned_merged/v1/SR/tt2l.h5 found. Loading (skip rebuild).
+
+[N2LL.prepare_runtime] Region 'SR': opening caches and validating…
+[N2LL.prepare_runtime]  Class 'tt2l': N=1261796
+  - w0 shape=(1261796,)  head[0:5]: [0.04065688 0.0365492  0.04343647 0.041813   0.05121293]
+  - g  shape=(1261796,)   head[0:5]: [1. 1. 1. 1. 1.]
+  - R  shape=(1261796, 27)
+    R columns (|A|=27): ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c0*c0', 'c0*c1', 'c0*c2', 'c0*c3', 'c0*c4', 'c0*c5', 'c1*c1', 'c1*c2', 'c1*c3', 'c1*c4', 'c1*c5', 'c2*c2', 'c2*c3', 'c2*c4', 'c2*c5', 'c3*c3', 'c3*c4', 'c3*c5', 'c4*c4', 'c4*c5', 'c5*c5']
+    R[0]: [ 1.67422151  0.92026173 -0.58953311 -1.42615633 -0.96597701  0.14486834
+  1.42517551  0.77366492 -0.52099408 -1.21698388 -0.79583127  0.15868296
+  0.40177345 -0.32169033 -0.67203073 -0.38017274  0.16808503  0.10823304
+  0.42307146  0.40430601  0.11502208  1.04068758  0.72146086 -0.09020004
+  0.3072931  -0.3277804  -0.34627327]
+    R[1]: [ 1.68376975  0.84379545 -0.79456582 -1.56177549 -0.78870225  0.60638593
+  1.47857641  0.7335245  -0.70866035 -1.36262623 -0.66365334  0.54838118
+  0.35545824 -0.36751149 -0.67414493 -0.29719172  0.3064246   0.30880537
+  0.65490731  0.37815241 -0.19581862  1.25208693  0.60515878 -0.5073379
+  0.18068397 -0.37254524  0.06072672]
+    R[2]: [ 1.66521472  0.85984735 -0.67468592 -1.37712467 -0.77680726  0.26576996
+  1.39248116  0.71319664 -0.57585202 -1.15286941 -0.63177455  0.2441298
+  0.34317907 -0.33889896 -0.59550881 -0.25769556  0.20568384  0.15176151
+  0.47013189  0.39564054  0.05711985  0.96429546  0.54879591 -0.19177851
+  0.09976079 -0.36188291 -0.2525848 ]
+    R[3]: [ 1.71606177  0.79697131 -0.93524678 -1.60015233 -0.58885015  0.88824117
+  1.49987356  0.68966285 -0.82553212 -1.38536401 -0.48656608  0.78158823
+  0.31591042 -0.38158398 -0.63425964 -0.21343351  0.36671071  0.44912202
+  0.76250645  0.28399176 -0.41021026  1.26633048  0.43495483 -0.71304735
+  0.10341989 -0.28994874  0.34705626]
+    R[4]: [ 1.71938455  0.78911888 -0.93947448 -1.56403534 -0.54705091  0.85207846
+  1.46043259  0.6597203  -0.81436589 -1.31926368 -0.42774735  0.74773538
+  0.28978585 -0.38282138 -0.59149302 -0.15788657  0.37116535  0.42510489
+  0.73919235  0.30069195 -0.35117313  1.17960243  0.36700392 -0.67720558
+ -0.01353446 -0.34440942  0.24476582]
+  - Δ groups:
+    • id='Trigger'  dset='Delta::Trigger'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_trigger']
+      Δ[0]: [0.00986863]
+      Δ[1]: [0.0099804]
+      Δ[2]: [0.00997803]
+      Δ[3]: [0.0100084]
+      Δ[4]: [0.00986829]
+    • id='L1Prefire'  dset='Delta::L1Prefire'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_l1prefire']
+      Δ[0]: [-0.0045764]
+      Δ[1]: [-0.00527706]
+      Δ[2]: [-0.00843351]
+      Δ[3]: [-0.00444794]
+      Δ[4]: [-0.00805725]
+    • id='PU'  dset='Delta::PU'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_pu']
+      Δ[0]: [-0.00632264]
+      Δ[1]: [-0.01229692]
+      Δ[2]: [-0.01359917]
+      Δ[3]: [-0.00384723]
+      Δ[4]: [-0.00659992]
+    • id='LeptonSF'  dset='Delta::LeptonSF'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_leptonsf']
+      Δ[0]: [0.0077448]
+      Δ[1]: [0.00527975]
+      Δ[2]: [0.01363911]
+      Δ[3]: [0.0058101]
+      Δ[4]: [0.00538238]
+    • id='BTag_b'  dset='Delta::BTag_b'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_btag_b']
+      Δ[0]: [0.02778728]
+      Δ[1]: [0.0285511]
+      Δ[2]: [0.02980909]
+      Δ[3]: [0.02814338]
+      Δ[4]: [0.02912241]
+    • id='BTag_l'  dset='Delta::BTag_l'  shape=(1261796, 1)
+      Δ columns (|B|=1): ['nu_btag_l']
+      Δ[0]: [0.03532847]
+      Δ[1]: [0.03780229]
+      Δ[2]: [0.04855892]
+      Δ[3]: [0.03253103]
+      Δ[4]: [0.04611899]
+    • id='Scales'  dset='Delta::Scales'  shape=(1261796, 5)
+      Δ columns (|B|=5): ['nu_mu_ren', 'nu_mu_fac', 'nu_mu_ren*nu_mu_ren', 'nu_mu_ren*nu_mu_fac', 'nu_mu_fac*nu_mu_fac']
+      Δ[0]: [-0.00601683  0.0045344   0.00089272  0.00164416 -0.00013378]
+      Δ[1]: [ 8.14774819e-03 -5.47832157e-03 -8.25749477e-04 -2.46489653e-03
+ -5.93082805e-05]
+      Δ[2]: [-0.02009908 -0.01053141  0.00245334  0.00377695  0.00114169]
+      Δ[3]: [ 0.00161648 -0.00689558  0.00032433 -0.00196574  0.00023256]
+      Δ[4]: [-0.02097917 -0.01271353  0.00351032 -0.00010145  0.0005769 ]
+    • id='JES'  dset='Delta::JES'  shape=(1261796, 2)
+      Δ columns (|B|=2): ['nu_jes', 'nu_jes*nu_jes']
+      Δ[0]: [ 0.07373983 -0.0077751 ]
+      Δ[1]: [ 0.03023766 -0.00941684]
+      Δ[2]: [-0.00232487 -0.01044329]
+      Δ[3]: [ 0.00627887 -0.00480968]
+      Δ[4]: [ 0.0371857  -0.00959143]
+
+[toys] Unbinned regions: ['SR']
+
+[Debug] POI A-basis per region/class:
+  (SR, tt2l): poi_names = ['c0', 'c1', 'c2', 'c3', 'c4', 'c5']
+[Debug] R head for SR tt2l :
+ [[ 1.67422151  0.92026173 -0.58953311 -1.42615633 -0.96597701  0.14486834
+   1.42517551  0.77366492 -0.52099408 -1.21698388 -0.79583127  0.15868296
+   0.40177345 -0.32169033 -0.67203073 -0.38017274  0.16808503  0.10823304
+   0.42307146  0.40430601  0.11502208  1.04068758  0.72146086 -0.09020004
+   0.3072931  -0.3277804  -0.34627327]
+ [ 1.68376975  0.84379545 -0.79456582 -1.56177549 -0.78870225  0.60638593
+   1.47857641  0.7335245  -0.70866035 -1.36262623 -0.66365334  0.54838118
+   0.35545824 -0.36751149 -0.67414493 -0.29719172  0.3064246   0.30880537
+   0.65490731  0.37815241 -0.19581862  1.25208693  0.60515878 -0.5073379
+   0.18068397 -0.37254524  0.06072672]
+ [ 1.66521472  0.85984735 -0.67468592 -1.37712467 -0.77680726  0.26576996
+   1.39248116  0.71319664 -0.57585202 -1.15286941 -0.63177455  0.2441298
+   0.34317907 -0.33889896 -0.59550881 -0.25769556  0.20568384  0.15176151
+   0.47013189  0.39564054  0.05711985  0.96429546  0.54879591 -0.19177851
+   0.09976079 -0.36188291 -0.2525848 ]
+ [ 1.71606177  0.79697131 -0.93524678 -1.60015233 -0.58885015  0.88824117
+   1.49987356  0.68966285 -0.82553212 -1.38536401 -0.48656608  0.78158823
+   0.31591042 -0.38158398 -0.63425964 -0.21343351  0.36671071  0.44912202
+   0.76250645  0.28399176 -0.41021026  1.26633048  0.43495483 -0.71304735
+   0.10341989 -0.28994874  0.34705626]
+ [ 1.71938455  0.78911888 -0.93947448 -1.56403534 -0.54705091  0.85207846
+   1.46043259  0.6597203  -0.81436589 -1.31926368 -0.42774735  0.74773538
+   0.28978585 -0.38282138 -0.59149302 -0.15788657  0.37116535  0.42510489
+   0.73919235  0.30069195 -0.35117313  1.17960243  0.36700392 -0.67720558
+  -0.01353446 -0.34440942  0.24476582]
+ [ 1.64841851  0.81137034 -0.76823643 -1.42512504 -0.66709128  0.49690264
+   1.42738477  0.69286329 -0.68182935 -1.23001851 -0.54720403  0.45646769
+   0.31180779 -0.3761396  -0.59314663 -0.18583401  0.30390042  0.24457021
+   0.60054779  0.41140667 -0.0750931   1.07473832  0.46591497 -0.43116756
+  -0.04904482 -0.45795234 -0.09641067]
+ [ 1.67230678  0.8674311  -0.69631579 -1.45524048 -0.8369594   0.33996802
+   1.38473989  0.70672009 -0.5981143  -1.20509623 -0.65940116  0.31969767
+   0.34493447 -0.33620327 -0.61731152 -0.28604155  0.22689684  0.19801779
+   0.51757587  0.38526206 -0.01495361  1.05312813  0.58485921 -0.27525531
+   0.1552071  -0.36057065 -0.17396563]
+ [ 1.59630515  0.72249827 -0.83834822 -1.33368063 -0.47376135  0.58450977
+   1.37483938  0.6134893  -0.73516557 -1.1404509  -0.37909364  0.51962631
+   0.25302695 -0.36169866 -0.49628797 -0.10313333  0.28199869  0.34068069
+   0.63525845  0.31028559 -0.20625534  0.94924688  0.2742861  -0.4839832
+  -0.10815697 -0.30545449  0.11901965]
+ [ 1.66675532  0.76654934 -0.87872663 -1.44181233 -0.51196876  0.68134383
+   1.42552454  0.64610438 -0.76652684 -1.2257332  -0.40604875  0.60386007
+   0.27531462 -0.37817377 -0.54686579 -0.11963149  0.32983267  0.35773995
+   0.67338255  0.33095683 -0.22629249  1.04849192  0.31854581 -0.5466158
+  -0.11485667 -0.37380975  0.08722777]
+ [ 1.65484508  0.85258214 -0.58412351 -1.10471843 -0.55162443  0.05036101
+   1.37766004  0.69689173 -0.51260169 -0.92917718 -0.43674754  0.07825442
+   0.29359726 -0.37529028 -0.49036747 -0.07449247  0.22636181 -0.03204935
+   0.32126282  0.46271745  0.32715049  0.66241561  0.37470524 -0.02571673
+  -0.21478602 -0.53297041 -0.58722278]]
+Asimov N2LL at c1=0: 0.0
+Asimov N2LL at c1=1e-3: 0.040759350265527156
+args.n_toys:  100
+
+================= TOY 0 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0000.npz
+[toys] Toy 0: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 0: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 0 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0000_T_c1_1e-3.npy
+
+================= TOY 1 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0001.npz
+[toys] Toy 1: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 1: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 1 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0001_T_c1_1e-3.npy
+
+================= TOY 2 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0002.npz
+[toys] Toy 2: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 2: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 2 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0002_T_c1_1e-3.npy
+
+================= TOY 3 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0003.npz
+[toys] Toy 3: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 3: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 3 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0003_T_c1_1e-3.npy
+
+================= TOY 4 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0004.npz
+[toys] Toy 4: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 4: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 4 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0004_T_c1_1e-3.npy
+
+================= TOY 5 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0005.npz
+[toys] Toy 5: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 5: T(c1=1e-3) = 0.000690
+[toys] Saved T(c1=1e-3) for toy 5 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0005_T_c1_1e-3.npy
+
+================= TOY 6 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0006.npz
+[toys] Toy 6: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 6: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 6 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0006_T_c1_1e-3.npy
+
+================= TOY 7 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0007.npz
+[toys] Toy 7: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 7: T(c1=1e-3) = 0.000710
+[toys] Saved T(c1=1e-3) for toy 7 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0007_T_c1_1e-3.npy
+
+================= TOY 8 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0008.npz
+[toys] Toy 8: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 8: T(c1=1e-3) = 0.000706
+[toys] Saved T(c1=1e-3) for toy 8 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0008_T_c1_1e-3.npy
+
+================= TOY 9 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0009.npz
+[toys] Toy 9: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 9: T(c1=1e-3) = 0.000707
+[toys] Saved T(c1=1e-3) for toy 9 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0009_T_c1_1e-3.npy
+
+================= TOY 10 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0010.npz
+[toys] Toy 10: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 10: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 10 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0010_T_c1_1e-3.npy
+
+================= TOY 11 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0011.npz
+[toys] Toy 11: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 11: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 11 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0011_T_c1_1e-3.npy
+
+================= TOY 12 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0012.npz
+[toys] Toy 12: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 12: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 12 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0012_T_c1_1e-3.npy
+
+================= TOY 13 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0013.npz
+[toys] Toy 13: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 13: T(c1=1e-3) = 0.000694
+[toys] Saved T(c1=1e-3) for toy 13 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0013_T_c1_1e-3.npy
+
+================= TOY 14 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0014.npz
+[toys] Toy 14: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 14: T(c1=1e-3) = 0.000713
+[toys] Saved T(c1=1e-3) for toy 14 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0014_T_c1_1e-3.npy
+
+================= TOY 15 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0015.npz
+[toys] Toy 15: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 15: T(c1=1e-3) = 0.000697
+[toys] Saved T(c1=1e-3) for toy 15 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0015_T_c1_1e-3.npy
+
+================= TOY 16 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0016.npz
+[toys] Toy 16: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 16: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 16 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0016_T_c1_1e-3.npy
+
+================= TOY 17 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0017.npz
+[toys] Toy 17: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 17: T(c1=1e-3) = 0.000706
+[toys] Saved T(c1=1e-3) for toy 17 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0017_T_c1_1e-3.npy
+
+================= TOY 18 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0018.npz
+[toys] Toy 18: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 18: T(c1=1e-3) = 0.000693
+[toys] Saved T(c1=1e-3) for toy 18 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0018_T_c1_1e-3.npy
+
+================= TOY 19 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0019.npz
+[toys] Toy 19: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 19: T(c1=1e-3) = 0.000707
+[toys] Saved T(c1=1e-3) for toy 19 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0019_T_c1_1e-3.npy
+
+================= TOY 20 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0020.npz
+[toys] Toy 20: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 20: T(c1=1e-3) = 0.000705
+[toys] Saved T(c1=1e-3) for toy 20 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0020_T_c1_1e-3.npy
+
+================= TOY 21 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0021.npz
+[toys] Toy 21: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 21: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 21 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0021_T_c1_1e-3.npy
+
+================= TOY 22 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0022.npz
+[toys] Toy 22: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 22: T(c1=1e-3) = 0.000692
+[toys] Saved T(c1=1e-3) for toy 22 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0022_T_c1_1e-3.npy
+
+================= TOY 23 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0023.npz
+[toys] Toy 23: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 23: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 23 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0023_T_c1_1e-3.npy
+
+================= TOY 24 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0024.npz
+[toys] Toy 24: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 24: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 24 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0024_T_c1_1e-3.npy
+
+================= TOY 25 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0025.npz
+[toys] Toy 25: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 25: T(c1=1e-3) = 0.000709
+[toys] Saved T(c1=1e-3) for toy 25 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0025_T_c1_1e-3.npy
+
+================= TOY 26 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0026.npz
+[toys] Toy 26: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 26: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 26 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0026_T_c1_1e-3.npy
+
+================= TOY 27 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0027.npz
+[toys] Toy 27: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 27: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 27 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0027_T_c1_1e-3.npy
+
+================= TOY 28 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0028.npz
+[toys] Toy 28: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 28: T(c1=1e-3) = 0.000689
+[toys] Saved T(c1=1e-3) for toy 28 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0028_T_c1_1e-3.npy
+
+================= TOY 29 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0029.npz
+[toys] Toy 29: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 29: T(c1=1e-3) = 0.000703
+[toys] Saved T(c1=1e-3) for toy 29 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0029_T_c1_1e-3.npy
+
+================= TOY 30 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0030.npz
+[toys] Toy 30: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 30: T(c1=1e-3) = 0.000711
+[toys] Saved T(c1=1e-3) for toy 30 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0030_T_c1_1e-3.npy
+
+================= TOY 31 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0031.npz
+[toys] Toy 31: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 31: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 31 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0031_T_c1_1e-3.npy
+
+================= TOY 32 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0032.npz
+[toys] Toy 32: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 32: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 32 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0032_T_c1_1e-3.npy
+
+================= TOY 33 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0033.npz
+[toys] Toy 33: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 33: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 33 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0033_T_c1_1e-3.npy
+
+================= TOY 34 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0034.npz
+[toys] Toy 34: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 34: T(c1=1e-3) = 0.000708
+[toys] Saved T(c1=1e-3) for toy 34 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0034_T_c1_1e-3.npy
+
+================= TOY 35 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0035.npz
+[toys] Toy 35: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 35: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 35 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0035_T_c1_1e-3.npy
+
+================= TOY 36 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0036.npz
+[toys] Toy 36: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 36: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 36 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0036_T_c1_1e-3.npy
+
+================= TOY 37 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0037.npz
+[toys] Toy 37: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 37: T(c1=1e-3) = 0.000694
+[toys] Saved T(c1=1e-3) for toy 37 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0037_T_c1_1e-3.npy
+
+================= TOY 38 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0038.npz
+[toys] Toy 38: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 38: T(c1=1e-3) = 0.000703
+[toys] Saved T(c1=1e-3) for toy 38 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0038_T_c1_1e-3.npy
+
+================= TOY 39 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0039.npz
+[toys] Toy 39: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 39: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 39 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0039_T_c1_1e-3.npy
+
+================= TOY 40 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0040.npz
+[toys] Toy 40: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 40: T(c1=1e-3) = 0.000709
+[toys] Saved T(c1=1e-3) for toy 40 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0040_T_c1_1e-3.npy
+
+================= TOY 41 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0041.npz
+[toys] Toy 41: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 41: T(c1=1e-3) = 0.000687
+[toys] Saved T(c1=1e-3) for toy 41 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0041_T_c1_1e-3.npy
+
+================= TOY 42 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0042.npz
+[toys] Toy 42: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 42: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 42 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0042_T_c1_1e-3.npy
+
+================= TOY 43 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0043.npz
+[toys] Toy 43: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 43: T(c1=1e-3) = 0.000696
+[toys] Saved T(c1=1e-3) for toy 43 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0043_T_c1_1e-3.npy
+
+================= TOY 44 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0044.npz
+[toys] Toy 44: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 44: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 44 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0044_T_c1_1e-3.npy
+
+================= TOY 45 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0045.npz
+[toys] Toy 45: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 45: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 45 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0045_T_c1_1e-3.npy
+
+================= TOY 46 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0046.npz
+[toys] Toy 46: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 46: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 46 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0046_T_c1_1e-3.npy
+
+================= TOY 47 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0047.npz
+[toys] Toy 47: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 47: T(c1=1e-3) = 0.000694
+[toys] Saved T(c1=1e-3) for toy 47 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0047_T_c1_1e-3.npy
+
+================= TOY 48 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0048.npz
+[toys] Toy 48: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 48: T(c1=1e-3) = 0.000697
+[toys] Saved T(c1=1e-3) for toy 48 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0048_T_c1_1e-3.npy
+
+================= TOY 49 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0049.npz
+[toys] Toy 49: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 49: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 49 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0049_T_c1_1e-3.npy
+
+================= TOY 50 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0050.npz
+[toys] Toy 50: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 50: T(c1=1e-3) = 0.000696
+[toys] Saved T(c1=1e-3) for toy 50 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0050_T_c1_1e-3.npy
+
+================= TOY 51 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0051.npz
+[toys] Toy 51: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 51: T(c1=1e-3) = 0.000697
+[toys] Saved T(c1=1e-3) for toy 51 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0051_T_c1_1e-3.npy
+
+================= TOY 52 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0052.npz
+[toys] Toy 52: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 52: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 52 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0052_T_c1_1e-3.npy
+
+================= TOY 53 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0053.npz
+[toys] Toy 53: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 53: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 53 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0053_T_c1_1e-3.npy
+
+================= TOY 54 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0054.npz
+[toys] Toy 54: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 54: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 54 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0054_T_c1_1e-3.npy
+
+================= TOY 55 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0055.npz
+[toys] Toy 55: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 55: T(c1=1e-3) = 0.000707
+[toys] Saved T(c1=1e-3) for toy 55 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0055_T_c1_1e-3.npy
+
+================= TOY 56 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0056.npz
+[toys] Toy 56: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 56: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 56 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0056_T_c1_1e-3.npy
+
+================= TOY 57 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0057.npz
+[toys] Toy 57: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 57: T(c1=1e-3) = 0.000706
+[toys] Saved T(c1=1e-3) for toy 57 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0057_T_c1_1e-3.npy
+
+================= TOY 58 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0058.npz
+[toys] Toy 58: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 58: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 58 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0058_T_c1_1e-3.npy
+
+================= TOY 59 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0059.npz
+[toys] Toy 59: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 59: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 59 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0059_T_c1_1e-3.npy
+
+================= TOY 60 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0060.npz
+[toys] Toy 60: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 60: T(c1=1e-3) = 0.000697
+[toys] Saved T(c1=1e-3) for toy 60 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0060_T_c1_1e-3.npy
+
+================= TOY 61 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0061.npz
+[toys] Toy 61: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 61: T(c1=1e-3) = 0.000696
+[toys] Saved T(c1=1e-3) for toy 61 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0061_T_c1_1e-3.npy
+
+================= TOY 62 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0062.npz
+[toys] Toy 62: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 62: T(c1=1e-3) = 0.000693
+[toys] Saved T(c1=1e-3) for toy 62 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0062_T_c1_1e-3.npy
+
+================= TOY 63 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0063.npz
+[toys] Toy 63: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 63: T(c1=1e-3) = 0.000690
+[toys] Saved T(c1=1e-3) for toy 63 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0063_T_c1_1e-3.npy
+
+================= TOY 64 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0064.npz
+[toys] Toy 64: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 64: T(c1=1e-3) = 0.000709
+[toys] Saved T(c1=1e-3) for toy 64 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0064_T_c1_1e-3.npy
+
+================= TOY 65 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0065.npz
+[toys] Toy 65: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 65: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 65 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0065_T_c1_1e-3.npy
+
+================= TOY 66 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0066.npz
+[toys] Toy 66: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 66: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 66 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0066_T_c1_1e-3.npy
+
+================= TOY 67 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0067.npz
+[toys] Toy 67: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 67: T(c1=1e-3) = 0.000696
+[toys] Saved T(c1=1e-3) for toy 67 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0067_T_c1_1e-3.npy
+
+================= TOY 68 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0068.npz
+[toys] Toy 68: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 68: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 68 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0068_T_c1_1e-3.npy
+
+================= TOY 69 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0069.npz
+[toys] Toy 69: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 69: T(c1=1e-3) = 0.000690
+[toys] Saved T(c1=1e-3) for toy 69 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0069_T_c1_1e-3.npy
+
+================= TOY 70 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0070.npz
+[toys] Toy 70: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 70: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 70 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0070_T_c1_1e-3.npy
+
+================= TOY 71 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0071.npz
+[toys] Toy 71: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 71: T(c1=1e-3) = 0.000705
+[toys] Saved T(c1=1e-3) for toy 71 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0071_T_c1_1e-3.npy
+
+================= TOY 72 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0072.npz
+[toys] Toy 72: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 72: T(c1=1e-3) = 0.000696
+[toys] Saved T(c1=1e-3) for toy 72 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0072_T_c1_1e-3.npy
+
+================= TOY 73 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0073.npz
+[toys] Toy 73: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 73: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 73 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0073_T_c1_1e-3.npy
+
+================= TOY 74 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0074.npz
+[toys] Toy 74: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 74: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 74 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0074_T_c1_1e-3.npy
+
+================= TOY 75 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0075.npz
+[toys] Toy 75: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 75: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 75 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0075_T_c1_1e-3.npy
+
+================= TOY 76 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0076.npz
+[toys] Toy 76: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 76: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 76 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0076_T_c1_1e-3.npy
+
+================= TOY 77 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0077.npz
+[toys] Toy 77: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 77: T(c1=1e-3) = 0.000705
+[toys] Saved T(c1=1e-3) for toy 77 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0077_T_c1_1e-3.npy
+
+================= TOY 78 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0078.npz
+[toys] Toy 78: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 78: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 78 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0078_T_c1_1e-3.npy
+
+================= TOY 79 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0079.npz
+[toys] Toy 79: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 79: T(c1=1e-3) = 0.000707
+[toys] Saved T(c1=1e-3) for toy 79 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0079_T_c1_1e-3.npy
+
+================= TOY 80 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0080.npz
+[toys] Toy 80: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 80: T(c1=1e-3) = 0.000703
+[toys] Saved T(c1=1e-3) for toy 80 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0080_T_c1_1e-3.npy
+
+================= TOY 81 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0081.npz
+[toys] Toy 81: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 81: T(c1=1e-3) = 0.000702
+[toys] Saved T(c1=1e-3) for toy 81 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0081_T_c1_1e-3.npy
+
+================= TOY 82 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0082.npz
+[toys] Toy 82: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 82: T(c1=1e-3) = 0.000704
+[toys] Saved T(c1=1e-3) for toy 82 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0082_T_c1_1e-3.npy
+
+================= TOY 83 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0083.npz
+[toys] Toy 83: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 83: T(c1=1e-3) = 0.000707
+[toys] Saved T(c1=1e-3) for toy 83 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0083_T_c1_1e-3.npy
+
+================= TOY 84 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0084.npz
+[toys] Toy 84: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 84: T(c1=1e-3) = 0.000711
+[toys] Saved T(c1=1e-3) for toy 84 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0084_T_c1_1e-3.npy
+
+================= TOY 85 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0085.npz
+[toys] Toy 85: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 85: T(c1=1e-3) = 0.000693
+[toys] Saved T(c1=1e-3) for toy 85 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0085_T_c1_1e-3.npy
+
+================= TOY 86 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0086.npz
+[toys] Toy 86: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 86: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 86 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0086_T_c1_1e-3.npy
+
+================= TOY 87 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0087.npz
+[toys] Toy 87: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 87: T(c1=1e-3) = 0.000699
+[toys] Saved T(c1=1e-3) for toy 87 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0087_T_c1_1e-3.npy
+
+================= TOY 88 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0088.npz
+[toys] Toy 88: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 88: T(c1=1e-3) = 0.000688
+[toys] Saved T(c1=1e-3) for toy 88 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0088_T_c1_1e-3.npy
+
+================= TOY 89 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0089.npz
+[toys] Toy 89: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 89: T(c1=1e-3) = 0.000700
+[toys] Saved T(c1=1e-3) for toy 89 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0089_T_c1_1e-3.npy
+
+================= TOY 90 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0090.npz
+[toys] Toy 90: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 90: T(c1=1e-3) = 0.000695
+[toys] Saved T(c1=1e-3) for toy 90 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0090_T_c1_1e-3.npy
+
+================= TOY 91 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0091.npz
+[toys] Toy 91: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 91: T(c1=1e-3) = 0.000706
+[toys] Saved T(c1=1e-3) for toy 91 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0091_T_c1_1e-3.npy
+
+================= TOY 92 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0092.npz
+[toys] Toy 92: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 92: T(c1=1e-3) = 0.000703
+[toys] Saved T(c1=1e-3) for toy 92 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0092_T_c1_1e-3.npy
+
+================= TOY 93 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0093.npz
+[toys] Toy 93: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 93: T(c1=1e-3) = 0.000706
+[toys] Saved T(c1=1e-3) for toy 93 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0093_T_c1_1e-3.npy
+
+================= TOY 94 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0094.npz
+[toys] Toy 94: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 94: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 94 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0094_T_c1_1e-3.npy
+
+================= TOY 95 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0095.npz
+[toys] Toy 95: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 95: T(c1=1e-3) = 0.000694
+[toys] Saved T(c1=1e-3) for toy 95 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0095_T_c1_1e-3.npy
+
+================= TOY 96 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0096.npz
+[toys] Toy 96: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 96: T(c1=1e-3) = 0.000698
+[toys] Saved T(c1=1e-3) for toy 96 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0096_T_c1_1e-3.npy
+
+================= TOY 97 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0097.npz
+[toys] Toy 97: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 97: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 97 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0097_T_c1_1e-3.npy
+
+================= TOY 98 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0098.npz
+[toys] Toy 98: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 98: T(c1=1e-3) = 0.000701
+[toys] Saved T(c1=1e-3) for toy 98 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0098_T_c1_1e-3.npy
+
+================= TOY 99 =================
+region_ids:  ['SR']
+[toys] Region 'SR': N_events_support=1261796, N_toy=1000, λ_sum=5.82e+04
+[toys] Saved index summary to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0099.npz
+[toys] Toy 99: -2 log L(null, c1=0) = 0.000000
+[toys] Toy 99: T(c1=1e-3) = 0.000697
+[toys] Saved T(c1=1e-3) for toy 99 to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0099_T_c1_1e-3.npy
