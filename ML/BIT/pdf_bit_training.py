@@ -202,7 +202,7 @@ if bool(rt.get("training_plots", False)):
 
     for t in iters:
         # predictions: shape (N, M-1) aligned to derivatives[1:]
-        pred = bit.vectorized_predict(X_all, max_n_tree=t)
+        pred = bit.predict(X_all, max_n_tree=t)
 
         # Build truth ratios per derivative (all, including () at position 0)
         ders = bit.derivatives
