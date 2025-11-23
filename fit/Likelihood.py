@@ -22,7 +22,7 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-from fit.Modeling import ModelParameter, Hypothesis
+from fit.Modeling import ModelParameter, Hypothesis, Rotated
 from common.helpers import _binning_equal
  
 # ---- Likelihood wiring + model parameter scaffolding -----------------------
@@ -1460,7 +1460,7 @@ class N2LL:
             # ---------- UNBINNED (if provided) ----------
             if getattr(self, "_obs_unbinned", None):
                 # ν values for lnN bias if we need to reconstruct T from by_class
-                nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+                nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
                 for rid, block in self._obs_unbinned.items():
                     # Mode A: direct T
@@ -1477,8 +1477,8 @@ class N2LL:
                     T   = np.zeros(N, dtype=np.float64)
 
                     # current hypothesis A-basis and ν_A groups
-                    cA_per_class  = self._assemble_cA_per_class(rid, hypothesis)
-                    nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
+                    cA_per_class  = self._assemble_cA_per_class(rid, hypothesis._base)
+                    nuA_per_group = self._assemble_nuA_groups(rid, hypothesis._base)
                     ln_bias = {
                         cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
                                  for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
@@ -1514,14 +1514,14 @@ class N2LL:
                     if rid not in self._obs_binned:
                         continue  # region not histogrammed (e.g. missing axis columns)
                     lam0 = self._binned_lambda0[rid]                    # (Nflat,)
-                    lam  = self._compute_lambda_binned(rid, hypothesis) # (Nflat,)
+                    lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
                     Nobs = self._obs_binned[rid]                        # (Nflat,)
 
                     log_ratio = self._safe_log_ratio(lam, lam0)         # stable
                     total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
 
             n2ll = -2.0 * (total_unbinned + total_binned)
-            n2ll += hypothesis.penalty()
+            n2ll += hypothesis._base.penalty()
             return float(n2ll)
 
         # ===================================================================
@@ -1530,7 +1530,7 @@ class N2LL:
         total_sum = 0.0   # Σ w * (log1p(T) - T)
         bias_sum  = 0.0   # Σ w * T'(asimov) * log1p(T)
 
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
         for R in self.regions:
             rid = R['id']
@@ -1541,8 +1541,8 @@ class N2LL:
             if N == 0:
                 continue
 
-            cA_per_class  = self._assemble_cA_per_class(rid, hypothesis)
-            nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
+            cA_per_class  = self._assemble_cA_per_class(rid, hypothesis._base)
+            nuA_per_group = self._assemble_nuA_groups(rid, hypothesis._base)
             ln_bias = {
                 cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
                          for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
@@ -1567,52 +1567,15 @@ class N2LL:
         if getattr(self, "_binned_regions_ids", None):
             for rid in self._binned_regions_ids:
                 lam0 = self._binned_lambda0[rid]
-                lam  = self._compute_lambda_binned(rid, hypothesis)
+                lam  = self._compute_lambda_binned(rid, hypothesis._base)
                 lam_asimov = self._binned_asimov_lambda.get(rid, lam0)
 
                 log_ratio = self._safe_log_ratio(lam, lam0)
                 total_binned += np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
 
         n2ll = -2.0 * (total_unbinned + total_binned)
-        n2ll += hypothesis.penalty()
+        n2ll += hypothesis._base.penalty()
         return float(n2ll)
-
-    def _assemble_cA_C_per_class(self, rid: str, hypothesis) -> Dict[str, Dict[str, np.ndarray]]:
-        """
-        Build c_A and C_{Aa} for each class in a region for the given hypothesis.
-
-        Returns
-        -------
-        out : dict
-          rid -> {
-             cid -> {
-               "cA": np.ndarray (nA,),
-               "C":  np.ndarray (nA, n_par_class),
-               "poi_names": [names in class order]
-             }
-          }
-        """
-        # POI values (global dict)
-        poi_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
-
-        out: Dict[str, Dict[str, np.ndarray]] = {}
-        class_dict: Dict[str, Dict[str, np.ndarray]] = {}
-
-        for cid in self._class_ids_by_region.get(rid, []):
-            poi_names = self._poi_order[(rid, cid)]  # class-specific order
-
-            # A-basis vector and Jacobian
-            cA = expand_pois_linear_quadratic(poi_names, poi_vals)
-            C  = pois_jacobian_linear_quadratic(poi_names, poi_vals)
-
-            class_dict[cid] = {
-                "cA": cA,
-                "C":  C,
-                "poi_names": poi_names,
-            }
-
-        out = class_dict
-        return out
 
     def _assemble_cA_C_per_class(self, rid: str, hypothesis) -> Dict[str, dict]:
         """
@@ -1704,6 +1667,10 @@ class N2LL:
         if not self._asimov_hypothesis_set or self._observation_set:
             raise RuntimeError("[N2LL.fisher_information] Asimov mode required: call setAsimov(...), "
                                "and do not set an observation.")
+
+        # FI is in the nominal basis
+        if isinstance( hypothesis, Rotated):
+            raise NotImplementedError
 
         # Free parameters
         free_params = [p for p in hypothesis.parameters
@@ -2217,79 +2184,99 @@ class N2LL:
 
         return T if return_T else (1.0 + T)
 
-class _MinuitArrayAdapter:
-    """Array-based FCN for Minuit (keeps names, prints progress)."""
-    def __init__(self, n2ll, hypothesis, names, print_every=25):
-        self.n2ll = n2ll
-        self.hyp = hypothesis
-        self.names = list(names)
-        self.free = [p for p in hypothesis.parameters if not p.isFrozen and not getattr(p, "isIgnored", False)]
-        self.eval = 0
-        self.print_every = max(1, int(print_every))
+from iminuit import Minuit
 
-    def __call__(self, x):
-        for i, p in enumerate(self.free):
-            p.val = float(x[i])
-        self.eval += 1
-        f = float(self.n2ll(self.hyp))
-        if (self.eval - 1) % self.print_every == 0:
-            print(f"\n[eval {self.eval:6d}] f = {f: .6e}")
-            self.hyp.print()
-        return f
+def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False):
 
-def make_minuit(n2ll, hypothesis, *, step=0.1, print_every=25):
-    free = [p for p in hypothesis.parameters if not p.isFrozen and not getattr(p, "isIgnored", False)]
+    # -- collect free parameters (works for rotated or plain) --
+    if isinstance(hypothesis, Rotated):
+        free = hypothesis.POIs + [p for p in hypothesis.nuisances
+                                  if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = {p.name for p in hypothesis.POIs}
+    else:
+        free = [p for p in hypothesis.parameters
+                if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = set()
+
     if not free:
         raise RuntimeError("No free parameters to fit.")
+
     names = [p.name for p in free]
-    x0 = np.array([float(p.val) for p in free], dtype=float)
+    x0    = [float(p.val) for p in free]
 
-    adapter = _MinuitArrayAdapter(n2ll, hypothesis, names, print_every=print_every)
-
-    # FCN for iminuit with positional args; keep names via name=...
-    def _fcn_positional(*x):
-        return adapter(np.asarray(x, dtype=float))
-
-    m = Minuit(_fcn_positional, *x0, name=names)
-    m.errordef = 1.0  # -2logL / chi2 objective
-
-    # set step sizes
-    if isinstance(step, dict):
-        for i, n in enumerate(names):
-            m.errors[i] = float(step.get(n, 0.1))
+    # step defaults:
+    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
+    #   float -> uniform
+    #   dict  -> per-parameter overrides
+    if step is None:
+        if isinstance(hypothesis, Rotated):
+            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
+        else:
+            steps = {p.name: 0.1 for p in free}
+    elif isinstance(step, (int, float)):
+        steps = {p.name: float(step) for p in free}
+    elif isinstance(step, dict):
+        if isinstance(hypothesis, Rotated):
+            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
+        else:
+            steps = {p.name: 0.1 for p in free}
+        for k, v in step.items():
+            if k in steps:
+                steps[k] = float(v)
     else:
-        for i in range(len(names)):
-            m.errors[i] = float(step)
+        raise TypeError("step must be None, float, or dict{name: float}")
+
+    eval_count = 0
+    def fcn(*x):
+        nonlocal eval_count
+        # one-shot parameter map (avoid sequential setattr on Rotated)
+        pars = {names[i]: float(x[i]) for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
+        f = float(n2ll(h_eval))
+        eval_count += 1
+        if (eval_count - 1) % max(1, int(print_every)) == 0:
+            print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
+            h_eval.print()  # print the actually evaluated point
+        return f
+
+    # ---- Minuit with positional args and explicit names ----
+    m = Minuit(fcn, *x0, name=names)
+    m.errordef = 1.0
+    m.strategy = 2
+
+    # set user step and (if available) explicit FD step
+    for i, nm in enumerate(names):
+        s = steps[nm]
+        m.errors[i] = s
+        if hasattr(m, "set_initial_step"):
+            m.set_initial_step(i, 0.3 * s)
 
     print("\n[make_minuit] Floating parameters:")
-    for i, n in enumerate(names):
-        print(f"  - {n:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
-    return m, adapter
-
-def run_minuit_fit(n2ll, hypothesis, *, step=0.1, print_every=25,
-                   do_migrad=True, do_hesse=True, do_minos=False):
-    m, adapter = make_minuit(n2ll, hypothesis, step=step, print_every=print_every)
+    for i, nm in enumerate(names):
+        print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
     if do_migrad:
         print("\n[MIGRAD]"); m.migrad(); print(m)
     if do_hesse:
         print("\n[HESSE]"); m.hesse(); print(m)
     if do_minos:
-        poi_names = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters]
-        if not poi_names:
-            poi_names = list(m.parameters)
-        print("\n[MINOS]", poi_names); m.minos(*poi_names)
+        poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
+        print("\n[MINOS]", poi_list); m.minos(*poi_list)
 
-    # push best-fit back
-    for i, p in enumerate(adapter.free):
-        p.val = float(m.values[i])
+    # write back best fit once (avoid repeated __setattr__ compounding)
+    final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
+    h_final = hypothesis.cloneModify(**final_pars)
+    # copy final values onto the original object (single pass)
+    for k, v in final_pars.items():
+        setattr(hypothesis, k, v)
 
     print("\n[final] Best-fit hypothesis:")
-    hypothesis.print()
-    return m, adapter
+    h_final.print()
+    return m
 
 def serialize_result(m, base, version, args, out_path ):
-    
+
     result_payload = {
         "config_basename": base,
         "version": version,
@@ -2316,12 +2303,14 @@ def serialize_result(m, base, version, args, out_path ):
 
     print(f"[write] Fit result and covariance stored at:\n  {out_path}")
 
+
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
+    p.add_argument("--rotate", action="store_true", help="Rotate?")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     args = p.parse_args()
 
@@ -2344,6 +2333,15 @@ if __name__ == "__main__":
 
     hyp.print()
 
+    if args.rotate:
+        hyp_rot = Rotated(hyp, "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_merged.json", name="Fisher-basis")
+        hyp_rot.print()
+        hyp_for_fit = hyp_rot
+        step = 1
+    else:
+        hyp_for_fit = hyp
+        step = 0.1
+
     n2ll = N2LL( like_info, 'data.samples',  
                  cache_subdir = os.path.join( "NN2LCache", os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
 
@@ -2357,7 +2355,7 @@ if __name__ == "__main__":
     #n2ll.setAsimov(hyp.cloneModify(c1=1))
 
     ## run Minuit; prints the model every 25 evaluations by default
-    m, adapter = run_minuit_fit(n2ll, hyp, step=0.1, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
+    m = run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
 
     # best-fit -2logL
     print("Best -2logL =", m.fval)
