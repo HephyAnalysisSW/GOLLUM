@@ -19,10 +19,13 @@ This:
 
 Next step (separate): feed these toys back into N2LL as observations.
 """
+import time
+t0 = time.time()
 
 import argparse
 import os
 import numpy as np
+
 
 import common.yaml_loader as yaml_loader
 import common.user as user
@@ -37,8 +40,10 @@ from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2
 def compute_lambda_unbinned_for_region(n2ll: N2LL, hypothesis, rid: str) -> np.ndarray:
     """
     Compute event-wise rates λ_i(θ) for a single unbinned region:
-
+        dσ(x; c,ν)/dx = dσ(x; 0,0)/dx * (1 + T(x; c,ν))
+        w0_i = dσ(x_i; 0,0)/dx * (integrated luminosity)
         λ_i(θ) = w0_i * (1 + T_i(θ))
+        
 
     using the cached Asimov events.
 
@@ -50,6 +55,7 @@ def compute_lambda_unbinned_for_region(n2ll: N2LL, hypothesis, rid: str) -> np.n
     if not class_ids:
         raise RuntimeError(f"[toys] Region '{rid}' has no classes.")
 
+    # N: total number of Asimov events
     N = n2ll._N_region.get(rid, 0)
     if N == 0:
         raise RuntimeError(f"[toys] Region '{rid}' has N = 0 events.")
@@ -67,7 +73,7 @@ def compute_lambda_unbinned_for_region(n2ll: N2LL, hypothesis, rid: str) -> np.n
 
     lam = np.empty(N, dtype=np.float64)
     chunk = n2ll.eval_chunk_size
-    first_cid = class_ids[0]
+    first_cid = class_ids[0] # just pick one class to read nominal weights w0 from
 
     # Loop over cached events in chunks, like Asimov mode
     for start in range(0, N, chunk):
@@ -277,10 +283,10 @@ def main():
     # Null: all params = 0 (already the case)
     hyp_null = hyp.clone()
 
-    # Test: c1 = 1e-3
+    # Test: c1 = 1.000
     # (assumes 'c1' is indeed the POI name in your model)
-    hyp_test = hyp.cloneModify(c1=1e-3)
-    print("\n[Test hypothesis] c1 = 1e-3:")
+    hyp_test = hyp.cloneModify(c1=1.000)
+    print("\n[Test hypothesis] c1 = 1.000:")
     hyp_test.print()
 
 
@@ -325,7 +331,7 @@ def main():
     val0 = n2ll(hyp_null)
     val1 = n2ll(hyp_test)
     print("Asimov N2LL at c1=0:", val0)
-    print("Asimov N2LL at c1=1e-3:", val1)
+    print("Asimov N2LL at c1=1.000:", val1)
 
 
     print('args.n_toys: ', args.n_toys)
@@ -341,15 +347,21 @@ def main():
             # generate toys under the null (c1 = 0)
             lam = compute_lambda_unbinned_for_region(n2ll, hyp_null, rid)
             
+            print('alternative hypothesis weights:')
+            print('dσ(x; c,ν)/dx = dσ(x; 0,0)/dx * (1 + T(x; c,ν))')
+            print('w0_i = dσ(x_i; 0,0)/dx * (integrated luminosity)')
+            print('λ_i(θ) = w0_i * (1 + T_i(θ))')
+            print('lam[:5]:', lam[:5])
+
             idx = sample_toy_indices_from_lambda(
                 lam,
                 rng=rng,
                 mode=args.mode,
                 fixed_N=args.fixed_N,
             )
+
             
-            # print('lam:', lam)
-            # print('idx:', idx)
+
 
             by_class = build_by_class_slices_for_indices(n2ll, rid, idx)
             # For now, unit weights for toy events
@@ -395,10 +407,10 @@ def main():
         n2ll_null = n2ll(hyp_null)
         print(f"[toys] Toy {itoy}: -2 log L(null, c1=0) = {n2ll_null:.6f}")
 
-        # Test statistic: evaluate at c1 = 1e-3
+        # Test statistic: evaluate at c1 = 1.000
         T_toy = n2ll(hyp_test)
         T_toys.append(T_toy)
-        print(f"[toys] Toy {itoy}: T(c1=1e-3) = {T_toy:.6f}")
+        print(f"[toys] Toy {itoy}: T(c1=1.000) = {T_toy:.6f}")
 
 
         
@@ -406,9 +418,9 @@ def main():
         # (here just simple npy store)
         out_dir = os.path.join(user.output_directory, "toys")
         os.makedirs(out_dir, exist_ok=True)
-        ll_out = os.path.join(out_dir, f"toy_{itoy:04d}_T_c1_1e-3.npy")
+        ll_out = os.path.join(out_dir, f"toy_{itoy:04d}_T_c1_1.000.npy")
         np.save(ll_out, np.array([T_toy], dtype=np.float64))
-        print(f"[toys] Saved T(c1=1e-3) for toy {itoy} to {ll_out}")
+        print(f"[toys] Saved T(c1=1.000) for toy {itoy} to {ll_out}")
 
 
 

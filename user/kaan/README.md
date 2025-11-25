@@ -14,7 +14,7 @@
 - `user/kaan/check_CL_v2.py` — Evaluates the Asimov test statistic and computes the expected CL using the generated toys.
 
 ### Toy generation
-`python -u user/kaan/generate_toys_v2.py configs/unbinned_merged.yaml --mode fixed --fixed-N 1000 --n-toys 100 >user/kaan/out.log`
+`python user/kaan/generate_toys_v3.py configs/unbinned_merged.yaml --mode poisson --n-toys 100 --c1 0.2 --c0 1.1 --c3 0.4 >user/kaan/out.log`
 
 ### CL check
 `python user/kaan/check_CL_v2.py configs/unbinned_merged.yaml --c1 1e-3`
