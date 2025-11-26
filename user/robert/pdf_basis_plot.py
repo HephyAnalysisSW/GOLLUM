@@ -58,7 +58,7 @@ colors = [ _colors[i] for i in ["black", "blue", "orange", "bluish_green",  "red
 x_grid = LHAPDF_XGRID[54:] # points that are >= 0.05 <= 0.6
 
 # Set Q scale
-Q = 1.65
+Q = 50
 
 plot_directory = os.path.join( user.plot_directory, f"basis_plots_Q_{Q}")
 
