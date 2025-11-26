@@ -29,6 +29,7 @@ import common.yaml_loader as yaml_loader
 from pdf.PDFParametrization import PDFParametrization
 from ML.ICH.ICH import InclusiveCrosssectionHistogram
 
+from tqdm import tqdm
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="Inclusive Cross Section (Histogram) training (YAML-driven)")
@@ -83,7 +84,7 @@ if not feat_names and not obs_names:
     raise RuntimeError(f"Loader '{loader_name}' has neither feature_names nor observer_names.")
 
 # Generator observables must be present (same as BIT)
-GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2"]
+GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
 missing_gen = [n for n in GEN_OBS if n not in obs_names]
 if missing_gen:
     raise RuntimeError(f"Observer_names must include {GEN_OBS}, missing {missing_gen} in loader '{loader_name}'.")
@@ -135,7 +136,7 @@ for name in axis_names:
 # ---------------- PDF & combinations ----------------
 
 pdf_cfg = J.get("pdf", {}) or {}
-pdf_n   = int(pdf_cfg.get("pdf_n", 5))
+pdf_n   = pdf_cfg.get("pdf_n", None)
 pdf_type = pdf_cfg.get("pdf_type", "Chebyshev")
 pdf     = PDFParametrization(n=pdf_n, typ=pdf_type)
 
@@ -180,6 +181,7 @@ if ich is None or args.overwrite:
 
     # index of generator observers in observer matrix
     on2idx = {n: i for i, n in enumerate(obs_names)}
+    Q_idx    = on2idx["Generator_scalePDF"]
     gx1_idx  = on2idx["Generator_x1"]
     gx2_idx  = on2idx["Generator_x2"]
     gid1_idx = on2idx["Generator_id1"]
@@ -198,7 +200,8 @@ if ich is None or args.overwrite:
     if args.small:
         n_shards = min(n_shards, 1)
 
-    for shard in range(n_shards):
+
+    for shard in tqdm(range(n_shards), desc="Processing shards"):
         # Always need features, observers, and weights
         X, G, w = L.materialize(shard=shard, what="fow", n=None)
         if X.size == 0:
@@ -231,17 +234,19 @@ if ich is None or args.overwrite:
         axis2_vals = _get_axis_vals(axis_names[1]) if len(axis_names) == 2 else None
 
         # generator inputs for derivatives
+        Q   = G[:, Q_idx]
         x1  = G[:, gx1_idx]
         x2  = G[:, gx2_idx]
         id1 = G[:, gid1_idx]
         id2 = G[:, gid2_idx]
 
         # derivatives aligned with pdf.combinations (M columns)
-        deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2)       # shape (N, M)
+        deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)       # shape (N, M)
         deriv = np.asarray(deriv, dtype=np.float64)
 
         # treat derivatives as reweights and multiply by event weight
         weights_per_comb = deriv * w.reshape(-1, 1)                  # (N, M)
+        #weights_per_comb = deriv * w.reshape(1, -1)   # (28, 1261796)
 
         # accumulate into ICH
         ich.accumulate(axis1_vals, weights_per_comb, axis2_vals)

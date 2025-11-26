@@ -74,7 +74,7 @@ if missing_gen:
     )
 
 # ---------------- PDF parametrization & combinations ----------------
-pdf_n = int(J.get("pdf", {}).get("pdf_n", 5))
+pdf_n = int(J.get("pdf", {}).get("pdf_n", None))
 pdf_type = J.get("pdf", {}).get("pdf_type", 'Chebyshev')
 pdf = PDFParametrization(n=pdf_n, typ=pdf_type)  # defines variables: ['c0',..,'cN']
 combos = list(pdf.combinations)                  # (), ('c0',), ..., ('ci','cj')

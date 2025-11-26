@@ -7,7 +7,6 @@ import os
 # Repo-relative imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 import ROOT
 ROOT.gROOT.SetBatch(True)
