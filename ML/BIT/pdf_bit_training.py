@@ -68,14 +68,14 @@ if not feat_names:
 input_dim = len(feat_names)
 
 # observers: must contain generator columns in this order
-GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2"]
+GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
 obs_names = list(getattr(L, "observer_names", []) or [])
 missing_gen = [n for n in GEN_OBS if n not in obs_names]
 if missing_gen:
     raise RuntimeError(f"Observer_names must include {GEN_OBS}, missing {missing_gen} in loader '{loader_name}'.")
 
 # ---------------- PDF parametrization & combinations ----------------
-pdf_n = int(J.get("pdf", {}).get("pdf_n", 5))
+pdf_n = J.get("pdf", {}).get("pdf_n", None)
 pdf_type = J.get("pdf", {}).get("pdf_type", 'Chebyshev')
 pdf = PDFParametrization(n=pdf_n, typ=pdf_type)                     # defines variables: ['c0',..,'cN']
 combos = list(pdf.combinations)                       # (), ('c0',), ..., ('ci','cj')
@@ -97,11 +97,13 @@ def iterate_all(shard_limit=None):
     for shard in range(n_shards):
         # pull features, observers, and weights in one go
         X, G, w = L.materialize(shard=shard, what="fow")
+        gQ   = G[:, on2idx["Generator_scalePDF"]]
         gx1  = G[:, on2idx["Generator_x1"]]
         gx2  = G[:, on2idx["Generator_x2"]]
         gid1 = G[:, on2idx["Generator_id1"]]
         gid2 = G[:, on2idx["Generator_id2"]]
         yield (X.astype(np.float32, copy=False),
+               gQ.astype(np.float32, copy=False),
                gx1.astype(np.float32, copy=False),
                gx2.astype(np.float32, copy=False),
                gid1.astype(np.int32,  copy=False),
@@ -110,9 +112,9 @@ def iterate_all(shard_limit=None):
 
 Xs = []
 targets_acc = []  # list of (N_i, len(combos)) arrays
-for X, x1, x2, id1, id2, w in iterate_all():
+for X, Q, x1, x2, id1, id2, w in iterate_all():
     # Unweighted derivatives aligned with pdf.combinations
-    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2)            # (N_i, M)
+    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)            # (N_i, M)
     # Multiply each column by the event weight (treating derivatives as reweights)
     deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)   # (N_i, M)
     Xs.append(X)
@@ -202,7 +204,7 @@ if bool(rt.get("training_plots", False)):
 
     for t in iters:
         # predictions: shape (N, M-1) aligned to derivatives[1:]
-        pred = bit.vectorized_predict(X_all, max_n_tree=t)
+        pred = bit.predict(X_all, max_n_tree=t)
 
         # Build truth ratios per derivative (all, including () at position 0)
         ders = bit.derivatives
