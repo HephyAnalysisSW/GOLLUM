@@ -219,8 +219,8 @@ class PODBasis:
 if __name__ == "__main__":
     import numpy as np
 
-    basis = PODBasis()  # uses default variations and active_pids
-    print("nvariations =", basis.nvariations)
+    pod = PODBasis()  # uses default variations and active_pids
+    print("nvariations =", pod.nvariations)
 
     # --- Taylor reconstruction using relative derivatives ---
     # derivatives(...) returns a *list* of arrays, ordered as:
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         coeffs = np.asarray(coeffs)
         npar = pdf.nvariations
 
-        derivs_list = pdf.derivatives(x1, x2, id1, id2, Q)
+        derivs_list = pdf.derivatives(x1, x2, id1, id2, Q).transpose()
         derivs = np.stack(derivs_list, axis=-1)  # shape (..., M)
 
         # Central value F(0) with all coeffs = 0
@@ -262,10 +262,10 @@ if __name__ == "__main__":
     Q   = np.full_like(x1, 100.0, dtype=float)
 
     rng = np.random.default_rng(1)
-    coeffs = rng.uniform(-0.2, 0.2, basis.nvariations)
+    coeffs = rng.uniform(-0.2, 0.2, pod.nvariations)
 
-    F_nom = basis.product_parametrizations(x1, x2, id1, id2, coeffs, Q)
-    F_taylor = taylor_reconstruct(basis, x1, x2, id1, id2, coeffs, Q)
+    F_nom = pod(x1, x2, id1, id2, coeffs, Q)
+    F_taylor = taylor_reconstruct(pod, x1, x2, id1, id2, coeffs, Q)
 
     print("Vector test: max |F_nom - F_taylor| =",
           float(np.max(np.abs(F_nom - F_taylor))))
@@ -277,16 +277,16 @@ if __name__ == "__main__":
 
     # gg case
     ids1, ids2 = np.array([21]), np.array([21])
-    F_nom_s = basis.product_parametrizations(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    F_taylor_s = taylor_reconstruct(basis, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    F_nom_s = pod(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    F_taylor_s = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
     print("Scalar gg test: |F_nom - F_taylor| =",
           float(abs(F_nom_s - F_taylor_s)))
     assert np.allclose(F_nom_s, F_taylor_s, rtol=1e-10, atol=1e-10)
 
     # gq case (only one active leg → linear only)
     ids1, ids2 = np.array([21]), np.array([1])
-    F_nom_s2 = basis.product_parametrizations(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    F_taylor_s2 = taylor_reconstruct(basis, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    F_nom_s2 = pod.product_parametrizations(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    F_taylor_s2 = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
     print("Scalar gq test: |F_nom - F_taylor| =",
           float(abs(F_nom_s2 - F_taylor_s2)))
     assert np.allclose(F_nom_s2, F_taylor_s2, rtol=1e-10, atol=1e-10)
