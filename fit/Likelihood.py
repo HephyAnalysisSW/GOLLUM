@@ -1577,6 +1577,126 @@ class N2LL:
         n2ll += hypothesis._base.penalty()
         return float(n2ll)
 
+from iminuit import Minuit
+def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False):
+
+    # -- collect free parameters (works for rotated or plain) --
+    if isinstance(hypothesis, Rotated):
+        free = hypothesis.POIs + [p for p in hypothesis.nuisances
+                                  if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = {p.name for p in hypothesis.POIs}
+    else:
+        free = [p for p in hypothesis.parameters
+                if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = set()
+
+    if not free:
+        raise RuntimeError("No free parameters to fit.")
+
+    names = [p.name for p in free]
+    x0    = [float(p.val) for p in free]
+
+    # step defaults:
+    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
+    #   float -> uniform
+    #   dict  -> per-parameter overrides
+    if step is None:
+        if isinstance(hypothesis, Rotated):
+            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
+        else:
+            steps = {p.name: 0.1 for p in free}
+    elif isinstance(step, (int, float)):
+        steps = {p.name: float(step) for p in free}
+    elif isinstance(step, dict):
+        if isinstance(hypothesis, Rotated):
+            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
+        else:
+            steps = {p.name: 0.1 for p in free}
+        for k, v in step.items():
+            if k in steps:
+                steps[k] = float(v)
+    else:
+        raise TypeError("step must be None, float, or dict{name: float}")
+
+    eval_count = 0
+    def fcn(*x):
+        nonlocal eval_count
+        # one-shot parameter map (avoid sequential setattr on Rotated)
+        pars = {names[i]: float(x[i]) for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
+        f = float(n2ll(h_eval))
+        eval_count += 1
+        if (eval_count - 1) % max(1, int(print_every)) == 0:
+            print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
+            h_eval.print()  # print the actually evaluated point
+        return f
+
+    # ---- Minuit with positional args and explicit names ----
+    m = Minuit(fcn, *x0, name=names)
+    m.errordef = 1.0
+    m.strategy = 2
+
+    # set user step and (if available) explicit FD step
+    for i, nm in enumerate(names):
+        s = steps[nm]
+        m.errors[i] = s
+        if hasattr(m, "set_initial_step"):
+            m.set_initial_step(i, 0.3 * s)
+
+    print("\n[make_minuit] Floating parameters:")
+    for i, nm in enumerate(names):
+        print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
+
+    if do_migrad:
+        print("\n[MIGRAD]"); m.migrad(); print(m)
+    if do_hesse:
+        print("\n[HESSE]"); m.hesse(); print(m)
+    if do_minos:
+        poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
+        print("\n[MINOS]", poi_list); m.minos(*poi_list)
+
+    # write back best fit once (avoid repeated __setattr__ compounding)
+    final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
+    h_final = hypothesis.cloneModify(**final_pars)
+    # copy final values onto the original object (single pass)
+    for k, v in final_pars.items():
+        setattr(hypothesis, k, v)
+
+    print("\n[final] Best-fit hypothesis:")
+    h_final.print()
+    return m
+
+def serialize_result(m, base, version, args, out_path ):
+
+    result_payload = {
+        "config_basename": base,
+        "version": version,
+        "no_syst": bool(args.no_syst) if "no_syst" in args else None,
+        "fval": float(m.fval),
+        "edm": float(getattr(m, "edm", np.nan)),
+        "niter": int(getattr(m, "niter", -1)),
+        "parameters": [
+            {"name": name, "value": float(m.values[i]), "error": float(m.errors[i])}
+            for i, name in enumerate(m.parameters)
+        ],
+        "free_parameter_order": list(m.parameters),
+        "covariance": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance).tolist(),
+        },
+        "correlation": {
+            "order": list(m.parameters),
+            "matrix": np.asarray(m.covariance.correlation()).tolist(),
+        },
+    }
+    with open(out_path, "w") as f:
+        json.dump(result_payload, f, indent=2)
+
+    print(f"[write] Fit result and covariance stored at:\n  {out_path}")
+
+
+
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
@@ -1607,7 +1727,8 @@ if __name__ == "__main__":
     hyp.print()
 
     if args.rotate:
-        hyp_rot = Rotated(hyp, "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_merged.json", name="Fisher-basis")
+        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
+        hyp_rot = Rotated(hyp, f"/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_{cfg_base_name}.json", name="Fisher-basis")
         hyp_rot.print()
         hyp_for_fit = hyp_rot
         step = 1
@@ -1642,7 +1763,11 @@ if __name__ == "__main__":
 
     base    = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
-    suffix  = "_nosyst" if args.no_syst else ""
+    suffix = ""
+    if args.no_syst:
+        suffix  += "_nosyst"
+    if args.rotate:
+        suffix  += "_rotate"
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
     serialize_result(m, base, version, args, out_path)
