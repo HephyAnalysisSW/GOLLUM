@@ -191,6 +191,9 @@ class Hypothesis:
             self[k].set(v)
         return self
 
+    def set_nuisance_frozen(self, name, isFrozen):
+        getattr(self      , name).isFrozen = isFrozen
+
     # ---------- cloners ----------
     def clone(self):
         return copy.deepcopy(self)
@@ -323,9 +326,6 @@ class Rotated(Hypothesis):
         super().__init__(parameters=all_params, name=(name or f"Rotated({base.name or 'base'})"))
         # Need to re-set self._base because the base constructor sets it to self.
         self._base = base
-        # Keep local flags non-authoritative; frozen/penalty checks are done against base
-        for p in self.parameters:
-            p.isFrozen = False  # printing only; enforcement uses base flags
 
     # ---------- internals ----------
     def _current_c_vector(self) -> np.ndarray:
@@ -396,8 +396,6 @@ class Rotated(Hypothesis):
         # apply nuisance updates to base
         for nm, val in nuis_updates.items():
             bp = getattr(self._base, nm)
-            if bp.isFrozen:
-                raise RuntimeError(f"[Rotated] Attempt to change frozen base nuisance '{nm}'.")
             bp.val = float(val)
 
         # sync local nuisance values for printing
@@ -413,6 +411,10 @@ class Rotated(Hypothesis):
             norm[k] = v
         self.set_vector(list(norm.keys()), list(norm.values()))
         return self
+
+    def set_nuisance_frozen(self, name, isFrozen):
+        getattr(self._base, name).isFrozen = isFrozen
+        getattr(self      , name).isFrozen = isFrozen
 
     def __setattr__(self, name, value):
         # core/private
@@ -431,8 +433,6 @@ class Rotated(Hypothesis):
         # nuisance passthrough by attribute name
         if hasattr(self, "_nuis_index") and name in self._nuis_index:
             bp = getattr(self._base, name)
-            if bp.isFrozen:
-                raise RuntimeError(f"[Rotated] Attempt to change frozen base nuisance '{name}'.")
             bp.val = float(value)
             # sync local cached nuisance value (for printing)
             n0 = self._D.shape[0]

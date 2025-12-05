@@ -6,7 +6,7 @@ import fit.Likelihood as lh
 import pickle  as pck 
 import common.user as user 
 import json 
-
+from fit.Modeling import Rotated
 
 
 import numpy as np
@@ -124,11 +124,13 @@ def impact_table_plot(
         ax.set_yticks([])
         col_pos = pos[:, j]
         col_neg = neg[:, j]
-        x_min = np.nanmin(col_neg)
-        x_max = np.nanmax(col_pos)
+        x_min = np.nanmin(np.abs(col_neg))
+        x_max = np.nanmax(np.abs(col_pos))
+        print(x_min, x_max)
         span = max(abs(x_min), abs(x_max), 1e-6)
         ax.set_xlim(-1.2*span, 1.2*span)
         ax.axvline(0, linestyle='--', linewidth=0.6)
+        print(poi_names[j])
         for i in range(Msel):
             p = col_pos[i]
             n = col_neg[i]
@@ -175,6 +177,7 @@ if __name__ == "__main__":
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
     p.add_argument("--step", default="step0")
+    p.add_argument("--rotate", action="store_true", help="Rotate?")
 
     
     args = p.parse_args()
@@ -187,20 +190,29 @@ if __name__ == "__main__":
 
     like_info = lh.load_likelihood(cfg)
 
-    base    = os.path.splitext(os.path.basename(args.config))[0]
+    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "")
     version = str(cfg.get("version", "v0"))
 
     hyp  = lh.build_hypothesis_from_likelihood(like_info, name="SR")
+    if args.rotate:
+        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
+        hyp_rot = Rotated(hyp, f"/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_merged.json", name="Fisher-basis")
+        hyp_rot.print()
+        hyp_for_fit = hyp_rot
+        step = 1 
+    else:
+        hyp_for_fit = hyp
+        step = 0.1 
+
     n2ll = lh.N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
     n2ll.build_cache()
     n2ll.prepare_runtime()
-    #val = n2ll(hyp)
 
     if args.step == "step0": 
-        n2ll.setAsimov(hyp) 
+        n2ll.setAsimov(hyp_for_fit) 
         with open(f"{base}_{version}_asimov.pck", 'wb') as outf: # store asimov to pick it in the next steps
-            pck.dump(hyp, outf)
-        m, adapter = lh.run_minuit_fit(n2ll, hyp, step=1e-6, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
+            pck.dump(hyp_for_fit, outf)
+        m = lh.run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
 
         out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_initialfit.json")
         args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
@@ -218,21 +230,19 @@ if __name__ == "__main__":
             initial_fit_dict = fit_result_to_dict(initial_fit)
             
         for param_name in initial_fit_dict:
+            if param_name not in [p.name for p in hyp_for_fit.nuisances]: 
+                continue
             for direction in ['up', 'down']:
-                hyp_var = hyp.clone()
-                for p in hyp_var.nuisances:
-                    if param_name != p.name: continue
-                    value = initial_fit_dict[param_name]["value"] + initial_fit_dict[param_name]["error"] * (1. if direction == "up" else -1.) 
-                    print(f"Setting parameter {param_name} to {value}")
-                    p.val = value
-                    p.isFrozen = True
-                    #val = n2ll(hyp)
-                    val = n2ll(hyp_var)
-                    m, adapter = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=True, do_minos=False)
+                hyp_var = hyp_for_fit.clone()
+                value = initial_fit_dict[param_name]["value"] + initial_fit_dict[param_name]["error"] * (1. if direction == "up" else -1.) 
+                print(f"Setting parameter {param_name} to {value}")
+                hyp_var.modify(**{param_name: value})
+                hyp_var.set_nuisance_frozen(param_name, True)
+                m = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=True, do_minos=False)
 
-                    out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
-                    args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
-                    lh.serialize_result(m, base, version, args, out_path)
+                out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
+                args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
+                lh.serialize_result(m, base, version, args, out_path)
             
     elif args.step == "step2": 
         # Results from the first fit
@@ -247,9 +257,9 @@ if __name__ == "__main__":
         nuisances_errors = []
         impacts_up=[]
         impacts_dn=[]
-        POIs= hyp.POIs
+        POIs= hyp_for_fit.POIs
 
-        for p in hyp.nuisances:
+        for p in hyp_for_fit.nuisances:
             param_name = p.name 
             param = initial_fit_dict[param_name]
 
