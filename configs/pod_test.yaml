@@ -1,0 +1,36 @@
+defaults:
+  module_samples: "data.samples"     
+  default_binning:
+    - ["tr_ttbar_mass", [ 500, 620, 820, 1100, 1500, 2500]]
+  default_features: 
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+
+jobs:
+  - id: bit_pod_tt2l
+    type: bit
+    region: SR
+    process: tt2l                 # loader/view name from data.samples
+    selection: null               # optional extra selection layered on top
+    pdf:
+      pdf_n: [1, 2, 4, 5, 10, 12]                  
+      pdf_type: PODBasis
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_pod_tt2l.pkl"
+  - id: ich_pod_tt2l
+    type: ich
+    region: SR_binned
+    process: tt2l
+    pdf:
+      pdf_n: [1, 2, 4, 5, 10, 12]
+      pdf_type: PODBasis 
+    output: {filename: "ICH_pod_tt2l.pkl"}
+

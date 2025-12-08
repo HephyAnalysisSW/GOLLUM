@@ -76,8 +76,9 @@ if missing_gen:
 
 # ---------------- PDF parametrization & combinations ----------------
 pdf_n = J.get("pdf", {}).get("pdf_n", None)
-pdf_type = J.get("pdf", {}).get("pdf_type", 'Chebyshev')
+pdf_type = J.get("pdf", {}).get("pdf_type", None)
 pdf = PDFParametrization(n=pdf_n, typ=pdf_type)                     # defines variables: ['c0',..,'cN']
+
 combos = list(pdf.combinations)                       # (), ('c0',), ..., ('ci','cj')
 # Build base_points like the legacy script (order up to 2)
 base_points = []
