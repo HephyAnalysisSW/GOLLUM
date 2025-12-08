@@ -460,8 +460,6 @@ for region in like_info['binned']:
             c.SaveAs(out_png)
             c.SaveAs(out_pdf)
 
-syncer.sync()
-
 # pre/postfit plots
 from fit.Likelihood import build_hypothesis_from_likelihood
 from data.colors import get_color
@@ -649,6 +647,10 @@ for region in like_info['binned']:
     h_unc_down.SetLineColor(ROOT.kGray + 2)
     h_unc_down.SetLineStyle(ROOT.kSolid)
     h_unc_down.SetLineWidth(1)
+    h_unc_up.SetFillStyle(0)
+    h_unc_up.SetFillColor(0)
+    h_unc_down.SetFillStyle(0)
+    h_unc_down.SetFillColor(0)
 
     # "data" histogram: copy of total, errors = sqrt(yield)
     h_data = h_total.Clone(f"h_prefit_data_{region_id}")
@@ -705,8 +707,9 @@ for region in like_info['binned']:
     hs.GetXaxis().SetTitle(x_title_prefit)
     hs.GetYaxis().SetTitle("Events")
 
-    # font sizes (y-axis only here)
-    hs.GetYaxis().SetTitleSize(0.06)
+    # font sizes / alignment (top pad)
+    hs.GetYaxis().SetTitleSize(0.05)     # a bit smaller
+    hs.GetYaxis().SetTitleOffset(1.1)    # helps align with bottom pad title
     hs.GetYaxis().SetLabelSize(0.045)
     hs.GetXaxis().SetLabelSize(0)
     hs.GetXaxis().SetTitleSize(0)
@@ -759,46 +762,47 @@ for region in like_info['binned']:
     h_ratio_central.GetXaxis().SetTitleSize(0.10)
     h_ratio_central.GetXaxis().SetLabelSize(0.08)
 
-    # ratio uncertainty band
-    h_unc_ratio = h_total.Clone(f"h_prefit_unc_ratio_{region_id}")
-    h_unc_ratio.SetDirectory(0)
-    for ib in range(1, n_bins_use + 1):
-        nom = h_total.GetBinContent(ib)
-        err = h_unc.GetBinError(ib)
-        if nom > 0:
-            h_unc_ratio.SetBinContent(ib, 1.0)
-            h_unc_ratio.SetBinError(ib, err / nom)
-        else:
-            h_unc_ratio.SetBinContent(ib, 1.0)
-            h_unc_ratio.SetBinError(ib, 0.0)
-    h_unc_ratio.SetFillColor(ROOT.kGray + 1)
-    h_unc_ratio.SetFillStyle(3345)
-    h_unc_ratio.SetLineWidth(0)
-    h_unc_ratio.SetMarkerSize(0)
+    # ratio uncertainty band via TBoxes + line-only histos
+    ratio_boxes = []
 
-    # ratio lines at 1 ± σ_rel
-    h_unc_ratio_up   = h_unc_ratio.Clone(f"h_prefit_unc_ratio_up_{region_id}")
-    h_unc_ratio_down = h_unc_ratio.Clone(f"h_prefit_unc_ratio_down_{region_id}")
-    h_unc_ratio_up.SetDirectory(0)
-    h_unc_ratio_down.SetDirectory(0)
+    h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{region_id}")
+    h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{region_id}")
+    h_ratio_line_up.SetDirectory(0)
+    h_ratio_line_down.SetDirectory(0)
+
+    # lines only, no fill
+    h_ratio_line_up.SetFillStyle(0)
+    h_ratio_line_up.SetFillColor(0)
+    h_ratio_line_down.SetFillStyle(0)
+    h_ratio_line_down.SetFillColor(0)
+    h_ratio_line_up.SetLineColor(ROOT.kGray + 2)
+    h_ratio_line_down.SetLineColor(ROOT.kGray + 2)
+    h_ratio_line_up.SetLineWidth(1)
+    h_ratio_line_down.SetLineWidth(1)
+
     for ib in range(1, n_bins_use + 1):
+        x1 = var_edges_prefit[ib-1]
+        x2 = var_edges_prefit[ib]
         nom = h_total.GetBinContent(ib)
         err = h_unc.GetBinError(ib)
-        if nom > 0:
+
+        if nom > 0.0:
             rel = err / nom
-            h_unc_ratio_up.SetBinContent(ib, 1.0 + rel)
-            h_unc_ratio_down.SetBinContent(ib, 1.0 - rel)
+            y_low  = 1.0 - rel
+            y_high = 1.0 + rel
+
+            box = ROOT.TBox(x1, y_low, x2, y_high)
+            box.SetFillColor(ROOT.kGray + 1)
+            box.SetFillStyle(3345)
+            box.SetLineWidth(0)
+            ratio_boxes.append(box)
+
+            h_ratio_line_up.SetBinContent(ib, y_high)
+            h_ratio_line_down.SetBinContent(ib, y_low)
         else:
-            h_unc_ratio_up.SetBinContent(ib, 1.0)
-            h_unc_ratio_down.SetBinContent(ib, 1.0)
-        h_unc_ratio_up.SetBinError(ib, 0.0)
-        h_unc_ratio_down.SetBinError(ib, 0.0)
-    h_unc_ratio_up.SetLineColor(ROOT.kGray + 2)
-    h_unc_ratio_up.SetLineStyle(ROOT.kSolid)
-    h_unc_ratio_up.SetLineWidth(1)
-    h_unc_ratio_down.SetLineColor(ROOT.kGray + 2)
-    h_unc_ratio_down.SetLineStyle(ROOT.kSolid)
-    h_unc_ratio_down.SetLineWidth(1)
+            # no prediction in this bin -> keep lines at 1
+            h_ratio_line_up.SetBinContent(ib, 1.0)
+            h_ratio_line_down.SetBinContent(ib, 1.0)
 
     # ratio y-range from max relative deviation
     max_dev = 0.0
@@ -822,9 +826,10 @@ for region in like_info['binned']:
 
     # draw ratio
     h_ratio_central.Draw("HIST")
-    h_unc_ratio.Draw("E2 SAME")
-    h_unc_ratio_up.Draw("HIST SAME")
-    h_unc_ratio_down.Draw("HIST SAME")
+    for box in ratio_boxes:
+        box.Draw("SAME")
+    h_ratio_line_up.Draw("HIST SAME")
+    h_ratio_line_down.Draw("HIST SAME")
 
     # line at 1
     line = ROOT.TLine(var_edges_prefit[0], 1.0, var_edges_prefit[-1], 1.0)
@@ -835,10 +840,13 @@ for region in like_info['binned']:
     c_prefit.cd()
     c_prefit.Update()
 
-    out_png = os.path.join(prefit_plot_directory, f"{region_id}_prefit.png")
-    out_pdf = os.path.join(prefit_plot_directory, f"{region_id}_prefit.pdf")
+    helpers.copyIndexPHP(prefit_plot_directory)
+    out_png = os.path.join(prefit_plot_directory, f"{region_id}_{var_name_prefit}_prefit.png")
+    out_pdf = os.path.join(prefit_plot_directory, f"{region_id}_{var_name_prefit}_prefit.pdf")
     c_prefit.SaveAs(out_png)
     c_prefit.SaveAs(out_pdf)
 
     print(f"[info] Prefit plot written to:\n  {out_png}\n  {out_pdf}")
+
+syncer.sync()
 
