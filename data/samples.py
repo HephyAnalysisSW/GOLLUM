@@ -24,7 +24,7 @@ tt2l = RDataLoader(
         "training-ntuples-v8/MVA-training/PDF_tr-minDLmass20-dilepM-offZ1-njet3p-btagM2p/TTLep_Summer16_preVFP/TTLep_Summer16_preVFP.root",
     )],
     tree_name="Events",
-    branches=observables.OBSERVERS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
+    branches=observables.OBSERVERS + observables.OLD_TOP_KINEMATICS + observables.OLD_LEPTON_KINEMATICS + observables.OLD_ASYMMETRY,
     selection=None,
     n_split=1,
     splitting_strategy="events",
@@ -38,7 +38,7 @@ tt2l = RDataLoader(
         "reweightLeptonSF",
         "reweightBTagSF1a_SF",
     ],
-    feature_names=observables.TOP_KINEMATICS + observables.LEPTON_KINEMATICS + observables.ASYMMETRY,
+    feature_names=observables.OLD_TOP_KINEMATICS + observables.OLD_LEPTON_KINEMATICS + observables.OLD_ASYMMETRY,
     observer_names=observables.OBSERVERS,
 )
 
