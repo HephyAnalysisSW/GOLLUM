@@ -18,20 +18,14 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-p.add_argument("--numba", action="store_true", help="Use the numba implementation")
+#p.add_argument("--numba", action="store_true", help="Use the numba implementation")
 args = p.parse_args()
-
-if args.numba:
-    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
-else:
-    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
 
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
 CFG = yaml_loader.load_yaml(cfg_path)
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
-
 def list_and_exit():
     jobs = [j for j in (CFG.get("jobs") or []) if j.get("type") == "bit"]
     if not jobs:
@@ -40,7 +34,7 @@ def list_and_exit():
     flags = []
     if args.overwrite: flags.append("--overwrite")
     if args.small:     flags.append("--small")
-    if args.numba:     flags.append("--numba")
+    #if args.numba:     flags.append("--numba")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
@@ -59,6 +53,16 @@ loader_name = J.get("process")
 if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
+
+if J.get("numba", False):
+    print("Using NUMBA")
+    import numba as nb
+    nb.set_num_threads(16)         # pick what you want
+    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+    print("Numba threads:", nb.get_num_threads())    # verify
+else:
+    print("Not using NUMBA")
+    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
 
 # features
 L.setFeatures( J["features"] )

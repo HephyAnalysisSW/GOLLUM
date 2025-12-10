@@ -1700,7 +1700,7 @@ def serialize_result(m, base, version, args, out_path ):
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
-    p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
+    p = argparse.ArgumentParser(description="Likelihood fit")
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
     p.add_argument("--rotate", action="store_true", help="Rotate?")
