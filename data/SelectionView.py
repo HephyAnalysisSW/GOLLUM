@@ -186,8 +186,10 @@ class SelectionView:
         if not names:
             raise RuntimeError(f"SelectionView[{self.name}]: no feature_names configured.")
         X = self.base.features(shard=shard, n=None, feature_names=names)
+        #print(f"[SeletionView.features] (1) X {X.shape} n {n}")                          
         m = self._mask(shard)
         X = X[m]
+        #print(f"[SeletionView.features] (2) X {X.shape} n {n}")                          
         return X if (n is None) else X[:n]
 
     def features_and_observers(self, shard: int = 0, n: Optional[int] = None) -> tuple[np.ndarray, np.ndarray]:
@@ -221,6 +223,7 @@ class SelectionView:
                 raise ValueError(f"materialize(view): unknown spec letter '{ch}' (allowed: 'f','o','w').")
         if n is not None:
             outs = [arr[:n] for arr in outs]
+        #print(f"[SelectionView.materialize] outs {outs[0].shape}")
         return tuple(outs)
 
     def __str__(self) -> str:
