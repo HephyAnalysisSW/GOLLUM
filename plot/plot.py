@@ -165,7 +165,6 @@ syst_groups = {
         'EleSF',
         'BTag_b',
         'BTag_l',
-        'Scales',
     ],
     'JER': [
         'CMS_res_j_0',
