@@ -155,6 +155,9 @@ legend_columns = 3
 
 # group definitions (regex-style, '*' -> '.*')
 syst_groups = {
+    'MODELING': [
+        'Scales',
+    ],
     'EXPERIMENTAL': [
         'L1Prefire',
         'PU',
