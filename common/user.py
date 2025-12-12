@@ -61,6 +61,14 @@ elif user in ['sergio.sanchez.cruz']:
     model_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/models/"
     cache_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/caches/"
     output_directory       = "/scratch-cbe/users/sergio.sanchez.cruz/SBIPDF/output/"
+    
+elif user in ['ricardo.barrue']:
+    # Where the plots go:
+    plot_directory         = "/groups/hephy/cms/ricardo.barrue/www/SBIPDF/"
+    # For model output:
+    model_directory        = "/groups/hephy/cms/robert.schoefbeck/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/robert.schoefbeck/SBIPDF/caches/"
+    output_directory       = "/scratch-cbe/users/ricardo.barrue/SBIPDF/output/"
 
 else:
 
