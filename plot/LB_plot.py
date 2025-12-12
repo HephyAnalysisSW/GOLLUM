@@ -33,6 +33,7 @@ p.add_argument("--binning", nargs="+", type=float,
 #LB: these two arguments have been added to match what is done in the Likelihood Fit for naming convention
 p.add_argument("--rotate", action="store_true", help="Rotate?")
 p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+p.add_argument("--postfit", action="store_true", help="Derives post-fit uncertainties (if fit results exist). Otherwise calculates pre-fit uncertainties")
 args = p.parse_args()
 
 # ---------------- load & patch YAML CFG ----------------
@@ -491,19 +492,19 @@ else:
 
 # Open and load the JSON file as a Python dictionary
 with open(output_json, "r") as f:
-    data = json.load(f)
-# Now data is a Python dictionary
-print(type(data))
-#print(data["parameters"])
-#print(data["correlation"])
-param_order = data["free_parameter_order"]
-params_best = [p["value"] for p in data["parameters"]]
+    fit_results = json.load(f)
+# Now fit_results is a Python dictionary
+print(type(fit_results))
+#print(fit_results["parameters"])
+#print(fit_results["correlation"])
+param_order = fit_results["free_parameter_order"]
+params_best = [p["value"] for p in fit_results["parameters"]]
 print(param_order)
 print(params_best)
 params_best = np.array(params_best)
 print(param_order)
 print(params_best)
-cov = np.array(data["covariance"]["matrix"])
+cov = np.array(fit_results["covariance"]["matrix"])
 print(cov)
 
 print("Toys?")
@@ -614,12 +615,23 @@ def plot_stack():
             poi        = cls['POI']
             poi_pred   = poi['predictor']
             poi_params = poi.get('parameters', [])
+            #LB
+            #LBTODO: for post-fit, here we need the MLE values
             poi_point  = [0.0] * len(poi_params)
+            param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
+            poi_point_postfit = [param_map[name] for name in poi_params]
+            print(poi_point)
+            print(poi_point_postfit)
 
+            #LBTODO: here pass the postfit poi_point
             central = np.asarray(poi_pred.predict(poi_point), dtype='float64')
             n_bins_region = len(central)
             n_bins_use    = min(n_bins_region, n_bins_prefit)
             central       = central[:n_bins_use]
+
+            #LB
+            print(central)
+
 
             # pick up all icph systematics for this class and map their parameters
             syst_list = []
@@ -684,8 +696,8 @@ def plot_stack():
 
                 for ci in class_infos:
                     vals = ci['central'].copy()
-                    print("using these as central values of the stack")
-                    print(vals)
+                    #LB#print("using these as central values of the stack")
+                    #LB#print(vals)
                     for syst in ci['syst_list']:
                         # build parameter vector for this systematic from theta
                         x = []
@@ -695,13 +707,13 @@ def plot_stack():
                             else:
                                 x.append(theta[col])
                         rel = np.asarray(syst['predictor'].predict(x), dtype='float64')
-                        print("using this syst: ", syst)
-                        print(vals)
+                        #LB#print("using this syst: ", syst)
+                        #LB#print(vals)
                         rel = rel[:n_bins_use]
                         vals *= rel
-                        print("using this syst: ", syst)
-                        print("its rel val: ", rel)
-                        print(vals)
+                        #LB#print("using this syst: ", syst)
+                        #LB#print("its rel val: ", rel)
+                        #LB#print(vals)
                     total_this += vals[:n_bins_use]
 
             total_samples[itoy, :] = total_this
