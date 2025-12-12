@@ -257,6 +257,7 @@ class RDataLoader:
             raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
         ar = self[shard]
         X = self.scalar_branches(ar, names)
+        #print(f"[RDataloader.features] X {X.shape} n {n}") 
         return X if n is None else X[:n]
 
     def features_and_observers(self, shard: int = 0, n: Optional[int] = None,
@@ -321,6 +322,8 @@ class RDataLoader:
                 raise ValueError(f"materialize: unknown spec letter '{ch}' (allowed: 'f','o','w').")
         if n is not None:
             outputs = [arr[:n] for arr in outputs]
+
+        #print(f"[RDataloader.materialize] outputs {outputs[0].shape}") 
         return tuple(outputs)
 
     # -------- view helpers --------
@@ -392,8 +395,8 @@ class RDataLoader:
         lines = [
             "RDataLoader(",
             f"  tree_name='{self.tree_name}', splitting='{self.splitting_strategy}', n_split={self.n_split},",
-            f"  files={len(files)}"
-            + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            #f"  files={len(files)}" + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            f"  files={len(files)}" + (f", files='{files}'" if first is not None else ""),
             f"  features ({len(feat)}): {feat}",
             f"  observers ({len(obs)}): {obs}",
             f"  weights (product): {weight_expr}",

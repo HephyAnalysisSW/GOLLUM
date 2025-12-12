@@ -545,7 +545,7 @@ jobs:
       - coords: [ 1.0]
         loader: TTLep_pow_2017
         removeweights: ["Pileup_SF"] 
-        addweights: ["Pileup_SFDn"] 
+        addweights: ["Pileup_SFUp"] 
 
   - id: icph_TTLep_pow_2017_MuSF 
     type: icph
@@ -992,7 +992,7 @@ jobs:
       - coords: [ 1.0]
         loader: DrellYan_2017
         removeweights: ["Pileup_SF"] 
-        addweights: ["Pileup_SFDn"] 
+        addweights: ["Pileup_SFUp"] 
 
   - id: icph_DrellYan_2017_MuSF 
     type: icph
@@ -1439,7 +1439,7 @@ jobs:
       - coords: [ 1.0]
         loader: SingleTop_2017
         removeweights: ["Pileup_SF"] 
-        addweights: ["Pileup_SFDn"] 
+        addweights: ["Pileup_SFUp"] 
 
   - id: icph_SingleTop_2017_MuSF 
     type: icph
@@ -1886,7 +1886,7 @@ jobs:
       - coords: [ 1.0]
         loader: TTSemi_pow_2017
         removeweights: ["Pileup_SF"] 
-        addweights: ["Pileup_SFDn"] 
+        addweights: ["Pileup_SFUp"] 
 
   - id: icph_TTSemi_pow_2017_MuSF 
     type: icph

@@ -155,6 +155,9 @@ legend_columns = 3
 
 # group definitions (regex-style, '*' -> '.*')
 syst_groups = {
+    'MODELING': [
+        'Scales',
+    ],
     'EXPERIMENTAL': [
         'L1Prefire',
         'PU',
@@ -162,7 +165,6 @@ syst_groups = {
         'EleSF',
         'BTag_b',
         'BTag_l',
-        'Scales',
     ],
     'JER': [
         'CMS_res_j_0',
