@@ -157,6 +157,9 @@ legend_columns = 3
 syst_groups = {
     'MODELING': [
         'Scales',
+        'ShowerISR', 
+        'ShowerFSR',
+        'AlphaS'
     ],
     'EXPERIMENTAL': [
         'L1Prefire',
