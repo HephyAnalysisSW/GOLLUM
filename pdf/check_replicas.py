@@ -68,7 +68,7 @@ for ientry in range(max_events):
 
     x1 = float(tree.Generator_x1)
     x2 = float(tree.Generator_x2)
-    Q = float(tree.Generator_scalePDF)
+    Q = math.sqrt(float(tree.Generator_scalePDF))
 
     nLHEPdfWeight = int(tree.nLHEPdfWeight)
 
