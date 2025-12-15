@@ -57,7 +57,7 @@ L = getattr(samples_mod, loader_name)
 if J.get("numba", False):
     print("Using NUMBA")
     import numba as nb
-    nb.set_num_threads(16)         # pick what you want
+    #nb.set_num_threads(16)         # pick what you want
     from ML.BIT.NumbaBIT import MultiBoostedInformationTree
     print("Numba threads:", nb.get_num_threads())    # verify
 else:

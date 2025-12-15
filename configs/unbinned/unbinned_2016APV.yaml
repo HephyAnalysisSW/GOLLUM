@@ -18,7 +18,7 @@ likelihood:
             - id: TTLep_pow_2016APV
               sample: TTLep_pow_2016APV
               POI:
-                job: bit_pod_TTLep_pow_2016 
+                job: bit_pod_TTLep_pow_2016APV 
                 type: bit
                 parameters: [c0, c1, c2, c3, c4, c5]
 
@@ -153,7 +153,7 @@ likelihood:
                   parameters: [nu_Uncl]
 
 jobs:
-  - id: bit_pod_TTLep_pow_2016
+  - id: bit_pod_TTLep_pow_2016APV
     type: bit
     region: SR
     process: TTLep_pow_2016APV
@@ -264,7 +264,7 @@ jobs:
     - coords: [-1.0]
       loader: TTLep_pow_2016APV
       removeweights: ["Pileup_SF"]
-      addweights: ["Pileup_SFUp"]
+      addweights: ["Pileup_SFDn"]
     - coords: [0.0]
       loader: TTLep_pow_2016APV
       nominal: true
