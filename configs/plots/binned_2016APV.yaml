@@ -48,6 +48,18 @@ likelihood:
                   type: icph
                   job: icph_TTLep_pow_2016APV_scales
                   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: ShowerISR
+                  type: icph
+                  job: icph_TTLep_pow_2016APV_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: icph
+                  job: icph_TTLep_pow_2016APV_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: icph
+                  job: icph_TTLep_pow_2016APV_alphaS
+                  parameters: [nu_alphaS]
                 - id: CMS_res_j_0
                   type: icph
                   job: icph_TTLep_pow_2016APV_CMS_res_j_0_2016APV
@@ -175,6 +187,18 @@ likelihood:
                   type: icph
                   job: icph_DrellYan_2016APV_CMS_res_j_0_2016APV
                   parameters: [nu_CMS_res_j_0]
+                - id: ShowerISR
+                  type: icph
+                  job: icph_DrellYan_2016APV_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: icph
+                  job: icph_DrellYan_2016APV_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: icph
+                  job: icph_DrellYan_2016APV_alphaS
+                  parameters: [nu_alphaS]
                 - id: CMS_res_j_1
                   type: icph
                   job: icph_DrellYan_2016APV_CMS_res_j_1_2016APV
@@ -294,6 +318,18 @@ likelihood:
                   type: icph
                   job: icph_SingleTop_2016APV_scales
                   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: ShowerISR
+                  type: icph
+                  job: icph_SingleTop_2016APV_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: icph
+                  job: icph_SingleTop_2016APV_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: icph
+                  job: icph_SingleTop_2016APV_alphaS
+                  parameters: [nu_alphaS]
                 - id: CMS_res_j_0
                   type: icph
                   job: icph_SingleTop_2016APV_CMS_res_j_0_2016APV
@@ -417,6 +453,17 @@ likelihood:
                   type: icph
                   job: icph_TTSemi_pow_2016APV_scales
                   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: ShowerISR
+                  type: icph
+                  job: icph_TTSemi_pow_2016APV_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: icph
+                  job: icph_TTSemi_pow_2016APV_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: icph
+                  job: icph_TTSemi_pow_2016APV_alphaS
                 - id: CMS_res_j_0
                   type: icph
                   job: icph_TTSemi_pow_2016APV_CMS_res_j_0_2016APV
@@ -653,6 +700,54 @@ jobs:
       - coords: [1.0, 1.0]
         loader: TTLep_pow_2016APV
         addweights: ["scale_ren2p0_fac2p0"]
+
+  - id: icph_TTLep_pow_2016APV_showerISR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTLep_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+  - id: icph_TTLep_pow_2016APV_showerFSR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["shower_isr1p0_fsr0p5"]
+      - coords: [0]
+        loader: TTLep_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["shower_isr1p0_fsr2p0"]
+
+  - id: icph_TTLep_pow_2016APV_alphaS
+    type: icph
+    region: SR_binned
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: TTLep_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2016APV
+        addweights: ["pdf_alphas_up"]
 
   - id: icph_TTLep_pow_2016APV_CMS_res_j_0_2016APV 
     type: icph
@@ -1101,6 +1196,56 @@ jobs:
         loader: DrellYan_2016APV
         addweights: ["scale_ren2p0_fac2p0"]
 
+  - id: icph_DrellYan_2016APV_showerISR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: DrellYan_2016APV
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: DrellYan_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: DrellYan_2016APV
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+  - id: icph_DrellYan_2016APV_showerFSR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: DrellYan_2016APV
+        addweights: ["shower_isr1p0_fsr0p5"]
+      - coords: [0]
+        loader: DrellYan_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: DrellYan_2016APV
+        addweights: ["shower_isr1p0_fsr2p0"]
+
+  - id: icph_DrellYan_2016APV_alphaS
+    type: icph
+    region: SR_binned
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: DrellYan_2016APV
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: DrellYan_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: DrellYan_2016APV
+        addweights: ["pdf_alphas_up"]
+
+
+
   - id: icph_DrellYan_2016APV_CMS_res_j_0_2016APV 
     type: icph
     region: SR_binned
@@ -1548,6 +1693,54 @@ jobs:
         loader: SingleTop_2016APV
         addweights: ["scale_ren2p0_fac2p0"]
 
+  - id: icph_SingleTop_2016APV_showerISR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: SingleTop_2016APV
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: SingleTop_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: SingleTop_2016APV
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+  - id: icph_SingleTop_2016APV_showerFSR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: SingleTop_2016APV
+        addweights: ["shower_isr1p0_fsr0p5"]
+      - coords: [0]
+        loader: SingleTop_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: SingleTop_2016APV
+        addweights: ["shower_isr1p0_fsr2p0"]
+
+  - id: icph_SingleTop_2016APV_alphaS
+    type: icph
+    region: SR_binned
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: SingleTop_2016APV
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: SingleTop_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: SingleTop_2016APV
+        addweights: ["pdf_alphas_up"]
+
   - id: icph_SingleTop_2016APV_CMS_res_j_0_2016APV 
     type: icph
     region: SR_binned
@@ -1994,6 +2187,54 @@ jobs:
       - coords: [1.0, 1.0]
         loader: TTSemi_pow_2016APV
         addweights: ["scale_ren2p0_fac2p0"]
+
+  - id: icph_TTSemi_pow_2016APV_showerISR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTSemi_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+  - id: icph_TTSemi_pow_2016APV_showerFSR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["shower_isr1p0_fsr0p5"]
+      - coords: [0]
+        loader: TTSemi_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["shower_isr1p0_fsr2p0"]
+
+  - id: icph_TTSemi_pow_2016APV_alphaS
+    type: icph
+    region: SR_binned
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: TTSemi_pow_2016APV
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2016APV
+        addweights: ["pdf_alphas_up"]
 
   - id: icph_TTSemi_pow_2016APV_CMS_res_j_0_2016APV 
     type: icph
