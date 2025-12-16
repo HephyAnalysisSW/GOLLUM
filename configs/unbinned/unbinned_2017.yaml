@@ -55,6 +55,18 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2017_scales
                   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: ShowerISR
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_alphaS
+                  parameters: [nu_alphaS]
                 - id: CMS_res_j_0
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_res_j_0_2017
@@ -151,7 +163,7 @@ jobs:
       pdf_n: [1, 2, 4, 5, 10, 12]
       pdf_type: PODBasis
     model:
-      n_trees: 1 #200
+      n_trees: 200
       learning_rate: 0.2
       loss: MSE                   # or "CrossEntropy"
       learn_global_score: true
@@ -190,7 +202,7 @@ jobs:
       filename: icp_TTLep_pow_2017_L1Prefire.pkl
   - id: pnn_TTLep_pow_2017_L1Prefire
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     base_points:
@@ -245,14 +257,14 @@ jobs:
       filename: icp_TTLep_pow_2017_PU.pkl
   - id: pnn_TTLep_pow_2017_PU
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     base_points:
     - coords: [-1.0]
       loader: TTLep_pow_2017
       removeweights: ["Pileup_SF"]
-      addweights: ["Pileup_SFUp"]
+      addweights: ["Pileup_SFDn"]
     - coords: [0.0]
       loader: TTLep_pow_2017
       nominal: true
@@ -301,7 +313,7 @@ jobs:
       filename: icp_TTLep_pow_2017_MuSF.pkl
   - id: pnn_TTLep_pow_2017_MuSF
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_MuSF]
     combinations: [[nu_MuSF]]
     base_points:
@@ -356,7 +368,7 @@ jobs:
       filename: icp_TTLep_pow_2017_EleSF.pkl
   - id: pnn_TTLep_pow_2017_EleSF
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_EleSF]
     combinations: [[nu_EleSF]]
     base_points:
@@ -410,7 +422,7 @@ jobs:
       filename: icp_TTLep_pow_2017_BTag_b.pkl
   - id: pnn_TTLep_pow_2017_BTag_b
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     base_points:
@@ -465,7 +477,7 @@ jobs:
       filename: icp_TTLep_pow_2017_BTag_l.pkl
   - id: pnn_TTLep_pow_2017_BTag_l
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     base_points:
@@ -498,6 +510,7 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_BTag_l
+
   - id: icp_TTLep_pow_2017_scales
     type: icp
     region: SR
@@ -539,7 +552,7 @@ jobs:
       filename: icp_TTLep_pow_2017_scales.pkl
   - id: pnn_TTLep_pow_2017_scales
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
           nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
@@ -590,6 +603,169 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_scales
+
+  - id: icp_TTLep_pow_2017_showerISR
+    type: icp
+    region: SR
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_showerISR.pkl
+
+  - id: pnn_TTLep_pow_2017_showerISR
+    type: pnn
+    region: SR
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      plot_every: 5
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_showerISR
+
+  - id: icp_TTLep_pow_2017_showerFSR
+    type: icp
+    region: SR
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_showerFSR.pkl
+
+  - id: pnn_TTLep_pow_2017_showerFSR
+    type: pnn
+    region: SR
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      plot_every: 5
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_showerFSR
+
+  - id: icp_TTLep_pow_2017_alphaS
+    type: icp
+    region: SR
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["pdf_alphas_up"]
+
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_alphaS.pkl
+
+  - id: pnn_TTLep_pow_2017_alphaS
+    type: pnn
+    region: SR
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: TTSemi_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTSemi_pow_2017
+        addweights: ["pdf_alphas_up"]
+
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      plot_every: 5
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_alphaS
+
   - id: icp_TTLep_pow_2017_CMS_res_j_0_2017
     type: icp
     region: SR
@@ -609,7 +785,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_0_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_0]
     combinations: [[nu_CMS_res_j_0]]
     base_points:
@@ -657,7 +833,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_1_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_1_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_1]
     combinations: [[nu_CMS_res_j_1]]
     base_points:
@@ -705,7 +881,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_2_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_2_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_2]
     combinations: [[nu_CMS_res_j_2]]
     base_points:
@@ -753,7 +929,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_3_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_3_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_3]
     combinations: [[nu_CMS_res_j_3]]
     base_points:
@@ -801,7 +977,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_4_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_4_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_4]
     combinations: [[nu_CMS_res_j_4]]
     base_points:
@@ -849,7 +1025,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_res_j_5_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_res_j_5_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_res_j_5]
     combinations: [[nu_CMS_res_j_5]]
     base_points:
@@ -898,7 +1074,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureBottom.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureBottom
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_FlavorPureBottom]
     combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
     base_points:
@@ -947,7 +1123,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureCharm.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureCharm
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_FlavorPureCharm]
     combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
     base_points:
@@ -995,7 +1171,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureGluon.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureGluon
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_FlavorPureGluon]
     combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
     base_points:
@@ -1043,7 +1219,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_FlavorPureQuark]
     combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
     base_points:
@@ -1091,7 +1267,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2017]]
     base_points:
@@ -1140,7 +1316,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_Absolute]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
     base_points:
@@ -1189,7 +1365,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2017]]
     base_points:
@@ -1237,7 +1413,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
     base_points:
@@ -1285,7 +1461,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2_2017]]
     base_points:
@@ -1333,7 +1509,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_EC2]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
     base_points:
@@ -1381,7 +1557,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
     combinations: [[nu_CMS_scale_j_Regrouped_HF_2017]]
     base_points:
@@ -1429,7 +1605,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_HF]
     combinations: [[nu_CMS_scale_j_Regrouped_HF]]
     base_points:
@@ -1477,7 +1653,7 @@ jobs:
       filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
     base_points:
@@ -1526,7 +1702,7 @@ jobs:
         icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017.pkl
   - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2017]]
     base_points:
@@ -1574,7 +1750,7 @@ jobs:
       filename: icp_TTLep_pow_2017_Uncl.pkl
   - id: pnn_TTLep_pow_2017_Uncl
     type: pnn
-    region: SR_binned
+    region: SR
     parameters: [nu_Uncl]
     combinations: [[nu_Uncl]]
     base_points:

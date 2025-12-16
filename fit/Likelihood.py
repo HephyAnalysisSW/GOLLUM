@@ -1736,7 +1736,7 @@ if __name__ == "__main__":
         hyp_for_fit = hyp
         step = 0.1
 
-    n2ll = N2LL( like_info, 'data.samples',  
+    n2ll = N2LL( like_info, cfg['defaults']['module_samples'],  
                  cache_subdir = os.path.join( "NN2LCache", os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
 
     n2ll.build_cache()
