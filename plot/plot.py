@@ -155,6 +155,12 @@ legend_columns = 3
 
 # group definitions (regex-style, '*' -> '.*')
 syst_groups = {
+    'MODELING': [
+        'Scales',
+        'ShowerISR', 
+        'ShowerFSR',
+        'AlphaS'
+    ],
     'EXPERIMENTAL': [
         'L1Prefire',
         'PU',
@@ -162,7 +168,6 @@ syst_groups = {
         'EleSF',
         'BTag_b',
         'BTag_l',
-        'Scales',
     ],
     'JER': [
         'CMS_res_j_0',
@@ -849,4 +854,3 @@ for region in like_info['binned']:
     print(f"[info] Prefit plot written to:\n  {out_png}\n  {out_pdf}")
 
 syncer.sync()
-
