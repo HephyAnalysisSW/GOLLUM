@@ -234,6 +234,7 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_L1Prefire
+
   - id: icp_TTLep_pow_2018_PU
     type: icp
     region: SR
@@ -255,6 +256,7 @@ jobs:
     train_ratio: true
     output:
       filename: icp_TTLep_pow_2018_PU.pkl
+
   - id: pnn_TTLep_pow_2018_PU
     type: pnn
     region: SR
@@ -290,6 +292,7 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_PU
+
   - id: icp_TTLep_pow_2018_MuSF
     type: icp
     region: SR
