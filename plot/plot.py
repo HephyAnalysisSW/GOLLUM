@@ -2,6 +2,7 @@ import os
 import re
 import ROOT
 ROOT.gStyle.SetOptStat(0)
+ROOT.gROOT.SetBatch(1)
 import numpy as np
 from array import array
 
@@ -9,6 +10,7 @@ import subprocess
 import argparse
 import copy
 import yaml
+import json
 
 import sys
 sys.path.insert(0, '..')
@@ -28,6 +30,9 @@ p.add_argument("--yes", "-y", action="store_true", help="Automatically run missi
 p.add_argument("--feature", required=True, help="Feature to plot (overrides config default_binning variable)")
 p.add_argument("--binning", nargs="+", type=float,
                help="List of bin edges for the feature (thresholds). If not given, use plot_options binning.")
+p.add_argument("--rotate", action="store_true", help="Rotate?")
+p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+p.add_argument("--postfit", action="store_true", help="Derives post-fit uncertainties (if fit results exist). Otherwise calculates pre-fit uncertainties")
 args = p.parse_args()
 
 # ---------------- load & patch YAML CFG ----------------
@@ -148,6 +153,48 @@ like_info = load_likelihood(cfg)
 plot_directory = os.path.join(user.plot_directory, 'binned_templates', args.feature)
 print(f"[info] Plots will be written under: {plot_directory}")
 
+#If args postfit: check if postfit results exist; if not, calculate prefit
+#Define a flag for valid postfit
+valid_postfit = False
+
+if args.postfit:
+    print(user.output_directory,base_version)
+    base = os.path.splitext(os.path.basename(args.config))[0]
+    syst_suffix = ""
+    if args.no_syst:
+        syst_suffix  += "_nosyst"
+    if args.rotate:
+        syst_suffix  += "_rotate"
+    #Find json, according to naming convention in fit/Likelihood.py
+    output_json = os.path.join(user.output_directory, f"{base}_{base_version}{syst_suffix}_fit.json")
+    if os.path.isfile(output_json):
+        print(f"[info] Fit output exists: {output_json}")
+        print(f"[info] Opening json fit result to extract MLE and covariance...")
+    
+        # Open and load the JSON file as a Python dictionary
+        with open(output_json, "r") as f:
+            fit_results = json.load(f)
+
+        param_order = fit_results["free_parameter_order"]
+        params_best = [p["value"] for p in fit_results["parameters"]]
+        params_best = np.array(params_best)
+        cov = np.array(fit_results["covariance"]["matrix"])
+        valid_postfit = True
+    else:
+        print(f"[warning] Fit output does not exist: {output_json}")
+        print(f"[warning] Will proceed with pre-fit . . .")
+
+if (valid_postfit == True):
+    plot_label = "postfit"
+else:
+    plot_label = "prefit"
+
+# output directory for pre/postfit plots
+fit_plot_directory = os.path.join(user.plot_directory, plot_label+'_stacks')
+os.makedirs(fit_plot_directory, exist_ok=True)
+print(f"[info] {plot_label} plots will be written under: {fit_plot_directory}")
+
+
 # ---------------- template plots ----------------
 
 # legend columns (configurable)
@@ -223,7 +270,14 @@ for region in like_info['binned']:
         poi = cls['POI']
         poi_predictor = poi['predictor']
         poi_params = poi.get('parameters', [])
-        poi_point = [0.0] * len(poi_params)
+        #poi_point = [0.0] * len(poi_params)
+        #Here we should pass the MLE if we want postfit values
+        if valid_postfit:
+            param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
+            poi_point = [param_map[name] for name in poi_params]
+        else:
+            poi_point  = [0.0] * len(poi_params)
+
 
         # central prediction
         central = np.asarray(poi_predictor.predict(poi_point), dtype='float64')
@@ -468,22 +522,22 @@ for region in like_info['binned']:
 # pre/postfit plots
 from fit.Likelihood import build_hypothesis_from_likelihood
 from data.colors import get_color
-# ---------------- prefit stack plots ----------------
+# ---------------- pre/post fit stack plots ----------------
 
 # knobs
-n_toys_prefit          = 1000  # number of random nuisance samples
-prefit_legend_columns  = 2
-prefit_rng_seed        = 42
+n_toys          = 1000  # number of random nuisance samples
+fit_legend_columns  = 2
+fit_rng_seed        = 42
 
-print(f"[info] Building prefit hypothesis and sampling with {n_toys_prefit} toys...")
+print(f"[info] Building fit hypothesis and sampling with {n_toys} toys...")
 
 # binning & axis info from (possibly patched) cfg
-var_name_prefit, var_edges_prefit = cfg['defaults']['default_binning'][0]
-bin_edges_prefit = array('d', var_edges_prefit)
-n_bins_prefit    = len(var_edges_prefit) - 1
+var_name_fit, var_edges_fit = cfg['defaults']['default_binning'][0]
+bin_edges_fit = array('d', var_edges_fit)
+n_bins_fit    = len(var_edges_fit) - 1
 
-x_title_prefit = plot_options.get(var_name_prefit, {}).get('tex', var_name_prefit)
-logY_prefit    = plot_options.get(var_name_prefit, {}).get('logY', False)
+x_title_fit = plot_options.get(var_name_fit, {}).get('tex', var_name_fit)
+logY_fit    = plot_options.get(var_name_fit, {}).get('logY', False)
 
 # hypothesis (to get nuisance structure)
 hyp = build_hypothesis_from_likelihood(like_info)
@@ -493,24 +547,28 @@ active_nuisance_names = [n.name for n in hyp.nuisances if not n.isFrozen]
 name_to_idx           = {name: i for i, name in enumerate(active_nuisance_names)}
 n_active_nuisances    = len(active_nuisance_names)
 
-print(f"[info] Found {n_active_nuisances} active nuisances for prefit sampling.")
+print(f"[info] Found {n_active_nuisances} active nuisances for {plot_label} sampling.")
 
 # global toy samples for all nuisances
 if n_active_nuisances > 0:
-    np.random.seed(prefit_rng_seed)
-    theta_samples = np.random.normal(loc=0.0, scale=1.0,
-                                     size=(n_toys_prefit, n_active_nuisances))
+    if valid_postfit:
+        np.random.seed(fit_rng_seed)
+        theta_samples = np.random.multivariate_normal(
+            mean=params_best,
+            cov=cov,
+            size=n_toys
+        )
+    else:
+        np.random.seed(fit_rng_seed)
+        theta_samples = np.random.normal(loc=0.0, scale=1.0,
+                                    size=(n_toys, n_active_nuisances))
 else:
     theta_samples = None
 
-# output directory for prefit plots
-prefit_plot_directory = os.path.join(user.plot_directory, 'prefit_stacks')
-os.makedirs(prefit_plot_directory, exist_ok=True)
-print(f"[info] Prefit plots will be written under: {prefit_plot_directory}")
 
 for region in like_info['binned']:
     region_id = region['id']
-    print(f"[info] Prefit stack for region: {region_id}")
+    print(f"[info] {plot_label} stack for region: {region_id}")
 
     # ---- prepare class info: central yields and systematics ----
     class_infos = []
@@ -521,11 +579,17 @@ for region in like_info['binned']:
         poi        = cls['POI']
         poi_pred   = poi['predictor']
         poi_params = poi.get('parameters', [])
-        poi_point  = [0.0] * len(poi_params)
+        #Here we should pass the MLE if we want postfit values
+        if valid_postfit:
+            param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
+            poi_point = [param_map[name] for name in poi_params]
+        else:
+            poi_point  = [0.0] * len(poi_params)
+
 
         central = np.asarray(poi_pred.predict(poi_point), dtype='float64')
         n_bins_region = len(central)
-        n_bins_use    = min(n_bins_region, n_bins_prefit)
+        n_bins_use    = min(n_bins_region, n_bins_fit)
         central       = central[:n_bins_use]
 
         # pick up all icph systematics for this class and map their parameters
@@ -554,7 +618,7 @@ for region in like_info['binned']:
         continue
 
     # enforce same n_bins_use across all classes (take minimum to be safe)
-    n_bins_use = min(n_bins_prefit, min(len(ci['central']) for ci in class_infos))
+    n_bins_use = min(n_bins_fit, min(len(ci['central']) for ci in class_infos))
 
     # ---- central total and per-class histograms ----
     total_central = np.zeros(n_bins_use, dtype='float64')
@@ -566,8 +630,8 @@ for region in like_info['binned']:
         sample_name = ci['sample']
         color = get_color(sample_name) if callable(get_color) else ROOT.kGray + 1
 
-        h_name = f"h_prefit_{region_id}_{ci['id']}"
-        h_cls  = ROOT.TH1F(h_name, "", n_bins_prefit, bin_edges_prefit)
+        h_name = f"h_{plot_label}_{region_id}_{ci['id']}"
+        h_cls  = ROOT.TH1F(h_name, "", n_bins_fit, bin_edges_fit)
         for ib in range(n_bins_use):
             h_cls.SetBinContent(ib + 1, ci['central'][ib])
 
@@ -583,9 +647,9 @@ for region in like_info['binned']:
 
     # ---- sampling total prediction over nuisances ----
     if n_active_nuisances > 0:
-        total_samples = np.zeros((n_toys_prefit, n_bins_use), dtype='float64')
+        total_samples = np.zeros((n_toys, n_bins_use), dtype='float64')
 
-        for itoy in range(n_toys_prefit):
+        for itoy in range(n_toys):
             theta = theta_samples[itoy]
             total_this = np.zeros(n_bins_use, dtype='float64')
 
@@ -615,12 +679,12 @@ for region in like_info['binned']:
         q_high = total_central.copy()
 
     # ---- total prediction histogram and uncertainty band ----
-    h_total = ROOT.TH1F(f"h_prefit_total_{region_id}", "", n_bins_prefit, bin_edges_prefit)
+    h_total = ROOT.TH1F(f"h_{plot_label}_total_{region_id}", "", n_bins_fit, bin_edges_fit)
     for ib in range(n_bins_use):
         h_total.SetBinContent(ib + 1, total_central[ib])
 
     # uncertainty band
-    h_unc = h_total.Clone(f"h_prefit_unc_{region_id}")
+    h_unc = h_total.Clone(f"h_{plot_label}_unc_{region_id}")
     h_unc.SetDirectory(0)
     for ib in range(n_bins_use):
         nominal = total_central[ib]
@@ -635,8 +699,8 @@ for region in like_info['binned']:
     h_unc.SetMarkerSize(0)
 
     # lines at nominal ± uncertainty (absolute)
-    h_unc_up   = h_total.Clone(f"h_prefit_unc_up_{region_id}")
-    h_unc_down = h_total.Clone(f"h_prefit_unc_down_{region_id}")
+    h_unc_up   = h_total.Clone(f"h_{plot_label}_unc_up_{region_id}")
+    h_unc_down = h_total.Clone(f"h_{plot_label}_unc_down_{region_id}")
     h_unc_up.SetDirectory(0)
     h_unc_down.SetDirectory(0)
     for ib in range(1, n_bins_use + 1):
@@ -658,9 +722,9 @@ for region in like_info['binned']:
     h_unc_down.SetFillColor(0)
 
     # "data" histogram: copy of total, errors = sqrt(yield)
-    h_data = h_total.Clone(f"h_prefit_data_{region_id}")
+    h_data = h_total.Clone(f"h_{plot_label}_data_{region_id}")
     h_data.SetDirectory(0)
-    for ib in range(1, n_bins_prefit + 1):
+    for ib in range(1, n_bins_fit + 1):
         y = h_data.GetBinContent(ib)
         h_data.SetBinError(ib, np.sqrt(y))
     h_data.SetMarkerStyle(ROOT.kFullCircle)
@@ -676,14 +740,14 @@ for region in like_info['binned']:
     class_labels_sorted = [class_labels[i] for i in order]
 
     # ---- build stack ----
-    stack_name = f"stack_prefit_{region_id}"
+    stack_name = f"stack_{plot_label}_{region_id}"
     hs = ROOT.THStack(stack_name, "")
     for h in class_hists_sorted:
         hs.Add(h, "hist")
 
     # ---- canvas and pads ----
-    canvas_name = f"c_prefit_{region_id}"
-    c_prefit = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
+    canvas_name = f"c_{plot_label}_{region_id}"
+    c_fit = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
 
     padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 1.0)
     padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
@@ -705,11 +769,11 @@ for region in like_info['binned']:
 
     # ---- TOP PAD: absolute yields ----
     padTop.cd()
-    if logY_prefit:
+    if logY_fit:
         padTop.SetLogy(True)
 
     hs.Draw("HIST")
-    hs.GetXaxis().SetTitle(x_title_prefit)
+    hs.GetXaxis().SetTitle(x_title_fit)
     hs.GetYaxis().SetTitle("Events")
 
     # font sizes / alignment (top pad)
@@ -721,7 +785,7 @@ for region in like_info['binned']:
 
     # y-range
     max_y = max(hs.GetMaximum(), h_data.GetMaximum())
-    if logY_prefit:
+    if logY_fit:
         hs.SetMinimum(0.5)
         hs.SetMaximum(10.0 * max_y if max_y > 0 else 1.0)
     else:
@@ -738,7 +802,7 @@ for region in like_info['binned']:
     leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
     leg.SetBorderSize(0)
     leg.SetFillStyle(0)
-    leg.SetNColumns(prefit_legend_columns)
+    leg.SetNColumns(fit_legend_columns)
 
     leg.AddEntry(h_data, "Data (Asimov)", "lep")
     for h, lbl in zip(class_hists_sorted, class_labels_sorted):
@@ -750,7 +814,7 @@ for region in like_info['binned']:
     padBottom.cd()
 
     # ratio central
-    h_ratio_central = h_total.Clone(f"h_prefit_ratio_{region_id}")
+    h_ratio_central = h_total.Clone(f"h_{plot_label}_ratio_{region_id}")
     h_ratio_central.SetDirectory(0)
     h_ratio_central.Divide(h_total)  # becomes 1 where non-zero
     h_ratio_central.SetLineColor(ROOT.kBlack)
@@ -763,15 +827,15 @@ for region in like_info['binned']:
     h_ratio_central.GetYaxis().SetTitleOffset(0.5)
     h_ratio_central.GetYaxis().SetLabelSize(0.08)
 
-    h_ratio_central.GetXaxis().SetTitle(x_title_prefit)
+    h_ratio_central.GetXaxis().SetTitle(x_title_fit)
     h_ratio_central.GetXaxis().SetTitleSize(0.10)
     h_ratio_central.GetXaxis().SetLabelSize(0.08)
 
     # ratio uncertainty band via TBoxes + line-only histos
     ratio_boxes = []
 
-    h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{region_id}")
-    h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{region_id}")
+    h_ratio_line_up   = h_ratio_central.Clone(f"h_{plot_label}_ratio_up_{region_id}")
+    h_ratio_line_down = h_ratio_central.Clone(f"h_{plot_label}_ratio_down_{region_id}")
     h_ratio_line_up.SetDirectory(0)
     h_ratio_line_down.SetDirectory(0)
 
@@ -786,8 +850,8 @@ for region in like_info['binned']:
     h_ratio_line_down.SetLineWidth(1)
 
     for ib in range(1, n_bins_use + 1):
-        x1 = var_edges_prefit[ib-1]
-        x2 = var_edges_prefit[ib]
+        x1 = var_edges_fit[ib-1]
+        x2 = var_edges_fit[ib]
         nom = h_total.GetBinContent(ib)
         err = h_unc.GetBinError(ib)
 
@@ -837,20 +901,20 @@ for region in like_info['binned']:
     h_ratio_line_down.Draw("HIST SAME")
 
     # line at 1
-    line = ROOT.TLine(var_edges_prefit[0], 1.0, var_edges_prefit[-1], 1.0)
+    line = ROOT.TLine(var_edges_fit[0], 1.0, var_edges_fit[-1], 1.0)
     line.SetLineStyle(ROOT.kDashed)
     line.SetLineColor(ROOT.kBlack)
     line.Draw("SAME")
 
-    c_prefit.cd()
-    c_prefit.Update()
+    c_fit.cd()
+    c_fit.Update()
 
-    helpers.copyIndexPHP(prefit_plot_directory)
-    out_png = os.path.join(prefit_plot_directory, f"{region_id}_{var_name_prefit}_prefit.png")
-    out_pdf = os.path.join(prefit_plot_directory, f"{region_id}_{var_name_prefit}_prefit.pdf")
-    c_prefit.SaveAs(out_png)
-    c_prefit.SaveAs(out_pdf)
+    helpers.copyIndexPHP(fit_plot_directory)
+    out_png = os.path.join(fit_plot_directory, f"{region_id}_{var_name_fit}_{plot_label}.png")
+    out_pdf = os.path.join(fit_plot_directory, f"{region_id}_{var_name_fit}_{plot_label}.pdf")
+    c_fit.SaveAs(out_png)
+    c_fit.SaveAs(out_pdf)
 
-    print(f"[info] Prefit plot written to:\n  {out_png}\n  {out_pdf}")
+    print(f"[info] {plot_label} plot written to:\n  {out_png}\n  {out_pdf}")
 
 syncer.sync()
