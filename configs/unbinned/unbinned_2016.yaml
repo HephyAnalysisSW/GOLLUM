@@ -623,13 +623,13 @@ jobs:
     combinations: [[nu_showerISR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr2p0_fsr1p0"]
 
     train_ratio: true
@@ -643,13 +643,13 @@ jobs:
     combinations: [[nu_showerISR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr2p0_fsr1p0"]
 
     model:
@@ -677,13 +677,13 @@ jobs:
     combinations: [[nu_showerFSR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr2p0_fsr1p0"]
 
     train_ratio: true
@@ -697,13 +697,13 @@ jobs:
     combinations: [[nu_showerFSR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["shower_isr2p0_fsr1p0"]
 
     model:
@@ -731,13 +731,13 @@ jobs:
     combinations: [[nu_alphaS]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["pdf_alphas_dn"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["pdf_alphas_up"]
 
     train_ratio: true
@@ -751,13 +751,13 @@ jobs:
     combinations: [[nu_alphaS]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["pdf_alphas_dn"]
       - coords: [0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2016
+        loader: TTLep_pow_2016
         addweights: ["pdf_alphas_up"]
 
     model:
@@ -776,7 +776,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016
-      use_icp: icp_TTLep_pow_2016_CMS_alphaS
+      use_icp: icp_TTLep_pow_2016_alphaS
 
     train_ratio: true
     output:

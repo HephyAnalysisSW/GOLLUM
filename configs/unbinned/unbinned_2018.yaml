@@ -56,15 +56,15 @@ likelihood:
                   job: pnn_TTLep_pow_2018_scales
                 - id: ShowerISR
                   type: pnn
-                  job: pnn_TTLep_pow_2017_showerISR
+                  job: pnn_TTLep_pow_2018_showerISR
                   parameters: [nu_showerISR]
                 - id: ShowerFSR
                   type: pnn
-                  job: pnn_TTLep_pow_2017_showerFSR
+                  job: pnn_TTLep_pow_2018_showerFSR
                   parameters: [nu_showerFSR]
                 - id: AlphaS
                   type: pnn
-                  job: pnn_TTLep_pow_2017_alphaS
+                  job: pnn_TTLep_pow_2018_alphaS
                   parameters: [nu_alphaS]
                   parameters: [nu_mu_ren, nu_mu_fac]
                 - id: CMS_res_j_0
@@ -619,40 +619,40 @@ jobs:
     output:
       filename: icp_TTLep_pow_2018_CMS_res_j_0_2018.pkl
 
-  - id: icp_TTLep_pow_2017_showerISR
+  - id: icp_TTLep_pow_2018_showerISR
     type: icp
     region: SR
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr2p0_fsr1p0"]
 
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_showerISR.pkl
+      filename: icp_TTLep_pow_2018_showerISR.pkl
 
-  - id: pnn_TTLep_pow_2017_showerISR
+  - id: pnn_TTLep_pow_2018_showerISR
     type: pnn
     region: SR
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr2p0_fsr1p0"]
 
     model:
@@ -670,43 +670,43 @@ jobs:
       plot_every: 5
       rebin: 2
     extras:
-      use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_showerISR
+      use_scaler: scaler_TTLep_pow_2018
+      use_icp: icp_TTLep_pow_2018_showerISR
 
-  - id: icp_TTLep_pow_2017_showerFSR
+  - id: icp_TTLep_pow_2018_showerFSR
     type: icp
     region: SR
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr2p0_fsr1p0"]
 
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_showerFSR.pkl
+      filename: icp_TTLep_pow_2018_showerFSR.pkl
 
-  - id: pnn_TTLep_pow_2017_showerFSR
+  - id: pnn_TTLep_pow_2018_showerFSR
     type: pnn
     region: SR
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr0p5_fsr1p0"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["shower_isr2p0_fsr1p0"]
 
     model:
@@ -724,43 +724,43 @@ jobs:
       plot_every: 5
       rebin: 2
     extras:
-      use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_showerFSR
+      use_scaler: scaler_TTLep_pow_2018
+      use_icp: icp_TTLep_pow_2018_showerFSR
 
-  - id: icp_TTLep_pow_2017_alphaS
+  - id: icp_TTLep_pow_2018_alphaS
     type: icp
     region: SR
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["pdf_alphas_dn"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["pdf_alphas_up"]
 
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_alphaS.pkl
+      filename: icp_TTLep_pow_2018_alphaS.pkl
 
-  - id: pnn_TTLep_pow_2017_alphaS
+  - id: pnn_TTLep_pow_2018_alphaS
     type: pnn
     region: SR
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
       - coords: [-1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["pdf_alphas_dn"]
       - coords: [0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
-        loader: TTSemi_pow_2017
+        loader: TTLep_pow_2018
         addweights: ["pdf_alphas_up"]
 
     model:
@@ -778,8 +778,8 @@ jobs:
       plot_every: 5
       rebin: 2
     extras:
-      use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_alphaS
+      use_scaler: scaler_TTLep_pow_2018
+      use_icp: icp_TTLep_pow_2018_alphaS
 
   - id: pnn_TTLep_pow_2018_CMS_res_j_0_2018
     type: pnn

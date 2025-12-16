@@ -174,7 +174,8 @@ class RDataLoader:
 
     def __getitem__(self, idx: int) -> ak.Array:
         """Load one shard as an awkward Array, apply all configured selections if present. Result is cached."""
-        key = self._wrap_index(idx)
+        #key = self._wrap_index(idx)
+        key = idx
         if key in self._arr_cache:
             return self._arr_cache[key]
 
@@ -331,11 +332,11 @@ class RDataLoader:
         return self[shard]
 
     # --------------------------- internals ----------------------------
-    def _wrap_index(self, idx: int) -> int:
-        if not isinstance(idx, int):
-            raise TypeError("RDataLoader indices must be integers")
-        n = len(self)
-        return idx % n
+    #def _wrap_index(self, idx: int) -> int:
+    #    if not isinstance(idx, int):
+    #        raise TypeError("RDataLoader indices must be integers")
+    #    n = len(self)
+    #    return idx % n
 
     def _make_file_splits(self, files: List[str], n_split: int) -> List[List[str]]:
         if n_split <= 1:
