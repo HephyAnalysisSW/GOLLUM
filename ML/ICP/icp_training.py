@@ -114,7 +114,6 @@ if icp is None or args.overwrite:
                 f"Loader/view '{loader_name}' not found in module '{module_samples}'."
             )
         base = getattr(samples_mod, loader_name)
-
         remove = list(spec.get("removeweights", []) or [])
         add    = list(spec.get("addweights", []) or [])
 
@@ -221,7 +220,7 @@ if icp is None or args.overwrite:
         )
         print(L)
         print("-" * 60)
-
+    
     # ---------------- materialize total weights per base point ----------------
     yields = {}
     for spec, loader in zip(bp_specs, loaders):

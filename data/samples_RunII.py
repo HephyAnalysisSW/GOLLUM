@@ -32,7 +32,7 @@ GROUPS = {
 # -----------------------------
 _base = RDataLoader(
     input_paths=[
-        str(BASE_DIRECTORY / "2016" / "TTLep_pow_nominal.root"),
+        str(BASE_DIRECTORY / "2018" / "TTLep_pow_nominal.root"),
     ],
     tree_name="Events",
     branches=(
