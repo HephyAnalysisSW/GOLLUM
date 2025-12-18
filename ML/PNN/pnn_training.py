@@ -256,8 +256,8 @@ phaseout        = int(J.get("optim", {}).get("phaseout_epochs", 0))
 lr              = float(J.get("optim", {}).get("learning_rate", 1e-3))
 
 pnn = None
-model_dir = os.path.join(user.model_directory, cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 if not args.overwrite:
