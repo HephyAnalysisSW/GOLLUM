@@ -127,7 +127,7 @@ DER_all = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targe
 training_weights = {combos[i]: DER_all[:, i] for i in range(len(combos))}
 
 if args.small:
-    n_max = len(X_all) // 30
+    n_max = len(X_all) // 100
     X_all   = X_all[:n_max]
     DER_all = DER_all[:n_max]
     training_weights = {key: val[:n_max] for key, val in training_weights.items()}
@@ -137,8 +137,8 @@ cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
 model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
 os.makedirs(model_dir, exist_ok=True)
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
-if args.small:
-    model_path = model_path[:-4] + "_small.pkl"
+#if args.small:
+#    model_path = model_path[:-4] + "_small.pkl"
 
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"BIT model file not found: {model_path}")
