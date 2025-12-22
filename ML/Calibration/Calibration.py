@@ -74,39 +74,49 @@ if missing_gen:
     )
 
 # ---------------- PDF parametrization & combinations ----------------
-pdf_n = int(J.get("pdf", {}).get("pdf_n", None))
-pdf_type = J.get("pdf", {}).get("pdf_type", 'Chebyshev')
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type)  # defines variables: ['c0',..,'cN']
-combos = list(pdf.combinations)                  # (), ('c0',), ..., ('ci','cj')
+pdf_n = J.get("pdf", {}).get("pdf_n", None)
+pdf_type = J.get("pdf", {}).get("pdf_type", None)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type)                     # defines variables: ['c0',..,'cN']
+
+combos = list(pdf.combinations)                       # (), ('c0',), ..., ('ci','cj')
+# Build base_points like the legacy script (order up to 2)
+base_points = []
+vars_ = pdf.variables
+import itertools
+for comb in itertools.combinations_with_replacement(vars_, 1):
+    base_points.append({v: comb.count(v) for v in vars_})
+for comb in itertools.combinations_with_replacement(vars_, 2):
+    base_points.append({v: comb.count(v) for v in vars_})
 
 # ---------------- collect all data (single pass) ----------------
 def iterate_all(shard_limit=None):
     n_shards = len(L)
-    if args.small:
-        n_shards = 1
-    if shard_limit is not None:
-        n_shards = min(n_shards, shard_limit)
+    if args.small: n_shards = 1
+    if shard_limit is not None: n_shards = min(n_shards, shard_limit)
     on2idx = {n: i for i, n in enumerate(obs_names)}
     for shard in range(n_shards):
+        # pull features, observers, and weights in one go
         X, G, w = L.materialize(shard=shard, what="fow")
+        gQ   = G[:, on2idx["Generator_scalePDF"]]
         gx1  = G[:, on2idx["Generator_x1"]]
         gx2  = G[:, on2idx["Generator_x2"]]
         gid1 = G[:, on2idx["Generator_id1"]]
         gid2 = G[:, on2idx["Generator_id2"]]
-        yield (
-            X.astype(np.float32, copy=False),
-            gx1.astype(np.float32, copy=False),
-            gx2.astype(np.float32, copy=False),
-            gid1.astype(np.int32,  copy=False),
-            gid2.astype(np.int32,  copy=False),
-            w.astype(np.float32,   copy=False),
-        )
+        yield (X.astype(np.float32, copy=False),
+               gQ.astype(np.float32, copy=False),
+               gx1.astype(np.float32, copy=False),
+               gx2.astype(np.float32, copy=False),
+               gid1.astype(np.int32,  copy=False),
+               gid2.astype(np.int32,  copy=False),
+               w.astype(np.float32,   copy=False))
 
 Xs = []
 targets_acc = []  # list of (N_i, len(combos)) arrays
-for X, x1, x2, id1, id2, w in iterate_all():
-    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2)           # (N_i, M)
-    deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False) # (N_i, M)
+for X, Q, x1, x2, id1, id2, w in iterate_all():
+    # Unweighted derivatives aligned with pdf.combinations
+    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)            # (N_i, M)
+    # Multiply each column by the event weight (treating derivatives as reweights)
+    deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)   # (N_i, M)
     Xs.append(X)
     targets_acc.append(deriv_w)
 
