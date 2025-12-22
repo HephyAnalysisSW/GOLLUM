@@ -32,7 +32,9 @@ p.add_argument("--binning", nargs="+", type=float,
                help="List of bin edges for the feature (thresholds). If not given, use plot_options binning.")
 p.add_argument("--rotate", action="store_true", help="Rotate?")
 p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
-p.add_argument("--postfit", action="store_true", help="Derives post-fit uncertainties (if fit results exist). Otherwise calculates pre-fit uncertainties")
+p.add_argument("--postfit", default = None, help="Post fit file")
+p.add_argument("--freezePOI", action="store_true", help="Do not modify the POI when sampling.")
+
 args = p.parse_args()
 
 # ---------------- load & patch YAML CFG ----------------
@@ -153,38 +155,7 @@ like_info = load_likelihood(cfg)
 plot_directory = os.path.join(user.plot_directory, 'binned_templates', args.feature)
 print(f"[info] Plots will be written under: {plot_directory}")
 
-#If args postfit: check if postfit results exist; if not, calculate prefit
-#Define a flag for valid postfit
-valid_postfit = False
-
 if args.postfit:
-    print(user.output_directory,base_version)
-    base = os.path.splitext(os.path.basename(args.config))[0]
-    syst_suffix = ""
-    if args.no_syst:
-        syst_suffix  += "_nosyst"
-    if args.rotate:
-        syst_suffix  += "_rotate"
-    #Find json, according to naming convention in fit/Likelihood.py
-    output_json = os.path.join(user.output_directory, f"{base}_{base_version}{syst_suffix}_fit.json")
-    if os.path.isfile(output_json):
-        print(f"[info] Fit output exists: {output_json}")
-        print(f"[info] Opening json fit result to extract MLE and covariance...")
-    
-        # Open and load the JSON file as a Python dictionary
-        with open(output_json, "r") as f:
-            fit_results = json.load(f)
-
-        param_order = fit_results["free_parameter_order"]
-        params_best = [p["value"] for p in fit_results["parameters"]]
-        params_best = np.array(params_best)
-        cov = np.array(fit_results["covariance"]["matrix"])
-        valid_postfit = True
-    else:
-        print(f"[warning] Fit output does not exist: {output_json}")
-        print(f"[warning] Will proceed with pre-fit . . .")
-
-if (valid_postfit == True):
     plot_label = "postfit"
 else:
     plot_label = "prefit"
@@ -194,340 +165,350 @@ fit_plot_directory = os.path.join(user.plot_directory, plot_label+'_stacks')
 os.makedirs(fit_plot_directory, exist_ok=True)
 print(f"[info] {plot_label} plots will be written under: {fit_plot_directory}")
 
-
-# ---------------- template plots ----------------
-
-# legend columns (configurable)
-legend_columns = 3
-
-# group definitions (regex-style, '*' -> '.*')
-syst_groups = {
-    'MODELING': [
-        'Scales',
-        'ShowerISR', 
-        'ShowerFSR',
-        'AlphaS'
-    ],
-    'EXPERIMENTAL': [
-        'L1Prefire',
-        'PU',
-        'MuSF',
-        'EleSF',
-        'BTag_b',
-        'BTag_l',
-    ],
-    'JER': [
-        'CMS_res_j_0',
-        'CMS_res_j_1',
-        'CMS_res_j_2',
-        'CMS_res_j_3',
-        'CMS_res_j_4',
-        'CMS_res_j_5',
-    ],
-    'JES1': [
-        'CMS_scale_j_FlavorPureBottom',
-        'CMS_scale_j_FlavorPureCharm',
-        'CMS_scale_j_FlavorPureGluon',
-        'CMS_scale_j_FlavorPureQuark',
-    ],
-    'JES2': [
-        'CMS_scale_j_Regrouped_Absolute*',
-        'CMS_scale_j_Regrouped_BBEC1*',
-        'CMS_scale_j_Regrouped_EC2*',
-    ],
-    'JES3': [
-        'CMS_scale_j_Regrouped_HF',
-        'Uncl',
-    ],
-}
-
 # get default binning & x-axis label / logY info
 var_name, var_edges = cfg['defaults']['default_binning'][0]
 bin_edges = array('d', var_edges)
 n_bins_default = len(var_edges) - 1
 
-x_title = plot_options.get(var_name, {}).get('tex', var_name)
 logY = plot_options.get(var_name, {}).get('logY', False)
 
-# simple color palette
-colors = [
-    ROOT.kRed + 1,
-    ROOT.kBlue + 1,
-    ROOT.kGreen + 2,
-    ROOT.kMagenta + 1,
-    ROOT.kOrange + 1,
-    ROOT.kCyan + 1,
-]
+# ---------------- prefit template plots ----------------
+if args.postfit:
+    print("Git postfit argument. Don't make templates.")
+else:
+    x_title = plot_options.get(var_name, {}).get('tex', var_name)
+    # simple color palette
+    colors = [
+        ROOT.kRed + 1,
+        ROOT.kBlue + 1,
+        ROOT.kGreen + 2,
+        ROOT.kMagenta + 1,
+        ROOT.kOrange + 1,
+        ROOT.kCyan + 1,
+    ]
+    
+    # legend columns (configurable)
+    legend_columns = 3
+    
+    # group definitions (regex-style, '*' -> '.*')
+    syst_groups = {
+        'MODELING': [
+            'Scales',
+            'ShowerISR', 
+            'ShowerFSR',
+            'AlphaS'
+        ],
+        'EXPERIMENTAL': [
+            'L1Prefire',
+            'PU',
+            'MuSF',
+            'EleSF',
+            'BTag_b',
+            'BTag_l',
+        ],
+        'JER': [
+            'CMS_res_j_0',
+            'CMS_res_j_1',
+            'CMS_res_j_2',
+            'CMS_res_j_3',
+            'CMS_res_j_4',
+            'CMS_res_j_5',
+        ],
+        'JES1': [
+            'CMS_scale_j_FlavorPureBottom',
+            'CMS_scale_j_FlavorPureCharm',
+            'CMS_scale_j_FlavorPureGluon',
+            'CMS_scale_j_FlavorPureQuark',
+        ],
+        'JES2': [
+            'CMS_scale_j_Regrouped_Absolute*',
+            'CMS_scale_j_Regrouped_BBEC1*',
+            'CMS_scale_j_Regrouped_EC2*',
+        ],
+        'JES3': [
+            'CMS_scale_j_Regrouped_HF',
+            'Uncl',
+        ],
+    }
+  
+    for region in like_info['binned']:
+        region_id = region['id']
+        print("Region:", region_id)
 
-for region in like_info['binned']:
-    region_id = region['id']
-    print("Region:", region_id)
+        for cls in region['classes']:
+            class_id = cls['id']
+            print("  Class:", class_id)
 
-    for cls in region['classes']:
-        class_id = cls['id']
-        print("  Class:", class_id)
-
-        poi = cls['POI']
-        poi_predictor = poi['predictor']
-        poi_params = poi.get('parameters', [])
-        #poi_point = [0.0] * len(poi_params)
-        #Here we should pass the MLE if we want postfit values
-        if valid_postfit:
-            param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
-            poi_point = [param_map[name] for name in poi_params]
-        else:
-            poi_point  = [0.0] * len(poi_params)
+            poi = cls['POI']
+            poi_predictor = poi['predictor']
+            poi_params = poi.get('parameters', [])
+            #poi_point = [0.0] * len(poi_params)
+            #Here we should pass the MLE if we want postfit values
+            if args.postfit:
+                param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
+                poi_point = [param_map[name] for name in poi_params]
+            else:
+                poi_point  = [0.0] * len(poi_params)
 
 
-        # central prediction
-        central = np.asarray(poi_predictor.predict(poi_point), dtype='float64')
-        n_bins = len(central)
+            # central prediction
+            central = np.asarray(poi_predictor.predict(poi_point), dtype='float64')
+            n_bins = len(central)
 
-        if n_bins != n_bins_default:
-            print(f"WARNING: n_bins ({n_bins}) != default binning ({n_bins_default}) for {region_id}, {class_id}")
-        # use min to avoid crashes if mismatch
-        n_bins_use = min(n_bins, n_bins_default)
+            if n_bins != n_bins_default:
+                print(f"WARNING: n_bins ({n_bins}) != default binning ({n_bins_default}) for {region_id}, {class_id}")
+            # use min to avoid crashes if mismatch
+            n_bins_use = min(n_bins, n_bins_default)
 
-        for group_name, patterns in syst_groups.items():
+            for group_name, patterns in syst_groups.items():
 
-            # collect systematics in this group for this class
-            systs_in_group = []
-            for syst in cls['systematics']:
-                # skip flat lnN normalizations
-                if syst.get('type') != 'icph':
+                # collect systematics in this group for this class
+                systs_in_group = []
+                for syst in cls['systematics']:
+                    # skip flat lnN normalizations
+                    if syst.get('type') != 'icph':
+                        continue
+
+                    sys_id = syst['id']
+                    matched = False
+                    for pat in patterns:
+                        regex = '^' + pat.replace('*', '.*') + '$'
+                        if re.match(regex, sys_id):
+                            matched = True
+                            break
+                    if matched:
+                        systs_in_group.append(syst)
+
+                if not systs_in_group:
                     continue
 
-                sys_id = syst['id']
-                matched = False
-                for pat in patterns:
-                    regex = '^' + pat.replace('*', '.*') + '$'
-                    if re.match(regex, sys_id):
-                        matched = True
-                        break
-                if matched:
-                    systs_in_group.append(syst)
+                print("    Group:", group_name, "(", ", ".join(s['id'] for s in systs_in_group), ")")
 
-            if not systs_in_group:
-                continue
+                out_dir = os.path.join(plot_directory, region_id, class_id)
+                helpers.copyIndexPHP(out_dir)
+                os.makedirs(out_dir, exist_ok=True)
 
-            print("    Group:", group_name, "(", ", ".join(s['id'] for s in systs_in_group), ")")
+                canvas_name = f"{region_id}_{class_id}_{group_name}"
+                # stretch in y
+                c = ROOT.TCanvas(canvas_name, canvas_name, 800, 900)
 
-            out_dir = os.path.join(plot_directory, region_id, class_id)
-            helpers.copyIndexPHP(out_dir)
-            os.makedirs(out_dir, exist_ok=True)
+                # three pads: legend (top), yields (middle), ratios (bottom)
+                padLegend = ROOT.TPad(canvas_name + "_legend", canvas_name + "_legend", 0.0, 0.80, 1.0, 1.0)
+                padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 0.80)
+                padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
 
-            canvas_name = f"{region_id}_{class_id}_{group_name}"
-            # stretch in y
-            c = ROOT.TCanvas(canvas_name, canvas_name, 800, 900)
+                padLegend.SetBottomMargin(0.05)
+                padLegend.SetTopMargin(0.10)
+                padLegend.SetLeftMargin(0.10)
+                padLegend.SetRightMargin(0.10)
+                padLegend.SetFillStyle(0)
 
-            # three pads: legend (top), yields (middle), ratios (bottom)
-            padLegend = ROOT.TPad(canvas_name + "_legend", canvas_name + "_legend", 0.0, 0.80, 1.0, 1.0)
-            padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 0.80)
-            padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
+                padTop.SetBottomMargin(0.)
+                padTop.SetTopMargin(0.08)
+                padTop.SetLeftMargin(0.10)
+                padTop.SetRightMargin(0.05)
 
-            padLegend.SetBottomMargin(0.05)
-            padLegend.SetTopMargin(0.10)
-            padLegend.SetLeftMargin(0.10)
-            padLegend.SetRightMargin(0.10)
-            padLegend.SetFillStyle(0)
+                padBottom.SetTopMargin(0.0)
+                padBottom.SetBottomMargin(0.30)
+                padBottom.SetLeftMargin(0.10)
+                padBottom.SetRightMargin(0.05)
 
-            padTop.SetBottomMargin(0.)
-            padTop.SetTopMargin(0.08)
-            padTop.SetLeftMargin(0.10)
-            padTop.SetRightMargin(0.05)
+                padLegend.Draw()
+                padTop.Draw()
+                padBottom.Draw()
 
-            padBottom.SetTopMargin(0.0)
-            padBottom.SetBottomMargin(0.30)
-            padBottom.SetLeftMargin(0.10)
-            padBottom.SetRightMargin(0.05)
+                # legend (created here, drawn later in padLegend)
+                legend = ROOT.TLegend(0.02, 0.10, 0.98, 0.90)
+                legend.SetBorderSize(0)
+                legend.SetFillStyle(0)
+                legend.SetNColumns(legend_columns)
 
-            padLegend.Draw()
-            padTop.Draw()
-            padBottom.Draw()
+                # ------------- TOP PAD: absolute yields -------------
+                padTop.cd()
+                padTop.SetTicks(1, 1)
+                if logY:
+                    padTop.SetLogy(True)
 
-            # legend (created here, drawn later in padLegend)
-            legend = ROOT.TLegend(0.02, 0.10, 0.98, 0.90)
-            legend.SetBorderSize(0)
-            legend.SetFillStyle(0)
-            legend.SetNColumns(legend_columns)
+                # central histogram with variable binning
+                h_central_name = f"h_central_{region_id}_{class_id}_{group_name}"
+                h_central = ROOT.TH1F(h_central_name, "", n_bins_default, bin_edges)
+                for i in range(n_bins_use):
+                    h_central.SetBinContent(i + 1, central[i])
 
-            # ------------- TOP PAD: absolute yields -------------
-            padTop.cd()
-            padTop.SetTicks(1, 1)
-            if logY:
-                padTop.SetLogy(True)
+                h_central.SetLineColor(ROOT.kBlack)
+                h_central.SetLineWidth(2)
+                # no title on the top pad
+                h_central.SetTitle("")
+                h_central.GetXaxis().SetTitle(x_title)
 
-            # central histogram with variable binning
-            h_central_name = f"h_central_{region_id}_{class_id}_{group_name}"
-            h_central = ROOT.TH1F(h_central_name, "", n_bins_default, bin_edges)
-            for i in range(n_bins_use):
-                h_central.SetBinContent(i + 1, central[i])
-
-            h_central.SetLineColor(ROOT.kBlack)
-            h_central.SetLineWidth(2)
-            # no title on the top pad
-            h_central.SetTitle("")
-            h_central.GetXaxis().SetTitle(x_title)
-
-            h_central.GetYaxis().SetTitle("Events")
-            h_central.GetYaxis().SetTitleSize(0.06)
-            h_central.GetYaxis().SetLabelSize(0.045)
-            # x label on bottom pad only
-            h_central.GetXaxis().SetLabelSize(0)
-            h_central.GetXaxis().SetTitleSize(0)
+                h_central.GetYaxis().SetTitle("Events")
+                h_central.GetYaxis().SetTitleSize(0.06)
+                h_central.GetYaxis().SetLabelSize(0.045)
+                # x label on bottom pad only
+                h_central.GetXaxis().SetLabelSize(0)
+                h_central.GetXaxis().SetTitleSize(0)
 
 
-            legend.AddEntry(h_central, "nominal", "l")
+                legend.AddEntry(h_central, "nominal", "l")
 
-            # keep references alive
-            h_variations = [h_central]
+                # keep references alive
+                h_variations = [h_central]
 
-            color_index = 0
+                color_index = 0
 
-            for syst in systs_in_group:
-                sys_id = syst['id']
-                predictor = syst['predictor']
-                syst_params = syst['parameters']
-                n_syst_params = len(syst_params)
+                for syst in systs_in_group:
+                    sys_id = syst['id']
+                    predictor = syst['predictor']
+                    syst_params = syst['parameters']
+                    n_syst_params = len(syst_params)
 
-                for ip, p_name in enumerate(syst_params):
-                    color = colors[color_index % len(colors)]
-                    color_index += 1
+                    for ip, p_name in enumerate(syst_params):
+                        color = colors[color_index % len(colors)]
+                        color_index += 1
 
-                    p_tex_name = p_name.lstrip('nu_').lstrip('CMS_')
+                        p_tex_name = p_name.lstrip('nu_').lstrip('CMS_')
 
-                    # +1 sigma
-                    vec_up = [0.0] * n_syst_params
-                    vec_up[ip] = 1.0
-                    rel_up = np.asarray(predictor.predict(vec_up), dtype='float64')
-                    vals_up = central * rel_up
+                        # +1 sigma
+                        vec_up = [0.0] * n_syst_params
+                        vec_up[ip] = 1.0
+                        rel_up = np.asarray(predictor.predict(vec_up), dtype='float64')
+                        vals_up = central * rel_up
 
-                    h_up_name = f"h_{group_name}_{sys_id}_{p_name}_Up"
-                    h_up = ROOT.TH1F(h_up_name, "", n_bins_default, bin_edges)
-                    for i in range(n_bins_use):
-                        h_up.SetBinContent(i + 1, vals_up[i])
-                    h_up.SetLineColor(color)
-                    h_up.SetLineStyle(ROOT.kSolid)
-                    h_up.SetLineWidth(1)
-                    h_up.Draw("HIST SAME")
-                    legend.AddEntry(h_up, f"{p_tex_name} +1#sigma", "l")
-                    h_variations.append(h_up)
+                        h_up_name = f"h_{group_name}_{sys_id}_{p_name}_Up"
+                        h_up = ROOT.TH1F(h_up_name, "", n_bins_default, bin_edges)
+                        for i in range(n_bins_use):
+                            h_up.SetBinContent(i + 1, vals_up[i])
+                        h_up.SetLineColor(color)
+                        h_up.SetLineStyle(ROOT.kSolid)
+                        h_up.SetLineWidth(1)
+                        h_up.Draw("HIST SAME")
+                        legend.AddEntry(h_up, f"{p_tex_name} +1#sigma", "l")
+                        h_variations.append(h_up)
 
-                    # -1 sigma
-                    vec_down = [0.0] * n_syst_params
-                    vec_down[ip] = -1.0
-                    rel_down = np.asarray(predictor.predict(vec_down), dtype='float64')
-                    vals_down = central * rel_down
+                        # -1 sigma
+                        vec_down = [0.0] * n_syst_params
+                        vec_down[ip] = -1.0
+                        rel_down = np.asarray(predictor.predict(vec_down), dtype='float64')
+                        vals_down = central * rel_down
 
-                    h_down_name = f"h_{group_name}_{sys_id}_{p_name}_Down"
-                    h_down = ROOT.TH1F(h_down_name, "", n_bins_default, bin_edges)
-                    for i in range(n_bins_use):
-                        h_down.SetBinContent(i + 1, vals_down[i])
-                    h_down.SetLineColor(color)
-                    h_down.SetLineStyle(ROOT.kDashed)
-                    h_down.SetLineWidth(1)
-                    h_down.Draw("HIST SAME")
-                    legend.AddEntry(h_down, f"{p_tex_name} -1#sigma", "l")
-                    h_variations.append(h_down)
+                        h_down_name = f"h_{group_name}_{sys_id}_{p_name}_Down"
+                        h_down = ROOT.TH1F(h_down_name, "", n_bins_default, bin_edges)
+                        for i in range(n_bins_use):
+                            h_down.SetBinContent(i + 1, vals_down[i])
+                        h_down.SetLineColor(color)
+                        h_down.SetLineStyle(ROOT.kDashed)
+                        h_down.SetLineWidth(1)
+                        h_down.Draw("HIST SAME")
+                        legend.AddEntry(h_down, f"{p_tex_name} -1#sigma", "l")
+                        h_variations.append(h_down)
 
-            # y range (absolute yields)
-            max_y = max(h.GetMaximum() for h in h_variations)
-            if logY:
-                h_central.SetMinimum(0.8)
-                h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
-            else:
-                h_central.SetMinimum(0.0)
-                h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
+                # y range (absolute yields)
+                max_y = max(h.GetMaximum() for h in h_variations)
+                if logY:
+                    h_central.SetMinimum(0.8)
+                    h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
+                else:
+                    h_central.SetMinimum(0.0)
+                    h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
 
-            h_central.Draw("HIST")
-            for h in h_variations[1:]:
-                h.Draw("HIST SAME")
+                h_central.Draw("HIST")
+                for h in h_variations[1:]:
+                    h.Draw("HIST SAME")
 
-            # ------------- BOTTOM PAD: ratios -------------
-            padBottom.cd()
-            padBottom.SetTicks(1, 1)
+                # ------------- BOTTOM PAD: ratios -------------
+                padBottom.cd()
+                padBottom.SetTicks(1, 1)
 
-            # ratio central
-            ratio_central_name = h_central_name + "_ratio"
-            h_ratio_central = h_central.Clone(ratio_central_name)
-            h_ratio_central.SetDirectory(0)
-            h_ratio_central.Divide(h_central)
-            h_ratio_central.SetLineColor(ROOT.kBlack)
-            h_ratio_central.SetLineWidth(2)
-            h_ratio_central.SetTitle("")
+                # ratio central
+                ratio_central_name = h_central_name + "_ratio"
+                h_ratio_central = h_central.Clone(ratio_central_name)
+                h_ratio_central.SetDirectory(0)
+                h_ratio_central.Divide(h_central)
+                h_ratio_central.SetLineColor(ROOT.kBlack)
+                h_ratio_central.SetLineWidth(2)
+                h_ratio_central.SetTitle("")
 
-            h_ratio_central.GetYaxis().SetTitle("var / nominal")
-            h_ratio_central.GetYaxis().SetNdivisions(505)
-            h_ratio_central.GetYaxis().SetTitleSize(0.09)
-            h_ratio_central.GetYaxis().SetTitleOffset(0.5)
-            h_ratio_central.GetYaxis().SetLabelSize(0.08)
+                h_ratio_central.GetYaxis().SetTitle("var / nominal")
+                h_ratio_central.GetYaxis().SetNdivisions(505)
+                h_ratio_central.GetYaxis().SetTitleSize(0.09)
+                h_ratio_central.GetYaxis().SetTitleOffset(0.5)
+                h_ratio_central.GetYaxis().SetLabelSize(0.08)
 
-            h_ratio_central.GetXaxis().SetTitle(x_title)
-            h_ratio_central.GetXaxis().SetTitleSize(0.1)
-            h_ratio_central.GetXaxis().SetLabelSize(0.08)
+                h_ratio_central.GetXaxis().SetTitle(x_title)
+                h_ratio_central.GetXaxis().SetTitleSize(0.1)
+                h_ratio_central.GetXaxis().SetLabelSize(0.08)
 
-            # build ratio histos for variations
-            h_ratio_vars = [h_ratio_central]
-            for h in h_variations[1:]:
-                r_name = h.GetName() + "_ratio"
-                h_r = h.Clone(r_name)
-                h_r.SetDirectory(0)
-                h_r.Divide(h_central)
-                h_ratio_vars.append(h_r)
+                # build ratio histos for variations
+                h_ratio_vars = [h_ratio_central]
+                for h in h_variations[1:]:
+                    r_name = h.GetName() + "_ratio"
+                    h_r = h.Clone(r_name)
+                    h_r.SetDirectory(0)
+                    h_r.Divide(h_central)
+                    h_ratio_vars.append(h_r)
 
-            # ratio y-range based on max relative deviation from 1
-            max_dev = 0.0
-            for h in h_ratio_vars:
-                for i in range(1, n_bins_use + 1):
-                    val = h.GetBinContent(i)
-                    if val != 0:
-                        dev = abs(val - 1.0)
-                        if dev > max_dev:
-                            max_dev = dev
+                # ratio y-range based on max relative deviation from 1
+                max_dev = 0.0
+                for h in h_ratio_vars:
+                    for i in range(1, n_bins_use + 1):
+                        val = h.GetBinContent(i)
+                        if val != 0:
+                            dev = abs(val - 1.0)
+                            if dev > max_dev:
+                                max_dev = dev
 
-            if max_dev <= 0.0:
-                r_min, r_max = 0.9, 1.1
-            else:
-                # 30% larger than max deviation, symmetric around 1
-                half_range = 1.3 * max_dev
-                r_min = 1.0 - half_range
-                r_max = 1.0 + half_range
+                if max_dev <= 0.0:
+                    r_min, r_max = 0.9, 1.1
+                else:
+                    # 30% larger than max deviation, symmetric around 1
+                    half_range = 1.3 * max_dev
+                    r_min = 1.0 - half_range
+                    r_max = 1.0 + half_range
 
-            h_ratio_central.SetMinimum(r_min)
-            h_ratio_central.SetMaximum(r_max)
+                h_ratio_central.SetMinimum(r_min)
+                h_ratio_central.SetMaximum(r_max)
 
-            h_ratio_central.Draw("HIST")
-            for h_r in h_ratio_vars[1:]:
-                h_r.Draw("HIST SAME")
+                h_ratio_central.Draw("HIST")
+                for h_r in h_ratio_vars[1:]:
+                    h_r.Draw("HIST SAME")
 
-            # line at 1
-            line = ROOT.TLine(var_edges[0], 1.0, var_edges[-1], 1.0)
-            line.SetLineStyle(ROOT.kDashed)
-            line.SetLineColor(ROOT.kBlack)
-            line.Draw("SAME")
+                # line at 1
+                line = ROOT.TLine(var_edges[0], 1.0, var_edges[-1], 1.0)
+                line.SetLineStyle(ROOT.kDashed)
+                line.SetLineColor(ROOT.kBlack)
+                line.Draw("SAME")
 
-            # ------------- LEGEND PAD -------------
-            padLegend.cd()
-            # no frame, no axes, just the legend
-            legend.Draw()
+                # ------------- LEGEND PAD -------------
+                padLegend.cd()
+                # no frame, no axes, just the legend
+                legend.Draw()
 
-            c.cd()
-            c.Update()
+                c.cd()
+                c.Update()
 
-            out_png = os.path.join(out_dir, canvas_name + ".png")
-            out_pdf = os.path.join(out_dir, canvas_name + ".pdf")
-            c.SaveAs(out_png)
-            c.SaveAs(out_pdf)
+                out_png = os.path.join(out_dir, canvas_name + ".png")
+                out_pdf = os.path.join(out_dir, canvas_name + ".pdf")
+                c.SaveAs(out_png)
+                c.SaveAs(out_pdf)
 
-# pre/postfit plots
+# ---------------- pre/post fit stack plots ----------------
 from fit.Likelihood import build_hypothesis_from_likelihood
 from data.colors import get_color
-# ---------------- pre/post fit stack plots ----------------
 
 # knobs
 n_toys          = 1000  # number of random nuisance samples
 fit_legend_columns  = 2
 fit_rng_seed        = 42
+
+# load provided covariance
+if args.postfit:
+    with open(args.postfit, "r") as f:
+        fit_results = json.load(f)
+
+    param_order = fit_results["free_parameter_order"]
+    params_best = [p["value"] for p in fit_results["parameters"]]
+    params_best = np.array(params_best)
+    cov = np.array(fit_results["covariance"]["matrix"])
 
 print(f"[info] Building fit hypothesis and sampling with {n_toys} toys...")
 
@@ -539,38 +520,83 @@ n_bins_fit    = len(var_edges_fit) - 1
 x_title_fit = plot_options.get(var_name_fit, {}).get('tex', var_name_fit)
 logY_fit    = plot_options.get(var_name_fit, {}).get('logY', False)
 
-# hypothesis (to get nuisance structure)
+# hypothesis (to get parameter structure)
 hyp = build_hypothesis_from_likelihood(like_info)
 
-# active (non-frozen) nuisances
-active_nuisance_names = [n.name for n in hyp.nuisances if not n.isFrozen]
-name_to_idx           = {name: i for i, name in enumerate(active_nuisance_names)}
-n_active_nuisances    = len(active_nuisance_names)
+# --- consistency check between likelihood parameters and fit results ---
 
-print(f"[info] Found {n_active_nuisances} active nuisances for {plot_label} sampling.")
+like_par_names = [p.name for p in hyp.parameters]
+fit_par_names  = [p["name"] for p in fit_results["parameters"]]
 
-# global toy samples for all nuisances
-if n_active_nuisances > 0:
-    if valid_postfit:
-        np.random.seed(fit_rng_seed)
+set_like = set(like_par_names)
+set_fit  = set(fit_par_names)
+
+only_in_like = sorted(list(set_like - set_fit))
+only_in_fit  = sorted(list(set_fit  - set_like))
+
+if only_in_like or only_in_fit:
+    print("[error] Inconsistent parameter definitions between likelihood and fit results.")
+    if only_in_like:
+        print("  Present in likelihood but missing in fit:")
+        for n in only_in_like:
+            print("   -", n)
+    if only_in_fit:
+        print("  Present in fit but missing in likelihood:")
+        for n in only_in_fit:
+            print("   -", n)
+    sys.exit(1)
+
+# optional: also check ordering, since you rely on aligned vectors
+if like_par_names != fit_par_names:
+    print("[warning] Parameter names match as a set, but order differs between likelihood and fit results.")
+    print("  Likelihood order:")
+    print("   ", ", ".join(like_par_names))
+    print("  Fit result order:")
+    print("   ", ", ".join(fit_par_names))
+else:
+    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names)} parameters).")
+
+# choose which parameters to sample
+if getattr(args, "freezePOI", False):
+    # old behaviour: sample nuisances only, POIs fixed
+    active_params = [par for par in hyp.nuisances if not par.isFrozen]
+    print(f"[info] Sampling {len(active_params)} active nuisances only (POIs frozen) for {plot_label}.")
+else:
+    # new default: sample POIs + nuisances (all non-frozen parameters)
+    active_params = [par for par in hyp.parameters if not par.isFrozen]
+    print(f"[info] Sampling {len(active_params)} active POIs + nuisances for {plot_label}.")
+
+active_param_names = [par.name for par in active_params]
+name_to_idx        = {name: i for i, name in enumerate(active_param_names)}
+n_active_params    = len(active_params)
+
+# global toy samples for all active parameters
+if n_active_params > 0:
+    np.random.seed(fit_rng_seed)
+    if args.postfit:
+        # params_best and cov must be ordered consistently with active_param_names
         theta_samples = np.random.multivariate_normal(
             mean=params_best,
             cov=cov,
             size=n_toys
         )
     else:
-        np.random.seed(fit_rng_seed)
-        theta_samples = np.random.normal(loc=0.0, scale=1.0,
-                                    size=(n_toys, n_active_nuisances))
+        # prefit: standard normal for all active params
+        theta_samples = np.random.normal(
+            loc=0.0,
+            scale=1.0,
+            size=(n_toys, n_active_params)
+        )
 else:
     theta_samples = None
 
+print(f"[info] Generated toys for {plot_label} sampling.")
 
 for region in like_info['binned']:
     region_id = region['id']
     print(f"[info] {plot_label} stack for region: {region_id}")
 
-    # ---- prepare class info: central yields and systematics ----
+    # ---- prepare class info: central yields, POI info and systematics ----
     class_infos = []
     for cls in region['classes']:
         class_id    = cls['id']
@@ -579,18 +605,21 @@ for region in like_info['binned']:
         poi        = cls['POI']
         poi_pred   = poi['predictor']
         poi_params = poi.get('parameters', [])
-        #Here we should pass the MLE if we want postfit values
-        if valid_postfit:
+
+        # central POI point: MLE for postfit, 0 for prefit (as before)
+        if args.postfit:
             param_map = {p["name"]: p["value"] for p in fit_results["parameters"]}
             poi_point = [param_map[name] for name in poi_params]
         else:
-            poi_point  = [0.0] * len(poi_params)
-
+            poi_point = [0.0] * len(poi_params)
 
         central = np.asarray(poi_pred.predict(poi_point), dtype='float64')
         n_bins_region = len(central)
         n_bins_use    = min(n_bins_region, n_bins_fit)
         central       = central[:n_bins_use]
+
+        # indices of POI parameters in the active parameter vector (may be None if frozen)
+        poi_cols = [name_to_idx.get(pname, None) for pname in poi_params]
 
         # pick up all icph systematics for this class and map their parameters
         syst_list = []
@@ -610,6 +639,9 @@ for region in like_info['binned']:
             'id'        : class_id,
             'sample'    : sample_name,
             'central'   : central,
+            'poi_pred'  : poi_pred,
+            'poi_params': poi_params,
+            'poi_cols'  : poi_cols,
             'syst_list' : syst_list,
         })
 
@@ -645,8 +677,8 @@ for region in like_info['binned']:
 
         total_central += ci['central'][:n_bins_use]
 
-    # ---- sampling total prediction over nuisances ----
-    if n_active_nuisances > 0:
+    # ---- sampling total prediction over parameters ----
+    if n_active_params > 0:
         total_samples = np.zeros((n_toys, n_bins_use), dtype='float64')
 
         for itoy in range(n_toys):
@@ -654,18 +686,35 @@ for region in like_info['binned']:
             total_this = np.zeros(n_bins_use, dtype='float64')
 
             for ci in class_infos:
-                vals = ci['central'].copy()
+                # start from POI prediction if POIs are sampled, otherwise from central
+                if getattr(args, "freezePOI", False) or len(ci['poi_params']) == 0:
+                    vals = ci['central'].copy()
+                else:
+                    # build POI point for this toy from theta
+                    poi_point_toy = []
+                    for name, col in zip(ci['poi_params'], ci['poi_cols']):
+                        if col is None:
+                            # parameter not active in sampling (frozen): use central value
+                            if args.postfit:
+                                poi_point_toy.append(param_map[name])
+                            else:
+                                poi_point_toy.append(0.0)
+                        else:
+                            poi_point_toy.append(theta[col])
+                    vals = np.asarray(ci['poi_pred'].predict(poi_point_toy),
+                                      dtype='float64')[:n_bins_use]
+
+                # apply multiplicative icph systematics
                 for syst in ci['syst_list']:
-                    # build parameter vector for this systematic from theta
                     x = []
                     for col in syst['cols']:
                         if col is None:
                             x.append(0.0)
                         else:
                             x.append(theta[col])
-                    rel = np.asarray(syst['predictor'].predict(x), dtype='float64')
-                    rel = rel[:n_bins_use]
+                    rel = np.asarray(syst['predictor'].predict(x), dtype='float64')[:n_bins_use]
                     vals *= rel
+
                 total_this += vals[:n_bins_use]
 
             total_samples[itoy, :] = total_this
@@ -674,7 +723,7 @@ for region in like_info['binned']:
         q_low  = np.quantile(total_samples, 0.32, axis=0)
         q_high = np.quantile(total_samples, 0.68, axis=0)
     else:
-        # no nuisances: no extra uncertainty
+        # no parameters to sample: no extra uncertainty
         q_low  = total_central.copy()
         q_high = total_central.copy()
 
@@ -918,3 +967,4 @@ for region in like_info['binned']:
     print(f"[info] {plot_label} plot written to:\n  {out_png}\n  {out_pdf}")
 
 syncer.sync()
+# binning & axis info from (possibly patched) cfg
