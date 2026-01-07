@@ -42,8 +42,6 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--plot_directory",     action="store",      default="orthogonalize", help="plot sub-directory")
 p.add_argument("--cache-root", default=None, help="Override cache root (optional)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite caches")
-p.add_argument("--module-samples", default="data.samples",
-               help="Python module with sample loaders")
 p.add_argument("--fi-step-scale", type=float, default=1e-4,
                help="Step scale for Fisher binned/penalty finite diffs")
 args = p.parse_args()
@@ -79,7 +77,7 @@ for nm in free_names:
 # ---- Build caches, prepare runtime ----
 n2ll = N2LLExtensions(
     like_info,
-    args.module_samples,
+    cfg['defaults']['module_samples'],
     os.path.join(
         "NN2LCache",
         os.path.splitext(os.path.basename(args.config))[0],

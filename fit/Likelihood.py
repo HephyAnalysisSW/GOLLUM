@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, '..')
 
 from fit.Modeling import ModelParameter, Hypothesis, Rotated
-from common.helpers import _binning_equal
+import common.helpers as helpers 
  
 # ---- Likelihood wiring + model parameter scaffolding -----------------------
 
@@ -214,7 +214,7 @@ def load_likelihood(cfg):
                 names, edges = _pred_binning_tuple(pred_poi)
                 if ref_names is None:
                     ref_names, ref_edges = names, edges
-                elif not _binning_equal(names, edges, ref_names, ref_edges):
+                elif not helpers._binning_equal(names, edges, ref_names, ref_edges):
                     offenders.append((f"{rid}/{C.get('id','?')}/POI", names, edges))
 
             # systematics (ICPH)
@@ -227,7 +227,7 @@ def load_likelihood(cfg):
                 names, edges = _pred_binning_tuple(pred_sys)
                 if ref_names is None:
                     ref_names, ref_edges = names, edges
-                elif not _binning_equal(names, edges, ref_names, ref_edges):
+                elif not helpers._binning_equal(names, edges, ref_names, ref_edges):
                     offenders.append((f"{rid}/{C.get('id','?')}/sys[{S.get('id','?')}]", names, edges))
 
         if offenders:
@@ -624,7 +624,6 @@ class N2LL:
         Yields (feat_names, X, w0) per shard over all Asimov samples in a region.
         Sets n_split=100 temporarily on RDataLoader-like objects.
         """
-        import numpy as np
         feat_names_ref = None
         for sname in region['_asimov_samples']:
             L = getattr(self.samples_mod, sname)
@@ -1315,7 +1314,6 @@ class N2LL:
             * `self._obs_binned_counts[rid] = counts_flat (Nflat,)` for binned regions
         - Clears any previous observation caches.
         """
-        import numpy as np
 
         if not self._runtime_prepared:
             raise RuntimeError("[N2LL.setObservation] Call prepare_runtime() before setting observation.")
@@ -1440,7 +1438,6 @@ class N2LL:
         Asimov bias term is included only in case (B) and only if an off-nominal
         Asimov hypothesis was provided.
         """
-        import numpy as np
 
         if not self._runtime_prepared:
             raise RuntimeError("[N2LL] Call prepare_runtime() before evaluating.")
@@ -1648,6 +1645,9 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     for i, nm in enumerate(names):
         print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
+    m.precision = 0.001
+    print(f"Minuit precision: {m.precision}") 
+
     if do_migrad:
         print("\n[MIGRAD]"); m.migrad(); print(m)
     if do_hesse:
@@ -1697,79 +1697,366 @@ def serialize_result(m, base, version, args, out_path ):
 
 
 
+#if __name__ == "__main__":
+#    # ---------------- args ----------------
+#    import argparse
+#    p = argparse.ArgumentParser(description="Likelihood fit")
+#    p.add_argument("config", help="Path to global YAML config")
+#    p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
+#    p.add_argument("--rotate", action="store", default = None, help="Point to a rotate JSON")
+#    p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+#    args = p.parse_args()
+#
+#    import common.yaml_loader as yaml_loader 
+#
+#    cfg = yaml_loader.load_yaml(args.config)
+#    yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
+#    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+#
+#    like_info = load_likelihood(cfg)
+#
+#    hyp = build_hypothesis_from_likelihood(like_info, name="SR")
+#
+#    # --- optionally disable all nuisances ---
+#    if args.no_syst:
+#        for p in hyp.nuisances:
+#            p.val = 0.0
+#            p.isFrozen = True
+#        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+#
+#    hyp.print()
+#
+#    if args.rotate:
+#        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
+#        hyp_rot = Rotated(hyp, args.rotate, name="Fisher-basis")
+#        hyp_rot.print()
+#        hyp_for_fit = hyp_rot
+#        step = 1
+#    else:
+#        hyp_for_fit = hyp
+#        step = 0.1
+#
+#    n2ll = N2LL( like_info, cfg['defaults']['module_samples'],  
+#                 cache_subdir = os.path.join( "NN2LCache", os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
+#
+#    n2ll.build_cache()
+#    n2ll.prepare_runtime()
+#
+#    # compute A-simov
+#    n2ll.setAsimov()
+#
+#    # compute C-simov (POI or nuisance injection)
+#    #n2ll.setAsimov(hyp.cloneModify(c1=1))
+#
+#    ## run Minuit; prints the model every 25 evaluations by default
+#    m = run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
+#
+#    # best-fit -2logL
+#    print("Best -2logL =", m.fval)
+#
+#    print("Correlation")
+#    print(m.covariance.correlation())
+#
+#    # -------- persist fit result + covariance --------
+#    import os, json, numpy as np
+#    import common.user as user
+#
+#    base    = os.path.splitext(os.path.basename(args.config))[0]
+#    version = str(cfg.get("version", "v0"))
+#    suffix = ""
+#    if args.no_syst:
+#        suffix  += "_nosyst"
+#    if args.rotate:
+#        suffix  += "_rotate"
+#    os.makedirs(user.output_directory, exist_ok=True)
+#    out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
+#    serialize_result(m, base, version, args, out_path)
+
+def pretty_par_name(name: str) -> str:
+    # strip prefixes (only at the beginning), in the given order
+    for pre in ("nu_", "CMS_"):
+        if name.startswith(pre):
+            name = name[len(pre):]
+    # replacements
+    return name.replace("res_j", "JER").replace("scale_j_Regrouped", "JES")
+
+def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, suffix=""):
+    import ROOT
+
+    ROOT.gROOT.SetBatch(True)
+    ROOT.gStyle.SetOptStat(0)
+
+    base = os.path.splitext(os.path.basename(cfg_path))[0]
+    pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
+    nuis = [p.name for p in getattr(hyp, "nuisances", [])]
+    names = pois + nuis
+    n_pois, n_nuis = len(pois), len(nuis)
+    n = len(names)
+    if n == 0:
+        return
+
+    xmin, xmax = -3.0, 3.0
+    target = 2.5
+
+    x = np.zeros(n, dtype=float)
+    exl = np.zeros(n, dtype=float)
+    exh = np.zeros(n, dtype=float)
+    labels = list(names)
+
+    for i, name in enumerate(names):
+        v = float(fit_vals[name])
+        e = float(fit_errs.get(name, 0.0))
+        lo = abs(float(fit_errs.get(f"{name}_lo", e)))
+        hi = abs(float(fit_errs.get(f"{name}_hi", e)))
+
+        lab = pretty_par_name(name)
+
+        if i < n_pois:
+            m = max(abs(v), lo, hi)
+            if m > 0.0:
+                k = int(np.floor(np.log10(target / m)))
+                if k != 0:
+                    s = 10.0 ** k
+                    v *= s
+                    lo *= s
+                    hi *= s
+                    lab = f"{lab}  (#times10^{{{k}}})"
+
+        x[i], exl[i], exh[i] = v, lo, hi
+        labels[i] = lab
+
+    c = ROOT.TCanvas("c_fit", "fit", 950, 700)
+    c.SetLeftMargin(0.35)
+    c.SetRightMargin(0.06)
+    c.SetTopMargin(0.12)
+    c.SetBottomMargin(0.10)
+    c.SetTickx(1)  # ticks also on top x-axis
+
+    frame = ROOT.TH2F("frame_fit", "", 1, xmin, xmax, n, 0.5, n + 0.5)
+    frame.GetXaxis().SetTitle("value")
+    frame.GetYaxis().SetLabelSize(0.032)
+    frame.GetXaxis().SetTitleSize(0.040)
+    frame.GetXaxis().SetLabelSize(0.035)
+    frame.GetXaxis().SetNdivisions(508)  # leave some whitespace / reduce clutter
+
+    for i, lab in enumerate(labels):
+        frame.GetYaxis().SetBinLabel(n - i, lab)
+
+    frame.Draw("AXIS")
+
+    g = ROOT.TGraphAsymmErrors(n)
+    for i in range(n):
+        y = float(n - i)
+        g.SetPoint(i, float(x[i]), y)
+        g.SetPointError(i, float(exl[i]), float(exh[i]), 0.0, 0.0)
+
+    g.SetMarkerStyle(20)
+    g.SetMarkerSize(0.9)
+    g.SetLineWidth(2)
+    g.Draw("P SAME")
+
+    # reference at 0
+    l0 = ROOT.TLine(0.0, 0.5, 0.0, n + 0.5)
+    l0.SetLineWidth(2)
+    l0.Draw("SAME")
+
+    # separator between POIs and nuisances
+    ysep = None
+    lines = []
+    if n_pois and n_nuis:
+        ysep = n - n_pois + 0.5
+        lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
+        lsep.SetLineStyle(2)
+        lsep.SetLineWidth(2)
+        lsep.Draw("SAME")
+        lines.append(ysep)
+        # prefit constraint band guides for nuisances: x=±1 from separator down to x-axis
+        for xx in (-1.0, +1.0):
+            lv = ROOT.TLine(xx, 0.5, xx, ysep)
+            lv.SetLineStyle(2)
+            lv.SetLineWidth(2)
+            lv.Draw("SAME")
+            lines.append(lv)
+
+    # run-identifying strings
+    t = ROOT.TLatex()
+    t.SetNDC(True)
+    t.SetTextSize(0.035)
+    t.DrawLatex(0.36, 0.94, f"{base}{suffix}")
+    t.SetTextSize(0.030)
+    t.DrawLatex(0.36, 0.905, f"rotated: {'yes' if rotated else 'no'}")
+
+    os.makedirs(out_dir, exist_ok=True)
+    helpers.copyIndexPHP(out_dir)
+    c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_fit_summary.pdf"))
+    c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_fit_summary.png"))
+    c.Close()
+
+def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
+    import ROOT
+
+    ROOT.gROOT.SetBatch(True)
+    ROOT.gStyle.SetOptStat(0)
+    try:
+        ROOT.gStyle.SetPalette(ROOT.kViridis)
+    except Exception:
+        pass
+
+    base = os.path.splitext(os.path.basename(cfg_path))[0]
+    n = len(names)
+    if n == 0:
+        return
+
+    pretty = [pretty_par_name(nm) for nm in names]
+
+    c = ROOT.TCanvas("c_corr", "corr", 1050, 950)
+    c.SetLeftMargin(0.28)
+    c.SetRightMargin(0.14)
+    c.SetTopMargin(0.12)
+    c.SetBottomMargin(0.30)
+
+    h = ROOT.TH2D("h_corr", "", n, 0.5, n + 0.5, n, 0.5, n + 0.5)
+    h.GetZaxis().SetRangeUser(-1.0, 1.0)
+    h.GetZaxis().SetTitle("corr")
+    h.GetZaxis().SetTitleOffset(1.1)
+
+    for i, lab in enumerate(pretty, start=1):
+        h.GetXaxis().SetBinLabel(i, lab)
+        h.GetYaxis().SetBinLabel(i, lab)
+
+    for i in range(n):
+        for j in range(n):
+            h.SetBinContent(i + 1, j + 1, float(corr[i][j]))
+
+    h.GetXaxis().SetLabelSize(0.030)
+    h.GetYaxis().SetLabelSize(0.030)
+    h.GetXaxis().LabelsOption("v")  # keep x labels vertical; y labels horizontal
+    h.Draw("COLZ")
+
+    t = ROOT.TLatex()
+    t.SetNDC(True)
+    t.SetTextSize(0.035)
+    t.DrawLatex(0.28, 0.94, f"{base}{suffix}")
+    t.SetTextSize(0.030)
+    t.DrawLatex(0.28, 0.905, f"rotated: {'yes' if rotated else 'no'}")
+
+    os.makedirs(out_dir, exist_ok=True)
+    c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_correlation.pdf"))
+    c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_correlation.png"))
+    helpers.copyIndexPHP(out_dir)
+    c.Close()
+
 if __name__ == "__main__":
+    import common.syncer as syncer
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="Likelihood fit")
     p.add_argument("config", help="Path to global YAML config")
-    p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
-    p.add_argument("--rotate", action="store_true", help="Rotate?")
+    p.add_argument(
+        "--overwrite",
+        nargs="?",
+        const="all",
+        default=None,
+        choices=["fit", "all"],
+        help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",
+    )
+    p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     args = p.parse_args()
 
-    import common.yaml_loader as yaml_loader 
+    import common.yaml_loader as yaml_loader
 
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
     yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
 
     like_info = load_likelihood(cfg)
-
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
 
-    # --- optionally disable all nuisances ---
     if args.no_syst:
-        for p in hyp.nuisances:
-            p.val = 0.0
-            p.isFrozen = True
+        for p_ in hyp.nuisances:
+            p_.val = 0.0
+            p_.isFrozen = True
         print("[opts] --no_syst: all nuisances set to 0 and frozen.")
 
-    hyp.print()
+    rotated = bool(args.rotate)
+    hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
+    step = 1.0 if rotated else 0.1
 
-    if args.rotate:
-        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
-        hyp_rot = Rotated(hyp, f"/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_{cfg_base_name}.json", name="Fisher-basis")
-        hyp_rot.print()
-        hyp_for_fit = hyp_rot
-        step = 1
-    else:
-        hyp_for_fit = hyp
-        step = 0.1
-
-    n2ll = N2LL( like_info, cfg['defaults']['module_samples'],  
-                 cache_subdir = os.path.join( "NN2LCache", os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
-
-    n2ll.build_cache()
-    n2ll.prepare_runtime()
-
-    # compute A-simov
-    n2ll.setAsimov()
-
-    # compute C-simov (POI or nuisance injection)
-    #n2ll.setAsimov(hyp.cloneModify(c1=1))
-
-    ## run Minuit; prints the model every 25 evaluations by default
-    m = run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
-
-    # best-fit -2logL
-    print("Best -2logL =", m.fval)
-
-    print("Correlation")
-    print(m.covariance.correlation())
-
-    # -------- persist fit result + covariance --------
-    import os, json, numpy as np
+    # -------- paths (fit + plots) --------
+    from common.user import plot_directory
     import common.user as user
 
-    base    = os.path.splitext(os.path.basename(args.config))[0]
+    base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
-    suffix = ""
-    if args.no_syst:
-        suffix  += "_nosyst"
-    if args.rotate:
-        suffix  += "_rotate"
+    suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
+
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
-    serialize_result(m, base, version, args, out_path)
 
+    plot_dir = os.path.join(plot_directory, "likelihood_fit", base, f"{version}{suffix}")
+    os.makedirs(plot_dir, exist_ok=True)
+    overwrite_fit = args.overwrite in ("fit", "all")
+    overwrite_cache = args.overwrite == "all"
 
+    # -------- load fit if available --------
+    if (not overwrite_fit) and os.path.exists(out_path):
+        fit = json.load(open(out_path))
+    else:
+        n2ll = N2LL(
+            like_info,
+            cfg["defaults"]["module_samples"],
+            cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
+            cache_root=None,
+            overwrite=overwrite_cache,
+        )
+
+        n2ll.build_cache()
+        n2ll.prepare_runtime()
+        n2ll.setAsimov()
+
+        m = run_minuit_fit(
+            n2ll,
+            hyp_for_fit,
+            step=step,
+            print_every=1,
+            do_migrad=True,
+            do_hesse=True,
+            do_minos=False,
+        )
+
+        serialize_result(m, base, version, args, out_path)
+        fit = json.load(open(out_path))
+
+        print("Best -2logL =", fit["fval"])
+        print("Correlation")
+        print(np.asarray(fit["correlation"]["matrix"]))
+
+    # -------- plots --------
+    names = fit["free_parameter_order"]
+
+    fit_vals = {p["name"]: float(p["value"]) for p in fit["parameters"]}
+    fit_errs = {p["name"]: float(p["error"]) for p in fit["parameters"]}
+    for nm in names:
+        fit_errs[f"{nm}_lo"] = fit_errs[nm]
+        fit_errs[f"{nm}_hi"] = fit_errs[nm]
+
+    plot_fit_summary_root(
+        plot_dir,
+        args.config,
+        rotated=rotated,
+        hyp=hyp_for_fit,
+        fit_vals=fit_vals,
+        fit_errs=fit_errs,
+        suffix=f"_{version}{suffix}",
+    )
+
+    plot_correlation_root(
+        plot_dir,
+        args.config,
+        rotated=rotated,
+        names=names,
+        corr=fit["correlation"]["matrix"],
+        suffix=f"_{version}{suffix}",
+    )
+    syncer.sync()
