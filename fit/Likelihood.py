@@ -1579,7 +1579,7 @@ class N2LL:
 
 from iminuit import Minuit
 def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-                   do_migrad=True, do_hesse=True, do_minos=False):
+                   do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
 
     # -- collect free parameters (works for rotated or plain) --
     if isinstance(hypothesis, Rotated):
@@ -1627,7 +1627,7 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
         f = float(n2ll(h_eval))
         eval_count += 1
-        if (eval_count - 1) % max(1, int(print_every)) == 0:
+        if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
             print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
             h_eval.print()  # print the actually evaluated point
         return f
@@ -1644,17 +1644,24 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         if hasattr(m, "set_initial_step"):
             m.set_initial_step(i, 0.3 * s)
 
-    print("\n[make_minuit] Floating parameters:")
-    for i, nm in enumerate(names):
-        print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
+    if verbosity > 0:
+        print("\n[make_minuit] Floating parameters:")
+        for i, nm in enumerate(names):
+            print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
     if do_migrad:
-        print("\n[MIGRAD]"); m.migrad(); print(m)
+        m.migrad();
+        if verbosity > 0:
+            print("\n[MIGRAD]");  print(m)
     if do_hesse:
-        print("\n[HESSE]"); m.hesse(); print(m)
+        m.hesse();
+        if verbosity > 0:
+            print("\n[HESSE]");  print(m)
     if do_minos:
         poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
-        print("\n[MINOS]", poi_list); m.minos(*poi_list)
+        m.minos(*poi_list)
+        if verbosity > 0: 
+            print("\n[MINOS]", poi_list);
 
     # write back best fit once (avoid repeated __setattr__ compounding)
     final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
@@ -1662,9 +1669,9 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     # copy final values onto the original object (single pass)
     for k, v in final_pars.items():
         setattr(hypothesis, k, v)
-
-    print("\n[final] Best-fit hypothesis:")
-    h_final.print()
+    if verbosity > 0:
+        print("\n[final] Best-fit hypothesis:")
+        h_final.print()
     return m
 
 def serialize_result(m, base, version, args, out_path ):
