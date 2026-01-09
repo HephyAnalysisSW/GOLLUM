@@ -219,8 +219,7 @@ if __name__ == "__main__":
         To take into account the three types of handling systematic variations
         at the RDataLoader level
         """
-        # for mode in ["replace", "add", "kinematics"]:
-        for mode in ["kinematics"]:
+        for mode in ["replace", "add", "kinematics"]:
 
             if mode == "replace":
                 syst_groups = replace_weight_groups
@@ -413,8 +412,8 @@ if __name__ == "__main__":
                         up_var_feature_values = up_var_feature_values[:,0]
                         up_var_hist_entries = np.histogram(a=up_var_feature_values, bins=edges, weights=up_var_weights)[0]
                     
-                    # to avoid ballooning memory usage
-                    del down_var_sample, up_var_sample
+                    # TODO: test if this doesn't crash the code
+                    # del down_var_sample, up_var_sample
                     
                     h_down_name = f"h_{group}_{uncertainty_name}_Down"
                     h_down = ROOT.TH1F(h_down_name, "", len(edges) - 1, np.array(edges))
