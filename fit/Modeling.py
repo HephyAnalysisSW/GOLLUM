@@ -51,8 +51,6 @@ class ModelParameter:
         return self
 
     def set(self, value):
-        if self.isFrozen:
-            raise RuntimeError(f"Parameter {self.name} is frozen.")
         self.val = float(value)
         return self
 
