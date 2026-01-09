@@ -18,7 +18,7 @@ import common.user as user
 
 # Use Path so that BASE_DIRECTORY / "2018" / "file.root" works.
 BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2_nJ2p_nB2p_trvalid/"
+    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-2_nJ2p_nB2p_trvalid/"
 )
 ERAS = ["2016", "2016APV", "2017", "2018"]
 
@@ -32,7 +32,7 @@ GROUPS = {
 # -----------------------------
 _base = RDataLoader(
     input_paths=[
-        str(BASE_DIRECTORY / "2016" / "TTLep_pow_nominal.root"),
+        str(BASE_DIRECTORY / "2018" / "TTLep_pow_nominal.root"),
     ],
     tree_name="Events",
     branches=(

@@ -23,7 +23,6 @@ SelectionFn = Callable[[ak.Array], Union[ak.Array, np.ndarray]]
 # For the public interface we now allow: None, a single SelectionFn, or a list of SelectionFn
 SelectionLike = Union[SelectionFn, Sequence[SelectionFn], None]
 
-
 class RDataLoader:
     def __init__(
         self,
@@ -114,6 +113,80 @@ class RDataLoader:
         self._arr_cache: dict[int, ak.Array] = {}
         self._mask_cache: dict[str, dict[int, np.ndarray]] = {}
 
+    # ----------------------- NEW: addSelection -----------------------
+    def addSelection(
+        self,
+        selection: Union[SelectionFn, str],
+        required_branches: Optional[Sequence[str]] = None,
+    ) -> "RDataLoader":
+        """
+        Add an additional selection applied in __getitem__.
+
+        - Must be called before any shard has been loaded/cached.
+        - `required_branches`, if provided, are ALWAYS appended to the requested-branch list
+          (order-preserving de-dup). This is useful both for string selections (which need
+          the branches to evaluate) and callable selections (which may also rely on them).
+        - If `selection` is a callable: used directly.
+        - If `selection` is a string: evaluated as a boolean expression over branches.
+          (If it references branches not present, strict_branches controls behavior.)
+
+        Returns self to allow chaining.
+        """
+        if getattr(self, "_arr_cache", None) and len(self._arr_cache):
+            raise RuntimeError(
+                "RDataLoader.addSelection: data already materialized; call only right after initialization."
+            )
+
+        # Always add required branches (if any)
+        req = list(required_branches) if required_branches else []
+        if req:
+            curr = list(self._requested_branches or [])
+            seen = set(curr)
+            for b in req:
+                if b not in seen:
+                    seen.add(b)
+                    curr.append(b)
+            self._requested_branches = curr
+
+        if isinstance(selection, str):
+            expr = selection.strip()
+            code = compile(expr, "<RDataLoader.addSelection>", "eval")
+
+            def _sel(ar: ak.Array) -> Union[ak.Array, np.ndarray]:
+                # Provide required branches as locals (and fill missing if non-strict),
+                # but do not attempt any auto-discovery.
+                loc = {}
+                missing = []
+                for b in req:
+                    if b in ar.fields:
+                        loc[b] = ar[b]
+                    else:
+                        missing.append(b)
+                        if self.strict_branches:
+                            raise KeyError(f"Selection requires missing branch '{b}'.")
+                        loc[b] = np.zeros(len(ar), dtype=np.float32)
+                if missing and not self.strict_branches:
+                    warnings.warn(f"RDataLoader: selection missing branches {missing}; filling with zeros.")
+
+                out = eval(code, {"__builtins__": {}, "np": np, "ak": ak}, loc)
+
+                # Normalize common cases
+                if isinstance(out, (bool, np.bool_)):
+                    return np.full(len(ar), bool(out), dtype=bool)
+                if isinstance(out, ak.Array):
+                    return out
+                return np.asarray(out, dtype=bool)
+
+            # attach for __str__ (minimal)
+            setattr(_sel, "_rdata_expr", expr)
+
+            self._selection_fns.append(_sel)
+            return self
+
+        # callable selection (may also rely on required_branches having been added)
+        self._selection_fns.append(selection)
+        return self
+
     # ----------------------- reset features post-init----------------------
     def setFeatures(
         self,
@@ -174,7 +247,8 @@ class RDataLoader:
 
     def __getitem__(self, idx: int) -> ak.Array:
         """Load one shard as an awkward Array, apply all configured selections if present. Result is cached."""
-        key = self._wrap_index(idx)
+        #key = self._wrap_index(idx)
+        key = idx
         if key in self._arr_cache:
             return self._arr_cache[key]
 
@@ -186,7 +260,6 @@ class RDataLoader:
             n = len(ar_all)
             lo, hi = self._event_bounds(n, self.n_split)[key]
             ar = ar_all[lo:hi]
-
         # apply all base selections consecutively
         for i, sel in enumerate(getattr(self, "_selection_fns", []) or []):
             if sel is None:
@@ -257,6 +330,7 @@ class RDataLoader:
             raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
         ar = self[shard]
         X = self.scalar_branches(ar, names)
+        #print(f"[RDataloader.features] X {X.shape} n {n}")
         return X if n is None else X[:n]
 
     def features_and_observers(self, shard: int = 0, n: Optional[int] = None,
@@ -321,6 +395,8 @@ class RDataLoader:
                 raise ValueError(f"materialize: unknown spec letter '{ch}' (allowed: 'f','o','w').")
         if n is not None:
             outputs = [arr[:n] for arr in outputs]
+
+        #print(f"[RDataloader.materialize] outputs {outputs[0].shape}")
         return tuple(outputs)
 
     # -------- view helpers --------
@@ -328,11 +404,11 @@ class RDataLoader:
         return self[shard]
 
     # --------------------------- internals ----------------------------
-    def _wrap_index(self, idx: int) -> int:
-        if not isinstance(idx, int):
-            raise TypeError("RDataLoader indices must be integers")
-        n = len(self)
-        return idx % n
+    #def _wrap_index(self, idx: int) -> int:
+    #    if not isinstance(idx, int):
+    #        raise TypeError("RDataLoader indices must be integers")
+    #    n = len(self)
+    #    return idx % n
 
     def _make_file_splits(self, files: List[str], n_split: int) -> List[List[str]]:
         if n_split <= 1:
@@ -388,16 +464,24 @@ class RDataLoader:
         obs = self.observer_names or []
         wbs = getattr(self, "weight_branches", []) or []
         weight_expr = "1" if not wbs else " * ".join(wbs)
-        n_sel = len(getattr(self, "_selection_fns", []) or [])
+
+        sels = []
+        for fn in (getattr(self, "_selection_fns", []) or []):
+            expr = getattr(fn, "_rdata_expr", None)
+            if expr is not None:
+                sels.append(expr)
+            else:
+                sels.append(getattr(fn, "__name__", repr(fn)))
+
         lines = [
             "RDataLoader(",
             f"  tree_name='{self.tree_name}', splitting='{self.splitting_strategy}', n_split={self.n_split},",
-            f"  files={len(files)}"
-            + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            #f"  files={len(files)}" + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            f"  files={len(files)}" + (f", files='{files}'" if first is not None else ""),
             f"  features ({len(feat)}): {feat}",
             f"  observers ({len(obs)}): {obs}",
             f"  weights (product): {weight_expr}",
-            f"  selections: {n_sel} function(s) applied consecutively",
+            f"  selections ({len(sels)}): {sels}",
             ")",
         ]
         return "\n".join(lines)
@@ -491,3 +575,7 @@ if __name__ == "__main__":
     print()
     print(dummy)
 
+    # usage example for addSelections. The following two are equivalent.
+    from samples_RunII import TTLep_pow_2016
+    #TTLep_pow_2016.addSelection(lambda ar: (ar["tr_ttbar_mass"] >= 1000) & (ar["tr_ttbar_eta"] > 1),required_branches=["tr_ttbar_eta", "tr_ttbar_mass"])
+    TTLep_pow_2016.addSelection( '(tr_ttbar_mass >= 1000) & (tr_ttbar_eta > 1)', required_branches=["tr_ttbar_eta", "tr_ttbar_mass"],)

@@ -14,7 +14,7 @@ import cmsstyle
 
 colors = {
  'TTLep_pow':   cmsstyle.p10.kRed,
- 'DrellYan':    cmsstyle.p10.kGreen,
+ 'DrellYan':    cmsstyle.p10.kBlue,
  'SingleTop':   cmsstyle.p10.kYellow,
  'TTSemi_pow':  cmsstyle.p10.kOrange,
 }

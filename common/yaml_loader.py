@@ -395,9 +395,21 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
 
     ml_dir = Path(__file__).resolve().parent.parent / "ML"
 
+#    # Define the desired type order
+#    _type_order = ["scaler", "ic", "ich", "icp", "icph"]
+#    _type_rank  = {t: i for i, t in enumerate(_type_order)}
+#
+#    jobs = cfg.get("jobs") or []
+#
+#    # Sort jobs by type, with the specified types first
+#    jobs_sorted = sorted(
+#        jobs,
+#        key=lambda job: _type_rank.get(job.get("type"), len(_type_order))
+#    )
+
     ok, missing = [], []
     # ---------- First pass ----------
-    for i_job, job in enumerate((cfg.get("jobs") or [])):
+    for i_job, job in enumerate(cfg.get("jobs") or []):
         if not isinstance(job, dict): 
             continue
         jid  = job.get("id")

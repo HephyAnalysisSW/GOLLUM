@@ -23,6 +23,7 @@ p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
 p.add_argument("--for_debug", action="store_true", help="Fit, but don't overwrite the nominal version")
+p.add_argument("--n_split", default=None, help="Set sample split")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -179,6 +180,15 @@ for i, spec in enumerate(bp_specs):
 
     loaders.append(eff_loader)
 
+    # Reset n_split
+    if args.n_split:
+        for l in loaders:
+            if isinstance( l, SelectionView): 
+                l.base.split = args.n_split
+            else:
+                l.split = args.n_split
+
+            
 # ---------------- sanity: same features across loaders ----------------
 feat_names = list(getattr(loaders[0], "feature_names", []))
 if not feat_names:
@@ -507,7 +517,9 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
     if do_plot:
         true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
 
-    for Xs, Ws in iterate_epoch(shard_limit=shard_limit):
+    #for Xs, Ws in iterate_epoch(shard_limit=shard_limit):
+    for Xs, Ws in tqdm(  iterate_epoch(shard_limit=shard_limit), desc="Epoch",  unit="batch" ):
+
         n_batches += 1
 
         X0, w0 = Xs[nom_idx], Ws[nom_idx]
