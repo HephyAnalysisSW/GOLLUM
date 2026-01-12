@@ -69,6 +69,7 @@ class RDataLoader:
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
             input_paths = [str(input_paths)]
+        self.input_paths = input_paths
         files: List[str] = []
         for p in input_paths or []:
             p = os.path.expanduser(str(p))
@@ -515,6 +516,38 @@ class RDataLoader:
             feature_names=self.feature_names,
             observer_names=self.observer_names,
             weight_branches=self.weight_branches if weight_branches is None else weight_branches,
+        )
+        return clone
+
+    def clone(self) -> "RDataLoader":
+        """
+        Shallow clone of this loader.
+
+        - Copies all configuration (tree_name, branches, selection(s), features, observers, weights, splits, etc.)
+        - Does NOT copy caches; the clone starts "fresh".
+        """
+        # Use the fully resolved branch list (including weights, added branches, etc.)
+        branches = list(self._requested_branches) if getattr(self, "_requested_branches", None) is not None else None
+
+        # Reuse the normalized list of selection functions; if empty, pass None
+        selection = list(getattr(self, "_selection_fns", [])) or None
+
+        # Reuse original file_pattern if we have it, else default
+        file_pattern = getattr(self, "file_pattern", "*.root")
+
+        clone = RDataLoader(
+            input_paths=self.input_paths,
+            tree_name=self.tree_name,
+            branches=self._requested_branches,
+            selection=list(getattr(self, "_selection_fns", [])) or None,
+            file_pattern=getattr(self, "file_pattern", "*.root"),
+            n_split=self.n_split,
+            splitting_strategy=self.splitting_strategy,
+            strict_branches=self.strict_branches,
+            max_files=None,  # usually not meaningful for a clone; change if you want
+            feature_names=self.feature_names,
+            observer_names=self.observer_names,
+            weight_branches=self.weight_branches,
         )
         return clone
 
