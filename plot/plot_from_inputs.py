@@ -192,7 +192,6 @@ if __name__ == "__main__":
     for era, sample in itertools.product(eras, samples_to_use):
         print(f"era: {era}, sample: {sample}")
         
-
         nominal_sample = getattr(samples, f'{sample}_{era}_nominal')
 
         # if selection:
@@ -309,6 +308,10 @@ if __name__ == "__main__":
                 color_index = 0
 
                 for uncertainty_name, branch_names in uncertainty_names.items():
+
+                    if i_sample_era == 0:
+                        print(f"[info] uncertainty name: {uncertainty_name}, branch names: {branch_names}")
+
                     color = colors[color_index % len(colors)]
                     color_index += 1
 
@@ -341,7 +344,7 @@ if __name__ == "__main__":
 
                         # fixes cases where there are two uncertainties with the same
                         # nominal weight name (e.g. b-tag SF)
-                        # list_weights_varied[weight_to_remove_idx] = nominal_weight_name
+                        list_weights_varied[weight_to_remove_idx] = nominal_weight_name
 
                         down_var_weights = down_var_sample.materialize(0, what='w')[0]
                         down_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=down_var_weights)[0]
@@ -412,8 +415,7 @@ if __name__ == "__main__":
                         up_var_feature_values = up_var_feature_values[:,0]
                         up_var_hist_entries = np.histogram(a=up_var_feature_values, bins=edges, weights=up_var_weights)[0]
                     
-                    # TODO: test if this doesn't crash the code
-                    # del down_var_sample, up_var_sample
+                    del down_var_sample, up_var_sample
                     
                     h_down_name = f"h_{group}_{uncertainty_name}_Down"
                     h_down = ROOT.TH1F(h_down_name, "", len(edges) - 1, np.array(edges))
@@ -528,7 +530,9 @@ if __name__ == "__main__":
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
         
+        del nominal_sample
+
         i_sample_era += 1
-        print("[info]: after first sample/era combination, no longer printing debug information")
+        print("[info]: after first sample/era combination, no longer printing variable/branch debug information")
 
     syncer.sync()
