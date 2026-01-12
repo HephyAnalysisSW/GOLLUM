@@ -22,6 +22,7 @@ Supported systematics:
 
 
 import os, sys
+import gc # explicit garbage collection to avoid ridiculous (+100GB) memory usage
 import itertools
 import re
 import argparse as ap
@@ -209,8 +210,9 @@ if __name__ == "__main__":
     x_title = plot_options.get(feature_name, {}).get('tex', feature_name)
 
     # legend columns (configurable) - for binned template plots
-    legend_columns = 3
+    legend_columns_binned_templates = 3
 
+    # aux variable to give debug information only for first (sample, era) pair
     i_sample_era = 0
 
     # TODO: break this into two loops, one larger per era then a sub-loop for sample 
@@ -247,15 +249,18 @@ if __name__ == "__main__":
 
             if mode == "replace":
                 syst_groups = replace_weight_groups
-                print("[info] plotting variations for scale factors which are part of the overall weight" \
+                if i_sample_era == 0:
+                    print("[info] plotting variations for scale factors which are part of the overall weight, " \
                 "e.g. pileup reweighting scale factor uncertainty")
             elif mode == "add":
                 syst_groups = add_weight_groups
-                print("[info] plotting variations implemented as scale factors which multiply the overall event weight, " \
+                if i_sample_era == 0:
+                    print("[info] plotting variations implemented as scale factors which multiply the overall event weight, " \
                 "e.g. QCD scale variations")
             elif mode == "kinematics":
-                print("[info] plotting variations from varied kinematics (JME)")
                 syst_groups = kinematic_variation_groups
+                if i_sample_era == 0:
+                    print("[info] plotting variations from varied kinematics (JME)")
 
             for group, uncertainty_names in syst_groups.items():
                 if i_sample_era == 0:
@@ -298,7 +303,7 @@ if __name__ == "__main__":
                 legend = ROOT.TLegend(0.02, 0.10, 0.98, 0.90)
                 legend.SetBorderSize(0)
                 legend.SetFillStyle(0)
-                legend.SetNColumns(legend_columns)
+                legend.SetNColumns(legend_columns_binned_templates)
 
                 # ------------- TOP PAD: absolute yields -------------
                 padTop.cd()
@@ -433,17 +438,20 @@ if __name__ == "__main__":
                         down_var_feature_values, down_var_weights = down_var_sample.materialize(0, what='fw', feature_names=[feature_name])
                         # parsing output of materialize into a simple array
                         # also done when loading the nominal sample
-                        down_var_feature_values = down_var_feature_values[:,0]
-                        down_var_hist_entries = np.histogram(a=down_var_feature_values, bins=edges, weights=down_var_weights)[0]
+                        down_var_hist_entries = np.histogram(a=down_var_feature_values[:,0], bins=edges, weights=down_var_weights)[0]
                         
                         up_var_feature_values, up_var_weights = up_var_sample.materialize(0, what='fw', feature_names=[feature_name])
-                        up_var_feature_values = up_var_feature_values[:,0]
-                        up_var_hist_entries = np.histogram(a=up_var_feature_values, bins=edges, weights=up_var_weights)[0]
+                        up_var_hist_entries = np.histogram(a=up_var_feature_values[:,0], bins=edges, weights=up_var_weights)[0]
 
                         del down_var_feature_values, up_var_feature_values
+                        gc.collect()
                         
                     del down_var_weights, up_var_weights                    
+                    down_var_sample._arr_cache.clear()
+                    up_var_sample._arr_cache.clear()
                     del down_var_sample, up_var_sample
+
+                    gc.collect()
                     
                     h_down_name = f"h_{group}_{uncertainty_name}_Down"
                     h_down = ROOT.TH1F(h_down_name, "", len(edges) - 1, np.array(edges))
@@ -558,7 +566,9 @@ if __name__ == "__main__":
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
         
+        nominal_sample._arr_cache.clear()
         del nominal_sample, nominal_feature_values, nominal_weights
+        gc.collect()
 
         i_sample_era += 1
         print("[info]: after first sample/era combination, no longer printing variable/branch debug information")
