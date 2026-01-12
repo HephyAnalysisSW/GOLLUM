@@ -21,8 +21,9 @@ Supported systematics:
 """
 
 
-import os
+import os, sys
 import itertools
+import re
 import argparse as ap
 from typing import Sequence
 
@@ -39,9 +40,28 @@ import common.helpers as helpers
 
 import numpy as np
 
-# TODO: finish this function
+# NB: this is a first prototype and hasn't been fully battle tested
+# there may be some edge cases, debug information is printed when the function is ran
 def get_branches_for_selection(selection: str) -> Sequence[str]:
-    return []
+    
+    # NB: the order matters, operators with more chars should be removed first
+    comparison_operators = ["==","!=",">=","<=",">","<","&","|","(",")"]
+
+    string_no_comparisons = selection
+    for operator in comparison_operators:
+        
+        # adding space to avoid variables sticking together in situations like "x>y" -> "xy"
+        string_no_comparisons = string_no_comparisons.replace(operator," ")
+    
+    branches_for_selection = []
+    for string in string_no_comparisons.split():
+
+        if string.isdigit() or (string in branches_for_selection):
+            continue
+
+        branches_for_selection.append(string)
+
+    return branches_for_selection
 
 """
 systematics are divided into three categories:
@@ -151,7 +171,7 @@ if __name__ == "__main__":
     parser = ap.ArgumentParser(description='make plots of pre-fit variations directly from raw +-1 sigma input files, instead of using ICPH surrogates')
     parser.add_argument('--feature', '-f', required=True)
     parser.add_argument('--binning', '-b', nargs="+", help='binning of plot. if not given, gets it from data.plot_options')
-    parser.add_argument('--selection', '-s', type=str, help='string-based selection')
+    parser.add_argument('--selection', '-s', type=str, help='string-based selection in Python/Awkward format, e.g. use & instead of && for chaining selections')
 
     args = parser.parse_args()
 
@@ -175,6 +195,10 @@ if __name__ == "__main__":
             f"nBins={nBins}, low={low}, high={high} -> {len(edges)-1} bins.")
     else:
         raise ValueError(f'No binning for feature {feature_name} given nor found in defaults.')
+    
+    if selection:
+        requested_branches_for_selection = get_branches_for_selection(selection)
+        print(f"[info] {selection=}, {requested_branches_for_selection=}")
 
     logY = plot_options.get(feature_name, {}).get('logY', False)
 
@@ -184,19 +208,20 @@ if __name__ == "__main__":
 
     x_title = plot_options.get(feature_name, {}).get('tex', feature_name)
 
-    # legend columns (configurable)
+    # legend columns (configurable) - for binned template plots
     legend_columns = 3
 
-
     i_sample_era = 0
+
+    # TODO: break this into two loops, one larger per era then a sub-loop for sample 
+    # which I can use to accumulate histograms for prefit stacks
     for era, sample in itertools.product(eras, samples_to_use):
         print(f"era: {era}, sample: {sample}")
         
         nominal_sample = getattr(samples, f'{sample}_{era}_nominal')
 
-        # if selection:
-        #     requested_branches_for_selection = get_branches_for_selection(selection)
-        #     nominal_sample.addSelection(selection, requested_branches_for_selection)
+        if selection:
+            nominal_sample.addSelection(selection, requested_branches_for_selection)
             
         if feature_name not in nominal_sample.feature_names:
             print(f'[warning] feature {feature_name} not in base RDataLoader, attempting to load with setFeatures')
@@ -414,7 +439,10 @@ if __name__ == "__main__":
                         up_var_feature_values, up_var_weights = up_var_sample.materialize(0, what='fw', feature_names=[feature_name])
                         up_var_feature_values = up_var_feature_values[:,0]
                         up_var_hist_entries = np.histogram(a=up_var_feature_values, bins=edges, weights=up_var_weights)[0]
-                    
+
+                        del down_var_feature_values, up_var_feature_values
+                        
+                    del down_var_weights, up_var_weights                    
                     del down_var_sample, up_var_sample
                     
                     h_down_name = f"h_{group}_{uncertainty_name}_Down"
@@ -530,7 +558,7 @@ if __name__ == "__main__":
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
         
-        del nominal_sample
+        del nominal_sample, nominal_feature_values, nominal_weights
 
         i_sample_era += 1
         print("[info]: after first sample/era combination, no longer printing variable/branch debug information")
