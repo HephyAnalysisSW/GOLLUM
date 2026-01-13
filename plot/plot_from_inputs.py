@@ -27,6 +27,8 @@ import itertools
 import re
 import argparse as ap
 from typing import Sequence
+import time
+import logging
 
 import ROOT
 ROOT.gStyle.SetOptStat(0)
@@ -169,10 +171,14 @@ colors = [
 
 if __name__ == "__main__":
 
+    logging.basicConfig(format='%(levelname)s: %(message)s',level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
     parser = ap.ArgumentParser(description='make plots of pre-fit variations directly from raw +-1 sigma input files, instead of using ICPH surrogates')
     parser.add_argument('--feature', '-f', required=True)
     parser.add_argument('--binning', '-b', nargs="+", help='binning of plot. if not given, gets it from data.plot_options')
     parser.add_argument('--selection', '-s', type=str, help='string-based selection in Python/Awkward format, e.g. use & instead of && for chaining selections')
+    parser.add_argument('--debug', '-d', help = 'enables debug mode, keeping only era and one uncertainty of each type', action="store_true")
 
     args = parser.parse_args()
 
@@ -181,31 +187,44 @@ if __name__ == "__main__":
 
     feature_name = args.feature
     selection = args.selection
+    debug = args.debug
+
+    if debug:
+        logger.info("Debug mode: printing additional information, plotting 2016 only and only using one of each type of uncertainty.")
+        logger.setLevel(logging.DEBUG)
+        eras = ["2016"]
+        replace_weight_groups = {'EXPERIMENTAL': {'L1Prefire': ['L1PreFiringWeight_Nom','L1PreFiringWeight_Dn','L1PreFiringWeight_Up']}}
+        add_weight_groups = {'MODELING': {'mu_ren': ['scale_ren0p5_fac1p0','scale_ren2p0_fac1p0']}}
+        kinematic_variation_groups = {'JER': {'CMS_res_j_0_<ERA>': ['CMS_res_j_0_<ERA>_down', 'CMS_res_j_0_<ERA>_up']}}
+
 
     # Decide on bin edges
     edges = None
     if args.binning:
         # explicit list of thresholds
         edges = [float(x) for x in args.binning]
-        print(f"[info] Using explicit bin edges from --binning ({len(edges)-1} bins).")
+        logger.info(f"Using explicit bin edges from --binning ({len(edges)-1} bins).")
     elif feature_name is not None and feature_name in plot_options and 'binning' in plot_options[feature_name]:
         # build thresholds from plot_options: [nBins, low, high]
         nBins, low, high = plot_options[feature_name]['binning']
         edges = [low + i*(high - low) / nBins for i in range(nBins + 1)]
-        print(f"[info] Using binning from plot_options for '{feature_name}': "
+        logger.info(f"Using binning from plot_options for '{feature_name}': "
             f"nBins={nBins}, low={low}, high={high} -> {len(edges)-1} bins.")
     else:
         raise ValueError(f'No binning for feature {feature_name} given nor found in defaults.')
     
     if selection:
         requested_branches_for_selection = get_branches_for_selection(selection)
-        print(f"[info] {selection=}, {requested_branches_for_selection=}")
+        logger.info(f"{selection=}, {requested_branches_for_selection=}")
 
     logY = plot_options.get(feature_name, {}).get('logY', False)
 
-    plot_directory = os.path.join(user.plot_directory, 'binned_templates_from_inputs', feature_name)
-    print(f"[info] Plots will be written under: {plot_directory}")
-    os.makedirs(plot_directory, exist_ok=True)
+    plot_directory_binned_templates = os.path.join(user.plot_directory, 'binned_templates_from_inputs', feature_name)
+    if debug:
+        plot_directory_binned_templates = os.path.join(plot_directory_binned_templates,"debug")
+
+    logger.info(f"Binned templates will be written under: {plot_directory_binned_templates}")
+    os.makedirs(plot_directory_binned_templates, exist_ok=True)
 
     x_title = plot_options.get(feature_name, {}).get('tex', feature_name)
 
@@ -222,15 +241,26 @@ if __name__ == "__main__":
         
         nominal_sample = getattr(samples, f'{sample}_{era}_nominal')
 
+        t0 = time.perf_counter()
+
         if selection:
             nominal_sample.addSelection(selection, requested_branches_for_selection)
-            
+
+        dt0 = time.perf_counter() - t0
+        logger.debug(f"time to add selections on nominal sample: {dt0:.6f} s")
+
         if feature_name not in nominal_sample.feature_names:
-            print(f'[warning] feature {feature_name} not in base RDataLoader, attempting to load with setFeatures')
+            logger.warning(f'feature {feature_name} not in base RDataLoader, attempting to load with setFeatures')
             nominal_sample.setFeatures([feature_name])
 
-        nominal_feature_values, nominal_weights = nominal_sample.materialize(0, what='fw', feature_names = [feature_name])
+        t1 = time.perf_counter()
+        # this could be replaced by opening the files, and issuing a TTree->Draw command (optimized)
+        nominal_feature_values, nominal_weights = nominal_sample.materialize(0, what='fw', feature_names = [feature_name]) # could this be actually slowing down the code ?
 
+        dt1 = time.perf_counter() - t1
+        logger.debug(f"time to materialize nominal sample: {dt1:.6f} s")
+
+        t2 = time.perf_counter()
         # nominal_features is an array of shape (n_events, n_features)
         # even when just one feature is requested
         nominal_feature_values = nominal_feature_values[:,0]
@@ -241,6 +271,9 @@ if __name__ == "__main__":
         # list of weights in nominal sample
         list_weights = nominal_sample.weight_branches
 
+        dt2 = time.perf_counter() - t2
+        logger.debug(f"time to create ROOT histograms in nominal sample: {dt2:.6f} s")
+
         """
         To take into account the three types of handling systematic variations
         at the RDataLoader level
@@ -250,23 +283,23 @@ if __name__ == "__main__":
             if mode == "replace":
                 syst_groups = replace_weight_groups
                 if i_sample_era == 0:
-                    print("[info] plotting variations for scale factors which are part of the overall weight, " \
+                    logger.info("plotting variations for scale factors which are part of the overall weight, " \
                 "e.g. pileup reweighting scale factor uncertainty")
             elif mode == "add":
                 syst_groups = add_weight_groups
                 if i_sample_era == 0:
-                    print("[info] plotting variations implemented as scale factors which multiply the overall event weight, " \
+                    logger.info("plotting variations implemented as scale factors which multiply the overall event weight, " \
                 "e.g. QCD scale variations")
             elif mode == "kinematics":
                 syst_groups = kinematic_variation_groups
                 if i_sample_era == 0:
-                    print("[info] plotting variations from varied kinematics (JME)")
+                    logger.info("plotting variations from varied kinematics (JME)")
 
             for group, uncertainty_names in syst_groups.items():
                 if i_sample_era == 0:
-                    print(f"[info] group: {group}, uncertainties: {uncertainty_names.keys()}")
+                    logger.info(f"group: {group}, uncertainties: {uncertainty_names.keys()}")
 
-                individual_plot_dir = os.path.join(plot_directory,era,sample)
+                individual_plot_dir = os.path.join(plot_directory_binned_templates,era,sample)
                 os.makedirs(individual_plot_dir, exist_ok=True)
                 helpers.copyIndexPHP(individual_plot_dir)
 
@@ -340,7 +373,7 @@ if __name__ == "__main__":
                 for uncertainty_name, branch_names in uncertainty_names.items():
 
                     if i_sample_era == 0:
-                        print(f"[info] uncertainty name: {uncertainty_name}, branch names: {branch_names}")
+                        logger.info(f"uncertainty name: {uncertainty_name}, branch names: {branch_names}")
 
                     color = colors[color_index % len(colors)]
                     color_index += 1
@@ -352,7 +385,7 @@ if __name__ == "__main__":
                         For variations, cloning sample replacing nominal weight branch with varied one,
                         since one can only change the weight branches at RDataLoader creation.
                         """
-                
+                        treplace = time.perf_counter()
                         # using structure defined in replace_weight_groups
                         nominal_weight_name = branch_names[0]
                         down_var_weight_name = branch_names[1]
@@ -376,14 +409,21 @@ if __name__ == "__main__":
                         # nominal weight name (e.g. b-tag SF)
                         list_weights_varied[weight_to_remove_idx] = nominal_weight_name
 
+                        dtreplace_clone_files = time.perf_counter() - treplace
+                        logger.debug(f"time to edit era strings and clone files for replace-type alternative sample: {dtreplace_clone_files:.6f} s")
+
                         down_var_weights = down_var_sample.materialize(0, what='w')[0]
                         down_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=down_var_weights)[0]
                         
                         up_var_weights = up_var_sample.materialize(0, what='w')[0]
                         up_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=up_var_weights)[0]
+                        
+                        dtreplace = time.perf_counter() - treplace - dtreplace_clone_files
+                        logger.debug(f"time to materialize from replace-type alternative samples and create numpy histograms: {dtreplace:.6f} s")
                     
                     elif mode == "add":
                 
+                        tadd = time.perf_counter()
                         """
                         For variations, cloning nominal sample add branch for variation varied one,
                         since one can only change the weight branches at RDataLoader creation.
@@ -403,14 +443,21 @@ if __name__ == "__main__":
                         down_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights+[down_var_weight_name])
                         up_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights+[up_var_weight_name])
 
+                        dtadd_clone_files = time.perf_counter() - tadd
+                        logger.debug(f"time to edit era strings and clone files for add-type alternative sample: {dtadd_clone_files:.6f} s")
+
                         down_var_weights = down_var_sample.materialize(0, what='w')[0]
                         down_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=down_var_weights)[0]
                         
                         up_var_weights = up_var_sample.materialize(0, what='w')[0]
                         up_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=up_var_weights)[0]
 
+                        dtadd = time.perf_counter() - tadd - dtadd_clone_files
+                        logger.debug(f"time to just materialize from add-type alternative samples and create numpy histograms: {dtadd:.6f} s")
+
                     elif mode == "kinematics":
                         
+                        tkin = time.perf_counter()
                         """
                         For kinematic variations, cloning from different files, keeping the same branch names,
                         since one can only change the weight branches at RDataLoader creation.
@@ -435,6 +482,9 @@ if __name__ == "__main__":
                         down_var_sample = getattr(samples, f'{sample}_{era}_{down_var_file_tag}')
                         up_var_sample = getattr(samples, f'{sample}_{era}_{up_var_file_tag}')
 
+                        dtkin_get_files = time.perf_counter() - tkin
+                        logger.debug(f"time to edit era strings and fetch files for samples with kinematic variations: {dtkin_get_files:.6f} s")
+
                         down_var_feature_values, down_var_weights = down_var_sample.materialize(0, what='fw', feature_names=[feature_name])
                         # parsing output of materialize into a simple array
                         # also done when loading the nominal sample
@@ -443,15 +493,29 @@ if __name__ == "__main__":
                         up_var_feature_values, up_var_weights = up_var_sample.materialize(0, what='fw', feature_names=[feature_name])
                         up_var_hist_entries = np.histogram(a=up_var_feature_values[:,0], bins=edges, weights=up_var_weights)[0]
 
+                        dtkin = time.perf_counter() - tkin - dtkin_get_files
+                        logger.debug(f"time to materialize kinematic-type alternative samples and create numpy histograms: {dtkin:.6f} s")
+
+                        tkin_clean = time.perf_counter()
+                        
                         del down_var_feature_values, up_var_feature_values
                         gc.collect()
                         
+                        dtkin_clean = time.perf_counter() - tkin_clean
+                        logger.debug(f"time to clean feature values from kinematic-type alternative sample: {dtkin_clean:.6f} s")
+
+                    t_clean = time.perf_counter()
+
                     del down_var_weights, up_var_weights                    
                     down_var_sample._arr_cache.clear()
                     up_var_sample._arr_cache.clear()
                     del down_var_sample, up_var_sample
 
                     gc.collect()
+                    
+                    dt_clean = time.perf_counter() - t_clean
+                    logger.debug(f"time to do general memory clean from any alternative sample: {dt_clean:.6f} s")
+
                     
                     h_down_name = f"h_{group}_{uncertainty_name}_Down"
                     h_down = ROOT.TH1F(h_down_name, "", len(edges) - 1, np.array(edges))
@@ -476,6 +540,8 @@ if __name__ == "__main__":
                     legend.AddEntry(h_up, f"{uncertainty_name} +1#sigma", "l")
                     h_variations.append(h_up)
                 
+
+                t_root_compare = time.perf_counter()
 
                 # y range (absolute yields)
                 max_y = max(h.GetMaximum() for h in h_variations)
@@ -565,12 +631,15 @@ if __name__ == "__main__":
                 out_pdf = os.path.join(individual_plot_dir, canvas_name + ".pdf")
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
-        
+
+                dt_root_compare = time.perf_counter() - t_root_compare
+                logger.debug(f"time to make the ROOT plot comparison: {dt_root_compare:.6f} s")         
         nominal_sample._arr_cache.clear()
         del nominal_sample, nominal_feature_values, nominal_weights
         gc.collect()
 
         i_sample_era += 1
-        print("[info]: after first sample/era combination, no longer printing variable/branch debug information")
+        logger.info("after first sample/era combination, no longer printing variable/branch information")
+
 
     syncer.sync()
