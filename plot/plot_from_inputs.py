@@ -737,45 +737,48 @@ if __name__ == "__main__":
                 h_var_up.Multiply(h_var_up)
                 h_unc_up.Add(h_var_up)
 
-        # stores total uncertainty
-        h_unc = h_total.Clone(f"h_prefit_unc_{era}")
+        # uncertainty band via TBoxes + line-only histos
+        uncertainty_boxes = []
 
-        for i_bin in range(1, n_bins+1):
+        h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
+        h_line_down = h_central.Clone(f"h_prefit_down_{era}")
 
-            unc_down_bin = h_unc_down.GetBinContent(i_bin)
-            unc_up_bin = h_unc_up.GetBinContent(i_bin)
-            
-            # taking the max of up and down uncertainties to avoid having to
-            # go through the trouble of adding a TGraphAsymmErrors
-            h_unc.SetBinError(i_bin, max(np.sqrt(unc_down_bin), np.sqrt(unc_down_bin)))
+        # lines only, no fill
+        h_line_up.SetFillStyle(0)
+        h_line_up.SetFillColor(0)
+        h_line_down.SetFillStyle(0)
+        h_line_down.SetFillColor(0)
+        h_line_up.SetLineColor(ROOT.kGray + 2)
+        h_line_down.SetLineColor(ROOT.kGray + 2)
+        h_line_up.SetLineWidth(1)
+        h_line_down.SetLineWidth(1)
 
-        h_unc.SetFillColor(ROOT.kGray + 1)
-        h_unc.SetFillStyle(3345)
-        h_unc.SetLineWidth(0)
-        h_unc.SetMarkerSize(0)
+        logger.debug(f"Creating uncertainty boxes.")
 
-        # lines at nominal ± uncertainty (absolute)
-        h_unc_up   = h_total.Clone(f"h_prefit_unc_up_{era}")
-        h_unc_down = h_total.Clone(f"h_prefit_unc_down_{era}")
-        h_unc_up.SetDirectory(0)
-        h_unc_down.SetDirectory(0)
         for ib in range(1, n_bins+1):
+            x1 = edges[ib-1]
+            x2 = edges[ib]
             nom = h_total.GetBinContent(ib)
-            err = h_unc.GetBinError(ib)
-            h_unc_up.SetBinContent(ib, nom + err)
-            h_unc_down.SetBinContent(ib, max(0.0, nom - err))
-            h_unc_up.SetBinError(ib, 0.0)
-            h_unc_down.SetBinError(ib, 0.0)
-        h_unc_up.SetLineColor(ROOT.kGray + 2)
-        h_unc_up.SetLineStyle(ROOT.kSolid)
-        h_unc_up.SetLineWidth(1)
-        h_unc_down.SetLineColor(ROOT.kGray + 2)
-        h_unc_down.SetLineStyle(ROOT.kSolid)
-        h_unc_down.SetLineWidth(1)
-        h_unc_up.SetFillStyle(0)
-        h_unc_up.SetFillColor(0)
-        h_unc_down.SetFillStyle(0)
-        h_unc_down.SetFillColor(0)
+            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+            err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+
+            if nom > 0.0:
+                y_low  = nom - err_down
+                y_high = nom + err_up
+                logger.debug(f"{ib=}, {nom=}, {y_low=}, {y_high=}, {(y_low/nom)=}, {(y_high/nom)=}")
+
+                box = ROOT.TBox(x1, y_low, x2, y_high)
+                box.SetFillColor(ROOT.kGray + 1)
+                box.SetFillStyle(3345)
+                box.SetLineWidth(0)
+                uncertainty_boxes.append(box)
+
+                h_line_up.SetBinContent(ib, y_high)
+                h_line_down.SetBinContent(ib, y_low)
+            else:
+                # no prediction in this bin -> keep lines at 0
+                h_line_up.SetBinContent(ib, 0.0)
+                h_line_down.SetBinContent(ib, 0.0)
 
         # "data" histogram: copy of total, errors = sqrt(yield)
         h_data = h_total.Clone(f"h_prefit_data_{era}")
@@ -859,9 +862,8 @@ if __name__ == "__main__":
             hs.SetMaximum(1.5 * max_y if max_y > 0 else 1.0)
 
         # draw uncertainty band, lines, and data
-        h_unc.Draw("E2 SAME")
-        h_unc_up.Draw("HIST SAME")
-        h_unc_down.Draw("HIST SAME")
+        for box in uncertainty_boxes:
+            box.Draw("SAME")
         h_data.Draw("E SAME")
 
         # legend
@@ -874,7 +876,7 @@ if __name__ == "__main__":
         for sample in sample_labels_sorted:
             leg.AddEntry(sample_histogram_dict[sample][0], sample, "f")
             logging.debug(f"{sample=}")
-        leg.AddEntry(h_unc, "Uncertainty", "f")
+        leg.AddEntry(uncertainty_boxes[0], "Uncertainty", "f")
         leg.Draw()
 
         # ---- BOTTOM PAD: ratios ----
@@ -920,12 +922,15 @@ if __name__ == "__main__":
             x1 = edges[ib-1]
             x2 = edges[ib]
             nom = h_total.GetBinContent(ib)
-            err = h_unc.GetBinError(ib)
+            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+            err_down = np.sqrt(h_unc_down.GetBinContent(ib))   
 
             if nom > 0.0:
-                rel = err / nom
-                y_low  = 1.0 - rel
-                y_high = 1.0 + rel
+                rel_up = err_up / nom
+                rel_down = err_down / nom
+                
+                y_low  = 1.0 - rel_down
+                y_high = 1.0 + rel_up
 
                 box = ROOT.TBox(x1, y_low, x2, y_high)
                 box.SetFillColor(ROOT.kGray + 1)
@@ -944,11 +949,15 @@ if __name__ == "__main__":
         max_dev = 0.0
         for ib in range(1, n_bins+1):
             nom = h_total.GetBinContent(ib)
-            err = h_unc.GetBinError(ib)
+
+            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+            err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+
             if nom > 0:
-                dev = err / nom
-                if dev > max_dev:
-                    max_dev = dev
+                dev_up = err_up / nom
+                dev_down = err_down / nom
+                if max(dev_up,dev_down) > max_dev:
+                    max_dev = max(dev_up,dev_down)
 
         if max_dev <= 0.0:
             r_min, r_max = 0.9, 1.1
