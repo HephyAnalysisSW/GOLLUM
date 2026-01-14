@@ -121,7 +121,7 @@ plot_options = {
     "tr_AntiTop_eta"               : { 'binning': [26,  -2.6,  2.6],  'tex': '#eta(t_{2})',                 'logY': False },
 
     "tr_ttbar_pt"                 : { 'binning': [20,   0,  1000],   'tex': 'p_{T}(t#bar{t})',             'logY': True  },
-    "tr_ttbar_mass"               : { 'binning': [32, 300,  3500],   'tex': 'M(t#bar{t})',                 'logY': True  },
+    "tr_ttbar_mass"               : { 'binning': [32, 300,  3500],   'tex': 'M(t#bar{t})',                 'logY': False  },
     "tr_ttbar_eta"                : { 'binning': [26,  -2.6,  2.6],  'tex': '#eta(t#bar{t})',              'logY': False },
     "tr_ttbar_dEta"               : { 'binning': [26,  -2.6,  2.6],  'tex': '#Delta#eta(t#bar{t})',        'logY': False },
     "tr_ttbar_dAbsEta"            : { 'binning': [26,  -2.6,  2.6],  'tex': '#Delta|#eta|(t#bar{t})',      'logY': False },
@@ -171,3 +171,12 @@ plot_options = {
     "x"                           : { 'binning': [20,   0,     1],   'tex': 'x',                           'logY': False },
 }
 
+# specific list of bin edges
+# defaults from published dileptonic ttbar diff. XS results (TOP-20-006)
+bin_edges = {
+    'tr_ttbar_mass' : [300, 380, 470, 620, 820, 1100, 1500, 2500]
+}
+
+for variable, edges in bin_edges.items():
+    if variable in plot_options:
+        plot_options[variable]['bin_edges'] = edges
