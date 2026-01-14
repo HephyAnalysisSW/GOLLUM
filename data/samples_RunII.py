@@ -51,7 +51,6 @@ _base = RDataLoader(
         "btagSF_fixedWP_SF",
         "lepEle_SF",
         "lepMu_SF",
-        "Pileup_SF"
     ],
     feature_names=(
         observables.TOP_KINEMATICS
