@@ -5,15 +5,15 @@ This module creates histogram plots comparing nominal, down-varied, and up-varie
 without using learned ICPH surrogates, i.e. directly from input variations.
 
 Usage:
-    python plot_from_inputs.py --feature <feature_name> [--binning <bin_edges>] [--selection <selection_string>]
+    python plot_from_inputs.py [--selection <selection_string>] [--debug]
 
 Arguments:
-    --feature, -f (str): Feature to plot (required)
-    --binning, -b (list): Custom bin edges. If not provided, uses defaults from plot_options
     --selection, -s (str): String-based event selection
 
+    --debug, -d: Run in debug mode
+
 Outputs:
-    PNG and PDF plots saved to plot_directory/binned_templates_from_inputs/<feature_name>/<era>/<sample>/
+    PNG and PDF plots saved to plot_directory/binned_templates_from_inputs//<era>/<sample>/<feature_name>/
 
 Supported systematics:
     - MODELING: Renormalization/factorization scales, shower ISR/FSR, alpha_s
@@ -26,7 +26,7 @@ import gc # explicit garbage collection to avoid ridiculous (+100GB) memory usag
 import itertools
 import re
 import argparse as ap
-from typing import Sequence
+from typing import Sequence, Optional
 import time
 import logging
 
@@ -159,26 +159,39 @@ kinematic_variation_groups = {
             'Uncl': ['Uncl_down', 'Uncl_up'],
         },
 }
+
+# returns bin edges in Numpy format (low edges + upper edge of last bin)
+def get_bin_edges(feature_name: str, print_add_info = False) -> Optional[Sequence[float]]:
     
-
-# simple color palette
-binned_template_colors = [
-    ROOT.kRed + 1,
-    ROOT.kBlue + 1,
-    ROOT.kGreen + 2,
-    ROOT.kMagenta + 1,
-    ROOT.kOrange + 1,
-    ROOT.kCyan + 1,
-]
-
+    if feature_name in plot_options:
+        
+        # prioritize set of bin edges for pre-fit plots
+        # to have plots similar to TOP-20-006
+        if 'bin_edges' in plot_options[feature_name]:
+            # gets thresholds directly from plot_options
+            edges = plot_options[feature_name]['bin_edges']
+            if print_add_info:
+                logger.info(f"Using bin edges from plot_options for '{feature_name}': {edges}")
+        
+        elif 'binning' in plot_options[feature_name]:
+            # build thresholds from plot_options: [nBins, low, high]
+            nBins, low, high = plot_options[feature_name]['binning']
+            edges = [low + i*(high - low) / nBins for i in range(nBins + 1)]
+            if print_add_info:
+                logger.info(f"Using equidistant binning from plot_options for '{feature_name}': "
+                f"nBins={nBins}, low={low}, high={high} -> {len(edges)-1} bins.")
+        
+        return edges
+    
+    else:
+        return None
+    
 if __name__ == "__main__":
 
     logging.basicConfig(format='%(levelname)s: %(message)s',level=logging.INFO)
     logger = logging.getLogger(__name__)
 
     parser = ap.ArgumentParser(description='make plots of pre-fit variations directly from raw +-1 sigma input files, instead of using ICPH surrogates')
-    parser.add_argument('--feature', '-f', required=True)
-    parser.add_argument('--binning', '-b', nargs="+", help='binning of plot. if not given, gets it from data.plot_options')
     parser.add_argument('--selection', '-s', type=str, help='string-based selection in Python/Awkward format, e.g. use & instead of && for chaining selections')
     parser.add_argument('--debug', '-d', help = 'enables debug mode, keeping only era and one uncertainty of each type', action="store_true")
 
@@ -187,94 +200,64 @@ if __name__ == "__main__":
     samples_to_use = ['TTLep_pow', 'TTSemi_pow', 'SingleTop', 'DrellYan']
     eras = samples.ERAS
 
-    feature_name = args.feature
     selection = args.selection
     debug = args.debug
 
     if debug:
-        logger.info("Debug mode: printing additional information, plotting 2016 only and only using one of each type of uncertainty.")
+        logger.info("Debug mode: printing additional information, plotting 2016 only, only using one of each type of uncertainty and only plotting two features.")
         logger.setLevel(logging.DEBUG)
         eras = ["2016"]
         replace_weight_groups = {'EXPERIMENTAL': {'L1Prefire': ['L1PreFiringWeight_Nom','L1PreFiringWeight_Dn','L1PreFiringWeight_Up']}}
         add_weight_groups = {'MODELING': {'mu_ren': ['scale_ren0p5_fac1p0','scale_ren2p0_fac1p0']}}
         kinematic_variation_groups = {'JER': {'CMS_res_j_0_<ERA>': ['CMS_res_j_0_<ERA>_down', 'CMS_res_j_0_<ERA>_up']}}
 
-
-    # Decide on bin edges
-    edges = None
-    if args.binning:
-        # explicit list of thresholds
-        edges = [float(x) for x in args.binning]
-        logger.info(f"Using explicit bin edges from --binning ({len(edges)-1} bins).")
-    elif feature_name is not None and feature_name in plot_options:
-        
-        # prioritize set of bin edges for pre-fit plots
-        # to have plots similar to TOP-20-006
-        if 'bin_edges' in plot_options[feature_name]:
-            # gets thresholds directly from plot_options
-            edges = plot_options[feature_name]['bin_edges']
-            logger.info(f"Using bin edges from plot_options for '{feature_name}': {edges}")
-        elif 'binning' in plot_options[feature_name]:
-            # build thresholds from plot_options: [nBins, low, high]
-            nBins, low, high = plot_options[feature_name]['binning']
-            edges = [low + i*(high - low) / nBins for i in range(nBins + 1)]
-            logger.info(f"Using equidistant binning from plot_options for '{feature_name}': "
-            f"nBins={nBins}, low={low}, high={high} -> {len(edges)-1} bins.")
-    else:
-        raise ValueError(f'No binning for feature {feature_name} given nor found in defaults.')
-
-    # converting Numpy histogram edges (low edges + upper edge of last bin)
-    # to ROOT binning (lower edges only), bin 0 is underflow bin, bin nbins+1 is overflow
-    n_bins = len(edges)-1
-    logger.debug(f"{edges=}")
-    
     if selection:
         requested_branches_for_selection = get_branches_for_selection(selection)
         logger.info(f"{selection=}, {requested_branches_for_selection=}")
 
-    logY = plot_options.get(feature_name, {}).get('logY', False)
-
-    plot_directory_binned_templates = os.path.join(user.plot_directory, 'binned_templates_from_inputs', feature_name)
-    if debug:
-        plot_directory_binned_templates = os.path.join(plot_directory_binned_templates,"debug")
-
-    logger.info(f"Binned templates will be written under: {plot_directory_binned_templates}")
-    os.makedirs(plot_directory_binned_templates, exist_ok=True)
-
-    x_title = plot_options.get(feature_name, {}).get('tex', feature_name)
-
-    # legend columns (configurable) - for binned template plots
-    legend_columns_binned_templates = 3
-
-    # aux variable to give debug information only for first (sample, era) pair
-    i_sample_era = 0
-
     """
     stores histograms of nominal, up and down variations
-    for each sample and era
+    for each era, sample, feature, uncertainty set
     
     used to separate creation of RDataLoaders,
     fetching of templates for each uncertainty
-    and creation of pre-fit binned template comparisons
-    from the creation of the pre-fit stacks
+    from creation of pre-fit binned template comparisons and stacks
     
     structure of dictionary:
-    {era: {
-        sample: [nominal, [down variation templates], [up variation templates]]
+    {
+        era: {
+            sample: {
+                feature: {
+                    uncertainty: [nominal, down variation template, up variation templates]
+                }
+            }
         }
     }
     """
 
-    era_sample_histogram_dict = {}
+    # initializing here to avoid adding another layer of for loop separating era and sample
+    histogram_dict = {}
     for era in eras:
-        era_sample_histogram_dict[era] = {}
+        histogram_dict[era] = {}
         for sample in samples_to_use:
-            era_sample_histogram_dict[era][sample] = []    
+            histogram_dict[era][sample] = {}
 
-    for era, sample in itertools.product(eras, samples_to_use):
+    for i_era_sample, (era, sample) in enumerate(itertools.product(eras, samples_to_use)):
         print(f"era: {era}, sample: {sample}")
         
         nominal_sample = getattr(samples, f'{sample}_{era}_nominal')
+        
+        # initializating dict here to avoid bugs
+        for i_feature, feature_name in enumerate(nominal_sample.feature_names):
+
+            if debug and i_feature > 1:
+                continue
+            
+            histogram_dict[era][sample][feature_name] = {}
+
+            # simple way to let us know the binning only once and not pollute the terminal
+            if i_era_sample==0:
+                get_bin_edges(feature_name, print_add_info=True)
 
         t0 = time.perf_counter()
 
@@ -284,58 +267,17 @@ if __name__ == "__main__":
         dt0 = time.perf_counter() - t0
         logger.debug(f"time to add selections on nominal sample: {dt0:.6f} s")
 
-        if feature_name not in nominal_sample.feature_names:
-            logger.warning(f'feature {feature_name} not in base RDataLoader, attempting to load with setFeatures')
-            nominal_sample.setFeatures([feature_name])
-
         t1 = time.perf_counter()
         # this could be replaced by opening the files, and issuing a TTree->Draw command (optimized)
-        nominal_feature_values, nominal_weights = nominal_sample.materialize(0, what='fw', feature_names = [feature_name]) # could this be actually slowing down the code ?
+        nominal_feature_values, nominal_weights = nominal_sample.materialize(0, what='fw')
 
         dt1 = time.perf_counter() - t1
         logger.debug(f"time to materialize nominal sample: {dt1:.6f} s")
 
         t2 = time.perf_counter()
-        # nominal_features is an array of shape (n_events, n_features)
-        # even when just one feature is requested
-        nominal_feature_values = nominal_feature_values[:,0]
-
-        nominal_hist = np.histogram(a=nominal_feature_values, bins=edges, weights=nominal_weights)
-        nominal_hist_entries = nominal_hist[0]
 
         # list of weights in nominal sample
-        list_weights = nominal_sample.weight_branches
-
-        # central histogram with variable binning
-        h_central_name = f"h_central_{era}_{sample}"
-        h_central = ROOT.TH1F(h_central_name, "", n_bins, np.array(edges, dtype=float))
-        for i in range(n_bins):
-            h_central.SetBinContent(i + 1, nominal_hist_entries[i])
-
-        h_central.SetLineColor(ROOT.kBlack)
-        h_central.SetLineWidth(2)
-        # no title on the top pad
-        h_central.SetTitle("")
-        h_central.GetXaxis().SetTitle(x_title)
-
-        h_central.GetYaxis().SetTitle("Events")
-        h_central.GetYaxis().SetTitleSize(0.06)
-        h_central.GetYaxis().SetLabelSize(0.045)
-        # x label on bottom pad only
-        h_central.GetXaxis().SetLabelSize(0)
-        h_central.GetXaxis().SetTitleSize(0)
-
-        # cloning as a precaution to avoid segfaults
-        era_sample_histogram_dict[era][sample].append(h_central)
-        
-        # list with all the down and up variation templates
-        # for each sample and era,
-        # will be filled in the loop below
-        h_variations_down = []
-        h_variations_up = []
-
-        dt2 = time.perf_counter() - t2
-        logger.debug(f"time to create ROOT histograms in nominal sample: {dt2:.6f} s")
+        weight_names = nominal_sample.weight_branches
 
         """
         To take into account the three types of handling systematic variations
@@ -345,28 +287,287 @@ if __name__ == "__main__":
 
             if mode == "replace":
                 syst_groups = replace_weight_groups
-                if i_sample_era == 0:
+                if i_era_sample == 0:
                     logger.info("plotting variations for scale factors which are part of the overall weight, " \
                 "e.g. pileup reweighting scale factor uncertainty")
             elif mode == "add":
                 syst_groups = add_weight_groups
-                if i_sample_era == 0:
+                if i_era_sample == 0:
                     logger.info("plotting variations implemented as scale factors which multiply the overall event weight, " \
                 "e.g. QCD scale variations")
             elif mode == "kinematics":
                 syst_groups = kinematic_variation_groups
-                if i_sample_era == 0:
+                if i_era_sample == 0:
                     logger.info("plotting variations from varied kinematics (JME)")
 
             for group, uncertainty_names in syst_groups.items():
-                if i_sample_era == 0:
+                if i_era_sample == 0:
                     logger.info(f"group: {group}, uncertainties: {uncertainty_names.keys()}")
 
-                individual_plot_dir = os.path.join(plot_directory_binned_templates,era,sample)
-                os.makedirs(individual_plot_dir, exist_ok=True)
-                helpers.copyIndexPHP(individual_plot_dir)
+                for uncertainty_name, branch_names in uncertainty_names.items():
 
-                canvas_name = f"{era}_{sample}_{group}"
+                    if i_era_sample == 0:
+                        logger.info(f"uncertainty name: {uncertainty_name}, branch names: {branch_names}")
+
+                    # logic different for each type of systematic variations
+                    if mode == "replace":
+                
+                        """
+                        For variations, cloning sample replacing nominal weight branch with varied one,
+                        since one can only change the weight branches at RDataLoader creation.
+                        """
+                        treplace = time.perf_counter()
+                        # using structure defined in replace_weight_groups
+                        nominal_weight_name = branch_names[0]
+                        down_var_weight_name = branch_names[1]
+                        up_var_weight_name = branch_names[2]
+
+                        if '<ERA>' in uncertainty_name:
+                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
+                            down_var_weight_name = down_var_weight_name.replace('<ERA>',str(era))
+                            up_var_weight_name = up_var_weight_name.replace('<ERA>',str(era))
+
+                        weight_names_varied = weight_names
+                        weight_to_remove_idx = weight_names_varied.index(nominal_weight_name)
+                        
+                        weight_names_varied[weight_to_remove_idx] = down_var_weight_name
+                        down_var_sample = nominal_sample.clone_from_files(nominal_sample.files, weight_names_varied)
+
+                        weight_names_varied[weight_to_remove_idx] = up_var_weight_name
+                        up_var_sample = nominal_sample.clone_from_files(nominal_sample.files, weight_names_varied)
+
+                        # fixes cases where there are two uncertainties with the same
+                        # nominal weight name (e.g. b-tag SF)
+                        weight_names_varied[weight_to_remove_idx] = nominal_weight_name
+
+                        dtreplace_clone_files = time.perf_counter() - treplace
+                        logger.debug(f"time to edit era strings and clone files for replace-type alternative sample: {dtreplace_clone_files:.6f} s")
+
+                        down_var_weights = down_var_sample.materialize(0, what='w')[0]
+                        up_var_weights = up_var_sample.materialize(0, what='w')[0]
+
+                        # doing this to have a generic assignment outside of "if" condition
+                        down_var_feature_values = nominal_feature_values
+                        up_var_feature_values = nominal_feature_values
+                        
+                        dtreplace = time.perf_counter() - treplace - dtreplace_clone_files
+                        logger.debug(f"time to materialize weights from replace-type alternative samples: {dtreplace:.6f} s")
+                    
+                    elif mode == "add":
+                
+                        tadd = time.perf_counter()
+                        """
+                        For variations, cloning nominal sample add branch for variation varied one,
+                        since one can only change the weight branches at RDataLoader creation.
+                        """
+
+                        # using structure defined in add_weight_groups
+                        down_var_weight_name = branch_names[0]
+                        up_var_weight_name = branch_names[1]
+
+                        if '<ERA>' in uncertainty_name:
+                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
+                            down_var_weight_name = down_var_weight_name.replace('<ERA>',str(era))
+                            up_var_weight_name = up_var_weight_name.replace('<ERA>',str(era))                        
+                        
+                        down_var_sample = nominal_sample.clone_from_files(nominal_sample.files, weight_names+[down_var_weight_name])
+                        up_var_sample = nominal_sample.clone_from_files(nominal_sample.files, weight_names+[up_var_weight_name])
+
+                        dtadd_clone_files = time.perf_counter() - tadd
+                        logger.debug(f"time to edit era strings and clone files for add-type alternative sample: {dtadd_clone_files:.6f} s")
+
+                        down_var_weights = down_var_sample.materialize(0, what='w')[0]
+                        down_var_feature_values = nominal_feature_values
+                        
+                        up_var_weights = up_var_sample.materialize(0, what='w')[0]
+                        up_var_feature_values = nominal_feature_values
+
+                        dtadd = time.perf_counter() - tadd - dtadd_clone_files
+                        logger.debug(f"time to materialize weights from add-type alternative samples: {dtadd:.6f} s")
+
+                    elif mode == "kinematics":
+                        
+                        tkin = time.perf_counter()
+                        """
+                        For kinematic variations, cloning from different files, keeping the same branch names,
+                        since one can only change the weight branches at RDataLoader creation.
+                        """
+
+                        # using structure defined in add_weight_groups
+                        down_var_file_tag = branch_names[0]
+                        up_var_file_tag = branch_names[1]
+
+                        if '<ERA>' in uncertainty_name:
+                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
+                            down_var_file_tag = down_var_file_tag.replace('<ERA>',str(era))
+                            up_var_file_tag = up_var_file_tag.replace('<ERA>',str(era))
+
+                        # all era-decorrelated JES variations consider 2016 and 2016APV as single 2016 era
+                        # the opposite is true for JER variations
+                        if 'CMS_res_j' not in uncertainty_name:
+                            uncertainty_name = uncertainty_name.replace("APV","")
+                            down_var_file_tag = down_var_file_tag.replace("APV","")
+                            up_var_file_tag = up_var_file_tag.replace("APV","")
+
+                        down_var_sample = getattr(samples, f'{sample}_{era}_{down_var_file_tag}')
+                        up_var_sample = getattr(samples, f'{sample}_{era}_{up_var_file_tag}')
+
+                        dtkin_get_files = time.perf_counter() - tkin
+                        logger.debug(f"time to edit era strings and fetch files for samples with kinematic variations: {dtkin_get_files:.6f} s")
+
+                        down_var_feature_values, down_var_weights = down_var_sample.materialize(0, what='fw')
+                        # parsing output of materialize into a simple array
+                        # also done when loading the nominal sample                        
+                        up_var_feature_values, up_var_weights = up_var_sample.materialize(0, what='fw')                        
+
+                        dtkin = time.perf_counter() - tkin - dtkin_get_files
+                        logger.debug(f"time to materialize kinematic-type alternative samples: {dtkin:.6f} s")
+
+                        # tkin_clean = time.perf_counter()
+                        
+                        # del down_var_feature_values, up_var_feature_values
+                        # gc.collect()
+                        
+                        # dtkin_clean = time.perf_counter() - tkin_clean
+                        # logger.debug(f"time to clean feature values from kinematic-type alternative sample: {dtkin_clean:.6f} s")
+
+
+                    for i_feature, feature_name in enumerate(nominal_sample.feature_names):
+
+                        if debug and i_feature > 1:
+                            continue
+
+                        edges = get_bin_edges(feature_name)
+                        
+                        if not edges:
+                            if i_era_sample == 0:
+                                logger.warning(f"feature {feature_name} does not have default binning in plot_options, skipping histogram filling")
+                            continue
+
+                        if i_era_sample == 0:
+                            logger.debug(f"{feature_name=}, {edges=}")
+                        
+                        nominal_hist_entries = np.histogram(a=nominal_feature_values[:,i_feature], bins=edges, weights=nominal_weights)[0]
+                        
+                        down_var_hist_entries = np.histogram(a=down_var_feature_values[:,i_feature], bins=edges, weights=down_var_weights)[0]
+                        up_var_hist_entries = np.histogram(a=up_var_feature_values[:,i_feature], bins=edges, weights=up_var_weights)[0]
+
+                        # converting Numpy histogram edges (low edges + upper edge of last bin)
+                        # to ROOT binning (lower edges only), bin 0 is underflow bin, bin nbins+1 is overflow
+                        n_bins = len(edges)-1
+
+                        # # central histogram with variable binning, created only once
+                        h_central_name = f"h_central_{era}_{sample}_{uncertainty_name}_{feature_name}"
+                        h_central = ROOT.TH1F(h_central_name, "", n_bins, np.array(edges, dtype=float))
+                        for i in range(n_bins):
+                            h_central.SetBinContent(i + 1, nominal_hist_entries[i])
+
+                        h_down_name = f"h_{era}_{sample}_{uncertainty_name}_{feature_name}_Down"
+                        h_down = ROOT.TH1F(h_down_name, "", n_bins, np.array(edges, dtype=float))
+                        for i in range(n_bins):
+                            h_down.SetBinContent(i + 1, down_var_hist_entries[i])
+
+                        h_up_name = f"h_{era}_{sample}_{uncertainty_name}_{feature_name}_Up"
+                        h_up = ROOT.TH1F(h_up_name, "", n_bins, np.array(edges, dtype=float))
+                        for i in range(n_bins):
+                            h_up.SetBinContent(i + 1, up_var_hist_entries[i])
+
+                        histogram_dict[era][sample][feature_name][uncertainty_name] = []
+
+                        histogram_dict[era][sample][feature_name][uncertainty_name].append(h_central)
+                        histogram_dict[era][sample][feature_name][uncertainty_name].append(h_down)
+                        histogram_dict[era][sample][feature_name][uncertainty_name].append(h_up)
+                        
+
+                    # t_clean = time.perf_counter()
+
+                    # del down_var_feature_values, up_var_feature_values
+                    # del down_var_weights, up_var_weights
+                    down_var_sample._arr_cache.clear()
+                    up_var_sample._arr_cache.clear()
+                    del down_var_sample, up_var_sample
+
+                    gc.collect()
+                    
+                    # dt_clean = time.perf_counter() - t_clean
+                    # logger.debug(f"time to do general memory clean from any alternative sample: {dt_clean:.6f} s")
+
+
+                # t_root_compare = time.perf_counter()
+
+                # dt_root_compare = time.perf_counter() - t_root_compare
+                # logger.debug(f"time to make the ROOT plot comparison: {dt_root_compare:.6f} s")
+
+        nominal_sample._arr_cache.clear()
+        del nominal_sample, nominal_feature_values, nominal_weights
+        gc.collect()
+
+        if i_era_sample == 0:
+            logger.info("after first sample/era combination, no longer printing variable/branch information")
+
+
+    logger.debug(histogram_dict)
+
+
+
+
+    """
+    making binned template input comparisons from nominal, down and up variation templates from previous step
+
+    remember the structure of histogram_dict:
+        histogram_dict[era][sample][feature_name][uncertainty_name] = [h_nominal, h_down, h_up]
+    
+    """
+    # legend columns (configurable) - for binned template plots
+    legend_columns_binned_templates = 3
+
+    plot_directory_binned_templates = os.path.join(user.plot_directory, 'binned_templates_from_inputs')
+    if debug:
+        plot_directory_binned_templates = os.path.join(plot_directory_binned_templates,"debug")
+
+    logger.info(f"Creating binned templates from sample inputs, will be written under {plot_directory_binned_templates}")
+    os.makedirs(plot_directory_binned_templates, exist_ok=True)
+
+    # simple color palette
+    binned_template_colors = [
+        ROOT.kRed + 1,
+        ROOT.kBlue + 1,
+        ROOT.kGreen + 2,
+        ROOT.kMagenta + 1,
+        ROOT.kOrange + 1,
+        ROOT.kCyan + 1,
+    ]
+
+    # creating a single dictionary with all the uncertainty groups
+    uncertainty_groups = replace_weight_groups
+    uncertainty_groups.update(add_weight_groups)
+    uncertainty_groups.update(kinematic_variation_groups)
+
+    for i_era_sample, (era, sample) in enumerate(itertools.product(eras, samples_to_use)):
+
+        individual_plot_dir = os.path.join(plot_directory_binned_templates,era,sample)
+        os.makedirs(individual_plot_dir, exist_ok=True)
+        helpers.copyIndexPHP(individual_plot_dir)
+            
+        if i_era_sample == 0:
+            logger.info(f"{era=}, {sample=}")
+
+        for feature_name in histogram_dict[era][sample].keys():
+
+            if i_era_sample == 0:
+                logger.info(f"{feature_name=}")
+
+            if feature_name not in plot_options:
+                if i_era_sample == 0:
+                    logger.warning(f"feature {feature_name} not in plot_options, skipping histogram")
+                continue
+
+            logY = plot_options.get(feature_name, {}).get('logY', False)
+            x_title = plot_options.get(feature_name, {}).get('tex', feature_name)
+            
+            for group, uncertainties in uncertainty_groups.items():
+                
+                canvas_name = f"{group}_{feature_name}_{era}_{sample}"
                 # stretch in y
                 c = ROOT.TCanvas(canvas_name, canvas_name, 800, 900)
 
@@ -407,198 +608,69 @@ if __name__ == "__main__":
                 if logY:
                     padTop.SetLogy(True)
 
+                # collect all histograms to draw in the top pad, format them and draw them
+
+                first_uncertainty_in_group = list(uncertainties.keys())[0]
+                if '<ERA>' in first_uncertainty_in_group:
+                    first_uncertainty_in_group = first_uncertainty_in_group.replace('<ERA>',str(era))
+                
+                # collect and format central histogram
+                h_central = histogram_dict[era][sample][feature_name][first_uncertainty_in_group][0]
+                h_central.SetLineColor(ROOT.kBlack)
+                h_central.SetLineWidth(2)
+                # # no title on the top pad
+                h_central.SetTitle("")
+                h_central.GetXaxis().SetTitle(x_title)
+                h_central.GetYaxis().SetTitle("Events")
+                h_central.GetYaxis().SetTitleSize(0.06)
+                h_central.GetYaxis().SetLabelSize(0.045)
+                # # x label on bottom pad only
+                h_central.GetXaxis().SetLabelSize(0)
+                h_central.GetXaxis().SetTitleSize(0)
+
                 legend.AddEntry(h_central, "nominal", "l")
 
-                # keep references alive
+                # storing nominal and variation histograms to draw in same canvas
+                # since these will be looped over several times
                 h_variations = [h_central]
 
-                color_index = 0
+                for uncertainty_name in uncertainties:
 
-                for uncertainty_name, branch_names in uncertainty_names.items():
+                    if '<ERA>' in uncertainty_name:
+                        uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
 
-                    if i_sample_era == 0:
-                        logger.info(f"uncertainty name: {uncertainty_name}, branch names: {branch_names}")
-
+                    color_index = 0
                     color = binned_template_colors[color_index % len(binned_template_colors)]
-                    color_index += 1
 
-                    # logic different for each type of systematic variations
-                    if mode == "replace":
-                
-                        """
-                        For variations, cloning sample replacing nominal weight branch with varied one,
-                        since one can only change the weight branches at RDataLoader creation.
-                        """
-                        treplace = time.perf_counter()
-                        # using structure defined in replace_weight_groups
-                        nominal_weight_name = branch_names[0]
-                        down_var_weight_name = branch_names[1]
-                        up_var_weight_name = branch_names[2]
-
-                        if '<ERA>' in uncertainty_name:
-                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
-                            down_var_weight_name = down_var_weight_name.replace('<ERA>',str(era))
-                            up_var_weight_name = up_var_weight_name.replace('<ERA>',str(era))
-
-                        list_weights_varied = list_weights
-                        weight_to_remove_idx = list_weights_varied.index(nominal_weight_name)
-                        
-                        list_weights_varied[weight_to_remove_idx] = down_var_weight_name
-                        down_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights_varied)
-
-                        list_weights_varied[weight_to_remove_idx] = up_var_weight_name
-                        up_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights_varied)
-
-                        # fixes cases where there are two uncertainties with the same
-                        # nominal weight name (e.g. b-tag SF)
-                        list_weights_varied[weight_to_remove_idx] = nominal_weight_name
-
-                        dtreplace_clone_files = time.perf_counter() - treplace
-                        logger.debug(f"time to edit era strings and clone files for replace-type alternative sample: {dtreplace_clone_files:.6f} s")
-
-                        down_var_weights = down_var_sample.materialize(0, what='w')[0]
-                        down_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=down_var_weights)[0]
-                        
-                        up_var_weights = up_var_sample.materialize(0, what='w')[0]
-                        up_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=up_var_weights)[0]
-                        
-                        dtreplace = time.perf_counter() - treplace - dtreplace_clone_files
-                        logger.debug(f"time to materialize from replace-type alternative samples and create numpy histograms: {dtreplace:.6f} s")
-                    
-                    elif mode == "add":
-                
-                        tadd = time.perf_counter()
-                        """
-                        For variations, cloning nominal sample add branch for variation varied one,
-                        since one can only change the weight branches at RDataLoader creation.
-                        """
-
-                        # using structure defined in add_weight_groups
-                        down_var_weight_name = branch_names[0]
-                        up_var_weight_name = branch_names[1]
-
-                        if '<ERA>' in uncertainty_name:
-                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
-                            down_var_weight_name = down_var_weight_name.replace('<ERA>',str(era))
-                            up_var_weight_name = up_var_weight_name.replace('<ERA>',str(era))                        
-                        
-                        # list_weights = nominal_sample.weight_branches
-
-                        down_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights+[down_var_weight_name])
-                        up_var_sample = nominal_sample.clone_from_files(nominal_sample.files, list_weights+[up_var_weight_name])
-
-                        dtadd_clone_files = time.perf_counter() - tadd
-                        logger.debug(f"time to edit era strings and clone files for add-type alternative sample: {dtadd_clone_files:.6f} s")
-
-                        down_var_weights = down_var_sample.materialize(0, what='w')[0]
-                        down_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=down_var_weights)[0]
-                        
-                        up_var_weights = up_var_sample.materialize(0, what='w')[0]
-                        up_var_hist_entries = np.histogram(a=nominal_feature_values, bins=edges, weights=up_var_weights)[0]
-
-                        dtadd = time.perf_counter() - tadd - dtadd_clone_files
-                        logger.debug(f"time to just materialize from add-type alternative samples and create numpy histograms: {dtadd:.6f} s")
-
-                    elif mode == "kinematics":
-                        
-                        tkin = time.perf_counter()
-                        """
-                        For kinematic variations, cloning from different files, keeping the same branch names,
-                        since one can only change the weight branches at RDataLoader creation.
-                        """
-
-                        # using structure defined in add_weight_groups
-                        down_var_file_tag = branch_names[0]
-                        up_var_file_tag = branch_names[1]
-
-                        if '<ERA>' in uncertainty_name:
-                            uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
-                            down_var_file_tag = down_var_file_tag.replace('<ERA>',str(era))
-                            up_var_file_tag = up_var_file_tag.replace('<ERA>',str(era))
-
-                        # all era-decorrelated JES variations consider 2016 and 2016APV as single 2016 era
-                        # the opposite is true for JER variations
-                        if 'CMS_res_j' not in uncertainty_name:
-                            uncertainty_name = uncertainty_name.replace("APV","")
-                            down_var_file_tag = down_var_file_tag.replace("APV","")
-                            up_var_file_tag = up_var_file_tag.replace("APV","")
-
-                        down_var_sample = getattr(samples, f'{sample}_{era}_{down_var_file_tag}')
-                        up_var_sample = getattr(samples, f'{sample}_{era}_{up_var_file_tag}')
-
-                        dtkin_get_files = time.perf_counter() - tkin
-                        logger.debug(f"time to edit era strings and fetch files for samples with kinematic variations: {dtkin_get_files:.6f} s")
-
-                        down_var_feature_values, down_var_weights = down_var_sample.materialize(0, what='fw', feature_names=[feature_name])
-                        # parsing output of materialize into a simple array
-                        # also done when loading the nominal sample
-                        down_var_hist_entries = np.histogram(a=down_var_feature_values[:,0], bins=edges, weights=down_var_weights)[0]
-                        
-                        up_var_feature_values, up_var_weights = up_var_sample.materialize(0, what='fw', feature_names=[feature_name])
-                        up_var_hist_entries = np.histogram(a=up_var_feature_values[:,0], bins=edges, weights=up_var_weights)[0]
-
-                        dtkin = time.perf_counter() - tkin - dtkin_get_files
-                        logger.debug(f"time to materialize kinematic-type alternative samples and create numpy histograms: {dtkin:.6f} s")
-
-                        tkin_clean = time.perf_counter()
-                        
-                        del down_var_feature_values, up_var_feature_values
-                        gc.collect()
-                        
-                        dtkin_clean = time.perf_counter() - tkin_clean
-                        logger.debug(f"time to clean feature values from kinematic-type alternative sample: {dtkin_clean:.6f} s")
-
-                    t_clean = time.perf_counter()
-
-                    del down_var_weights, up_var_weights                    
-                    down_var_sample._arr_cache.clear()
-                    up_var_sample._arr_cache.clear()
-                    del down_var_sample, up_var_sample
-
-                    gc.collect()
-                    
-                    dt_clean = time.perf_counter() - t_clean
-                    logger.debug(f"time to do general memory clean from any alternative sample: {dt_clean:.6f} s")
-
-                    
-                    h_down_name = f"h_{group}_{uncertainty_name}_Down"
-                    h_down = ROOT.TH1F(h_down_name, "", n_bins, np.array(edges, dtype=float))
-                    for i in range(n_bins):
-                        h_down.SetBinContent(i + 1, down_var_hist_entries[i])
-                    
+                    h_down = histogram_dict[era][sample][feature_name][uncertainty_name][1]
                     h_down.SetLineColor(color)
                     h_down.SetLineStyle(ROOT.kDashed)
                     h_down.SetLineWidth(1)
-                    legend.AddEntry(h_down, f"{uncertainty_name} -1#sigma", "l")
-                    h_variations.append(h_down)
-
-                    h_variations_down.append(h_down)
-
-                    h_up_name = f"h_{group}_{uncertainty_name}_Up"
-                    h_up = ROOT.TH1F(h_up_name, "", n_bins, np.array(edges, dtype=float))
-                    for i in range(n_bins):
-                        h_up.SetBinContent(i + 1, up_var_hist_entries[i])
                     
+                    h_up = histogram_dict[era][sample][feature_name][uncertainty_name][2]
                     h_up.SetLineColor(color)
                     h_up.SetLineStyle(ROOT.kSolid)
                     h_up.SetLineWidth(1)
-                    legend.AddEntry(h_up, f"{uncertainty_name} +1#sigma", "l")
+
+                    legend.AddEntry(h_down, f"{uncertainty_name} -1#sigma","l")
+                    legend.AddEntry(h_up, f"{uncertainty_name} +1#sigma","l")
+
+                    h_variations.append(h_down)
                     h_variations.append(h_up)
-                
-                    h_variations_up.append(h_up)
 
-                t_root_compare = time.perf_counter()
+                    color_index += 1
 
-                # y range (absolute yields)
+                # getting reasonable y range (absolute yields)
                 max_y = max(h.GetMaximum() for h in h_variations)
                 if logY:
                     h_central.SetMinimum(0.8)
                     h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
                 else:
                     h_central.SetMinimum(0.0)
-                    h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)
+                    h_central.SetMaximum(1.2 * max_y if max_y > 0 else 1.0)                    
 
                 h_central.Draw("HIST")
+
                 for h in h_variations[1:]:
                     h.Draw("HIST SAME")
 
@@ -607,7 +679,7 @@ if __name__ == "__main__":
                 padBottom.SetTicks(1, 1)
 
                 # ratio central
-                ratio_central_name = h_central_name + "_ratio"
+                ratio_central_name = h_central.GetName() + "_ratio"
                 h_ratio_central = h_central.Clone(ratio_central_name)
                 h_ratio_central.SetDirectory(0)
                 h_ratio_central.Divide(h_central)
@@ -670,6 +742,7 @@ if __name__ == "__main__":
                 # no frame, no axes, just the legend
                 legend.Draw()
 
+                ## Saving histograms
                 c.cd()
                 c.Update()
 
@@ -678,20 +751,8 @@ if __name__ == "__main__":
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
 
-                dt_root_compare = time.perf_counter() - t_root_compare
-                logger.debug(f"time to make the ROOT plot comparison: {dt_root_compare:.6f} s")
-
-        # deepcopy to persist content of list when we empty and re-fill h_variations_down/up again
-        era_sample_histogram_dict[era][sample].append(copy.deepcopy(h_variations_down))
-        era_sample_histogram_dict[era][sample].append(copy.deepcopy(h_variations_up))
-
-        nominal_sample._arr_cache.clear()
-        del nominal_sample, nominal_feature_values, nominal_weights
-        gc.collect()
-
-        i_sample_era += 1
-        logger.info("after first sample/era combination, no longer printing variable/branch information")
-
+        syncer.sync()
+    
     """
     making pre-fit stacks from nominal, up and down variation templates from previous step
 
@@ -699,297 +760,300 @@ if __name__ == "__main__":
     sets symmetric uncertainty in each bin of combined histogram as max(up, down) for that bins
 
     follows very closely the structure in plot.py
+
+    remember the structure of histogram_dict:
+        histogram_dict[era][sample][feature_name][uncertainty_name] = [h_nominal, h_down, h_up]
     """
 
-    plot_directory_stacks = os.path.join(user.plot_directory, 'prefit_stacks_from_inputs')
-    if debug:
-        plot_directory_stacks = os.path.join(plot_directory_stacks,"debug")
+    # plot_directory_stacks = os.path.join(user.plot_directory, 'prefit_stacks_from_inputs')
+    # if debug:
+    #     plot_directory_stacks = os.path.join(plot_directory_stacks,"debug")
 
-    logger.info(f"Pre-fit stacks saved to folder {plot_directory_stacks}")
-    from data.colors import get_color
+    # logger.info(f"Pre-fit stacks saved to folder {plot_directory_stacks}")
+    # from data.colors import get_color
 
-    legend_columns_prefit_stacks = 2
+    # legend_columns_prefit_stacks = 2
 
-    for era in eras:
+    # for era in eras:
     
-        sample_histogram_dict = era_sample_histogram_dict[era]
+    #     sample_histogram_dict = histogram_dict[era]
 
-        # build total histogram and each of the variations
-        h_total = ROOT.TH1F(f"h_prefit_total_{era}","", n_bins, np.array(edges, dtype=float))
-        h_unc_down = ROOT.TH1F(f"h_prefit_unc_down_{era}","", n_bins, np.array(edges, dtype=float))
-        h_unc_up = ROOT.TH1F(f"h_prefit_unc_up_{era}","", n_bins, np.array(edges, dtype=float))
+    #     # build total histogram and each of the variations
+    #     h_total = ROOT.TH1F(f"h_prefit_total_{era}","", n_bins, np.array(edges, dtype=float))
+    #     h_unc_down = ROOT.TH1F(f"h_prefit_unc_down_{era}","", n_bins, np.array(edges, dtype=float))
+    #     h_unc_up = ROOT.TH1F(f"h_prefit_unc_up_{era}","", n_bins, np.array(edges, dtype=float))
         
-        for sample in sample_histogram_dict:
-            h_nominal = sample_histogram_dict[sample][0]
-            h_total.Add(h_nominal)
+    #     for sample in sample_histogram_dict:
+    #         h_nominal = sample_histogram_dict[sample][0]
+    #         h_total.Add(h_nominal)
 
-            # creating histograms with uncertainties
-            # summing in quadrature each of the variations
+    #         # creating histograms with uncertainties
+    #         # summing in quadrature each of the variations
             
-            for down_variation_histo in sample_histogram_dict[sample][1]:
+    #         for down_variation_histo in sample_histogram_dict[sample][1]:
                 
-                h_var_down = down_variation_histo - h_nominal
-                h_var_down.Multiply(h_var_down)
-                h_unc_down.Add(h_var_down)
+    #             h_var_down = down_variation_histo - h_nominal
+    #             h_var_down.Multiply(h_var_down)
+    #             h_unc_down.Add(h_var_down)
 
-            for up_variation_histo in sample_histogram_dict[sample][2]:
-                h_var_up = up_variation_histo - h_nominal
-                h_var_up.Multiply(h_var_up)
-                h_unc_up.Add(h_var_up)
+    #         for up_variation_histo in sample_histogram_dict[sample][2]:
+    #             h_var_up = up_variation_histo - h_nominal
+    #             h_var_up.Multiply(h_var_up)
+    #             h_unc_up.Add(h_var_up)
 
-        # uncertainty band via TBoxes + line-only histos
-        uncertainty_boxes = []
+    #     # uncertainty band via TBoxes + line-only histos
+    #     uncertainty_boxes = []
 
-        h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
-        h_line_down = h_central.Clone(f"h_prefit_down_{era}")
+    #     h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
+    #     h_line_down = h_central.Clone(f"h_prefit_down_{era}")
 
-        # lines only, no fill
-        h_line_up.SetFillStyle(0)
-        h_line_up.SetFillColor(0)
-        h_line_down.SetFillStyle(0)
-        h_line_down.SetFillColor(0)
-        h_line_up.SetLineColor(ROOT.kGray + 2)
-        h_line_down.SetLineColor(ROOT.kGray + 2)
-        h_line_up.SetLineWidth(1)
-        h_line_down.SetLineWidth(1)
+    #     # lines only, no fill
+    #     h_line_up.SetFillStyle(0)
+    #     h_line_up.SetFillColor(0)
+    #     h_line_down.SetFillStyle(0)
+    #     h_line_down.SetFillColor(0)
+    #     h_line_up.SetLineColor(ROOT.kGray + 2)
+    #     h_line_down.SetLineColor(ROOT.kGray + 2)
+    #     h_line_up.SetLineWidth(1)
+    #     h_line_down.SetLineWidth(1)
 
-        logger.debug(f"Creating uncertainty boxes.")
+    #     logger.debug(f"Creating uncertainty boxes.")
 
-        for ib in range(1, n_bins+1):
-            x1 = edges[ib-1]
-            x2 = edges[ib]
-            nom = h_total.GetBinContent(ib)
-            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-            err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+    #     for ib in range(1, n_bins+1):
+    #         x1 = edges[ib-1]
+    #         x2 = edges[ib]
+    #         nom = h_total.GetBinContent(ib)
+    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))
 
-            if nom > 0.0:
-                y_low  = nom - err_down
-                y_high = nom + err_up
-                logger.debug(f"{ib=}, {nom=}, {y_low=}, {y_high=}, {(y_low/nom)=}, {(y_high/nom)=}")
+    #         if nom > 0.0:
+    #             y_low  = nom - err_down
+    #             y_high = nom + err_up
+    #             logger.debug(f"{ib=}, {nom=}, {y_low=}, {y_high=}, {(y_low/nom)=}, {(y_high/nom)=}")
 
-                box = ROOT.TBox(x1, y_low, x2, y_high)
-                box.SetFillColor(ROOT.kGray + 1)
-                box.SetFillStyle(3345)
-                box.SetLineWidth(0)
-                uncertainty_boxes.append(box)
+    #             box = ROOT.TBox(x1, y_low, x2, y_high)
+    #             box.SetFillColor(ROOT.kGray + 1)
+    #             box.SetFillStyle(3345)
+    #             box.SetLineWidth(0)
+    #             uncertainty_boxes.append(box)
 
-                h_line_up.SetBinContent(ib, y_high)
-                h_line_down.SetBinContent(ib, y_low)
-            else:
-                # no prediction in this bin -> keep lines at 0
-                h_line_up.SetBinContent(ib, 0.0)
-                h_line_down.SetBinContent(ib, 0.0)
+    #             h_line_up.SetBinContent(ib, y_high)
+    #             h_line_down.SetBinContent(ib, y_low)
+    #         else:
+    #             # no prediction in this bin -> keep lines at 0
+    #             h_line_up.SetBinContent(ib, 0.0)
+    #             h_line_down.SetBinContent(ib, 0.0)
 
-        # "data" histogram: copy of total, errors = sqrt(yield)
-        h_data = h_total.Clone(f"h_prefit_data_{era}")
-        h_data.SetDirectory(0)
-        for ib in range(1, n_bins+1):
-            y = h_data.GetBinContent(ib)
-            if y<0:
-                y=0
-            h_data.SetBinError(ib, np.sqrt(y))
-        h_data.SetMarkerStyle(ROOT.kFullCircle)
-        h_data.SetMarkerSize(1.0)
-        h_data.SetLineColor(ROOT.kBlack)
-        h_data.SetFillStyle(0)
+    #     # "data" histogram: copy of total, errors = sqrt(yield)
+    #     h_data = h_total.Clone(f"h_prefit_data_{era}")
+    #     h_data.SetDirectory(0)
+    #     for ib in range(1, n_bins+1):
+    #         y = h_data.GetBinContent(ib)
+    #         if y<0:
+    #             y=0
+    #         h_data.SetBinError(ib, np.sqrt(y))
+    #     h_data.SetMarkerStyle(ROOT.kFullCircle)
+    #     h_data.SetMarkerSize(1.0)
+    #     h_data.SetLineColor(ROOT.kBlack)
+    #     h_data.SetFillStyle(0)
 
-        sample_labels = list(sample_histogram_dict.keys())
+    #     sample_labels = list(sample_histogram_dict.keys())
 
-        nominal_histogram_integrals = [sample_histogram_dict[sample][0].Integral() for sample in sample_labels]
+    #     nominal_histogram_integrals = [sample_histogram_dict[sample][0].Integral() for sample in sample_labels]
 
-        # adding plots to stack in ascending order of yields
-        yield_order = sorted(range(len(sample_labels)), key=lambda i: nominal_histogram_integrals[i])
-        sample_labels_sorted = [sample_labels[i] for i in yield_order]
+    #     # adding plots to stack in ascending order of yields
+    #     yield_order = sorted(range(len(sample_labels)), key=lambda i: nominal_histogram_integrals[i])
+    #     sample_labels_sorted = [sample_labels[i] for i in yield_order]
 
-        stack_name = f"stack_prefit_{era}"
-        hs = ROOT.THStack(stack_name, "")
-        for i_sample, sample in enumerate(sample_labels_sorted):
+    #     stack_name = f"stack_prefit_{era}"
+    #     hs = ROOT.THStack(stack_name, "")
+    #     for i_sample, sample in enumerate(sample_labels_sorted):
 
-            h_nominal = sample_histogram_dict[sample][0]
+    #         h_nominal = sample_histogram_dict[sample][0]
 
-            sample_color = get_color(sample) if callable(get_color) else ROOT.kGray + 1
+    #         sample_color = get_color(sample) if callable(get_color) else ROOT.kGray + 1
 
-            h_nominal.SetLineColor(ROOT.kBlack)
-            h_nominal.SetFillColor(sample_color)
-            h_nominal.SetLineWidth(1)
+    #         h_nominal.SetLineColor(ROOT.kBlack)
+    #         h_nominal.SetFillColor(sample_color)
+    #         h_nominal.SetLineWidth(1)
 
-            hs.Add(sample_histogram_dict[sample][0], "hist")
+    #         hs.Add(sample_histogram_dict[sample][0], "hist")
 
-        canvas_name = f"c_prefit_{era}"
-        c_stack = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
+    #     canvas_name = f"c_prefit_{era}"
+    #     c_stack = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
 
-        padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 1.0)
-        padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
+    #     padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 1.0)
+    #     padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
 
-        padTop.SetBottomMargin(0.0)
-        padTop.SetTopMargin(0.08)
-        padTop.SetLeftMargin(0.10)
-        padTop.SetRightMargin(0.05)
-        padTop.SetTicks(1, 1)
+    #     padTop.SetBottomMargin(0.0)
+    #     padTop.SetTopMargin(0.08)
+    #     padTop.SetLeftMargin(0.10)
+    #     padTop.SetRightMargin(0.05)
+    #     padTop.SetTicks(1, 1)
 
-        padBottom.SetTopMargin(0.0)
-        padBottom.SetBottomMargin(0.30)
-        padBottom.SetLeftMargin(0.10)
-        padBottom.SetRightMargin(0.05)
-        padBottom.SetTicks(1, 1)
+    #     padBottom.SetTopMargin(0.0)
+    #     padBottom.SetBottomMargin(0.30)
+    #     padBottom.SetLeftMargin(0.10)
+    #     padBottom.SetRightMargin(0.05)
+    #     padBottom.SetTicks(1, 1)
 
-        padTop.Draw()
-        padBottom.Draw()
+    #     padTop.Draw()
+    #     padBottom.Draw()
 
-        # ---- TOP PAD: absolute yields ----
-        padTop.cd()
-        if logY:
-            padTop.SetLogy(True)
+    #     # ---- TOP PAD: absolute yields ----
+    #     padTop.cd()
+    #     if logY:
+    #         padTop.SetLogy(True)
 
-        hs.Draw("HIST")
-        hs.GetXaxis().SetTitle(x_title)
-        hs.GetYaxis().SetTitle("Events")
+    #     hs.Draw("HIST")
+    #     hs.GetXaxis().SetTitle(x_title)
+    #     hs.GetYaxis().SetTitle("Events")
 
-        # font sizes / alignment (top pad)
-        hs.GetYaxis().SetTitleSize(0.05)     # a bit smaller
-        hs.GetYaxis().SetTitleOffset(1.1)    # helps align with bottom pad title
-        hs.GetYaxis().SetLabelSize(0.045)
-        hs.GetXaxis().SetLabelSize(0)
-        hs.GetXaxis().SetTitleSize(0)
+    #     # font sizes / alignment (top pad)
+    #     hs.GetYaxis().SetTitleSize(0.05)     # a bit smaller
+    #     hs.GetYaxis().SetTitleOffset(1.1)    # helps align with bottom pad title
+    #     hs.GetYaxis().SetLabelSize(0.045)
+    #     hs.GetXaxis().SetLabelSize(0)
+    #     hs.GetXaxis().SetTitleSize(0)
 
-        # y-range
-        max_y = max(hs.GetMaximum(), h_data.GetMaximum())
-        if logY:
-            hs.SetMinimum(0.5)
-            hs.SetMaximum(10.0 * max_y if max_y > 0 else 1.0)
-        else:
-            hs.SetMinimum(0.0)
-            hs.SetMaximum(1.5 * max_y if max_y > 0 else 1.0)
+    #     # y-range
+    #     max_y = max(hs.GetMaximum(), h_data.GetMaximum())
+    #     if logY:
+    #         hs.SetMinimum(0.5)
+    #         hs.SetMaximum(10.0 * max_y if max_y > 0 else 1.0)
+    #     else:
+    #         hs.SetMinimum(0.0)
+    #         hs.SetMaximum(1.5 * max_y if max_y > 0 else 1.0)
 
-        # draw uncertainty band, lines, and data
-        for box in uncertainty_boxes:
-            box.Draw("SAME")
-        h_data.Draw("E SAME")
+    #     # draw uncertainty band, lines, and data
+    #     for box in uncertainty_boxes:
+    #         box.Draw("SAME")
+    #     h_data.Draw("E SAME")
 
-        # legend
-        leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
-        leg.SetBorderSize(0)
-        leg.SetFillStyle(0)
-        leg.SetNColumns(legend_columns_prefit_stacks)
+    #     # legend
+    #     leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
+    #     leg.SetBorderSize(0)
+    #     leg.SetFillStyle(0)
+    #     leg.SetNColumns(legend_columns_prefit_stacks)
 
-        leg.AddEntry(h_data, "Data (Asimov)", "lep")
-        for sample in sample_labels_sorted:
-            leg.AddEntry(sample_histogram_dict[sample][0], sample, "f")
-            logging.debug(f"{sample=}")
-        leg.AddEntry(uncertainty_boxes[0], "Uncertainty", "f")
-        leg.Draw()
+    #     leg.AddEntry(h_data, "Data (Asimov)", "lep")
+    #     for sample in sample_labels_sorted:
+    #         leg.AddEntry(sample_histogram_dict[sample][0], sample, "f")
+    #         logging.debug(f"{sample=}")
+    #     leg.AddEntry(uncertainty_boxes[0], "Uncertainty", "f")
+    #     leg.Draw()
 
-        # ---- BOTTOM PAD: ratios ----
-        padBottom.cd()
+    #     # ---- BOTTOM PAD: ratios ----
+    #     padBottom.cd()
 
-        # ratio central
-        h_ratio_central = h_total.Clone(f"h_prefit_ratio_{era}")
-        h_ratio_central.SetDirectory(0)
-        h_ratio_central.Divide(h_total)  # becomes 1 where non-zero
-        h_ratio_central.SetLineColor(ROOT.kBlack)
-        h_ratio_central.SetLineWidth(2)
-        h_ratio_central.SetTitle("")
+    #     # ratio central
+    #     h_ratio_central = h_total.Clone(f"h_prefit_ratio_{era}")
+    #     h_ratio_central.SetDirectory(0)
+    #     h_ratio_central.Divide(h_total)  # becomes 1 where non-zero
+    #     h_ratio_central.SetLineColor(ROOT.kBlack)
+    #     h_ratio_central.SetLineWidth(2)
+    #     h_ratio_central.SetTitle("")
 
-        h_ratio_central.GetYaxis().SetTitle("var / nominal")
-        h_ratio_central.GetYaxis().SetNdivisions(505)
-        h_ratio_central.GetYaxis().SetTitleSize(0.09)
-        h_ratio_central.GetYaxis().SetTitleOffset(0.5)
-        h_ratio_central.GetYaxis().SetLabelSize(0.08)
+    #     h_ratio_central.GetYaxis().SetTitle("var / nominal")
+    #     h_ratio_central.GetYaxis().SetNdivisions(505)
+    #     h_ratio_central.GetYaxis().SetTitleSize(0.09)
+    #     h_ratio_central.GetYaxis().SetTitleOffset(0.5)
+    #     h_ratio_central.GetYaxis().SetLabelSize(0.08)
 
-        h_ratio_central.GetXaxis().SetTitle(x_title)
-        h_ratio_central.GetXaxis().SetTitleSize(0.10)
-        h_ratio_central.GetXaxis().SetLabelSize(0.08)
+    #     h_ratio_central.GetXaxis().SetTitle(x_title)
+    #     h_ratio_central.GetXaxis().SetTitleSize(0.10)
+    #     h_ratio_central.GetXaxis().SetLabelSize(0.08)
 
-        # ratio uncertainty band via TBoxes + line-only histos
-        ratio_boxes = []
+    #     # ratio uncertainty band via TBoxes + line-only histos
+    #     ratio_boxes = []
 
-        h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{era}")
-        h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{era}")
-        h_ratio_line_up.SetDirectory(0)
-        h_ratio_line_down.SetDirectory(0)
+    #     h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{era}")
+    #     h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{era}")
+    #     h_ratio_line_up.SetDirectory(0)
+    #     h_ratio_line_down.SetDirectory(0)
 
-        # lines only, no fill
-        h_ratio_line_up.SetFillStyle(0)
-        h_ratio_line_up.SetFillColor(0)
-        h_ratio_line_down.SetFillStyle(0)
-        h_ratio_line_down.SetFillColor(0)
-        h_ratio_line_up.SetLineColor(ROOT.kGray + 2)
-        h_ratio_line_down.SetLineColor(ROOT.kGray + 2)
-        h_ratio_line_up.SetLineWidth(1)
-        h_ratio_line_down.SetLineWidth(1)
+    #     # lines only, no fill
+    #     h_ratio_line_up.SetFillStyle(0)
+    #     h_ratio_line_up.SetFillColor(0)
+    #     h_ratio_line_down.SetFillStyle(0)
+    #     h_ratio_line_down.SetFillColor(0)
+    #     h_ratio_line_up.SetLineColor(ROOT.kGray + 2)
+    #     h_ratio_line_down.SetLineColor(ROOT.kGray + 2)
+    #     h_ratio_line_up.SetLineWidth(1)
+    #     h_ratio_line_down.SetLineWidth(1)
 
-        for ib in range(1, n_bins+1):
-            x1 = edges[ib-1]
-            x2 = edges[ib]
-            nom = h_total.GetBinContent(ib)
-            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-            err_down = np.sqrt(h_unc_down.GetBinContent(ib))   
+    #     for ib in range(1, n_bins+1):
+    #         x1 = edges[ib-1]
+    #         x2 = edges[ib]
+    #         nom = h_total.GetBinContent(ib)
+    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))   
 
-            if nom > 0.0:
-                rel_up = err_up / nom
-                rel_down = err_down / nom
+    #         if nom > 0.0:
+    #             rel_up = err_up / nom
+    #             rel_down = err_down / nom
                 
-                y_low  = 1.0 - rel_down
-                y_high = 1.0 + rel_up
+    #             y_low  = 1.0 - rel_down
+    #             y_high = 1.0 + rel_up
 
-                box = ROOT.TBox(x1, y_low, x2, y_high)
-                box.SetFillColor(ROOT.kGray + 1)
-                box.SetFillStyle(3345)
-                box.SetLineWidth(0)
-                ratio_boxes.append(box)
+    #             box = ROOT.TBox(x1, y_low, x2, y_high)
+    #             box.SetFillColor(ROOT.kGray + 1)
+    #             box.SetFillStyle(3345)
+    #             box.SetLineWidth(0)
+    #             ratio_boxes.append(box)
 
-                h_ratio_line_up.SetBinContent(ib, y_high)
-                h_ratio_line_down.SetBinContent(ib, y_low)
-            else:
-                # no prediction in this bin -> keep lines at 1
-                h_ratio_line_up.SetBinContent(ib, 1.0)
-                h_ratio_line_down.SetBinContent(ib, 1.0)
+    #             h_ratio_line_up.SetBinContent(ib, y_high)
+    #             h_ratio_line_down.SetBinContent(ib, y_low)
+    #         else:
+    #             # no prediction in this bin -> keep lines at 1
+    #             h_ratio_line_up.SetBinContent(ib, 1.0)
+    #             h_ratio_line_down.SetBinContent(ib, 1.0)
 
-        # ratio y-range from max relative deviation
-        max_dev = 0.0
-        for ib in range(1, n_bins+1):
-            nom = h_total.GetBinContent(ib)
+    #     # ratio y-range from max relative deviation
+    #     max_dev = 0.0
+    #     for ib in range(1, n_bins+1):
+    #         nom = h_total.GetBinContent(ib)
 
-            err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-            err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))
 
-            if nom > 0:
-                dev_up = err_up / nom
-                dev_down = err_down / nom
-                if max(dev_up,dev_down) > max_dev:
-                    max_dev = max(dev_up,dev_down)
+    #         if nom > 0:
+    #             dev_up = err_up / nom
+    #             dev_down = err_down / nom
+    #             if max(dev_up,dev_down) > max_dev:
+    #                 max_dev = max(dev_up,dev_down)
 
-        if max_dev <= 0.0:
-            r_min, r_max = 0.9, 1.1
-        else:
-            half_range = 1.3 * max_dev
-            r_min = 1.0 - half_range
-            r_max = 1.0 + half_range
+    #     if max_dev <= 0.0:
+    #         r_min, r_max = 0.9, 1.1
+    #     else:
+    #         half_range = 1.3 * max_dev
+    #         r_min = 1.0 - half_range
+    #         r_max = 1.0 + half_range
 
-        h_ratio_central.SetMinimum(r_min)
-        h_ratio_central.SetMaximum(r_max)
+    #     h_ratio_central.SetMinimum(r_min)
+    #     h_ratio_central.SetMaximum(r_max)
 
-        # draw ratio
-        h_ratio_central.Draw("HIST")
-        for box in ratio_boxes:
-            box.Draw("SAME")
-        h_ratio_line_up.Draw("HIST SAME")
-        h_ratio_line_down.Draw("HIST SAME")
+    #     # draw ratio
+    #     h_ratio_central.Draw("HIST")
+    #     for box in ratio_boxes:
+    #         box.Draw("SAME")
+    #     h_ratio_line_up.Draw("HIST SAME")
+    #     h_ratio_line_down.Draw("HIST SAME")
 
-        # line at 1
-        line = ROOT.TLine(edges[0], 1.0, edges[-1], 1.0)
-        line.SetLineStyle(ROOT.kDashed)
-        line.SetLineColor(ROOT.kBlack)
-        line.Draw("SAME")
+    #     # line at 1
+    #     line = ROOT.TLine(edges[0], 1.0, edges[-1], 1.0)
+    #     line.SetLineStyle(ROOT.kDashed)
+    #     line.SetLineColor(ROOT.kBlack)
+    #     line.Draw("SAME")
 
-        c_stack.cd()
-        c_stack.Update()
+    #     c_stack.cd()
+    #     c_stack.Update()
 
-        helpers.copyIndexPHP(plot_directory_stacks)
-        out_png = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.png")
-        out_pdf = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.pdf")
-        c_stack.SaveAs(out_png)
-        c_stack.SaveAs(out_pdf)        
+    #     helpers.copyIndexPHP(plot_directory_stacks)
+    #     out_png = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.png")
+    #     out_pdf = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.pdf")
+    #     c_stack.SaveAs(out_png)
+    #     c_stack.SaveAs(out_pdf)        
 
 
-    syncer.sync()
+    # syncer.sync()
