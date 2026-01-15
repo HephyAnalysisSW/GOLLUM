@@ -25,6 +25,8 @@ ERAS = ["2016", "2016APV", "2017", "2018"]
 GROUPS = {
     "SingleTop": ["TBar_tch", "TBar_tWch_noFullyHad", "T_tch", "T_tWch_noFullyHad"],
     "DrellYan":  ["DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"],
+    "EtaS": ["EtaT_scalar_m343_w2p8_ll"],
+    "EtaP": ["EtaT_m343_w2p8_ll"],
 }
 
 # -----------------------------
@@ -63,7 +65,6 @@ _base = RDataLoader(
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
-
 
 def _parse_name(name: str) -> tuple[str, str, Optional[str]]:
     """

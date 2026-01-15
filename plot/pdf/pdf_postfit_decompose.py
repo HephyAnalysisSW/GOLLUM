@@ -512,7 +512,7 @@ for k in range(len(ranked_add) + 1):
     if k == 0:
         stage_labels.append("Stats-only (all #nu fixed)")
     elif k == len(ranked_add):
-        stage_labels.append("All nuisances")
+        stage_labels.append(f"Add {ranked_add[k-1]} #rightarrow all")
     else:
         stage_labels.append(f"Add {ranked_add[k-1]}")
 

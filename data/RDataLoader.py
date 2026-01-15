@@ -351,7 +351,7 @@ class RDataLoader:
             G = G[:n]
         return X, G
 
-    # -------- NEW: explicit weight product or ones --------
+    # -------- Explicit weight product or ones --------
     def weight_vector(self, shard: int = 0, n: Optional[int] = None) -> np.ndarray:
         """
         Return event weights for this shard.
@@ -365,10 +365,15 @@ class RDataLoader:
 
         missing = [bn for bn in self.weight_branches if bn not in ar.fields]
         if missing:
-            raise KeyError(
-                f"Weight branches missing: {missing}. Include them in 'branches' (and usually 'observer_names')."
-            )
-        Wcols = self.scalar_branches(ar, self.weight_branches).astype(np.float32, copy=False)
+            if self.strict_branches:
+                raise KeyError(
+                    f"Weight branches missing: {missing}. Include them in 'branches' (and usually 'observer_names')."
+                )
+            else:
+                print ("Warning",
+                    f"Weight branches missing: {missing}. Include them in 'branches'. Ignoring."
+                )
+        Wcols = self.scalar_branches(ar, [w for w in self.weight_branches if not w in missing]).astype(np.float32, copy=False)
         w = np.prod(Wcols, axis=1)
         return w if n is None else w[:n]
 
@@ -573,42 +578,55 @@ class RDataLoader:
 # Minimal in-memory test (no file I/O)
 # -----------------------------
 if __name__ == "__main__":
-    # Build a tiny awkward shard in memory
-    N = 8
-    ar = ak.Array({
-        "f1": np.linspace(0, 1, N).astype(np.float32),
-        "o1": np.arange(N).astype(np.int32),
-        "w":  np.ones(N, dtype=np.float32) * 2.0,
-        "a":  np.linspace(1.0, 2.0, N).astype(np.float32),
-        "b":  np.linspace(0.5, 1.5, N).astype(np.float32),
-    })
+    ## Build a tiny awkward shard in memory
+    #N = 8
+    #ar = ak.Array({
+    #    "f1": np.linspace(0, 1, N).astype(np.float32),
+    #    "o1": np.arange(N).astype(np.int32),
+    #    "w":  np.ones(N, dtype=np.float32) * 2.0,
+    #    "a":  np.linspace(1.0, 2.0, N).astype(np.float32),
+    #    "b":  np.linspace(0.5, 1.5, N).astype(np.float32),
+    #})
 
-    dummy = object.__new__(RDataLoader)  # bypass __init__
-    dummy.tree_name = "Events"
-    dummy.selection = None
-    dummy.strict_branches = False
-    dummy.splitting_strategy = "files"
-    dummy.n_split = 1
-    dummy.feature_names = ["f1"]
-    dummy.observer_names = ["o1", "w", "a", "b"]
-    dummy.weight_branches = ["w", "a"]
-    dummy._all_files = ["dummy.root"]
-    dummy._requested_branches = ["f1", "o1", "w", "a", "b"]
-    dummy._file_splits = [dummy._all_files]
-    dummy._arr_cache = {0: ar}
-    dummy._mask_cache = {}
-    dummy._selection_fns = []  # since we bypassed __init__
+    #dummy = object.__new__(RDataLoader)  # bypass __init__
+    #dummy.tree_name = "Events"
+    #dummy.selection = None
+    #dummy.strict_branches = False
+    #dummy.splitting_strategy = "files"
+    #dummy.n_split = 1
+    #dummy.feature_names = ["f1"]
+    #dummy.observer_names = ["o1", "w", "a", "b"]
+    #dummy.weight_branches = ["w", "a"]
+    #dummy._all_files = ["dummy.root"]
+    #dummy._requested_branches = ["f1", "o1", "w", "a", "b"]
+    #dummy._file_splits = [dummy._all_files]
+    #dummy._arr_cache = {0: ar}
+    #dummy._mask_cache = {}
+    #dummy._selection_fns = []  # since we bypassed __init__
 
-    F, O, W = dummy.materialize(shard=0, what="fow")
-    print("shapes:", F.shape, O.shape, W.shape, "| W[:3] =", W[:3])
+    #F, O, W = dummy.materialize(shard=0, what="fow")
+    #print("shapes:", F.shape, O.shape, W.shape, "| W[:3] =", W[:3])
 
-    dummy.weight_branches = []  # -> ones
-    W1, = dummy.materialize(shard=0, what="w")
-    print("ones W[:3] =", W1[:3])
-    print()
-    print(dummy)
+    #dummy.weight_branches = []  # -> ones
+    #W1, = dummy.materialize(shard=0, what="w")
+    #print("ones W[:3] =", W1[:3])
+    #print()
+    #print(dummy)
 
     # usage example for addSelections. The following two are equivalent.
     from samples_RunII import TTLep_pow_2016
     #TTLep_pow_2016.addSelection(lambda ar: (ar["tr_ttbar_mass"] >= 1000) & (ar["tr_ttbar_eta"] > 1),required_branches=["tr_ttbar_eta", "tr_ttbar_mass"])
-    TTLep_pow_2016.addSelection( '(tr_ttbar_mass >= 1000) & (tr_ttbar_eta > 1)', required_branches=["tr_ttbar_eta", "tr_ttbar_mass"],)
+    #TTLep_pow_2016.addSelection( '(tr_ttbar_mass >= 1000) & (tr_ttbar_eta > 1)', required_branches=["tr_ttbar_eta", "tr_ttbar_mass"],)
+
+    import time
+
+    t0 = time.perf_counter()
+    # --- operation you want to time ---
+    f,o,w = TTLep_pow_2016.materialize(0,'fow')
+    histos = []
+    for i_feature in range(f.shape[1]): 
+        histos.append( np.histogram( f[:,i_feature], weights=w ) )
+    # ----------------------------------
+    dt = time.perf_counter() - t0
+    print(f"Elapsed: {dt:.6f} s. Number of histograms {len(histos)}")
+

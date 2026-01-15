@@ -1,6 +1,6 @@
 sys_grouping = { 
     2016 :
-        [ [ "t#overline{t} norm.", [
+        [ [ "t#bar{t} norm.", [
          'nu_norm_TTLep',
         ]],
         [ "JER", [ 
@@ -54,7 +54,7 @@ sys_grouping = {
     ],
 
     2017 :
-        [ [ "t#overline{t} norm.", [
+        [ [ "t#bar{t} norm.", [
          'nu_norm_TTLep',
         ]],
         [ "JER", [ 
@@ -108,7 +108,7 @@ sys_grouping = {
     ],
 
     2018 :
-        [ [ "t#overline{t} norm.", [
+        [ [ "t#bar{t} norm.", [
          'nu_norm_TTLep',
         ]],
         [ "JER", [ 
