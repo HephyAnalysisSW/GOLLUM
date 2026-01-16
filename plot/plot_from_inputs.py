@@ -63,6 +63,11 @@ def get_branches_for_selection(selection: str) -> Sequence[str]:
 
         if string.isdigit() or (string in branches_for_selection):
             continue
+        
+        # to take into account cuts with abs()
+        # should only require branches inside abs()
+        if 'abs' in string:
+            continue
 
         branches_for_selection.append(string)
 
@@ -212,6 +217,10 @@ if __name__ == "__main__":
         kinematic_variation_groups = {'JER': {'CMS_res_j_0_<ERA>': ['CMS_res_j_0_<ERA>_down', 'CMS_res_j_0_<ERA>_up']}}
 
     if selection:
+        if "abs" in selection and not (("np.abs" in selection) or ("ak.abs" not in selection)):
+            logger.warning("selection requires absolute values using abs, replacing by np.abs")
+            selection.replace("abs","np.abs")
+            
         requested_branches_for_selection = get_branches_for_selection(selection)
         logger.info(f"{selection=}, {requested_branches_for_selection=}")
 
