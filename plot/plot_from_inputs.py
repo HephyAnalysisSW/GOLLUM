@@ -530,6 +530,8 @@ if __name__ == "__main__":
 
 
     """
+    ### Binned template comparisons ###
+
     making binned template input comparisons from nominal, down and up variation templates from previous step
 
     remember the structure of histogram_dict:
@@ -744,8 +746,8 @@ if __name__ == "__main__":
                     r_min = 1.0 - half_range
                     r_max = 1.0 + half_range
 
-                h_ratio_central.SetMinimum(r_min)
-                h_ratio_central.SetMaximum(r_max)
+                h_ratio_central.SetMinimum(max(r_min,-2.0))
+                h_ratio_central.SetMaximum(min(r_max,2.0))
 
                 h_ratio_central.Draw("HIST")
                 for h_r in h_ratio_vars[1:]:
@@ -854,7 +856,7 @@ if __name__ == "__main__":
             uncertainty_boxes = []
 
             h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
-            h_line_down = h_central.Clone(f"h_prefit_down_{era}")
+            h_line_down = h_total.Clone(f"h_prefit_down_{era}")
 
             # lines only, no fill
             h_line_up.SetFillStyle(0)
@@ -1079,8 +1081,8 @@ if __name__ == "__main__":
                 r_min = 1.0 - half_range
                 r_max = 1.0 + half_range
 
-            h_ratio_central.SetMinimum(r_min)
-            h_ratio_central.SetMaximum(r_max)
+            h_ratio_central.SetMinimum(max(r_min,-2.0))
+            h_ratio_central.SetMaximum(min(r_max,2.0))
 
             # draw ratio
             h_ratio_central.Draw("HIST")
