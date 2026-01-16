@@ -276,7 +276,7 @@ if __name__ == "__main__":
             if args.nuisanceForImpacts != "" and args.nuisanceForImpacts != param_name: 
                 continue
 
-            for direction in [ 'down']: # 'up',
+            for direction in [ 'down', 'up']:
                 hyp_var = hyp_for_fit.clone()
                 value = initial_fit_dict[param_name]["value"] + initial_fit_dict[param_name]["error"] * (1. if direction == "up" else -1.) 
                 print(f"Setting parameter {param_name} to {value}")
