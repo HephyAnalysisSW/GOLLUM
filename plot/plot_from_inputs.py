@@ -242,6 +242,10 @@ if __name__ == "__main__":
         for sample in samples_to_use:
             histogram_dict[era][sample] = {}
 
+    # used to have a simple way to iterate over all the features
+    # once the nominal sample object is deleted
+    list_features = []
+
     for i_era_sample, (era, sample) in enumerate(itertools.product(eras, samples_to_use)):
         print(f"era: {era}, sample: {sample}")
         
@@ -258,6 +262,7 @@ if __name__ == "__main__":
             # simple way to let us know the binning only once and not pollute the terminal
             if i_era_sample==0:
                 get_bin_edges(feature_name, print_add_info=True)
+                list_features.append(feature_name)
 
         t0 = time.perf_counter()
 
@@ -552,7 +557,7 @@ if __name__ == "__main__":
         if i_era_sample == 0:
             logger.info(f"{era=}, {sample=}")
 
-        for feature_name in histogram_dict[era][sample].keys():
+        for feature_name in list_features:
 
             if i_era_sample == 0:
                 logger.info(f"{feature_name=}")
@@ -765,295 +770,322 @@ if __name__ == "__main__":
         histogram_dict[era][sample][feature_name][uncertainty_name] = [h_nominal, h_down, h_up]
     """
 
-    # plot_directory_stacks = os.path.join(user.plot_directory, 'prefit_stacks_from_inputs')
-    # if debug:
-    #     plot_directory_stacks = os.path.join(plot_directory_stacks,"debug")
+    plot_directory_stacks = os.path.join(user.plot_directory, 'prefit_stacks_from_inputs')
+    if debug:
+        plot_directory_stacks = os.path.join(plot_directory_stacks,"debug")
 
     # logger.info(f"Pre-fit stacks saved to folder {plot_directory_stacks}")
-    # from data.colors import get_color
+    from data.colors import get_color
 
-    # legend_columns_prefit_stacks = 2
+    legend_columns_prefit_stacks = 2
 
-    # for era in eras:
-    
-    #     sample_histogram_dict = histogram_dict[era]
-
-    #     # build total histogram and each of the variations
-    #     h_total = ROOT.TH1F(f"h_prefit_total_{era}","", n_bins, np.array(edges, dtype=float))
-    #     h_unc_down = ROOT.TH1F(f"h_prefit_unc_down_{era}","", n_bins, np.array(edges, dtype=float))
-    #     h_unc_up = ROOT.TH1F(f"h_prefit_unc_up_{era}","", n_bins, np.array(edges, dtype=float))
+    for era in eras:
         
-    #     for sample in sample_histogram_dict:
-    #         h_nominal = sample_histogram_dict[sample][0]
-    #         h_total.Add(h_nominal)
+        for feature_name in list_features:
 
-    #         # creating histograms with uncertainties
-    #         # summing in quadrature each of the variations
+            edges = get_bin_edges(feature_name)
             
-    #         for down_variation_histo in sample_histogram_dict[sample][1]:
+            # this situation will likely never happen
+            # but keeping the safety here
+            if not edges:
+                continue
+
+            logY = plot_options.get(feature_name, {}).get('logY', False)
+            x_title = plot_options.get(feature_name, {}).get('tex', feature_name)        
+
+            # converting Numpy histogram edges (low edges + upper edge of last bin)
+            # to ROOT binning (lower edges only), bin 0 is underflow bin, bin nbins+1 is overflow
+            n_bins = len(edges)-1
+
+            # sample_histogram_dict = histogram_dict[era]
+
+            # build total histogram and each of the variations
+            h_total = ROOT.TH1F(f"h_prefit_total_{era}","", n_bins, np.array(edges, dtype=float))
+            h_unc_down = ROOT.TH1F(f"h_prefit_unc_down_{era}","", n_bins, np.array(edges, dtype=float))
+            h_unc_up = ROOT.TH1F(f"h_prefit_unc_up_{era}","", n_bins, np.array(edges, dtype=float))
+            
+            # nominal histogram is the same for all the different uncertainties
+            # convoluted way to fetch the nominal histogram but it works
+            first_uncertainty = list(histogram_dict[era][samples_to_use[0]][feature_name].keys())[0]
+            if '<ERA>' in first_uncertainty:
+                first_uncertainty = first_uncertainty.replace('<ERA>',str(era))
+            
+            for sample in samples_to_use:
                 
-    #             h_var_down = down_variation_histo - h_nominal
-    #             h_var_down.Multiply(h_var_down)
-    #             h_unc_down.Add(h_var_down)
-
-    #         for up_variation_histo in sample_histogram_dict[sample][2]:
-    #             h_var_up = up_variation_histo - h_nominal
-    #             h_var_up.Multiply(h_var_up)
-    #             h_unc_up.Add(h_var_up)
-
-    #     # uncertainty band via TBoxes + line-only histos
-    #     uncertainty_boxes = []
-
-    #     h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
-    #     h_line_down = h_central.Clone(f"h_prefit_down_{era}")
-
-    #     # lines only, no fill
-    #     h_line_up.SetFillStyle(0)
-    #     h_line_up.SetFillColor(0)
-    #     h_line_down.SetFillStyle(0)
-    #     h_line_down.SetFillColor(0)
-    #     h_line_up.SetLineColor(ROOT.kGray + 2)
-    #     h_line_down.SetLineColor(ROOT.kGray + 2)
-    #     h_line_up.SetLineWidth(1)
-    #     h_line_down.SetLineWidth(1)
-
-    #     logger.debug(f"Creating uncertainty boxes.")
-
-    #     for ib in range(1, n_bins+1):
-    #         x1 = edges[ib-1]
-    #         x2 = edges[ib]
-    #         nom = h_total.GetBinContent(ib)
-    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))
-
-    #         if nom > 0.0:
-    #             y_low  = nom - err_down
-    #             y_high = nom + err_up
-    #             logger.debug(f"{ib=}, {nom=}, {y_low=}, {y_high=}, {(y_low/nom)=}, {(y_high/nom)=}")
-
-    #             box = ROOT.TBox(x1, y_low, x2, y_high)
-    #             box.SetFillColor(ROOT.kGray + 1)
-    #             box.SetFillStyle(3345)
-    #             box.SetLineWidth(0)
-    #             uncertainty_boxes.append(box)
-
-    #             h_line_up.SetBinContent(ib, y_high)
-    #             h_line_down.SetBinContent(ib, y_low)
-    #         else:
-    #             # no prediction in this bin -> keep lines at 0
-    #             h_line_up.SetBinContent(ib, 0.0)
-    #             h_line_down.SetBinContent(ib, 0.0)
-
-    #     # "data" histogram: copy of total, errors = sqrt(yield)
-    #     h_data = h_total.Clone(f"h_prefit_data_{era}")
-    #     h_data.SetDirectory(0)
-    #     for ib in range(1, n_bins+1):
-    #         y = h_data.GetBinContent(ib)
-    #         if y<0:
-    #             y=0
-    #         h_data.SetBinError(ib, np.sqrt(y))
-    #     h_data.SetMarkerStyle(ROOT.kFullCircle)
-    #     h_data.SetMarkerSize(1.0)
-    #     h_data.SetLineColor(ROOT.kBlack)
-    #     h_data.SetFillStyle(0)
-
-    #     sample_labels = list(sample_histogram_dict.keys())
-
-    #     nominal_histogram_integrals = [sample_histogram_dict[sample][0].Integral() for sample in sample_labels]
-
-    #     # adding plots to stack in ascending order of yields
-    #     yield_order = sorted(range(len(sample_labels)), key=lambda i: nominal_histogram_integrals[i])
-    #     sample_labels_sorted = [sample_labels[i] for i in yield_order]
-
-    #     stack_name = f"stack_prefit_{era}"
-    #     hs = ROOT.THStack(stack_name, "")
-    #     for i_sample, sample in enumerate(sample_labels_sorted):
-
-    #         h_nominal = sample_histogram_dict[sample][0]
-
-    #         sample_color = get_color(sample) if callable(get_color) else ROOT.kGray + 1
-
-    #         h_nominal.SetLineColor(ROOT.kBlack)
-    #         h_nominal.SetFillColor(sample_color)
-    #         h_nominal.SetLineWidth(1)
-
-    #         hs.Add(sample_histogram_dict[sample][0], "hist")
-
-    #     canvas_name = f"c_prefit_{era}"
-    #     c_stack = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
-
-    #     padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 1.0)
-    #     padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
-
-    #     padTop.SetBottomMargin(0.0)
-    #     padTop.SetTopMargin(0.08)
-    #     padTop.SetLeftMargin(0.10)
-    #     padTop.SetRightMargin(0.05)
-    #     padTop.SetTicks(1, 1)
-
-    #     padBottom.SetTopMargin(0.0)
-    #     padBottom.SetBottomMargin(0.30)
-    #     padBottom.SetLeftMargin(0.10)
-    #     padBottom.SetRightMargin(0.05)
-    #     padBottom.SetTicks(1, 1)
-
-    #     padTop.Draw()
-    #     padBottom.Draw()
-
-    #     # ---- TOP PAD: absolute yields ----
-    #     padTop.cd()
-    #     if logY:
-    #         padTop.SetLogy(True)
-
-    #     hs.Draw("HIST")
-    #     hs.GetXaxis().SetTitle(x_title)
-    #     hs.GetYaxis().SetTitle("Events")
-
-    #     # font sizes / alignment (top pad)
-    #     hs.GetYaxis().SetTitleSize(0.05)     # a bit smaller
-    #     hs.GetYaxis().SetTitleOffset(1.1)    # helps align with bottom pad title
-    #     hs.GetYaxis().SetLabelSize(0.045)
-    #     hs.GetXaxis().SetLabelSize(0)
-    #     hs.GetXaxis().SetTitleSize(0)
-
-    #     # y-range
-    #     max_y = max(hs.GetMaximum(), h_data.GetMaximum())
-    #     if logY:
-    #         hs.SetMinimum(0.5)
-    #         hs.SetMaximum(10.0 * max_y if max_y > 0 else 1.0)
-    #     else:
-    #         hs.SetMinimum(0.0)
-    #         hs.SetMaximum(1.5 * max_y if max_y > 0 else 1.0)
-
-    #     # draw uncertainty band, lines, and data
-    #     for box in uncertainty_boxes:
-    #         box.Draw("SAME")
-    #     h_data.Draw("E SAME")
-
-    #     # legend
-    #     leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
-    #     leg.SetBorderSize(0)
-    #     leg.SetFillStyle(0)
-    #     leg.SetNColumns(legend_columns_prefit_stacks)
-
-    #     leg.AddEntry(h_data, "Data (Asimov)", "lep")
-    #     for sample in sample_labels_sorted:
-    #         leg.AddEntry(sample_histogram_dict[sample][0], sample, "f")
-    #         logging.debug(f"{sample=}")
-    #     leg.AddEntry(uncertainty_boxes[0], "Uncertainty", "f")
-    #     leg.Draw()
-
-    #     # ---- BOTTOM PAD: ratios ----
-    #     padBottom.cd()
-
-    #     # ratio central
-    #     h_ratio_central = h_total.Clone(f"h_prefit_ratio_{era}")
-    #     h_ratio_central.SetDirectory(0)
-    #     h_ratio_central.Divide(h_total)  # becomes 1 where non-zero
-    #     h_ratio_central.SetLineColor(ROOT.kBlack)
-    #     h_ratio_central.SetLineWidth(2)
-    #     h_ratio_central.SetTitle("")
-
-    #     h_ratio_central.GetYaxis().SetTitle("var / nominal")
-    #     h_ratio_central.GetYaxis().SetNdivisions(505)
-    #     h_ratio_central.GetYaxis().SetTitleSize(0.09)
-    #     h_ratio_central.GetYaxis().SetTitleOffset(0.5)
-    #     h_ratio_central.GetYaxis().SetLabelSize(0.08)
-
-    #     h_ratio_central.GetXaxis().SetTitle(x_title)
-    #     h_ratio_central.GetXaxis().SetTitleSize(0.10)
-    #     h_ratio_central.GetXaxis().SetLabelSize(0.08)
-
-    #     # ratio uncertainty band via TBoxes + line-only histos
-    #     ratio_boxes = []
-
-    #     h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{era}")
-    #     h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{era}")
-    #     h_ratio_line_up.SetDirectory(0)
-    #     h_ratio_line_down.SetDirectory(0)
-
-    #     # lines only, no fill
-    #     h_ratio_line_up.SetFillStyle(0)
-    #     h_ratio_line_up.SetFillColor(0)
-    #     h_ratio_line_down.SetFillStyle(0)
-    #     h_ratio_line_down.SetFillColor(0)
-    #     h_ratio_line_up.SetLineColor(ROOT.kGray + 2)
-    #     h_ratio_line_down.SetLineColor(ROOT.kGray + 2)
-    #     h_ratio_line_up.SetLineWidth(1)
-    #     h_ratio_line_down.SetLineWidth(1)
-
-    #     for ib in range(1, n_bins+1):
-    #         x1 = edges[ib-1]
-    #         x2 = edges[ib]
-    #         nom = h_total.GetBinContent(ib)
-    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))   
-
-    #         if nom > 0.0:
-    #             rel_up = err_up / nom
-    #             rel_down = err_down / nom
+                h_nominal = histogram_dict[era][sample][feature_name][first_uncertainty][0]
+                h_total.Add(h_nominal)
                 
-    #             y_low  = 1.0 - rel_down
-    #             y_high = 1.0 + rel_up
+                uncertainty_histogram_dict = histogram_dict[era][sample][feature_name]
 
-    #             box = ROOT.TBox(x1, y_low, x2, y_high)
-    #             box.SetFillColor(ROOT.kGray + 1)
-    #             box.SetFillStyle(3345)
-    #             box.SetLineWidth(0)
-    #             ratio_boxes.append(box)
+                for i_uncertainty, (uncertainty, histograms) in enumerate(uncertainty_histogram_dict.items()):
+                    
+                    # creating histograms with uncertainties
+                    # summing in quadrature each of the variations
+                    down_variation_histo = histograms[1]
+                        
+                    h_var_down = down_variation_histo - h_nominal
+                    h_var_down.Multiply(h_var_down)
+                    h_unc_down.Add(h_var_down)
 
-    #             h_ratio_line_up.SetBinContent(ib, y_high)
-    #             h_ratio_line_down.SetBinContent(ib, y_low)
-    #         else:
-    #             # no prediction in this bin -> keep lines at 1
-    #             h_ratio_line_up.SetBinContent(ib, 1.0)
-    #             h_ratio_line_down.SetBinContent(ib, 1.0)
+                    up_variation_histo = histograms[2]
 
-    #     # ratio y-range from max relative deviation
-    #     max_dev = 0.0
-    #     for ib in range(1, n_bins+1):
-    #         nom = h_total.GetBinContent(ib)
+                    h_var_up = up_variation_histo - h_nominal
+                    h_var_up.Multiply(h_var_up)
+                    h_unc_up.Add(h_var_up)
 
-    #         err_up = np.sqrt(h_unc_up.GetBinContent(ib))
-    #         err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+            # uncertainty band via TBoxes + line-only histos
+            uncertainty_boxes = []
 
-    #         if nom > 0:
-    #             dev_up = err_up / nom
-    #             dev_down = err_down / nom
-    #             if max(dev_up,dev_down) > max_dev:
-    #                 max_dev = max(dev_up,dev_down)
+            h_line_up   = h_total.Clone(f"h_prefit_up_{era}")
+            h_line_down = h_central.Clone(f"h_prefit_down_{era}")
 
-    #     if max_dev <= 0.0:
-    #         r_min, r_max = 0.9, 1.1
-    #     else:
-    #         half_range = 1.3 * max_dev
-    #         r_min = 1.0 - half_range
-    #         r_max = 1.0 + half_range
+            # lines only, no fill
+            h_line_up.SetFillStyle(0)
+            h_line_up.SetFillColor(0)
+            h_line_down.SetFillStyle(0)
+            h_line_down.SetFillColor(0)
+            h_line_up.SetLineColor(ROOT.kGray + 2)
+            h_line_down.SetLineColor(ROOT.kGray + 2)
+            h_line_up.SetLineWidth(1)
+            h_line_down.SetLineWidth(1)
 
-    #     h_ratio_central.SetMinimum(r_min)
-    #     h_ratio_central.SetMaximum(r_max)
+            logger.debug(f"Creating uncertainty boxes.")
 
-    #     # draw ratio
-    #     h_ratio_central.Draw("HIST")
-    #     for box in ratio_boxes:
-    #         box.Draw("SAME")
-    #     h_ratio_line_up.Draw("HIST SAME")
-    #     h_ratio_line_down.Draw("HIST SAME")
+            for ib in range(1, n_bins+1):
+                x1 = edges[ib-1]
+                x2 = edges[ib]
+                nom = h_total.GetBinContent(ib)
+                err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+                err_down = np.sqrt(h_unc_down.GetBinContent(ib))
 
-    #     # line at 1
-    #     line = ROOT.TLine(edges[0], 1.0, edges[-1], 1.0)
-    #     line.SetLineStyle(ROOT.kDashed)
-    #     line.SetLineColor(ROOT.kBlack)
-    #     line.Draw("SAME")
+                if nom > 0.0:
+                    y_low  = nom - err_down
+                    y_high = nom + err_up
+                    logger.debug(f"{ib=}, {nom=}, {y_low=}, {y_high=}, {(y_low/nom)=}, {(y_high/nom)=}")
 
-    #     c_stack.cd()
-    #     c_stack.Update()
+                    box = ROOT.TBox(x1, y_low, x2, y_high)
+                    box.SetFillColor(ROOT.kGray + 1)
+                    box.SetFillStyle(3345)
+                    box.SetLineWidth(0)
+                    uncertainty_boxes.append(box)
 
-    #     helpers.copyIndexPHP(plot_directory_stacks)
-    #     out_png = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.png")
-    #     out_pdf = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.pdf")
-    #     c_stack.SaveAs(out_png)
-    #     c_stack.SaveAs(out_pdf)        
+                    h_line_up.SetBinContent(ib, y_high)
+                    h_line_down.SetBinContent(ib, y_low)
+                else:
+                    # no prediction in this bin -> keep lines at 0
+                    h_line_up.SetBinContent(ib, 0.0)
+                    h_line_down.SetBinContent(ib, 0.0)
+
+            # "data" histogram: copy of total, errors = sqrt(yield)
+            h_data = h_total.Clone(f"h_prefit_data_{era}")
+            h_data.SetDirectory(0)
+            for ib in range(1, n_bins+1):
+                y = h_data.GetBinContent(ib)
+                if y<0:
+                    y=0
+                h_data.SetBinError(ib, np.sqrt(y))
+            h_data.SetMarkerStyle(ROOT.kFullCircle)
+            h_data.SetMarkerSize(1.0)
+            h_data.SetLineColor(ROOT.kBlack)
+            h_data.SetFillStyle(0)
+            
+            nominal_histograms = [histogram_dict[era][sample][feature_name][first_uncertainty][0] for sample in samples_to_use]
+            nominal_histogram_integrals = [histogram.Integral() for histogram in nominal_histograms]
+
+            # adding plots to stack in ascending order of yields
+            yield_order = sorted(range(len(samples_to_use)), key=lambda i: nominal_histogram_integrals[i])
+            sample_labels_sorted = [samples_to_use[i] for i in yield_order]
+
+            stack_name = f"stack_prefit_{era}"
+            hs = ROOT.THStack(stack_name, "")
+            for i_sample, sample in enumerate(sample_labels_sorted):
+
+                h_nominal = histogram_dict[era][sample][feature_name][first_uncertainty][0]
+
+                sample_color = get_color(sample) if callable(get_color) else ROOT.kGray + 1
+
+                h_nominal.SetLineColor(ROOT.kBlack)
+                h_nominal.SetFillColor(sample_color)
+                h_nominal.SetLineWidth(1)
+
+                hs.Add(h_nominal, "hist")
+
+            canvas_name = f"c_prefit_{era}"
+            c_stack = ROOT.TCanvas(canvas_name, canvas_name, 800, 800)
+
+            padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, 0.30, 1.0, 1.0)
+            padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.00, 1.0, 0.30)
+
+            padTop.SetBottomMargin(0.0)
+            padTop.SetTopMargin(0.08)
+            padTop.SetLeftMargin(0.10)
+            padTop.SetRightMargin(0.05)
+            padTop.SetTicks(1, 1)
+
+            padBottom.SetTopMargin(0.0)
+            padBottom.SetBottomMargin(0.30)
+            padBottom.SetLeftMargin(0.10)
+            padBottom.SetRightMargin(0.05)
+            padBottom.SetTicks(1, 1)
+
+            padTop.Draw()
+            padBottom.Draw()
+
+            # ---- TOP PAD: absolute yields ----
+            padTop.cd()
+            if logY:
+                padTop.SetLogy(True)
+
+            hs.Draw("HIST")
+            hs.GetXaxis().SetTitle(x_title)
+            hs.GetYaxis().SetTitle("Events")
+
+            # font sizes / alignment (top pad)
+            hs.GetYaxis().SetTitleSize(0.05)     # a bit smaller
+            hs.GetYaxis().SetTitleOffset(1.1)    # helps align with bottom pad title
+            hs.GetYaxis().SetLabelSize(0.045)
+            hs.GetXaxis().SetLabelSize(0)
+            hs.GetXaxis().SetTitleSize(0)
+
+            # y-range
+            max_y = max(hs.GetMaximum(), h_data.GetMaximum())
+            if logY:
+                hs.SetMinimum(0.5)
+                hs.SetMaximum(10.0 * max_y if max_y > 0 else 1.0)
+            else:
+                hs.SetMinimum(0.0)
+                hs.SetMaximum(1.5 * max_y if max_y > 0 else 1.0)
+
+            # draw uncertainty band, lines, and data
+            for box in uncertainty_boxes:
+                box.Draw("SAME")
+            h_data.Draw("E SAME")
+
+            # legend
+            leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
+            leg.SetBorderSize(0)
+            leg.SetFillStyle(0)
+            leg.SetNColumns(legend_columns_prefit_stacks)
+
+            leg.AddEntry(h_data, "Data (Asimov)", "lep")
+            for sample in sample_labels_sorted:
+                h_nominal = histogram_dict[era][sample][feature_name][first_uncertainty][0]
+                leg.AddEntry(h_nominal, sample, "f")
+                logging.debug(f"{sample=}")
+            leg.AddEntry(uncertainty_boxes[0], "Uncertainty", "f")
+            leg.Draw()
+
+            # ---- BOTTOM PAD: ratios ----
+            padBottom.cd()
+
+            # ratio central
+            h_ratio_central = h_total.Clone(f"h_prefit_ratio_{era}")
+            h_ratio_central.SetDirectory(0)
+            h_ratio_central.Divide(h_total)  # becomes 1 where non-zero
+            h_ratio_central.SetLineColor(ROOT.kBlack)
+            h_ratio_central.SetLineWidth(2)
+            h_ratio_central.SetTitle("")
+
+            h_ratio_central.GetYaxis().SetTitle("var / nominal")
+            h_ratio_central.GetYaxis().SetNdivisions(505)
+            h_ratio_central.GetYaxis().SetTitleSize(0.09)
+            h_ratio_central.GetYaxis().SetTitleOffset(0.5)
+            h_ratio_central.GetYaxis().SetLabelSize(0.08)
+
+            h_ratio_central.GetXaxis().SetTitle(x_title)
+            h_ratio_central.GetXaxis().SetTitleSize(0.10)
+            h_ratio_central.GetXaxis().SetLabelSize(0.08)
+
+            # ratio uncertainty band via TBoxes + line-only histos
+            ratio_boxes = []
+
+            h_ratio_line_up   = h_ratio_central.Clone(f"h_prefit_ratio_up_{era}")
+            h_ratio_line_down = h_ratio_central.Clone(f"h_prefit_ratio_down_{era}")
+            h_ratio_line_up.SetDirectory(0)
+            h_ratio_line_down.SetDirectory(0)
+
+            # lines only, no fill
+            h_ratio_line_up.SetFillStyle(0)
+            h_ratio_line_up.SetFillColor(0)
+            h_ratio_line_down.SetFillStyle(0)
+            h_ratio_line_down.SetFillColor(0)
+            h_ratio_line_up.SetLineColor(ROOT.kGray + 2)
+            h_ratio_line_down.SetLineColor(ROOT.kGray + 2)
+            h_ratio_line_up.SetLineWidth(1)
+            h_ratio_line_down.SetLineWidth(1)
+
+            for ib in range(1, n_bins+1):
+                x1 = edges[ib-1]
+                x2 = edges[ib]
+                nom = h_total.GetBinContent(ib)
+                err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+                err_down = np.sqrt(h_unc_down.GetBinContent(ib))   
+
+                if nom > 0.0:
+                    rel_up = err_up / nom
+                    rel_down = err_down / nom
+                    
+                    y_low  = 1.0 - rel_down
+                    y_high = 1.0 + rel_up
+
+                    box = ROOT.TBox(x1, y_low, x2, y_high)
+                    box.SetFillColor(ROOT.kGray + 1)
+                    box.SetFillStyle(3345)
+                    box.SetLineWidth(0)
+                    ratio_boxes.append(box)
+
+                    h_ratio_line_up.SetBinContent(ib, y_high)
+                    h_ratio_line_down.SetBinContent(ib, y_low)
+                else:
+                    # no prediction in this bin -> keep lines at 1
+                    h_ratio_line_up.SetBinContent(ib, 1.0)
+                    h_ratio_line_down.SetBinContent(ib, 1.0)
+
+            # ratio y-range from max relative deviation
+            max_dev = 0.0
+            for ib in range(1, n_bins+1):
+                nom = h_total.GetBinContent(ib)
+
+                err_up = np.sqrt(h_unc_up.GetBinContent(ib))
+                err_down = np.sqrt(h_unc_down.GetBinContent(ib))
+
+                if nom > 0:
+                    dev_up = err_up / nom
+                    dev_down = err_down / nom
+                    if max(dev_up,dev_down) > max_dev:
+                        max_dev = max(dev_up,dev_down)
+
+            if max_dev <= 0.0:
+                r_min, r_max = 0.9, 1.1
+            else:
+                half_range = 1.3 * max_dev
+                r_min = 1.0 - half_range
+                r_max = 1.0 + half_range
+
+            h_ratio_central.SetMinimum(r_min)
+            h_ratio_central.SetMaximum(r_max)
+
+            # draw ratio
+            h_ratio_central.Draw("HIST")
+            for box in ratio_boxes:
+                box.Draw("SAME")
+            h_ratio_line_up.Draw("HIST SAME")
+            h_ratio_line_down.Draw("HIST SAME")
+
+            # line at 1
+            line = ROOT.TLine(edges[0], 1.0, edges[-1], 1.0)
+            line.SetLineStyle(ROOT.kDashed)
+            line.SetLineColor(ROOT.kBlack)
+            line.Draw("SAME")
+
+            c_stack.cd()
+            c_stack.Update()
+
+            helpers.copyIndexPHP(plot_directory_stacks)
+            out_png = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.png")
+            out_pdf = os.path.join(plot_directory_stacks, f"{era}_{feature_name}_prefit.pdf")
+            c_stack.SaveAs(out_png)
+            c_stack.SaveAs(out_pdf)        
 
 
     # syncer.sync()
