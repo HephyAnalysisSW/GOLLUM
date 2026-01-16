@@ -46,7 +46,6 @@ import numpy as np
 import copy
 
 # NB: this is a first prototype and hasn't been fully battle tested
-# there may be some edge cases, debug information is printed when the function is ran
 def get_branches_for_selection(selection: str) -> Sequence[str]:
     
     # NB: the order matters, operators with more chars should be removed first
@@ -75,8 +74,8 @@ def get_branches_for_selection(selection: str) -> Sequence[str]:
 
 """
 systematics are divided into three categories:
-- additional weights, to be multiplied by the overall weight
 - variations in weights which are part of overall weight - should replace nominal weight
+- additional weights, to be multiplied by the overall weight
 - kinematic variations - come from different files
 
 the RDataLoader access will be different for each
@@ -198,6 +197,7 @@ if __name__ == "__main__":
 
     parser = ap.ArgumentParser(description='make plots of pre-fit variations directly from raw +-1 sigma input files, instead of using ICPH surrogates')
     parser.add_argument('--selection', '-s', type=str, help='string-based selection in Python/Awkward format, e.g. use & instead of && for chaining selections')
+    parser.add_argument('--version', '-v', help = 'version, to be added to the relevant directories')
     parser.add_argument('--debug', '-d', help = 'enables debug mode, keeping only era and one uncertainty of each type', action="store_true")
 
     args = parser.parse_args()
@@ -207,6 +207,7 @@ if __name__ == "__main__":
 
     selection = args.selection
     debug = args.debug
+    version = args.version
 
     if debug:
         logger.info("Debug mode: printing additional information, plotting 2016 only, only using one of each type of uncertainty and only plotting two features.")
@@ -223,6 +224,9 @@ if __name__ == "__main__":
             
         requested_branches_for_selection = get_branches_for_selection(selection)
         logger.info(f"{selection=}, {requested_branches_for_selection=}")
+
+    if version:
+        logger.info(f"Writing plots under sub-directories with name {version}")
 
     """
     stores histograms of nominal, up and down variations
@@ -538,6 +542,8 @@ if __name__ == "__main__":
     plot_directory_binned_templates = os.path.join(user.plot_directory, 'binned_templates_from_inputs')
     if debug:
         plot_directory_binned_templates = os.path.join(plot_directory_binned_templates,"debug")
+    elif version:
+        plot_directory_binned_templates = os.path.join(plot_directory_binned_templates,version)
 
     logger.info(f"Creating binned templates from sample inputs, will be written under {plot_directory_binned_templates}")
     os.makedirs(plot_directory_binned_templates, exist_ok=True)
@@ -782,6 +788,8 @@ if __name__ == "__main__":
     plot_directory_stacks = os.path.join(user.plot_directory, 'prefit_stacks_from_inputs')
     if debug:
         plot_directory_stacks = os.path.join(plot_directory_stacks,"debug")
+    elif version:
+        plot_directory_stacks = os.path.join(plot_directory_stacks,version)        
 
     # logger.info(f"Pre-fit stacks saved to folder {plot_directory_stacks}")
     from data.colors import get_color
