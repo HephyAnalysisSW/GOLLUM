@@ -458,6 +458,36 @@ out_pdf = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f
 c.SaveAs(out_png)
 c.SaveAs(out_pdf)
 
+import csv
+
+csv_path = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.csv")
+syncer.file_sync_storage.append( csv_path )
+print(f"[info] Writing CSV to: {csv_path}")
+
+with open(csv_path, "w", newline="") as f_csv:
+    writer = csv.writer(f_csv)
+    # header
+    writer.writerow([
+        "x",
+        "pdf_central",
+        "pdf_q32",
+        "pdf_q68",
+        "ratio_central",
+        "ratio_q32",
+        "ratio_q68",
+    ])
+    # rows
+    for i in range(n_x):
+        writer.writerow([
+            x_vals[i],
+            central_pdf[i],
+            q_low[i],
+            q_high[i],
+            ratio_central[i],
+            ratio_low[i],
+            ratio_high[i],
+        ])
+
 print(f"[info] {plot_label} PDF plot written to:\n  {out_png}\n  {out_pdf}")
 
 syncer.sync()
