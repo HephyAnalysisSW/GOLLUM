@@ -4,9 +4,9 @@ defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here
   batch_size: 65536
   default_features: 
-    - TOP_KINEMATICS
-    - LEPTON_KINEMATICS
-    - ASYMMETRY
+    - OLD_TOP_KINEMATICS
+    - OLD_LEPTON_KINEMATICS
+    - OLD_ASYMMETRY
 
 likelihood:
     regions:
@@ -122,40 +122,6 @@ likelihood:
 jobs:
   - include: bit_split.yaml
   # -------------------------------
-  # Inclusive Cross Section (IC)
-  # -------------------------------
-  - id: ic_tt2l
-    type: ic
-    region: SR
-    process: tt2l
-    selection: null
-    output:
-      filename: "IC_tt2l.pkl"
-  - id: ic_tt2l_GG
-    type: ic
-    region: SR
-    process: tt2l_GG
-    selection: null
-    output:
-      filename: "IC_tt2l_GG.pkl"
-
-  - id: ic_tt2l_QG
-    type: ic
-    region: SR
-    process: tt2l_QG
-    selection: null
-    output:
-      filename: "IC_tt2l_QG.pkl"
-
-  - id: ic_tt2l_QQ
-    type: ic
-    region: SR
-    process: tt2l_QQ
-    selection: null
-    output:
-      filename: "IC_tt2l_QQ.pkl"
-
-  # -------------------------------
   # Scalers 
   # -------------------------------
   - id: scaler_tt2l
@@ -210,7 +176,7 @@ jobs:
       batch_size: 65536
       num_workers: 1
     extras:
-      use_ic: ic_tt2l
+      use_ic: True
       use_scaler: scaler_tt2l
     output:
       filename: "tfmc_no_reg.pkl"

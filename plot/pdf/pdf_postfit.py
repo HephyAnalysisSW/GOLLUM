@@ -17,6 +17,8 @@ import common.helpers as helpers
 import common.yaml_loader as yaml_loader
 from fit.Likelihood import load_likelihood
 from fit.Likelihood import build_hypothesis_from_likelihood
+from fit.Modeling import Rotated
+
 from pdf.PDFParametrization import PDFParametrization
 
 # ---------------- args ----------------
@@ -32,6 +34,9 @@ p.add_argument("--freezePOI", action="store_true",
                help="Do not sample POIs, use only central values")
 p.add_argument("--Q", type=float, default=1.65,
                help="Scale Q for PDF evaluation (same units as PDF grid, default: 1.65)")
+p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
+p.add_argument("--subdir", action="store", default='', help="Subdirectory for plotting")
+
 args = p.parse_args()
 
 plot_label = "gluonPDF"
@@ -83,7 +88,7 @@ print("[info] All required surrogates available. Loading likelihood...")
 like_info = load_likelihood(cfg)
 
 # output directory for PDF plots
-pdf_plot_directory = os.path.join(user.plot_directory, plot_label)
+pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, os.path.splitext(os.path.basename(args.config))[0])
 os.makedirs(pdf_plot_directory, exist_ok=True)
 print(f"[info] {plot_label} plots will be written under: {pdf_plot_directory}")
 
@@ -100,8 +105,11 @@ print(f"[info] Loaded fit result with {len(fit_par_names)} parameters.")
 # build hypothesis from likelihood for consistency checks
 hyp = build_hypothesis_from_likelihood(like_info)
 
+rotated = bool(args.rotate)
+hyp_rotated = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
+
 # --- consistency check between likelihood parameters and fit results ---
-like_par_names = [p.name for p in hyp.parameters]
+like_par_names = [p.name for p in hyp_rotated.parameters]
 
 set_like = set(like_par_names)
 set_fit  = set(fit_par_names)
@@ -133,24 +141,24 @@ else:
 # ----------------------------------------------------------------------
 # Find first POI-dependent BIT entry in likelihood and corresponding job
 # ----------------------------------------------------------------------
-poi_params = None
+like_params = None
 poi_job_id = None
 
 for region in like_info.get("regions", []):
     for cls in region.get("classes", []):
         poi = cls.get("POI", None)
         if poi and poi.get("type") == "bit" and poi.get("parameters"):
-            poi_params = poi["parameters"]
+            like_params = poi["parameters"]
             poi_job_id = poi["job"]
             break
-    if poi_params is not None:
+    if like_params is not None:
         break
 
-if poi_params is None or poi_job_id is None:
+if like_params is None or poi_job_id is None:
     print("[error] Could not find a POI-dependent BIT term in the likelihood.")
     sys.exit(1)
 
-print(f"[info] Using POI-dependent BIT job '{poi_job_id}' with POIs: {', '.join(poi_params)}")
+print(f"[info] Using POI-dependent BIT job '{poi_job_id}' with POIs: {', '.join(like_params)}")
 
 # find corresponding job J in cfg['jobs']
 J = None
@@ -173,10 +181,10 @@ if pdf_n is None or pdf_type is None:
 
 print(f"[info] PDF configuration: pdf_n={pdf_n}, pdf_type={pdf_type}")
 
-if len(pdf_n) != len(poi_params):
+if len(pdf_n) != len(like_params):
     print("[warning] Length mismatch: len(pdf_n) != len(POI parameters).")
     print(f"  len(pdf_n)   = {len(pdf_n)}")
-    print(f"  len(POIs)    = {len(poi_params)}")
+    print(f"  len(POIs)    = {len(like_params)}")
 
 # instantiate PDF parametrization
 pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
@@ -184,8 +192,10 @@ pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
 # map parameter names -> indices in fit result
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
 
+poi_names = [p.name for p in hyp_rotated.POIs]
 try:
-    poi_indices = [idx_map[name] for name in poi_params]
+    #poi_indices = [idx_map[name] for name in like_params]
+    poi_indices = [idx_map[name] for name in poi_names] 
 except KeyError as e:
     print(f"[error] POI '{e.args[0]}' not found in fit result parameter list.")
     sys.exit(1)
@@ -193,14 +203,14 @@ except KeyError as e:
 # central POI coefficients (MLE)
 coeffs_central = params_best[poi_indices]
 print("[info] Central POI coefficients (MLE):")
-for name, val in zip(poi_params, coeffs_central):
+for name, val in zip(poi_names, coeffs_central):
     print(f"  {name:>20s} = {val: .5e}")
 
 # covariance submatrix for POIs
 cov_poi = cov[np.ix_(poi_indices, poi_indices)]
 
 # knobs for sampling
-n_toys       = 1000
+n_toys       = 10000
 fit_rng_seed = 42
 
 # sample POIs unless freezePOI is set
@@ -208,13 +218,28 @@ if args.freezePOI:
     print("[info] --freezePOI given: not sampling POIs, will only show central PDF.")
     poi_samples = None
 else:
-    print(f"[info] Sampling {len(poi_params)} POIs with {n_toys} toys...")
+    print(f"[info] Sampling {len(like_params)} POIs with {n_toys} toys...")
     np.random.seed(fit_rng_seed)
     poi_samples = np.random.multivariate_normal(
         mean=coeffs_central,
         cov=cov_poi,
         size=n_toys
     )
+
+    # rotate into original coefficients using hyp_rotated
+    poi_samples_base = []
+    if rotated:
+        print("Un-rotating samples.") 
+        hyp_central = hyp_rotated.cloneModify(**dict(zip(poi_names, coeffs_central)))
+        coeffs_central_base =  np.array( [p.val for p in hyp_central.base().POIs])
+        for sample in poi_samples:
+            hyp_sample = hyp_rotated.cloneModify(**dict(zip(poi_names, sample)))
+            poi_samples_base.append([p.val for p in hyp_sample.base().POIs])
+        poi_samples_base = np.array(poi_samples_base)
+        print("Done.")
+    else:
+        coeffs_central_base = coeffs_central
+        poi_samples_base = poi_samples
 
 # ------------------- build x grid and evaluate PDFs --------------------
 
@@ -231,15 +256,15 @@ Q_arr  = np.full(n_x, Q_val, dtype=float)
 
 # central gluon PDF
 central_pdf = np.array(
-    pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_central),
+    pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_central_base),
     dtype=float
 )
 
 # toy PDFs
-if poi_samples is not None:
+if poi_samples_base is not None:
     pdf_samples = np.zeros((n_toys, n_x), dtype=float)
     for itoy in range(n_toys):
-        coeffs_toy = poi_samples[itoy]
+        coeffs_toy = poi_samples_base[itoy]
         pdf_samples[itoy, :] = pdf.evaluate(
             x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_toy
         )
@@ -270,7 +295,7 @@ else:
     y_max_top = 1.0
 
 # y-range for ratio (bottom pad) fixed to [0, 2]
-r_min, r_max = 0.0, 2.0
+r_min, r_max = 0.75, 1.25
 
 # --------------------------- ROOT plotting -----------------------------
 
@@ -312,6 +337,7 @@ frame_top.GetXaxis().SetLabelSize(0)      # no x labels on top pad
 frame_top.GetXaxis().SetTitleSize(0)      # no x title on top pad
 frame_top.GetYaxis().SetTitleSize(0.05)
 frame_top.GetYaxis().SetLabelSize(0.045)
+frame_top.GetYaxis().SetTitleOffset(0.85)
 frame_top.Draw()
 
 # band from quantiles (top)
@@ -425,10 +451,42 @@ helpers.copyIndexPHP(pdf_plot_directory)
 Q_int = int(round(Q_val * 1000.0))
 Q_tag = f"Q{Q_int:06d}"
 
-out_png = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}_{Q_tag}.png")
-out_pdf = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}_{Q_tag}.pdf")
+r_suf = "_ROT_"+os.path.splitext(os.path.basename(args.rotate))[0] if rotated else ""
+f_suf = "_FIT_"+os.path.splitext(os.path.basename(args.postfit))[0]
+out_png = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.png")
+out_pdf = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.pdf")
 c.SaveAs(out_png)
 c.SaveAs(out_pdf)
+
+import csv
+
+csv_path = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.csv")
+syncer.file_sync_storage.append( csv_path )
+print(f"[info] Writing CSV to: {csv_path}")
+
+with open(csv_path, "w", newline="") as f_csv:
+    writer = csv.writer(f_csv)
+    # header
+    writer.writerow([
+        "x",
+        "pdf_central",
+        "pdf_q32",
+        "pdf_q68",
+        "ratio_central",
+        "ratio_q32",
+        "ratio_q68",
+    ])
+    # rows
+    for i in range(n_x):
+        writer.writerow([
+            x_vals[i],
+            central_pdf[i],
+            q_low[i],
+            q_high[i],
+            ratio_central[i],
+            ratio_low[i],
+            ratio_high[i],
+        ])
 
 print(f"[info] {plot_label} PDF plot written to:\n  {out_png}\n  {out_pdf}")
 

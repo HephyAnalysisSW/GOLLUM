@@ -14,6 +14,7 @@ import json
 
 import sys
 sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 import common.user   as user
 import common.syncer as syncer
 import common.helpers as helpers
