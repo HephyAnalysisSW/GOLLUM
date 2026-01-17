@@ -176,7 +176,6 @@ jobs:
       batch_size: 65536
       num_workers: 1
     extras:
-      use_ic: True
       use_scaler: scaler_tt2l
     output:
       filename: "tfmc_no_reg.pkl"

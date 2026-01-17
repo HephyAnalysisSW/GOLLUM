@@ -29,7 +29,6 @@ jobs:
     runtime:
       batch_size: -1 
     extras:
-      use_ic: false
       use_scaler: false
     output:
       filename: "tfmc_toy.h5"
