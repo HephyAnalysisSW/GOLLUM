@@ -62,6 +62,13 @@ class SelectionView:
 
         # weight override list or None (inherit)
         self._w_override = None if weight is None else list(weight)
+        # Add weights to base
+        if self._w_override:
+            for weight in self._w_override:
+                if weight not in self.base._requested_branches:
+                    if getattr(self.base, "_arr_cache", None) and len(self.base._arr_cache):
+                        raise RuntimeError("RDataLoader base already materialized; call only right after initialization.")
+                    self.base._requested_branches.append( weight )
 
     def __len__(self) -> int:
         return len(self.base)

@@ -29,6 +29,15 @@ GROUPS = {
     "EtaP": ["EtaT_m343_w2p8_ll"],
 }
 
+process_labels = {
+    "SingleTop":  "Single top",
+    "TTSemi_pow": "t#bar{t} (1l)",
+    "TTLep_pow":  "t#bar{t} (2l)",
+    "DrellYan":   "DY",
+    "EtaS": "#chi_{t}/H",
+    "EtaP": "#eta_{t}/A",
+}
+
 # -----------------------------
 # Base sample (nominal)
 # -----------------------------
@@ -146,11 +155,10 @@ def _available_files_for_era(era: str) -> List[str]:
 
 
 # ----------------------------------------------------------------------
-# Factory for variations
+# Helpers for making variations
 # ----------------------------------------------------------------------
 
-
-def _make_variation(process: str, era: str, tag: str) -> RDataLoader:
+def _make_variation(process: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
     Construct a variation from a process, era, and tag, e.g.
 
@@ -183,7 +191,7 @@ def _make_variation(process: str, era: str, tag: str) -> RDataLoader:
 
     return _base.clone_from_files(str(rootfile))
 
-def _make_group_variation(group: str, era: str, tag: str) -> RDataLoader:
+def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
     Construct a variation for a group of processes, e.g.
 
@@ -233,7 +241,7 @@ def _make_group_variation(group: str, era: str, tag: str) -> RDataLoader:
 
 
 # ----------------------------------------------------------------------
-# Module-level __getattr__: lazy factory for all samples
+# Module-level __getattr__: lazy instantiation for all samples
 # ----------------------------------------------------------------------
 def __getattr__(name: str):
     """
@@ -286,8 +294,6 @@ def __getattr__(name: str):
         else:
             loader = _make_variation(process, era, tag)
     except FileNotFoundError as e:
-        # ... your existing detailed error-message construction ...
-        # (unchanged)
         root_dir = BASE_DIRECTORY / era
         msg_lines = [
             f"Could not construct sample {name!r}.",
@@ -344,6 +350,87 @@ def __getattr__(name: str):
 
     globals()[name] = loader
     return loader
+
+# ----------------------------------------------------------------------
+#  A factory class that exposes the base directory
+# ----------------------------------------------------------------------
+class Factory:
+
+    def __init__( self, BASE_DIRECTORY: str = BASE_DIRECTORY):
+        if type(BASE_DIRECTORY) == str:
+            self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
+        else:
+            self.BASE_DIRECTORY = BASE_DIRECTORY
+
+    def get(self, process: str, era: str, tag: str = None) -> RDataLoader:
+            
+        if not tag:
+            tag = "nominal"
+
+        is_group = process in GROUPS
+
+        # Try to build the loader
+        try:
+            if is_group:
+                loader = _make_group_variation(process, era, tag, BASE_DIRECTORY = self.BASE_DIRECTORY)
+            else:
+                loader = _make_variation(process, era, tag, BASE_DIRECTORY = self.BASE_DIRECTORY)
+        except FileNotFoundError as e:
+            root_dir = self.BASE_DIRECTORY / era
+            msg_lines = [
+                f"Could not construct sample {process} {era!r} {tag}.",
+                str(e),
+                "",
+            ]
+
+            if is_group:
+                msg_lines.append(f"{process!r} is defined as a group with members:")
+                msg_lines.append("  " + ", ".join(GROUPS[process]))
+                msg_lines.append("")
+                msg_lines.append(
+                    f"Each member is expected to have a file "
+                    f"'<process>_{tag}.root' in {root_dir}"
+                )
+                msg_lines.append("")
+            elif root_dir.is_dir():
+                available_tags = _available_tags_for(process, era)
+                if available_tags:
+                    msg_lines.append(
+                        f"Available variations for process={process!r} in era={era!r} "
+                        f"(i.e. files '{process}_<tag>.root') are:"
+                    )
+                    msg_lines.append(", ".join(available_tags))
+                    msg_lines.append("")
+                else:
+                    msg_lines.append(
+                        f"No ROOT files found for process={process!r} in era={era!r}."
+                    )
+                    era_files = _available_files_for_era(era)
+                    if era_files:
+                        msg_lines.append(
+                            f"Some ROOT files available in {root_dir} (era={era!r}) are:"
+                        )
+                        max_show = 30
+                        shown = era_files[:max_show]
+                        msg_lines.append("\n".join(f"  - {f}" for f in shown))
+                        if len(era_files) > max_show:
+                            msg_lines.append(
+                                f"  ... and {len(era_files) - max_show} more."
+                            )
+                        msg_lines.append("")
+
+            syst_tags = SYSTEMATICS.get(era, [])
+            if syst_tags:
+                msg_lines.append(
+                    f"Recognised systematic tags for era={era!r} from SYSTEMATICS "
+                    "(may or may not exist on disk for this process/group):"
+                )
+                msg_lines.append(", ".join(sorted(syst_tags)))
+                msg_lines.append("")
+
+            raise e 
+
+        return loader
 
 if __name__ == "__main__":
     print("Base:", _base)
