@@ -157,7 +157,7 @@ plot_options = {
     "tr_lep_pt"                   : { 'binning': [30,   0,   1200],  'tex': 'p_{T}(l)',                    'logY': True  },
     "tr_lep_eta"                  : { 'binning': [26,  -2.6,  2.6],  'tex': '#eta(l)',                     'logY': False },
     "tr_lep_phi"                  : { 'binning': [26,  -pi,  pi],    'tex': '#phi(l)',                     'logY': False },
-    "tr_lep_mass"                 : { 'binning': [50,   0,    i 1],   'tex': 'M(l)',                        'logY': True  },
+    "tr_lep_mass"                 : { 'binning': [50,   0,    1],   'tex': 'M(l)',                        'logY': True  },
 
     "tr_antilep_pt"               : { 'binning': [30,   0,  1200],   'tex': 'p_{T}(#bar{l})',              'logY': True  },
     "tr_antilep_eta"              : { 'binning': [26,  -2.6, 2.6],   'tex': '#eta(#bar{l})',               'logY': False },

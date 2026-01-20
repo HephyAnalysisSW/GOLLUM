@@ -51,7 +51,7 @@ elif user in ['ricardo.barrue']:
     # For model output:
     model_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/models/"
     cache_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/caches/"
-    output_directory       = "/scratch-cbe/users/ricardo.barrue/SBIPDF/output/"
+    output_directory       = "/groups/hephy/cms/ricardo.barrue/SBIPDF/output/"
 
 else:
 
