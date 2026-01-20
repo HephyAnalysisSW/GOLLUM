@@ -188,6 +188,10 @@ feat2col  = {f: i for i, f in enumerate(feat_names)}
 # ---------------- artifacts: scaler & ICP ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
 
+cfg_path = cfg_base
+if args.for_debug:
+    cfg_base += "_for_debug"
+
 from ML.Scaler.Scaler import Scaler
 scaler_id = J["extras"].get("use_scaler", None)
 if scaler_id:
@@ -205,15 +209,15 @@ else:
 # ---------------- dirs ----------------
 model_dir = os.path.join(
     user.model_directory,
-    cfg_base + ("_for_debug" if args.for_debug else ""),
+    cfg_path,
     "PNN",
     J["id"],
 )
 
 plot_dir = os.path.join(
     user.plot_directory,
-    cfg_base + ("_for_debug" if args.for_debug else ""),
     "training_closure",
+    cfg_path,
     "PNN",
     J["id"],
 )
