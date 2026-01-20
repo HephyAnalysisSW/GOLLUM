@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
             hyp_point = hyp_for_fit.clone()
             hyp_point.modify(**dict([ (poi,scan_point[j]) for j, poi in enumerate(POIs)]))
-            m = lh.run_minuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=True, do_minos=False,verbosity=0)
+            m = lh.run_minuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=False, do_minos=False,verbosity=0)
             print(f"-2logL =  {m.fval:{val_w}f}")
             np.save(f'{base}_{version}_scan_{i}', np.rec.fromarrays(list(scan_point) + [m.fval], names=POIs + ['-2logL']))
 
