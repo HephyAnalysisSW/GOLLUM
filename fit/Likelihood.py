@@ -492,7 +492,7 @@ class N2LL:
                  cache_subdir: str = "caches",
                  cache_root: Optional[str] = None,
                  overwrite: bool = False,
-                 eval_chunk_size: int = 200_000):
+                 eval_chunk_size: int = 2000000_000):
         import importlib, os
         self.lk = likelihood
         self.regions = list(likelihood.get('regions', []))
@@ -728,8 +728,8 @@ class N2LL:
                 if not needs[cid]:
                     continue
                 h5_path, meta_path = self._paths_for(rid, cid)
-
                 print(h5_path, meta_path)
+
                 # create HDF5 and datasets with resizable first dim
                 f = h5py.File(h5_path, "w")
                 writers[cid] = {
@@ -986,7 +986,7 @@ class N2LL:
                     f.close()
                     raise RuntimeError(f"[N2LL] Inconsistent length for ({rid},{cid}) vs region={rid} first class")
 
-                self._h5[(rid, cid)] = f
+                self._h5[(rid, cid)] = dict([(key, f[key][:]) for key in f])
                 self._meta[(rid, cid)] = meta
 
                 # ---- Debug prints: columns + first 5 rows ----
@@ -1190,7 +1190,6 @@ class N2LL:
         Compute T(x; c, ν) on [start:stop) for a single region rid, summing over classes.
         T_i = Σ_p g_p(x_i) * [ (c⋅R_p)(x_i) * e^{Σ_s ν_B Δ_{p,B}(x_i)} + (e^{...} - 1) ].
         """
-        f_first = self._h5[(rid, self._class_ids_by_region[rid][0])]
         M = stop - start
         T = np.zeros(M, dtype=np.float64)
 
@@ -1580,9 +1579,9 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
 
     # -- collect free parameters (works for rotated or plain) --
     if isinstance(hypothesis, Rotated):
-        free = hypothesis.POIs + [p for p in hypothesis.nuisances
+        free = [p for p in hypothesis.POIs if not p.isFrozen] + [p for p in hypothesis.nuisances
                                   if not p.isFrozen and not getattr(p, "isIgnored", False)]
-        poi_names = {p.name for p in hypothesis.POIs}
+        poi_names = {p.name for p in hypothesis.POIs if not p.isFrozen}
     else:
         free = [p for p in hypothesis.parameters
                 if not p.isFrozen and not getattr(p, "isIgnored", False)]
@@ -1648,7 +1647,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
 
     m.precision = 0.001
     print(f"Minuit precision: {m.precision}") 
-
     if do_migrad:
         m.migrad();
         if verbosity > 0:
