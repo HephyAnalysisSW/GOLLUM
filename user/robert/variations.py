@@ -70,6 +70,29 @@ variations = OrderedDict( {
     'Mu'           : {'removeweight':'lepMu_SF', 'weight_up': 'lepMu_SFUp', 'weight_down':'lepMu_SFDn'}, 
     'btag_b'       : {'removeweight':'btagSF_fixedWP_SF', 'weight_up': 'btagSF_fixedWP_SF__CMS_eff_b_correlated_heavy_SFUp', 'weight_down':'btagSF_fixedWP_SF__CMS_eff_b_correlated_heavy_SFDn'}, 
     'btag_l'       : {'removeweight':'btagSF_fixedWP_SF', 'weight_up': 'btagSF_fixedWP_SF__CMS_eff_b_light_SFUp', 'weight_down':'btagSF_fixedWP_SF__CMS_eff_b_light_SFDn'}, 
-    #'pu'           : {'removeweight':'Pileup_SF', 'weight_up': 'Pileup_SFUp', 'weight_down':'Pileup_SFDn'}, 
+    'pu'           : {'removeweight':'Pileup_SF', 'weight_up': 'Pileup_SFUp', 'weight_down':'Pileup_SFDn'}, 
     'l1pre'        : {'removeweight':'L1PreFiringWeight_Nom', 'weight_up':'L1PreFiringWeight_Up', 'weight_down':'L1PreFiringWeight_Dn'},
     })
+
+syst_groups = {
+    'MODELING': [ 'alphaS', 'ren', 'fac', 'isr', 'fsr', 
+    ],
+    'EXPERIMENTAL': [ 'Ele', 'Mu', 'btag_b', 'btag_l', 'l1pre', 'pu',
+    ],
+    'JER': [
+        'res0_2016APV', 'res1_2016APV', 'res2_2016APV', 'res3_2016APV', 'res4_2016APV', 'res5_2016APV', 
+        'res0_2016', 'res1_2016', 'res2_2016', 'res3_2016', 'res4_2016', 'res5_2016', 
+        'res0_2017', 'res1_2017', 'res2_2017', 'res3_2017', 'res4_2017', 'res5_2017', 
+        'res0_2018', 'res1_2018', 'res2_2018', 'res3_2018', 'res4_2018', 'res5_2018', 
+    ],
+    'JES1': ['jes_b', 'jes_c', 'jeq_g', 'jes_q', 'jes_abs',  
+    ],
+    'JES2': [
+            'jes_BBEC1', 'jes_EC2', 'jes_HF', 'jes_relbal', 'jme_uncl',
+    ],
+    'JES3': [ 
+        'jes_abs_16', 'jes_BBEC1_16', 'jes_EC2_16', 'jes_HF_16', 'jes_relsam_16', 
+        'jes_abs_17', 'jes_BBEC1_17', 'jes_EC2_17', 'jes_HF_17', 'jes_relsam_17', 
+        'jes_abs_18', 'jes_BBEC1_18', 'jes_EC2_18', 'jes_HF_18', 'jes_relsam_18', 
+    ]
+    }
