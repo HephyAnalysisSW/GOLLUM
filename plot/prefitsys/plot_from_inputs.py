@@ -1,25 +1,15 @@
 """
-plot_from_inputs.py
+Script to create pre-fit variation plots directly from raw ±1σ input files.
 
-This module creates histogram plots comparing nominal, down-varied, and up-varied weight distributions for different systematic uncertainties
-without using learned ICPH surrogates, i.e. directly from input variations.
-
-Usage:
-    python plot_from_inputs.py [--selection <selection_string>] [--debug]
+Generates two types of plots:
+1. Binned template comparisons: nominal vs up/down variations for each uncertainty
+2. Pre-fit stacks: combined samples with uncertainty bands, summed in quadrature
 
 Arguments:
-    --selection, -s (str): String-based event selection
-
-    --debug, -d: Run in debug mode
-
-Outputs:
-    PNG and PDF plots saved to plot_directory/binned_templates_from_inputs//<era>/<sample>/<feature_name>/
-
-Supported systematics:
-    - MODELING: Renormalization/factorization scales, shower ISR/FSR, alpha_s
-    - EXPERIMENTAL: Pileup and other experimental uncertainties
+    --selection, -s: String-based selection in Python/Awkward format (e.g. use & instead of &&)
+    --version, -v: Version tag to append to output directories
+    --debug, -d: Enable debug mode (uses only 2016/2016APV era, one uncertainty per type, two features)
 """
-
 
 import os, sys
 import gc # explicit garbage collection to avoid ridiculous (+100GB) memory usage
@@ -210,12 +200,13 @@ if __name__ == "__main__":
     version = args.version
 
     if debug:
-        logger.info("Debug mode: printing additional information, plotting 2016 only, only using one of each type of uncertainty and only plotting two features.")
+        logger.info("Debug mode: printing additional information, plotting 2016 and 2016APV only, only using one of each type of uncertainty and only plotting two features.")
         logger.setLevel(logging.DEBUG)
-        eras = ["2016"]
+        eras = ["2016","2016APV"]
         replace_weight_groups = {'EXPERIMENTAL': {'L1Prefire': ['L1PreFiringWeight_Nom','L1PreFiringWeight_Dn','L1PreFiringWeight_Up']}}
         add_weight_groups = {'MODELING': {'mu_ren': ['scale_ren0p5_fac1p0','scale_ren2p0_fac1p0']}}
-        kinematic_variation_groups = {'JER': {'CMS_res_j_0_<ERA>': ['CMS_res_j_0_<ERA>_down', 'CMS_res_j_0_<ERA>_up']}}
+        kinematic_variation_groups = {'JER': {'CMS_res_j_0_<ERA>': ['CMS_res_j_0_<ERA>_down', 'CMS_res_j_0_<ERA>_up']},
+                                      'JES2': {'CMS_scale_j_Regrouped_Absolute_<ERA>': ['CMS_scale_j_Regrouped_Absolute_<ERA>_down', 'CMS_scale_j_Regrouped_Absolute_<ERA>_up']}}
 
     if selection:
         if "abs" in selection and not (("np.abs" in selection) or ("ak.abs" not in selection)):
@@ -423,7 +414,7 @@ if __name__ == "__main__":
                         # all era-decorrelated JES variations consider 2016 and 2016APV as single 2016 era
                         # the opposite is true for JER variations
                         if 'CMS_res_j' not in uncertainty_name:
-                            uncertainty_name = uncertainty_name.replace("APV","")
+                            # uncertainty_name = uncertainty_name.replace("APV","")
                             down_var_file_tag = down_var_file_tag.replace("APV","")
                             up_var_file_tag = up_var_file_tag.replace("APV","")
 
@@ -650,18 +641,18 @@ if __name__ == "__main__":
                 h_central.GetXaxis().SetLabelSize(0)
                 h_central.GetXaxis().SetTitleSize(0)
 
-                legend.AddEntry(h_central, "nominal", "l")
+                legend.AddEntry(h_central, "Nominal", "l")
 
                 # storing nominal and variation histograms to draw in same canvas
                 # since these will be looped over several times
                 h_variations = [h_central]
 
+                color_index = 0
                 for uncertainty_name in uncertainties:
 
                     if '<ERA>' in uncertainty_name:
                         uncertainty_name = uncertainty_name.replace('<ERA>',str(era))
 
-                    color_index = 0
                     color = binned_template_colors[color_index % len(binned_template_colors)]
 
                     h_down = histogram_dict[era][sample][feature_name][uncertainty_name][1]
@@ -673,9 +664,11 @@ if __name__ == "__main__":
                     h_up.SetLineColor(color)
                     h_up.SetLineStyle(ROOT.kSolid)
                     h_up.SetLineWidth(1)
-
-                    legend.AddEntry(h_down, f"{uncertainty_name} -1#sigma","l")
-                    legend.AddEntry(h_up, f"{uncertainty_name} +1#sigma","l")
+                    
+                    # remove unnecessary "CMS_" tag from name
+                    uncertainty_name_for_plot = uncertainty_name.replace("CMS_","") 
+                    legend.AddEntry(h_down, f"{uncertainty_name_for_plot} -1#sigma","l")
+                    legend.AddEntry(h_up, f"{uncertainty_name_for_plot} +1#sigma","l")
 
                     h_variations.append(h_down)
                     h_variations.append(h_up)
@@ -773,7 +766,6 @@ if __name__ == "__main__":
                 c.SaveAs(out_png)
                 c.SaveAs(out_pdf)
 
-        syncer.sync()
     
     """
     making pre-fit stacks from nominal, up and down variation templates from previous step
@@ -1107,4 +1099,4 @@ if __name__ == "__main__":
             c_stack.SaveAs(out_pdf)        
 
 
-    # syncer.sync()
+    syncer.sync()
