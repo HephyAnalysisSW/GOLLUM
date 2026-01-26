@@ -219,8 +219,8 @@ plot_options = {
     "tr_cos_phi_lab"              : { 'binning': [30,  -1,     1],   'tex': 'cos(#phi lab)',               'logY': False },
     "tr_abs_delta_phi_ll_lab"     : { 'binning': [30,   0,    pi],   'tex': '|#Delta(#phi(l,l))|',         'logY': False },
 
-    "nSelJet"                     : { 'binning': [ 7,   3,    10],   'tex': 'N_{jet}',                     'logY': False },
-    "nrecoJet"                    : { 'binning': [ 7,   3,    10],   'tex': 'N_{jet}',                     'logY': False },
+    "nSelJet"                     : { 'binning': [ 8,   2,    10],   'tex': 'N_{jet}',                     'logY': False },
+    "nrecoJet"                    : { 'binning': [ 8,   2,    10],   'tex': 'N_{jet}',                     'logY': False },
     "nrecoLep"                    : { 'binning': [ 4,   0,     4],   'tex': 'N_{lep}',                     'logY': False },
     "jet0_pt"                     : { 'binning': [30,   0,  1500],   'tex': 'p_{T}(jet_{0})',              'logY': True  },
     "jet1_pt"                     : { 'binning': [30,   0,   800],   'tex': 'p_{T}(jet_{1})',              'logY': True  },

@@ -1,6 +1,6 @@
-import cmsstyle
 # https://cms-analysis.docs.cern.ch/guidelines/plotting/colors/#categorical-data-eg-1d-stackplots
 # https://cms-analysis.docs.cern.ch/guidelines/plotting/examples/#stack-plot-with-cmsstyle
+import cmsstyle
 #cmsstyle.p10.kBlue
 #cmsstyle.p10.kYellow
 #cmsstyle.p10.kRed

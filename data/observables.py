@@ -49,10 +49,11 @@ OLD_BASIC_EVENT = [
 TOP_KINEMATICS = [
     "tr_ttbar_pt",
     "tr_ttbar_mass",
+    "tr_ttbar_y",
     "tr_Top_pt",
     "tr_AntiTop_pt",
-    "tr_Top_eta",
-    "tr_AntiTop_eta",
+    "tr_Top_y",
+    "tr_AntiTop_y",
 ]
 
 LEPTON_KINEMATICS = [

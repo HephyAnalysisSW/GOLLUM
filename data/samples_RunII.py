@@ -18,9 +18,9 @@ import common.user as user
 
 # Use Path so that BASE_DIRECTORY / "2018" / "file.root" works.
 BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-2_nJ2p_nB2p_trvalid/"
+    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
 )
-ERAS = ["2016", "2016APV", "2017", "2018"]
+ERAS = ["2016", "2016APV", "2017", "2018", "RunII"]
 
 GROUPS = {
     "SingleTop": ["TBar_tch", "TBar_tWch_noFullyHad", "T_tch", "T_tWch_noFullyHad"],
@@ -59,6 +59,7 @@ _base = RDataLoader(
         "weight",
         "L1PreFiringWeight_Nom",
         "JetPUID_SF",
+        "Pileup_SF",
         "btagSF_fixedWP_SF",
         "lepEle_SF",
         "lepMu_SF",
@@ -70,6 +71,8 @@ _base = RDataLoader(
     ),
     observer_names=observables.OBSERVERS,
 )
+#FIXME The RDataloader should allow string based selections already in the constructor. Also, & binds stronger than &&!!! So parenthesis are needed.
+_base.addSelection( "(lep1_pt>20) & tr_isvalid & isOS & offZ", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -174,22 +177,27 @@ def _make_variation(process: str, era: str, tag: str, BASE_DIRECTORY: str = BASE
     if not tag:
         tag = "nominal"
 
-    root_dir = BASE_DIRECTORY / era
-    rootfile = root_dir / f"{process}_{tag}.root"
+    eras = [era] if era!="RunII" else ["2016", "2016APV", "2017", "2018"]
 
-    if not root_dir.is_dir():
-        raise FileNotFoundError(
-            f"Era directory '{root_dir}' does not exist "
-            f"(process={process!r}, tag={tag!r})."
-        )
+    rootfiles = []
+    for era in eras:
+        root_dir = BASE_DIRECTORY / era
+        rootfile = root_dir / f"{process}_{tag}.root"
 
-    if not rootfile.is_file():
-        raise FileNotFoundError(
-            f"Did not find ROOT file for process={process!r}, era={era!r}, tag={tag!r}.\n"
-            f"Expected file: {rootfile}"
-        )
+        if not root_dir.is_dir():
+            raise FileNotFoundError(
+                f"Era directory '{root_dir}' does not exist "
+                f"(process={process!r}, tag={tag!r})."
+            )
 
-    return _base.clone_from_files(str(rootfile))
+        if not rootfile.is_file():
+            raise FileNotFoundError(
+                f"Did not find ROOT file for process={process!r}, era={era!r}, tag={tag!r}.\n"
+                f"Expected file: {rootfile}"
+            )
+        rootfiles.append(str(rootfile))
+
+    return _base.clone_from_files(rootfiles)
 
 def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
@@ -211,34 +219,36 @@ def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = 
             f"Unknown group {group!r}. Known groups: {', '.join(GROUPS.keys())}"
         )
 
-    root_dir = BASE_DIRECTORY / era
-    if not root_dir.is_dir():
-        raise FileNotFoundError(
-            f"Era directory '{root_dir}' does not exist for group={group!r}, tag={tag!r}."
-        )
+    eras = [era] if era!="RunII" else ["2016", "2016APV", "2017", "2018"]
 
     members = GROUPS[group]
     missing = []
     existing = []
 
-    for proc in members:
-        f = root_dir / f"{proc}_{tag}.root"
-        if f.is_file():
-            existing.append(str(f))
-        else:
-            missing.append(str(f))
+    for era in eras:
+        root_dir = BASE_DIRECTORY / era
+        if not root_dir.is_dir():
+            raise FileNotFoundError(
+                f"Era directory '{root_dir}' does not exist for group={group!r}, tag={tag!r}."
+            )
 
-    if missing:
-        raise FileNotFoundError(
-            "Some or all files for group "
-            f"{group!r}, era={era!r}, tag={tag!r} are missing.\n"
-            "Missing files:\n"
-            + "\n".join(f"  - {m}" for m in missing)
-        )
+        for proc in members:
+            f = root_dir / f"{proc}_{tag}.root"
+            if f.is_file():
+                existing.append(str(f))
+            else:
+                missing.append(str(f))
+
+        if missing:
+            raise FileNotFoundError(
+                "Some or all files for group "
+                f"{group!r}, era={era!r}, tag={tag!r} are missing.\n"
+                "Missing files:\n"
+                + "\n".join(f"  - {m}" for m in missing)
+            )
 
     # Clone base loader using all member files
     return _base.clone_from_files(existing)
-
 
 # ----------------------------------------------------------------------
 # Module-level __getattr__: lazy instantiation for all samples
