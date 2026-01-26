@@ -24,6 +24,7 @@ p.add_argument("--overwrite", action="store_true", help="Overwrite model directo
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
 p.add_argument("--for_debug", action="store_true", help="Fit, but don't overwrite the nominal version")
 p.add_argument("--n_split", default=None, help="Set sample split")
+p.add_argument("--every", default=5, type=int, help="When to plot")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -180,13 +181,14 @@ for i, spec in enumerate(bp_specs):
 
     loaders.append(eff_loader)
 
-    # Reset n_split
-    if args.n_split:
-        for l in loaders:
-            if isinstance( l, SelectionView): 
-                l.base.split = args.n_split
-            else:
-                l.split = args.n_split
+# Reset n_split
+if args.n_split:
+    print( f"Set the loaders to n_split {args.n_split}" ) 
+    for l in loaders:
+        if isinstance( l, RDataLoader):
+            l.set_n_split( args.n_split )
+        else:
+            l.base.set_n_split( args.n_split )
 
             
 # ---------------- sanity: same features across loaders ----------------
@@ -202,7 +204,11 @@ print(f"\nResolved loaders for job '{J.get('id', '<unknown>')}':")
 for idx, (spec, L) in enumerate(zip(bp_specs, loaders)):
     print(f"  base point {idx}, coords={spec['coords']}, loader spec='{spec['loader']}':")
     print(L)  # uses __str__ of RDataLoader / SelectionView
-    print("-" * 60)
+    if isinstance( L, SelectionView ):
+        print("-" * 60)
+        print("Here is its base:")
+        print(L.base)
+    print()
 
 input_dim = len(feat_names)
 feat2col = {f: i for i, f in enumerate(feat_names)}
@@ -254,10 +260,12 @@ initialize_zero = bool(J.get("model", {}).get("initialize_zero", False))
 epochs          = int(J.get("optim", {}).get("epochs", 200))
 phaseout        = int(J.get("optim", {}).get("phaseout_epochs", 0))
 lr              = float(J.get("optim", {}).get("learning_rate", 1e-3))
+l1              = float(J.get("optim", {}).get("l1", 0))
+l2              = float(J.get("optim", {}).get("l2", 0))
 
 pnn = None
-model_dir = os.path.join(user.model_directory, cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base+"_for_debug" if args.for_debug else "", "PNN", J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 if not args.overwrite:
@@ -280,7 +288,8 @@ if pnn is None:
               learning_rate=lr,
               n_epochs=epochs,
               n_epochs_phaseout=phaseout,
-              initialize_zero=initialize_zero)
+              initialize_zero=initialize_zero,
+              l1=l1,l2=l2)
 
 pnn.set_scaler(scaler_means, scaler_vars)
 
@@ -494,7 +503,6 @@ if not args.overwrite:
             pass
 
 shard_limit = 1 if args.small else None
-plot_every  = int(J.get("runtime", {}).get("plot_every", 5))
 rebin       = int(J.get("runtime", {}).get("rebin", 1))
 
 VkA = pnn.VkA
@@ -512,7 +520,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
     grad_sums = [tf.zeros_like(v) for v in pnn.model.trainable_variables]
 
     # plotting accumulation
-    do_plot = (epoch % plot_every == 0)
+    do_plot = (epoch % args.every == 0)
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if do_plot:
         true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)

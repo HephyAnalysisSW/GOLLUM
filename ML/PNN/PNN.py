@@ -23,7 +23,10 @@ class PNN:
                  learning_rate=1e-3,
                  n_epochs=200,
                  n_epochs_phaseout=0,
-                 initialize_zero=False):
+                 initialize_zero=False,
+                 l1=0, # L1 Regulator
+                 l2=0, # L2 Regulator
+                    ):
         # config-ish
         self.parameters         = list(parameters)
         self.combinations       = [tuple(c) for c in combinations]
@@ -35,6 +38,8 @@ class PNN:
         self.n_epochs           = int(n_epochs)
         self.n_epochs_phaseout  = int(n_epochs_phaseout)
         self.initialize_zero    = bool(initialize_zero)
+        self.l1                 =float(l1)
+        self.l2                 =float(l2)
 
         # find nominal index (all zeros)
         z = np.zeros(len(self.parameters), dtype=float)
@@ -80,10 +85,13 @@ class PNN:
 
     # ---------------------- utils ----------------------
     def _build_model(self):
-        l1 = 0.0
-        l2 = 0.0
-        reg = regularizers.l1_l2(l1=l1, l2=l2) if (l1 > 0 or l2 > 0) else None
 
+        if (self.l1 > 0 or self.l2 > 0):
+            reg = regularizers.l1_l2(l1=self.l1, l2=self.l2)
+            print(f"Build PNN with regulators L1={self.l1} and L2={self.l2}")
+        else:
+            reg = None
+        
         m = tf.keras.Sequential()
         m.add(tf.keras.layers.Input(shape=(self.input_dim,)))
         for units in self.hidden_layers:
