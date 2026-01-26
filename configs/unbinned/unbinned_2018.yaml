@@ -1,4 +1,4 @@
-version: unbinned_2018_v1
+version: unbinned_2018_v2
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -229,7 +229,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -287,7 +286,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -344,7 +342,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -398,7 +395,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -452,7 +448,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -508,7 +503,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -598,9 +592,10 @@ jobs:
       epochs: 200
       phaseout_epochs: 50
       learning_rate: 0.001
+      l1: 0.0
+      l2: 0.0001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -670,7 +665,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -724,7 +718,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -778,7 +771,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -810,7 +802,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -858,7 +849,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -906,7 +896,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -954,7 +943,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1002,7 +990,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1050,7 +1037,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1100,7 +1086,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1148,7 +1133,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1196,7 +1180,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1244,7 +1227,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1292,7 +1274,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1342,7 +1323,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1390,7 +1370,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1438,7 +1417,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1486,7 +1464,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1534,7 +1511,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1582,7 +1558,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1630,7 +1605,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1678,7 +1652,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1727,7 +1700,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
@@ -1775,7 +1747,6 @@ jobs:
       learning_rate: 0.001
     runtime:
       n_split: 10
-      plot_every: 5
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
