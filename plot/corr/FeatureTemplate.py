@@ -10,6 +10,7 @@ sys.path.insert(0, '../..')
 
 from PDFParametrization import PDFParametrization
 from TemplateBase import TemplateBase
+import awkward as ak
 
 
 class FeatureTemplate(TemplateBase):
@@ -21,6 +22,7 @@ class FeatureTemplate(TemplateBase):
       - No LHAPDF calls in the constructor (xfxQ can be slow).
       - Denominator f0(id1,x1,Q)*f0(id2,x2,Q) is computed lazily on first request for a variation template.
       - Adds max_events: still loads all shards, then truncates arrays to first max_events.
+      - Supports derived features via a runtime registry: register[name] = expression string.
     """
 
     def __init__(
@@ -32,9 +34,10 @@ class FeatureTemplate(TemplateBase):
         module_samples: str = "data.samples_RunII",
         name: str = "",
         max_events: int | None = None,
-        use_abs= False,
-        absEtaMin=None,
-        absEtaMax=None,
+        selection=None,
+        required_branches=[],
+        use_abs=False,
+        register=None,
     ):
         super().__init__(name=name or f"{sample}:{feature}")
 
@@ -44,26 +47,40 @@ class FeatureTemplate(TemplateBase):
         self.bin_edges = np.asarray(bin_edges, dtype=float)
         self.max_events = None if (max_events is None or max_events <= 0) else int(max_events)
 
+        self.register = register or {}
+        self.is_derived = feature in self.register
+        self.expr = self.register.get(feature, None)
+
         # ---------------- resolve loader ----------------
         samples_mod = importlib.import_module(module_samples)
         if not hasattr(samples_mod, sample):
             raise RuntimeError(f"Loader/view '{sample}' not found in module {module_samples}.")
-        self.L = getattr(samples_mod, sample)
+        self.L = getattr(samples_mod, sample).clone()
 
-        # Ask loader for exactly one feature
-        self.L.setFeatures([feature])
-        if absEtaMin is not None:
-            self.L.addSelection(f'np.abs( tr_ttbar_eta) >= {absEtaMin}', required_branches = ['tr_ttbar_eta'])
-        if absEtaMax is not None:
-            self.L.addSelection(f'np.abs( tr_ttbar_eta) < {absEtaMax}', required_branches = ['tr_ttbar_eta'])
+        # Ask loader for either:
+        #  - the concrete feature (direct), or
+        #  - the required inputs needed to evaluate a derived feature (derived).
+        if self.is_derived:
+            if len(required_branches) == 0:
+                raise RuntimeError(f"Derived feature '{feature}' requested but required_branches is empty.")
+            self.L.setFeatures(list(required_branches))
+        else:
+            self.L.setFeatures([feature])
 
-        # Resolve the (single) feature index from feature_names
+        if selection is not None:
+            print(f"Applying selection: {selection}")
+            self.L.addSelection(selection, required_branches=required_branches)
+
         fn = getattr(self.L, "feature_names", None)
         if fn is None:
             raise RuntimeError("Loader has no feature_names attribute.")
-        if feature not in fn:
-            raise RuntimeError(f"Feature '{feature}' not found in loader.feature_names={fn}")
-        self.feature_index = fn.index(feature)
+
+        # Resolve the (single) feature index from feature_names (only for direct features)
+        self.feature_index = None
+        if not self.is_derived:
+            if feature not in fn:
+                raise RuntimeError(f"Feature '{feature}' not found in loader.feature_names={fn}")
+            self.feature_index = fn.index(feature)
 
         # Resolve observer indices
         obs = getattr(self.L, "observer_names", None)
@@ -79,7 +96,7 @@ class FeatureTemplate(TemplateBase):
         ix2 = idx("Generator_x2")
         iid1 = idx("Generator_id1")
         iid2 = idx("Generator_id2")
-        iQ = idx("Generator_scalePDF")  # Q, not Q^2
+        iQ  = idx("Generator_scalePDF")  # Q
 
         # ---------------- read all shards ----------------
         F_list, O_list, W_list = [], [], []
@@ -104,17 +121,48 @@ class FeatureTemplate(TemplateBase):
         self.O = O_all
         self.W = W_all
 
-        # Feature values
-        self.values = np.asarray(self.F[:, self.feature_index], dtype=float)
-        if use_abs:
-            self.values = abs(self.values)
-
         # Observers
         self.x1 = np.asarray(self.O[:, ix1], dtype=float)
         self.x2 = np.asarray(self.O[:, ix2], dtype=float)
         self.id1 = np.asarray(self.O[:, iid1], dtype=int)
         self.id2 = np.asarray(self.O[:, iid2], dtype=int)
-        self.Q = np.asarray(self.O[:, iQ], dtype=float)
+        self.Q  = np.asarray(self.O[:, iQ], dtype=float)
+
+        # Build env for derived expressions (only if needed)
+        env = {}
+        if self.is_derived:
+            fn_list  = list(fn)
+            obs_list = list(obs)
+
+            for k in required_branches:
+                if k in fn_list:
+                    env[k] = ak.Array(np.asarray(self.F[:, fn_list.index(k)], dtype=float))
+                elif k in obs_list:
+                    env[k] = ak.Array(np.asarray(self.O[:, obs_list.index(k)], dtype=float))
+                else:
+                    raise RuntimeError(f"Required branch '{k}' not found in feature_names or observer_names.")
+
+        safe = {
+            "np": np,
+            "ak": ak,
+            "abs": abs,
+            "log": np.log,
+            "sqrt": np.sqrt,
+            "exp": np.exp,
+            "where": np.where,
+            "arcsinh": np.arcsinh,
+            "sinh": np.sinh,
+            "cosh": np.cosh,
+        }
+
+        # Feature values (direct or derived)
+        if not self.is_derived:
+            self.values = np.asarray(self.F[:, self.feature_index], dtype=float)
+        else:
+            self.values = np.asarray(ak.to_numpy(eval(self.expr, {"__builtins__": {}}, {**safe, **env})), dtype=float)
+
+        if use_abs:
+            self.values = abs(self.values)
 
         # Lazily computed denominator for reweighting (central PDF product)
         self._denom = None
@@ -137,7 +185,6 @@ class FeatureTemplate(TemplateBase):
             return
 
         pdf0 = self.pdf.pdfs[0]
-        # LHAPDF python interface: vector call returns N dicts (all flavors)
         d1 = np.array(pdf0.xfxQ(self.x1, self.Q), dtype=object)
         d2 = np.array(pdf0.xfxQ(self.x2, self.Q), dtype=object)
 

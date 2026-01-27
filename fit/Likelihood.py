@@ -1700,83 +1700,6 @@ def serialize_result(m, base, version, args, out_path ):
 
     print(f"[write] Fit result and covariance stored at:\n  {out_path}")
 
-
-
-#if __name__ == "__main__":
-#    # ---------------- args ----------------
-#    import argparse
-#    p = argparse.ArgumentParser(description="Likelihood fit")
-#    p.add_argument("config", help="Path to global YAML config")
-#    p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
-#    p.add_argument("--rotate", action="store", default = None, help="Point to a rotate JSON")
-#    p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
-#    args = p.parse_args()
-#
-#    import common.yaml_loader as yaml_loader 
-#
-#    cfg = yaml_loader.load_yaml(args.config)
-#    yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-#    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
-#
-#    like_info = load_likelihood(cfg)
-#
-#    hyp = build_hypothesis_from_likelihood(like_info, name="SR")
-#
-#    # --- optionally disable all nuisances ---
-#    if args.no_syst:
-#        for p in hyp.nuisances:
-#            p.val = 0.0
-#            p.isFrozen = True
-#        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
-#
-#    hyp.print()
-#
-#    if args.rotate:
-#        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
-#        hyp_rot = Rotated(hyp, args.rotate, name="Fisher-basis")
-#        hyp_rot.print()
-#        hyp_for_fit = hyp_rot
-#        step = 1
-#    else:
-#        hyp_for_fit = hyp
-#        step = 0.1
-#
-#    n2ll = N2LL( like_info, cfg['defaults']['module_samples'],  
-#                 cache_subdir = os.path.join( "NN2LCache", os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
-#
-#    n2ll.build_cache()
-#    n2ll.prepare_runtime()
-#
-#    # compute A-simov
-#    n2ll.setAsimov()
-#
-#    # compute C-simov (POI or nuisance injection)
-#    #n2ll.setAsimov(hyp.cloneModify(c1=1))
-#
-#    ## run Minuit; prints the model every 25 evaluations by default
-#    m = run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
-#
-#    # best-fit -2logL
-#    print("Best -2logL =", m.fval)
-#
-#    print("Correlation")
-#    print(m.covariance.correlation())
-#
-#    # -------- persist fit result + covariance --------
-#    import os, json, numpy as np
-#    import common.user as user
-#
-#    base    = os.path.splitext(os.path.basename(args.config))[0]
-#    version = str(cfg.get("version", "v0"))
-#    suffix = ""
-#    if args.no_syst:
-#        suffix  += "_nosyst"
-#    if args.rotate:
-#        suffix  += "_rotate"
-#    os.makedirs(user.output_directory, exist_ok=True)
-#    out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
-#    serialize_result(m, base, version, args, out_path)
-
 def pretty_par_name(name: str) -> str:
     # strip prefixes (only at the beginning), in the given order
     for pre in ("nu_", "CMS_"):
@@ -1957,14 +1880,7 @@ if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Likelihood fit")
     p.add_argument("config", help="Path to global YAML config")
-    p.add_argument(
-        "--overwrite",
-        nargs="?",
-        const="all",
-        default=None,
-        choices=["fit", "all"],
-        help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",
-    )
+    p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"], help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",)
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     args = p.parse_args()
