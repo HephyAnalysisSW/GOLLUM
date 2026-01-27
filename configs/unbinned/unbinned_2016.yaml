@@ -153,12 +153,31 @@ likelihood:
                   parameters: [nu_Uncl]
 
 jobs:
+#  - id: bit_pod_TTLep_pow_2016
+#    type: bit
+#    region: SR
+#    process: TTLep_pow_2016
+#    selection: null               # optional extra selection layered on top
+#    numba: True
+#    pdf:
+#      pdf_n: [1, 2, 4, 5, 10, 12]
+#      pdf_type: PODBasis
+#    model:
+#      n_trees: 200
+#      learning_rate: 0.2
+#      loss: MSE                   # or "CrossEntropy"
+#      learn_global_score: true
+#    runtime:
+#      training_plots: true        # keep if you want training plots
+#    output:
+#      filename: "BIT_pod_TTLep_pow_2016.pkl"
+
   - id: bit_pod_TTLep_pow_2016
     type: bit
     region: SR
     process: TTLep_pow_2016
     selection: null               # optional extra selection layered on top
-    numba: True
+    numba: true
     pdf:
       pdf_n: [1, 2, 4, 5, 10, 12]
       pdf_type: PODBasis
@@ -167,6 +186,10 @@ jobs:
       learning_rate: 0.2
       loss: MSE                   # or "CrossEntropy"
       learn_global_score: true
+      split_mode: "binned"
+      n_bins: 32
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+
     runtime:
       training_plots: true        # keep if you want training plots
     output:

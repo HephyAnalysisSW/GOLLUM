@@ -167,6 +167,9 @@ jobs:
       learning_rate: 0.2
       loss: MSE                   # or "CrossEntropy"
       learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
     runtime:
       training_plots: true        # keep if you want training plots
     output:
