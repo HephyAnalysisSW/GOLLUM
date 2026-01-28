@@ -620,19 +620,6 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2016
       use_icp: icp_TTLep_pow_2016_scales
-  - id: icp_TTLep_pow_2016_CMS_res_j_0_2016
-    type: icp
-    region: SR
-    parameters: [nu_CMS_res_j_0]
-    combinations: [[nu_CMS_res_j_0]]
-    base_points:
-    - coords: [-1.0]
-      loader: TTLep_pow_2016_CMS_res_j_0_2016_down
-    - coords: [0]
-      loader: TTLep_pow_2016
-      nominal: true
-    - coords: [1.0]
-      loader: TTLep_pow_2016_CMS_res_j_0_2016_up
  
   - id: icp_TTLep_pow_2016_showerISR
     type: icp

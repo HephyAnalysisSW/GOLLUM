@@ -27,6 +27,7 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 args = p.parse_args()
 
@@ -376,10 +377,11 @@ if len(bit.trees) < bit.n_trees:
         bit.node_cfg["_get_only_score"] = _get_only_score
 
         # ---------------- CPU profiling: BOOSTING ONLY ----------------
-        prof = cProfile.Profile()
-        cpu_t0  = time.process_time()
-        wall_t0 = time.perf_counter()
-        prof.enable()
+        if args.profile:
+            prof = cProfile.Profile()
+            cpu_t0  = time.process_time()
+            wall_t0 = time.perf_counter()
+            prof.enable()
         # --------------------------------------------------------------
 
         # fit tree (root needs base_points / feature_names)
@@ -395,30 +397,31 @@ if len(bit.trees) < bit.n_trees:
         weak_learner_time += (t2 - t1)
 
         # ---------------- end profiling ----------------
-        prof.disable()
-        cpu_t1  = time.process_time()
-        wall_t1 = time.perf_counter()
+        if args.profile:
+            prof.disable()
+            cpu_t1  = time.process_time()
+            wall_t1 = time.perf_counter()
 
-        tqdm.write("weak learner time: %.2f" % weak_learner_time)
-        tqdm.write("update time: %.2f" % update_time)
-        tqdm.write(f"Boosting CPU time:  {cpu_t1 - cpu_t0:.2f} s")
-        tqdm.write(f"Boosting wall time: {wall_t1 - wall_t0:.2f} s")
+            tqdm.write("weak learner time: %.2f" % weak_learner_time)
+            tqdm.write("update time: %.2f" % update_time)
+            tqdm.write(f"Boosting CPU time:  {cpu_t1 - cpu_t0:.2f} s")
+            tqdm.write(f"Boosting wall time: {wall_t1 - wall_t0:.2f} s")
 
-        # Print profile summary to shell (no files)
-        # (Use a buffer to keep tqdm output clean.)
-        buf = io.StringIO()
+            # Print profile summary to shell (no files)
+            # (Use a buffer to keep tqdm output clean.)
+            buf = io.StringIO()
 
-        buf.write("\n================= cProfile (sorted by cumtime) =================\n")
-        st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("cumtime")
-        st.print_stats(60)
+            buf.write("\n================= cProfile (sorted by cumtime) =================\n")
+            st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("cumtime")
+            st.print_stats(60)
 
-        buf.write("\n================= cProfile (sorted by tottime) =================\n")
-        st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("tottime")
-        st.print_stats(60)
+            buf.write("\n================= cProfile (sorted by tottime) =================\n")
+            st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("tottime")
+            st.print_stats(60)
 
-        # Flush buffer via tqdm.write line-by-line so the bar survives
-        for line in buf.getvalue().splitlines():
-            tqdm.write(line)
+            # Flush buffer via tqdm.write line-by-line so the bar survives
+            for line in buf.getvalue().splitlines():
+                tqdm.write(line)
 
 
         if (n_tree == 0) and (getattr(bit, "derivatives", None) is None):
