@@ -1,3 +1,13 @@
+''''
+Script to make likelihood scans, similar to combine's MultiDimFit method.  Can choose> POIs to scan over, their range, and the number of scan points per dimension
+For job submission, one can specify a range of points to produce for each job. 
+
+For example, the following code produces 2D scans over the rate and shape_4 POIs with the given ranges
+python MultiDimFit.py ../configs/unbinned/unbinned_2018.yaml --rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2018.json --POIs rate,shape_4 --setParameterRanges rate=-50,50:shape_4=-10,10 --pointRange $SLURM_ARRAY_TASK_ID $(($SLURM_ARRAY_TASK_ID+1)) --npoints 25 --name rate_shape4
+
+'''
+
+
 import os 
 import sys
 sys.path.insert(0, '..')
@@ -66,12 +76,13 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
-    p.add_argument("--algo", default="grid", choices=["grid"])
+    p.add_argument("--algo", default="grid", choices=["grid"], help="Set type of likelihood scans to be done. For the time being, only grid is allowed")
     p.add_argument("--freezeParameters", default="", help="Parameters to freeze. Otherwise they float")
     p.add_argument("--POIs", default="", help="Set of POIs that are considered as signal")
     p.add_argument("--setParameterRanges", default="", help="Set parameter ranges. Only acting on the POIs we are floating")
     p.add_argument("--pointRange", default=None, nargs=2, type=int, help="Range of points to ran on, for batch submission")
     p.add_argument("--name", default="", help="Name to add to the base name")
+    p.add_argument("--npoints", default=100, type=int, help="Number of scan points per dimension")
     p.add_argument(
         "--overwrite",
         nargs="?",
@@ -91,7 +102,7 @@ if __name__ == "__main__":
 
     like_info = lh.load_likelihood(cfg)
 
-    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "") + args.name
+    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "")
     version = str(cfg.get("version", "v0"))
     overwrite_cache = args.overwrite == "all"
 
@@ -116,15 +127,19 @@ if __name__ == "__main__":
         overwrite=overwrite_cache,
     )
     n2ll.build_cache()
+    print("Preparing runtime")
     n2ll.prepare_runtime()
+    print("Done with runtime. setting asimov") 
     n2ll.setAsimov(hyp_for_fit)
+    print("Done asimov. Al turron")
 
     parameterRanges = parse_ranges(args.setParameterRanges)
-
+    print(args.algo)
     if args.algo == 'grid':
+        print("Check 1") 
         POIs = args.POIs.split(",")
         ranges_arrays = [parameterRanges[poi] for poi in POIs]
-        grid_arrays   = [np.linspace(x[0], x[1], 100) for x in ranges_arrays]
+        grid_arrays   = [np.linspace(x[0], x[1], args.npoints) for x in ranges_arrays]
         mesh = np.meshgrid(*grid_arrays, indexing="ij")
         mesh = np.stack(mesh, axis=-1).reshape(-1, len(ranges_arrays))
 
@@ -134,10 +149,9 @@ if __name__ == "__main__":
 
 
         # we are going to scan over these, so we freeze them 
-        for poi in POIs:
-            getattr(hyp_for_fit, poi).isFrozen = True
 
         for i, scan_point in enumerate(mesh):
+            print(i)
             if args.pointRange is not None:
                 if i<args.pointRange[0]: continue
                 if i>=args.pointRange[1]: continue
@@ -149,10 +163,17 @@ if __name__ == "__main__":
             print(f"Point {i} / {len(mesh)}: " + "   ".join(fields), end="  =>  ")
 
             hyp_point = hyp_for_fit.clone()
+
             hyp_point.modify(**dict([ (poi,scan_point[j]) for j, poi in enumerate(POIs)]))
-            m = lh.run_minuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=False, do_minos=False,verbosity=0)
+
+            for poi in POIs:
+                getattr(hyp_point, poi).isFrozen = True
+                print(f"Freezing {poi}")
+
+
+            m = lh.run_minuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=False, do_minos=False,verbosity=1)
             print(f"-2logL =  {m.fval:{val_w}f}")
-            np.save(f'{base}_{version}_scan_{i}', np.rec.fromarrays(list(scan_point) + [m.fval], names=POIs + ['-2logL']))
+            np.save(f'{base}_{version}_{args.name}_scan_{i}', np.rec.fromarrays(list(scan_point) + [m.fval], names=POIs + ['-2logL']))
 
 
 
