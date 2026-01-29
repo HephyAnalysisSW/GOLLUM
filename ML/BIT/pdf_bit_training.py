@@ -65,6 +65,14 @@ if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
 
+sel  = J.get("selection", None)
+sel_f= J.get("selection_features", [])
+if sel:
+    L.addSelection( sel, sel_f)
+    print("Added selection to loader: {sel} and selection_features {sel_f}")
+
+print(L)
+
 print("Using NUMBA")
 print("Numba threads:", nb.get_num_threads())
 

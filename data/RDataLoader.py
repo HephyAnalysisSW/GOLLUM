@@ -178,7 +178,10 @@ class RDataLoader:
             self._requested_branches = curr
             self._use_branches = self._filter_branches(self._available0, self._requested_branches)
 
-        self._selection_items.append(selection)
+        if selection not in self._selection_items:
+            self._selection_items.append(selection)
+        else:
+            print(f"Selection {selection} already applied. Skip.")
 
         if isinstance(selection, str):
             expr = selection.strip()

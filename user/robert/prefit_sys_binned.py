@@ -36,16 +36,19 @@ p.add_argument("--selection", default="tr_isvalid & isOS & offZ",
                help="String-based selection")
 p.add_argument("--branches_for_selection", nargs="+", default=["tr_isvalid", "isOS", "offZ"],
                help="branches we need to make the selection")
+p.add_argument("--features", nargs="+", default=[],
+               help="branches we need to make the selection")
 p.add_argument("--templates", nargs="*", default=None,
                help="Make per-variation template plots for the given process(es). "
                     "If passed without values, defaults to TTLep_pow.")
 args, _unknown = p.parse_known_args()
 
-
 # -----------------------------------------------------------------------------
 # User-editable config (in IPython you can override before %run -i)
 # -----------------------------------------------------------------------------
-base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
+#base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
+from data.samples_RunII import BASE_DIRECTORY
+base = str(BASE_DIRECTORY)
 
 eras = ["2016", "2016APV", "2017", "2018"]
 processes = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"]
@@ -64,7 +67,7 @@ features += [
     "dilep_eta", "dilep_mass", "dilep_phi", "dilep_pt", "dilep_dEta", "dilep_dAbsEta",
     "tr_Top_eta", "tr_Top_mass", "tr_Top_phi", "tr_Top_pt", "tr_Top_y",
     "tr_AntiTop_eta", "tr_AntiTop_mass", "tr_AntiTop_phi", "tr_AntiTop_pt", "tr_AntiTop_y",
-    "tr_ttbar_pt", "tr_ttbar_eta", "tr_ttbar_mass", "tr_ttbar_phi", "tr_ttbar_y", "tr_ttbar_dEta", "tr_ttbar_dAbsEta",
+    "tr_ttbar_pt", "tr_ttbar_eta", "tr_ttbar_mass", "tr_ttbar_phi", "tr_ttbar_y", "tr_ttbar_beta_plus", "tr_ttbar_dEta", "tr_ttbar_dAbsEta",
     "tr_cos_phi_lab", "tr_abs_delta_phi_ll_lab",
     "tr_cosThetaPlus_n", "tr_cosThetaMinus_n", "tr_cosThetaPlus_r", "tr_cosThetaMinus_r",
     "tr_cosThetaPlus_k", "tr_cosThetaMinus_k", "tr_cosThetaPlus_r_star", "tr_cosThetaMinus_r_star",
@@ -74,9 +77,12 @@ features += [
     "tr_cos_phi", "tr_c_hel", "tr_c_han",
 ]
 
+# Restrict to list, if provided
+if args.features:
+    features = [f for f in features if f in args.features]
+
 from data.colors import colors as proc_colors
 from data.samples_RunII import process_labels
-
 
 # -----------------------------------------------------------------------------
 # Apply CLI subsetting (eras + variations)
@@ -378,6 +384,7 @@ for era in eras:
 
             # nominal once per shard (this populates base cache for views)
             X_nom, W_nom = _materialize_fw_once(l_nom, shard)
+
             _fill_from_arrays(nom_sumw, nom_sumw2, X_nom, W_nom)
 
             # variations inside shard

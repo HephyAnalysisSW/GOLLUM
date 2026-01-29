@@ -181,6 +181,16 @@ for i, spec in enumerate(bp_specs):
 
     loaders.append(eff_loader)
 
+# Add selection
+sel  = J.get("selection", None)
+sel_f= J.get("selection_features", [])
+if sel:
+    for loader in loaders:
+        if isinstance(loader, RDataLoader):
+            loader.addSelection( sel, sel_f)
+        else:
+            loader.base.addSelection( sel, sel_f)
+
 # Reset n_split
 if args.n_split:
     print( f"Set the loaders to n_split {args.n_split}" ) 

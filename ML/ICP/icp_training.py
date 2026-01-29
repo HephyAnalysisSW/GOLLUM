@@ -208,6 +208,16 @@ if icp is None or args.overwrite:
 
         loaders.append(eff_loader)
 
+    # Add selection
+    sel  = J.get("selection", None)
+    sel_f= J.get("selection_features", [])
+    if sel:
+        for loader in loaders:
+            if isinstance(loader, RDataLoader):
+                loader.addSelection( sel, sel_f)
+            else:
+                loader.base.addSelection( sel, sel_f)
+
     # Debug print of resolved loaders/views
     print(f"\nResolved loaders for ICP job '{J.get('id', '<unknown>')}':")
     for i, (spec, L) in enumerate(zip(bp_specs, loaders)):

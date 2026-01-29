@@ -82,13 +82,13 @@ if not hasattr(samples_mod, process_name):
     raise RuntimeError(f"Process/view '{process_name}' not found in module '{module_samples}'.")
 loader = getattr(samples_mod, process_name)
 
-# Optional extra selection on top (boolean mask on features)
-sel_fn = None
-if selection_name is not None:
-    sel_mod = importlib.import_module("common.selections")
-    sel_fn = sel_mod.selections.get(selection_name, None)
-    if sel_fn is None:
-        raise RuntimeError(f"Selection '{selection_name}' not found in common/selections.py")
+sel  = job.get("selection", None)
+sel_f= job.get("selection_features", [])
+if sel:
+    loader.addSelection( sel, sel_f)
+    print("Added selection to loader: {sel} and selection_features {sel_f}")
+
+print(loader)
 
 # Try load existing
 ic = None
@@ -109,19 +109,7 @@ if ic is None or args.overwrite:
 
     n_shards = len(loader if hasattr(loader, "__len__") else getattr(loader, "base", loader))
     for shard in range(n_shards):
-        # If no extra top-level selection: we only need weights
-        if sel_fn is None:
-            (w,) = loader.materialize(shard=shard, what="w", n=None)
-        else:
-            # Need features to evaluate sel_fn, then mask weights
-            X, w = loader.materialize(shard=shard, what="fw", n=None)
-            mask = sel_fn(X)
-            mask = np.asarray(mask) if mask is not None else None
-            if mask is not None:
-                if mask.dtype != bool or mask.ndim != 1 or len(mask) != len(X):
-                    raise RuntimeError("Top-level selection must return a 1D boolean mask matching X length.")
-                w = w[mask]
-
+        (w,) = loader.materialize(shard=shard, what="w", n=None)
         ic.accumulate(w)
         if args.small:
             break

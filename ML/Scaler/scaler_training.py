@@ -86,13 +86,13 @@ loader = getattr(samples_mod, process_name)
 loader.setFeatures( job["features"] )
 base = getattr(loader, "base", loader)
 
-# Optional extra selection on top (boolean mask on features)
-sel_fn = None
-if selection_name is not None:
-    sel_mod = importlib.import_module("common.selections")
-    sel_fn = sel_mod.selections.get(selection_name, None)
-    if sel_fn is None:
-        raise RuntimeError(f"Selection '{selection_name}' not found in common/selections.py")
+sel  = job.get("selection", None)
+sel_f= job.get("selection_features", [])
+if sel:
+    loader.addSelection( sel, sel_f)
+    print("Added selection to loader: {sel} and selection_features {sel_f}")
+
+print(loader)
 
 # Try load existing
 scaler = None
@@ -122,16 +122,6 @@ if scaler is None or args.overwrite:
         # Fetch features and (functional/default) weights in one go.
         # NOTE: materialize signature is assumed (shard, order="fw", n=None, ...)
         X, w = loader.materialize(shard=shard, what="fw", n=None)
-
-        # Optional extra selection on top (mask on features)
-        if sel_fn is not None:
-            mask_top = sel_fn(X)
-            mask_top = np.asarray(mask_top) if mask_top is not None else None
-            if mask_top is not None:
-                if mask_top.dtype != bool or mask_top.ndim != 1 or len(mask_top) != len(X):
-                    raise RuntimeError("Top-level selection must return a 1D boolean mask matching X length.")
-                X = X[mask_top]
-                w = w[mask_top]
 
         scaler.accumulate(X, w)
         n_events += len(X)

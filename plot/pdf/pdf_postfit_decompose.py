@@ -64,7 +64,6 @@ missing_cmds = yaml_loader.load_surrogates(
     cfg,
     args.config,
     overwrite=False,
-    prefer_numba=False,
 )
 
 # Are there missing commands? If so, let's do those. Ask the user (or require --yes)
@@ -89,7 +88,6 @@ if missing_cmds:
         cfg,
         args.config,
         overwrite=False,
-        prefer_numba=False,
     )
     if missing_cmds:
         print("[error] Still missing surrogates after running trainings:")

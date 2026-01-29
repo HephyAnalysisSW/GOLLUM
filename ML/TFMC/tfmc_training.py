@@ -29,9 +29,10 @@ p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch-size", type=int, default=None, help="Override batch size")
 # plotting
-p.add_argument("--plot", action="store_true", help="Enable convergence plots")
+p.add_argument("--plot-directory", default="", help="Plot directory")
+p.add_argument("--plot", action="store_true", help="Plot?")
 p.add_argument("--norm-plot", action="store_true", help="Only plot the shapes.")
-p.add_argument("--plot-every", type=int, default=5, help="Plot every N epochs (default 5)")
+p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
 # ---------------- load cfg ----------------
@@ -53,7 +54,7 @@ def list_jobs_and_exit():
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
     if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
     if args.plot: flags.append("--plot")
-    if args.plot_every != 5: flags.append(f"--plot-every {args.plot_every}")
+    if args.every != 5: flags.append(f"--every {args.every}")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}".strip())
@@ -90,7 +91,7 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
 model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base, "TFMC", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  "TFMC", args.plot_directory, cfg_base, "TFMC", J["id"])
 
 from common.helpers import copyIndexPHP
 copyIndexPHP( plot_dir )
@@ -110,6 +111,14 @@ for name in classes_names:
     loader = getattr(samples_mod, name)
     loader.setFeatures( J['features'] )
     loaders.append(loader)
+
+sel  = job.get("selection", None)
+sel_f= job.get("selection_features", [])
+if sel:
+    for loader in loaders:
+        loader.addSelection( sel, sel_f)
+        print("Added selection to loader: {sel} and selection_features {sel_f}")
+    print(loader)
 
 # Consistency: same feature_names across classes
 feat_names = getattr(loaders[0], "feature_names", None)
@@ -344,7 +353,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     model.optimizer.learning_rate.assign(lr_now)
 
     # hist accumulation (only when plotting this epoch)
-    do_plot = args.plot and (epoch % args.plot_every == 0)
+    do_plot = args.plot and (epoch % args.every == 0)
     if do_plot:
         true_h, pred_h, bins = init_histograms(plot_feats)
 
