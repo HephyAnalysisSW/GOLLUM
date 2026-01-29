@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.insert(0, '..')
 
+
 import fit.Likelihood as lh 
 import pickle  as pck 
 import common.user as user 
@@ -175,10 +176,23 @@ if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
     p.add_argument("config", help="Path to global YAML config")
-    p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
     p.add_argument("--step", default="step0")
-    p.add_argument("--rotate", action="store_true", help="Rotate?")
-
+    p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
+    p.add_argument("--freezePOIs", default="")
+    p.add_argument("--nuisanceForImpacts", default="")
+    p.add_argument(
+        "--overwrite",
+        nargs="?",
+        const="all",
+        default=None,
+        choices=["fit", "all"],
+        help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",
+    )
+    p.add_argument(
+        "--prepareSlurmJobs",
+        action="store_true",
+        help="Prepare Slurm scripts for per-nuisance step1+impact jobs and exit",
+    )
     
     args = p.parse_args()
 
@@ -190,21 +204,47 @@ if __name__ == "__main__":
 
     like_info = lh.load_likelihood(cfg)
 
-    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "")
+    suffix  = ""
+
+    if args.freezePOIs != "":
+        suffix += f"_freezePOIs_{args.freezePOIs.replace(',','_')}" 
+    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "") + suffix
     version = str(cfg.get("version", "v0"))
+    overwrite_cache = args.overwrite == "all"
 
     hyp  = lh.build_hypothesis_from_likelihood(like_info, name="SR")
-    if args.rotate:
-        cfg_base_name = os.path.splitext(os.path.basename(args.config))[0]
-        hyp_rot = Rotated(hyp, f"/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_merged.json", name="Fisher-basis")
-        hyp_rot.print()
-        hyp_for_fit = hyp_rot
-        step = 1 
-    else:
-        hyp_for_fit = hyp
-        step = 0.1 
 
-    n2ll = lh.N2LL( like_info, 'data.samples',  os.path.join( "NN2LCache",  os.path.splitext(os.path.basename(args.config))[0], cfg['version']), cache_root=None, overwrite=args.overwrite)
+    rotated = bool(args.rotate)
+    hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
+
+    if args.prepareSlurmJobs:
+        from slurm_utils import prepare_slurm_jobs, get_base_command
+        base_cmd = get_base_command()
+        prepare_slurm_jobs(
+            hyp_for_fit=hyp_for_fit,
+            base_cmd=base_cmd,
+            base=base,
+            version=version,
+        )
+        print("Slurm job files prepared. Exiting.")
+        sys.exit(0)
+
+
+
+    step = 1.0 if rotated else 0.1
+
+    if args.freezePOIs != "": 
+        for poi in args.freezePOIs.split("," ):
+            hyp_for_fit.set_nuisance_frozen(poi, True)
+
+    n2ll = lh.N2LL(
+        like_info,
+        cfg["defaults"]["module_samples"],
+        cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
+        cache_root=None,
+        overwrite=overwrite_cache,
+    )
+
     n2ll.build_cache()
     n2ll.prepare_runtime()
 
@@ -212,7 +252,7 @@ if __name__ == "__main__":
         n2ll.setAsimov(hyp_for_fit) 
         with open(f"{base}_{version}_asimov.pck", 'wb') as outf: # store asimov to pick it in the next steps
             pck.dump(hyp_for_fit, outf)
-        m = lh.run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=1, do_migrad=True, do_hesse=True, do_minos=False)
+        m = lh.run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=100, do_migrad=True, do_hesse=True, do_minos=False)
 
         out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_initialfit.json")
         args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
@@ -232,13 +272,17 @@ if __name__ == "__main__":
         for param_name in initial_fit_dict:
             if param_name not in [p.name for p in hyp_for_fit.nuisances]: 
                 continue
-            for direction in ['up', 'down']:
+
+            if args.nuisanceForImpacts != "" and args.nuisanceForImpacts != param_name: 
+                continue
+
+            for direction in [ 'down', 'up']:
                 hyp_var = hyp_for_fit.clone()
                 value = initial_fit_dict[param_name]["value"] + initial_fit_dict[param_name]["error"] * (1. if direction == "up" else -1.) 
                 print(f"Setting parameter {param_name} to {value}")
                 hyp_var.modify(**{param_name: value})
                 hyp_var.set_nuisance_frozen(param_name, True)
-                m = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=True, do_minos=False)
+                m = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=False, do_minos=False)
 
                 out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
                 args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
@@ -274,16 +318,26 @@ if __name__ == "__main__":
                     fit_var_dict = fit_result_to_dict(fit_var)
 
                 for poi in POIs:
+                    if poi.name in args.freezePOIs.split("," ): 
+                        continue
                     ret.append( fit_var_dict[poi.name]['value'] - initial_fit_dict[poi.name]['value'])
                 return ret 
                 
-            impacts_up.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_up.json")))
-            impacts_dn.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_down.json")))
-            print( param_name, impacts_up[-1])
+            try: 
+                impacts_up.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_up.json")))
+            except FileNotFoundError:
+                print(f"Warning: up variation for {param_name} not found")
+                impacts_up.append( [0. for _ in POIs])
+            try:
+                impacts_dn.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_down.json")))
+            except FileNotFoundError:
+                print(f"Warning: down variation for {param_name} not found")
+                impacts_dn.append( [0. for _ in POIs])
+
                    
             
         impact_table_plot( nuisances_names, nuisances_values, nuisances_errors,
-                           impacts_up, impacts_dn, [x.name for x in POIs], outpath=f'{base}_{version}_impacts.png')
+                           impacts_up, impacts_dn, [x.name for x in POIs if x.name not in args.freezePOIs.split("," )], outpath=f'{base}_{version}_impacts.png')
 
 
 
