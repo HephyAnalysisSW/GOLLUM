@@ -1,33 +1,127 @@
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_Trigger
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_L1Prefire
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_PU
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_LeptonSF
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_BTag_b
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_BTag_l
-#python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_scales
-python pnn_training.py ../../configs/unbinned_merged.yaml --overwrite  --job pnn_tt2l_jesTotal
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_L1Prefire"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_PU"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_MuSF"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_EleSF"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_BTag_b"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_BTag_l"
+submit --title pnn2016APV --memory 20 --walltime 01-00:00:00 --queue medium "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --n_split 5 --job pnn_TTLep_pow_2016APV_scales"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_showerISR"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_showerFSR"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_alphaS"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_0_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_1_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_2_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_3_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_4_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_res_j_5_2016APV"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016"
+submit --title pnn2016APV --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016APV.yaml  --job pnn_TTLep_pow_2016APV_Uncl"
 
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_Trigger
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_L1Prefire
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_PU
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_LeptonSF
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_BTag_b
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_BTag_l
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_scales
-python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_GG_jesTotal
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_Trigger
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_L1Prefire
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_PU
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_LeptonSF
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_BTag_b
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_BTag_l
-#python pnn_training.py ../../configs/split.yaml  --overwrite --job pnn_tt2l_QG_scales
-python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QG_jesTotal
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_Trigger
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_L1Prefire
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_PU
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_LeptonSF
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_BTag_b
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_BTag_l
-#python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_scales
-python pnn_training.py ../../configs/unbinned_split.yaml  --overwrite --job pnn_tt2l_QQ_jesTotal
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_L1Prefire"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_PU"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_MuSF"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_EleSF"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_BTag_b"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_BTag_l"
+submit --title pnn2016    --memory 20 --walltime 01-00:00:00 --queue medium "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --n_split 5 --job pnn_TTLep_pow_2016_scales"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_showerISR"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_showerFSR"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_alphaS"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_0_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_1_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_2_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_3_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_4_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_res_j_5_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_FlavorPureBottom"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_FlavorPureCharm"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_FlavorPureGluon"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_FlavorPureQuark"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_HF"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016"
+submit --title pnn2016    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2016.yaml  --job pnn_TTLep_pow_2016_Uncl"
+
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_L1Prefire"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_PU"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_MuSF"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_EleSF"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_BTag_b"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_BTag_l"
+submit --title pnn2017    --memory 20 --walltime 02-00:00:00 --queue medium  "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml --n_split 10  --job pnn_TTLep_pow_2017_scales"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_showerISR"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_showerFSR"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_alphaS"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_0_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_1_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_2_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_3_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_4_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_res_j_5_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureBottom"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureCharm"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureGluon"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017"
+submit --title pnn2017    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2017.yaml  --n_split 5 --job pnn_TTLep_pow_2017_Uncl"
+
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_L1Prefire"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_PU"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_MuSF"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_EleSF"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_BTag_b"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_BTag_l"
+submit --title pnn2018    --memory 20 --walltime 02-00:00:00 --queue medium "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 10 --job pnn_TTLep_pow_2018_scales"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_showerISR"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_showerFSR"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_alphaS"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_0_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_1_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_2_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_3_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_4_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_res_j_5_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_FlavorPureBottom"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_FlavorPureCharm"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_FlavorPureGluon"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_FlavorPureQuark"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeBal"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018"
+submit --title pnn2018    --memory 20 --walltime 08:00:00 "python pnn_training.py /users/robert.schoefbeck/CMS/ML/HEPHY-uncertainty/configs/unbinned/unbinned_2018.yaml  --n_split 5 --job pnn_TTLep_pow_2018_Uncl"

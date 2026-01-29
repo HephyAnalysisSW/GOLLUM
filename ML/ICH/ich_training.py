@@ -76,6 +76,15 @@ if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
 
+# Adding selection
+sel  = J.get("selection", None)
+sel_f= J.get("selection_features", [])
+if sel:
+    L.addSelection( sel, sel_f)
+    print("Added selection to loader: {sel} and selection_features {sel_f}")
+
+print(L)
+
 # feature & observer names
 feat_names = list(getattr(L, "feature_names", []) or [])
 obs_names  = list(getattr(L, "observer_names", []) or [])

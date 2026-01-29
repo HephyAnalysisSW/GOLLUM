@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 from __future__ import annotations
-import os, sys, argparse, importlib, yaml
+import os, sys, argparse, importlib, time, pickle, io, contextlib
 import numpy as np
+
+import cProfile, pstats
 
 # project roots
 sys.path.insert(0, '..'); sys.path.insert(0, '../..')
@@ -12,13 +14,21 @@ import common.yaml_loader as yaml_loader
 
 from pdf.PDFParametrization import PDFParametrization
 
+# Always NUMBA
+import numba as nb
+from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+import ML.BIT.NumbaMultiNode as NumbaMultiNode
+
+from tqdm import trange, tqdm
+
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="BIT training (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-#p.add_argument("--numba", action="store_true", help="Use the numba implementation")
+p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
+p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -26,6 +36,7 @@ cfg_path = os.path.expanduser(os.path.expandvars(args.config))
 CFG = yaml_loader.load_yaml(cfg_path)
 D = CFG.get("defaults", {}) or {}
 module_samples = D.get("module_samples", "data.samples")
+
 def list_and_exit():
     jobs = [j for j in (CFG.get("jobs") or []) if j.get("type") == "bit"]
     if not jobs:
@@ -34,7 +45,7 @@ def list_and_exit():
     flags = []
     if args.overwrite: flags.append("--overwrite")
     if args.small:     flags.append("--small")
-    #if args.numba:     flags.append("--numba")
+    if args.every is not None: flags.append(f"--every {args.every}")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
@@ -54,22 +65,22 @@ if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
 
-if J.get("numba", False):
-    print("Using NUMBA")
-    import numba as nb
-    #nb.set_num_threads(16)         # pick what you want
-    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
-    print("Numba threads:", nb.get_num_threads())    # verify
-else:
-    print("Not using NUMBA")
-    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
+sel  = J.get("selection", None)
+sel_f= J.get("selection_features", [])
+if sel:
+    L.addSelection( sel, sel_f)
+    print("Added selection to loader: {sel} and selection_features {sel_f}")
+
+print(L)
+
+print("Using NUMBA")
+print("Numba threads:", nb.get_num_threads())
 
 # features
-L.setFeatures( J["features"] )
+L.setFeatures(J["features"])
 feat_names = list(getattr(L, "feature_names", []) or [])
 if not feat_names:
     raise RuntimeError("Loader has no feature_names.")
-input_dim = len(feat_names)
 
 # observers: must contain generator columns in this order
 GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
@@ -81,9 +92,10 @@ if missing_gen:
 # ---------------- PDF parametrization & combinations ----------------
 pdf_n = J.get("pdf", {}).get("pdf_n", None)
 pdf_type = J.get("pdf", {}).get("pdf_type", None)
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type)                     # defines variables: ['c0',..,'cN']
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
 
-combos = list(pdf.combinations)                       # (), ('c0',), ..., ('ci','cj')
+combos = list(pdf.combinations)  # (), ('c0',), ..., ('ci','cj')
+
 # Build base_points like the legacy script (order up to 2)
 base_points = []
 vars_ = pdf.variables
@@ -100,7 +112,6 @@ def iterate_all(shard_limit=None):
     if shard_limit is not None: n_shards = min(n_shards, shard_limit)
     on2idx = {n: i for i, n in enumerate(obs_names)}
     for shard in range(n_shards):
-        # pull features, observers, and weights in one go
         X, G, w = L.materialize(shard=shard, what="fow")
         gQ   = G[:, on2idx["Generator_scalePDF"]]
         gx1  = G[:, on2idx["Generator_x1"]]
@@ -116,281 +127,359 @@ def iterate_all(shard_limit=None):
                w.astype(np.float32,   copy=False))
 
 Xs = []
-targets_acc = []  # list of (N_i, len(combos)) arrays
+targets_acc = []
 for X, Q, x1, x2, id1, id2, w in iterate_all():
-    # Unweighted derivatives aligned with pdf.combinations
-    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)            # (N_i, M)
-    # Multiply each column by the event weight (treating derivatives as reweights)
-    deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)   # (N_i, M)
+    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)  # (N_i, M)
+    deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)
     Xs.append(X)
     targets_acc.append(deriv_w)
 
 X_all   = np.concatenate(Xs, axis=0) if len(Xs) > 1 else Xs[0]
 DER_all = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targets_acc[0]
 
-# Build the dict that BIT expects: {combination: vector}; () term is now the nominal weight
-training_weights = {combos[i]: DER_all[:, i] for i in range(len(combos))}
+# Truth weights (fixed; used for plotting)
+training_weights = {tuple(sorted(combos[i])): DER_all[:, i] for i in range(len(combos))}
+
 if args.small:
     n_max = len(X_all)//30
     X_all   = X_all[:n_max]
     DER_all = DER_all[:n_max]
-    training_weights = {key:val[:n_max] for key, val in training_weights.items()}
+    training_weights = {key: val[:n_max] for key, val in training_weights.items()}
 
-# ---------------- build & train BIT ----------------
-cfg_base = os.path.join( CFG.get("version", "default"), J['region'] )
-model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
-os.makedirs(model_dir, exist_ok=True)
-model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
-if args.small:
-    model_path = model_path[:-4]+"_small.pkl"
-
-bit = None
-if not args.overwrite:
-    print(f"Attempt to load BIT from {model_path}")
-    if os.path.exists(model_path):
-        try:
-            bit = MultiBoostedInformationTree.load(model_path)
-            print(f"Loaded BIT from {model_path}")
-        except Exception:
-            pass
-            print("Failed. Training new.")
-    else:
-        print("Not found. Training new.")
-
-if bit is None:
-    # pull BIT hyperparameters from YAML
-    mcfg = J.get("model", {}) or {}
-    bit = MultiBoostedInformationTree(
-        training_features = X_all,
-        training_weights  = training_weights,   # targets = derivatives ((), ('c0',), ..., quadratic)
-        base_points       = base_points,        # as in legacy script
-        feature_names     = feat_names,
-        **mcfg,
-    )
-    bit.boost()
-    bit.save(model_path)
-    print(f"Saved BIT -> {model_path}")
-
-# ---------------- optional training plots ----------------
-rt = J.get("runtime", {}) or {}
-if bool(rt.get("training_plots", False)):
-    # reuse the existing plotting block inside your previous script;
-    # the BIT instance and data arrays are now available here:
-    #   - bit (trained)
-    #   - X_all (features)
-    #   - training_weights (truth derivatives; training_weights[()] is the () term)
+# ---------------- plotting function ----------------
+def plot_bit_training_root(bit, t, X_all, training_weights, feat_names, cfg_base, J):
+    """
+    Plot truth vs prediction ratios after t trees.
+    Syncer output is captured so tqdm bars remain usable.
+    """
     import ROOT, math
     from data.plot_options import plot_options as PLOT_OPTS
-    plot_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"])
-    os.makedirs(plot_dir, exist_ok=True)
 
-    tex = ROOT.TLatex(); ROOT.gStyle.SetOptStat(0); ROOT.gROOT.SetBatch(True)
-    # simple scalar-color map for derivatives:
+    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
+    if not plot_feats:
+        tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
+        return
+
+    out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "train")
+    os.makedirs(out_dir, exist_ok=True)
+
+    ROOT.gStyle.SetOptStat(0)
+    ROOT.gROOT.SetBatch(True)
+
+    ders = bit.derivatives
+
     colors = {}
     i_lin, i_diag, i_mix = 0, 0, 0
-    for der in bit.derivatives:
-        if len(der) == 1:         colors[der] = ROOT.kAzure + i_lin;  i_lin  += 1
+    for der in ders:
+        if len(der) == 1:
+            colors[der] = ROOT.kAzure + i_lin; i_lin += 1
         elif len(der) == 2 and len(set(der)) == 1:
-                                  colors[der] = ROOT.kRed + i_diag;   i_diag += 1
-        else:                     colors[der] = ROOT.kGreen + i_mix;  i_mix  += 1
+            colors[der] = ROOT.kRed + i_diag; i_diag += 1
+        else:
+            colors[der] = ROOT.kGreen + i_mix; i_mix += 1
 
-    # choose a few iterations
-    iters = list(range(1, min(10, bit.n_trees)+1)) + list(range(10, bit.n_trees+1, 10))
-    w0 = training_weights[()]  # () term from derivatives
+    pred = bit.predict(X_all, max_n_tree=t)  # (N, M-1), aligned to ders[1:]
+    w0 = training_weights[()]
 
-    # --- matrix plotting per iteration (one canvas, many pads) ---
-    # expects: iters, bit, X_all (features), w0 (nominal weights),
-    #          training_weights (dict keyed by derivative tuples),
-    #          feat_names, user, cfg_base, J, PLOT_OPTS, colors (map der->color)
-    import ROOT, os, math
-    ROOT.gStyle.SetOptStat(0)
+    truth_mat = np.stack([
+        training_weights.get(der, training_weights.get(tuple(reversed(der))))
+        for der in ders
+    ], axis=1)  # (N, M)
 
-    stuff = []  # keep ROOT objects alive
+    total_pads = len(plot_feats) + 1
+    gx = int(math.ceil(math.sqrt(total_pads)))
+    gy = int(math.ceil(total_pads / gx))
+    c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*gx, 500*gy)
+    c.Divide(gx, gy)
+    keep = []
 
-    for t in iters:
-        # predictions: shape (N, M-1) aligned to derivatives[1:]
-        pred = bit.predict(X_all, max_n_tree=t)
+    leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
+    leg.SetBorderSize(0); leg.SetFillStyle(0)
+    leg.SetNColumns(min(3, 1 + len(ders)//10))
+    keep.append(leg)
 
-        # Build truth ratios per derivative (all, including () at position 0)
-        ders = bit.derivatives
-        truth_mat = np.stack([
-            training_weights.get(der, training_weights.get(tuple(reversed(der))))
-            for der in ders
-        ], axis=1)  # (N, M)
+    def _safe_ratio(numer, denom):
+        denom2 = denom.copy()
+        denom2[denom2 == 0] = 1.0
+        return numer / denom2
 
-        # binning cache
-        feat_bins = {
-            f: np.linspace(PLOT_OPTS[f]['binning'][1],
-                           PLOT_OPTS[f]['binning'][2],
-                           PLOT_OPTS[f]['binning'][0] + 1)
-            for f in feat_names
-        }
+    for i, feat in enumerate(plot_feats):
+        pad = c.cd(i + 1)
+        pad.SetTicks(1, 1)
+        pad.SetBottomMargin(0.15)
+        pad.SetLeftMargin(0.15)
 
-        # --- build all histos first, then draw in a matrix ---
-        # Per feature we’ll collect yield, truth and pred histos for all derivatives
-        per_feat = {}  # f -> dict(yield, truth{der}, pred{der}, bins)
-        for feat in feat_names:
-            bins = feat_bins[feat]
-            idx  = feat_names.index(feat)
-            binned = np.digitize(X_all[:, idx], bins)
-            mask = (binned.reshape(-1, 1) == np.arange(1, len(bins))).T  # (B, N)
+        n, lo, hi = PLOT_OPTS[feat]['binning']
+        edges = np.linspace(lo, hi, n+1)
+        col = feat_names.index(feat)
+        x = X_all[:, col]
 
-            # yields per bin
-            h_w0 = np.array([w0[m].sum() for m in mask])  # (B,)
+        h_w0, _ = np.histogram(x, bins=edges, weights=w0)
 
-            # sums per derivative per bin
-            h_pred   = np.array([(w0.reshape(-1, 1) * pred)[m].sum(axis=0) for m in mask])   # (B, M)
-            h_truth  = np.array([ truth_mat[m].sum(axis=0)                    for m in mask])      # (B, M)
-
-            # ratios
-            def _safe_div(numer, denom):
-                denom2 = denom.reshape(-1, 1)
-                out = np.zeros_like(numer, dtype=float)
-                np.divide(numer, denom2, out=out, where=(denom2 != 0))
-                return out
-
-            r_pred  = _safe_div(h_pred,  h_w0)  # (B, M)
-            r_truth = _safe_div(h_truth, h_w0)  # (B, M)
-
-            # ROOT histos
-            # yield (normalize into visible band later)
-            hY = ROOT.TH1F(f"hY_{feat}", "", len(bins)-1, bins[0], bins[-1])
-            for b in range(1, len(bins)):
-                hY.SetBinContent(b, h_w0[b-1])
-            hY.SetLineColor(ROOT.kGray + 2); hY.SetMarkerStyle(0); hY.SetLineWidth(2)
-            hY.GetXaxis().SetTitle(PLOT_OPTS[feat]['tex']); hY.SetTitle("")
-            stuff.append(hY)
-
-            H_truth = {}
-            H_pred  = {}
-            for i_der, der in enumerate(ders):
-                # skip drawing the () baseline ratio (always 1); keep objects small but stable
-                if len(der) == 0:
-                    continue
-                hT = ROOT.TH1F(f"hT_{feat}_{i_der}", "", len(bins)-1, bins[0], bins[-1])
-                hP = ROOT.TH1F(f"hP_{feat}_{i_der}", "", len(bins)-1, bins[0], bins[-1])
-                for b in range(1, len(bins)):
-                    hT.SetBinContent(b, r_truth[b-1, i_der])
-                    hP.SetBinContent(b, r_pred[b-1,  i_der])
-                col = colors.get(der, ROOT.kBlue)
-                for h, sty in ((hT, 2), (hP, 1)):
-                    h.SetLineColor(col); h.SetLineStyle(sty); h.SetLineWidth(2); h.SetMarkerStyle(0)
-                    h.GetXaxis().SetTitle(PLOT_OPTS[feat]['tex'])
-                    stuff.append(h)
-                H_truth[der] = hT; H_pred[der] = hP
-
-            per_feat[feat] = dict(yield_=hY, truth=H_truth, pred=H_pred, bins=bins)
-
-        # --- draw on a single canvas with pads (features + legend) ---
-        n_feat = len(feat_names)
-        total_pads = n_feat + 1
-        gx = int(math.ceil(math.sqrt(total_pads)))
-        gy = int(math.ceil(total_pads / gx))
-        c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*gx, 500*gy)
-        c.Divide(gx, gy)
-
-        # Legend goes into last pad
-        leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
-        leg.SetBorderSize(0); leg.SetFillStyle(0)
-        leg.SetNColumns( min(3, 1 + len(ders)//10) )
-        stuff.append(leg)
-
-        # Determine y-range based on truth curves across all features (data-driven)
-        # We use per-feature truth ranges when drawing; this is just for reference.
-
-        # Draw each feature into its pad
-        for i, feat in enumerate(feat_names):
-            pad = c.cd(i + 1)
-            pad.SetTicks(1, 1); pad.SetBottomMargin(0.15); pad.SetLeftMargin(0.15)
-            pad.SetLogy(False)  # ratio-like plots
-
-            bins = per_feat[feat]['bins']
-            n_bins = len(bins) - 1
-
-            # find dynamic Y range from truth curves (data-driven)
-            y_max = 0.0
-            y_min = +1e9
-            for der, hT in per_feat[feat]['truth'].items():
-                if hT.GetMaximum() > y_max: y_max = hT.GetMaximum()
-                # scan bins for min > 0 (allow negative if present)
-                for b in range(1, n_bins+1):
-                    y = hT.GetBinContent(b)
-                    if y < y_min: y_min = y
-            if not np.isfinite(y_min): y_min = 0.0
-            if not np.isfinite(y_max): y_max = 1.0
-            # pad margins
-            y_pad = 0.2 * (y_max - y_min if y_max > y_min else 1.0)
-            y_low = y_min - y_pad
-            y_hi  = y_max + y_pad
-            if y_hi <= y_low: y_hi = y_low + 1.0
-
-            # frame
-            hframe = ROOT.TH2F(f"hf_{feat}", f";{PLOT_OPTS[feat]['tex']};ratio",
-                               n_bins, bins[0], bins[-1], 100, y_low, y_hi)
-            hframe.GetYaxis().SetTitleOffset(1.3)
-            hframe.Draw()
-            stuff.append(hframe)
-
-            # draw yield normalized into the same band
-            hY = per_feat[feat]['yield_']
-            # normalize yield into [y_low, y_hi] gently
-            y_min0, y_max0 = 0.0, hY.GetMaximum()
-            if y_max0 > 0:
-                for b in range(1, n_bins+1):
-                    v = hY.GetBinContent(b)
-                    scaled = y_low + 0.92*(y_hi - y_low) * (v - y_min0) / max(1e-12, y_max0)
-                    hY.SetBinContent(b, scaled)
-            hY.SetLineColor(ROOT.kGray + 2)
-            hY.Draw("hist same")
-
-            first = True
-            # draw all derivatives (truth dashed, pred solid)
-            for der in ders:
-                if len(der) == 0:  # skip ()
-                    continue
-                hT = per_feat[feat]['truth'][der]
-                hP = per_feat[feat]['pred'][der]
-                if first:
-                    hT.Draw("hist same"); hP.Draw("hist same")
-                    first = False
-                else:
-                    hT.Draw("hist same"); hP.Draw("hist same")
-
-        # Legend in the last pad
-        pad = c.cd(n_feat + 1)
-        pad.SetTicks(1,1); pad.SetBottomMargin(0.15); pad.SetLeftMargin(0.15)
-        # Fill legend entries once
-        added = set()
-        for der in ders:
-            if len(der) == 0:  # skip ()
+        ratios_truth = {}
+        ratios_pred  = {}
+        for i_der, der in enumerate(ders):
+            if len(der) == 0:
                 continue
-            # take any feature’s histos for legend prototypes
-            sample_feat = feat_names[0]
-            hT = per_feat[sample_feat]['truth'][der]
-            hP = per_feat[sample_feat]['pred'][der]
-            if der not in added:
-                tex = "R" + str(der)
-                texh= "#hat{R}" + str(der)
-                leg.AddEntry(hT, tex, "l")
-                leg.AddEntry(hP, texh, "l")
-                added.add(der)
+            ht, _ = np.histogram(x, bins=edges, weights=truth_mat[:, i_der])
+            hp, _ = np.histogram(x, bins=edges, weights=w0 * pred[:, i_der])
+            ratios_truth[der] = _safe_ratio(ht, h_w0)
+            ratios_pred[der]  = _safe_ratio(hp, h_w0)
 
-        # also add yield descriptor
-        leg.AddEntry(per_feat[feat_names[0]]['yield_'], "yield (SM, scaled)", "l")
-        leg.Draw()
-        stuff.append(leg)
+        vals = np.concatenate(list(ratios_truth.values())) if ratios_truth else np.array([0.0, 1.0])
+        finite = np.isfinite(vals)
+        if finite.any():
+            y_min = float(np.min(vals[finite])); y_max = float(np.max(vals[finite]))
+        else:
+            y_min, y_max = 0.0, 1.0
+        if y_max <= y_min: y_max = y_min + 1.0
+        pad_frac = 0.20
+        y_low = y_min - pad_frac * (y_max - y_min)
+        y_hi  = y_max + pad_frac * (y_max - y_min)
 
-        # annotate iteration
-        tl = ROOT.TLatex(); tl.SetNDC(); tl.SetTextSize(0.07); tl.SetTextAlign(11)
-        tl.DrawLatex(0.30, 0.95, f"Trees = {t:04d}")
-        stuff.append(tl)
+        hframe = ROOT.TH2F(f"hf_{feat}_{t}", f";{PLOT_OPTS[feat]['tex']};ratio",
+                           n, lo, hi, 100, y_low, y_hi)
+        hframe.GetYaxis().SetTitleOffset(1.3)
+        hframe.Draw()
+        keep.append(hframe)
 
-        out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "train")
-        os.makedirs(out_dir, exist_ok=True)
-        c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
-        c.Close()
+        hY = ROOT.TH1F(f"hY_{feat}_{t}", "", n, lo, hi)
+        for b in range(1, n+1):
+            hY.SetBinContent(b, float(h_w0[b-1]))
+        y_max0 = float(np.max(h_w0) if len(h_w0) else 0.0)
+        if y_max0 > 0:
+            for b in range(1, n+1):
+                v = hY.GetBinContent(b)
+                scaled = y_low + 0.92*(y_hi - y_low) * (v / max(1e-12, y_max0))
+                hY.SetBinContent(b, scaled)
+        hY.SetLineColor(ROOT.kGray + 2)
+        hY.SetLineWidth(2)
+        hY.SetMarkerStyle(0)
+        hY.Draw("hist same")
+        keep.append(hY)
 
+        for der in ders:
+            if len(der) == 0:
+                continue
+            colr = colors.get(der, ROOT.kBlue)
+
+            hT = ROOT.TH1F(f"hT_{feat}_{t}_{str(der)}", "", n, lo, hi)
+            hP = ROOT.TH1F(f"hP_{feat}_{t}_{str(der)}", "", n, lo, hi)
+            for b in range(1, n+1):
+                hT.SetBinContent(b, float(ratios_truth[der][b-1]))
+                hP.SetBinContent(b, float(ratios_pred[der][b-1]))
+            for h, sty in ((hT, 2), (hP, 1)):
+                h.SetLineColor(colr)
+                h.SetLineStyle(sty)
+                h.SetLineWidth(2)
+                h.SetMarkerStyle(0)
+                h.Draw("hist same")
+                keep.append(h)
+
+    pad = c.cd(len(plot_feats) + 1)
+    pad.SetTicks(1, 1)
+    pad.SetBottomMargin(0.15)
+    pad.SetLeftMargin(0.15)
+
+    added = set()
+    for der in ders:
+        if len(der) == 0 or der in added:
+            continue
+        dt = ROOT.TH1F(f"dt_{t}_{str(der)}", "", 1, 0, 1)
+        dp = ROOT.TH1F(f"dp_{t}_{str(der)}", "", 1, 0, 1)
+        dt.SetLineColor(colors.get(der, ROOT.kBlue)); dt.SetLineStyle(2); dt.SetLineWidth(2)
+        dp.SetLineColor(colors.get(der, ROOT.kBlue)); dp.SetLineStyle(1); dp.SetLineWidth(2)
+        leg.AddEntry(dt,  "R" + str(der), "l")
+        leg.AddEntry(dp, "#hat{R}" + str(der), "l")
+        keep.extend([dt, dp])
+        added.add(der)
+
+    dy = ROOT.TH1F(f"dy_{t}", "", 1, 0, 1)
+    dy.SetLineColor(ROOT.kGray + 2); dy.SetLineWidth(2)
+    leg.AddEntry(dy, "yield (SM, scaled)", "l")
+    keep.append(dy)
+
+    leg.Draw()
+    keep.append(leg)
+
+    tl = ROOT.TLatex()
+    tl.SetNDC()
+    tl.SetTextSize(0.07)
+    tl.SetTextAlign(11)
+    tl.DrawLatex(0.30, 0.95, f"Trees = {t:04d}")
+    keep.append(tl)
+
+    c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
+    c.Close()
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         syncer.sync()
+    out = buf.getvalue().strip()
+    if out:
+        tqdm.write(out)
+
+# ---------------- build & train BIT ----------------
+cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
+model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
+os.makedirs(model_dir, exist_ok=True)
+
+model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
+if args.small:
+    model_path = model_path[:-4] + "_small.pkl"
+
+# weights snapshot stays separate (required to resume boosting correctly)
+weights_path = model_path[:-4] + ".weights.pkl"
+
+bit = None
+start_tree = 0
+boost_weights = None
+
+# ---- load / resume from model_path directly ----
+if not args.overwrite and os.path.exists(model_path):
+    try:
+        tqdm.write(f"Trying to load BIT from {model_path}")
+        bit = MultiBoostedInformationTree.load(model_path)
+        start_tree = len(getattr(bit, "trees", []) or [])
+        szm = os.path.getsize(model_path) / (1024.0 * 1024.0)
+        tqdm.write(f"Loaded: trees={start_tree}/{bit.n_trees} | model size={szm:.1f} MB")
+        if start_tree < bit.n_trees:
+            if os.path.exists(weights_path):
+                with open(weights_path, "rb") as f:
+                    boost_weights = pickle.load(f)
+                szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
+                tqdm.write(f"Loaded boosting weights: {weights_path} ({szz:.1f} MB)")
+            else:
+                tqdm.write(f"Missing weights snapshot {weights_path}. Cannot resume safely; training new.")
+                bit = None
+                start_tree = 0
+    except Exception:
+        bit = None
+        start_tree = 0
+        tqdm.write("Failed to load model. Training new.")
+
+# ---- fresh init ----
+if bit is None:
+    mcfg = J.get("model", {}) or {}
+    bit = MultiBoostedInformationTree(**mcfg)
+    boost_weights = {k: v.copy() for k, v in training_weights.items()}
+
+# If training needed but weights missing, start from truth
+if boost_weights is None and len(bit.trees) < bit.n_trees:
+    boost_weights = {k: v.copy() for k, v in training_weights.items()}
+
+# ---------------- external training loop ----------------
+rt = J.get("runtime", {}) or {}
+enable_plots = bool(rt.get("training_plots", False))
+
+
+if len(bit.trees) < bit.n_trees:
+
+    weak_learner_time = 0.0
+    update_time = 0.0
+
+    pbar = trange(start_tree, bit.n_trees, desc="Trees", unit="tree", dynamic_ncols=True)
+    for n_tree in pbar:
+
+        _get_only_score = ((n_tree == 0) and bool(getattr(bit, "learn_global_score", False)))
+        bit.node_cfg["_get_only_score"] = _get_only_score
+
+        # ---------------- CPU profiling: BOOSTING ONLY ----------------
+        if args.profile:
+            prof = cProfile.Profile()
+            cpu_t0  = time.process_time()
+            wall_t0 = time.perf_counter()
+            prof.enable()
+        # --------------------------------------------------------------
+
+        # fit tree (root needs base_points / feature_names)
+        t1 = time.process_time()
+        root = NumbaMultiNode.MultiNode(
+            X_all,
+            training_weights = boost_weights,
+            base_points      = base_points,
+            feature_names    = feat_names,
+            **bit.node_cfg
+        )
+        t2 = time.process_time()
+        weak_learner_time += (t2 - t1)
+
+        # ---------------- end profiling ----------------
+        if args.profile:
+            prof.disable()
+            cpu_t1  = time.process_time()
+            wall_t1 = time.perf_counter()
+
+            tqdm.write("weak learner time: %.2f" % weak_learner_time)
+            tqdm.write("update time: %.2f" % update_time)
+            tqdm.write(f"Boosting CPU time:  {cpu_t1 - cpu_t0:.2f} s")
+            tqdm.write(f"Boosting wall time: {wall_t1 - wall_t0:.2f} s")
+
+            # Print profile summary to shell (no files)
+            # (Use a buffer to keep tqdm output clean.)
+            buf = io.StringIO()
+
+            buf.write("\n================= cProfile (sorted by cumtime) =================\n")
+            st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("cumtime")
+            st.print_stats(60)
+
+            buf.write("\n================= cProfile (sorted by tottime) =================\n")
+            st = pstats.Stats(prof, stream=buf).strip_dirs().sort_stats("tottime")
+            st.print_stats(60)
+
+            # Flush buffer via tqdm.write line-by-line so the bar survives
+            for line in buf.getvalue().splitlines():
+                tqdm.write(line)
+
+
+        if (n_tree == 0) and (getattr(bit, "derivatives", None) is None):
+            bit.derivatives = root.derivatives[1:]
+
+        bit.trees.append(root)
+
+        # update weights
+        t1 = time.process_time()
+        prediction = root.vectorized_predict(X_all)
+        len_ = len(prediction)
+
+        delta_weight = boost_weights[tuple()].reshape(len_, -1) * prediction[:, 1:] / prediction[:, 0].reshape(len_, -1)
+        lr_eff = 1.0 if _get_only_score else float(bit.learning_rate)
+
+        for i_der, der in enumerate(root.derivatives[1:]):
+            boost_weights[der] += -lr_eff * delta_weight[:, i_der]
+
+        t2 = time.process_time()
+        update_time += (t2 - t1)
+
+        # checkpoint to model_path (atomic)
+        tmp_m = model_path + ".tmp"
+        bit.save(tmp_m)
+        os.replace(tmp_m, model_path)
+
+        tmp_w = weights_path + ".tmp"
+        with open(tmp_w, "wb") as f:
+            pickle.dump(boost_weights, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp_w, weights_path)
+
+        szm = os.path.getsize(model_path) / (1024.0 * 1024.0)
+        szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
+        pbar.set_postfix({"model_MB": f"{szm:.1f}", "w_MB": f"{szz:.1f}"})
+
+        do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
+        if do_plot:
+            tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
+            plot_bit_training_root(bit, t=n_tree+1, X_all=X_all, training_weights=training_weights,
+                                   feat_names=feat_names, cfg_base=cfg_base, J=J)
+
+    # After last training: keep weights file, print filename
+    szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
+    tqdm.write(f"Kept boosting weights snapshot -> {weights_path} ({szz:.1f} MB)")
+
+else:
+    if os.path.exists(weights_path):
+        szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
+        tqdm.write(f"Kept boosting weights snapshot -> {weights_path} ({szz:.1f} MB)")
+
 
 print("Done.")
 

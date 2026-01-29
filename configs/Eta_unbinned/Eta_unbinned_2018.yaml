@@ -1,27 +1,25 @@
-version: unbinned_2018_v2
+version: Eta_unbinned_2018_v2
 
 defaults:
   module_samples: "data.samples_RunII"
   default_features:
-    - TOP_KINEMATICS
-    - LEPTON_KINEMATICS
-    - ASYMMETRY
+    - THRESHOLD 
+  default_selection: "tr_ttbar_mass<500"
+  default_selection_features: ["tr_ttbar_mass"]
+  
 
 likelihood:
     regions:
         - id: SR_2018 
           classifier:
-            type: null
-            id: null    # no classifier needed for a single process
-            asimov: [TTLep_pow_2018]
+          classifier:
+            type: tfmc
+            job: tfmc_EtaSandP_2018
+            asimov: [TTLep_pow_2018, EtaS_2018, EtaP_2018]
+
           classes: 
             - id: TTLep_pow_2018
               sample: TTLep_pow_2018
-              POI:
-                job: bit_pod_TTLep_pow_2018 
-                type: bit
-                parameters: [c0, c1, c2, c3, c4, c5]
-
               systematics:
                 - id: Normalization_TTLep
                   type: lnN
@@ -66,7 +64,6 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2018_alphaS
                   parameters: [nu_alphaS]
-                  #parameters: [nu_mu_ren, nu_mu_fac] #FIXME
                 - id: CMS_res_j_0
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_res_j_0_2018
@@ -152,28 +149,36 @@ likelihood:
                   job: pnn_TTLep_pow_2018_Uncl
                   parameters: [nu_Uncl]
 
+            - id: EtaS_2018
+              sample: EtaS_2018
+
+            - id: EtaP_2018
+              sample: EtaP_2018
+
 jobs:
-  - id: bit_pod_TTLep_pow_2018
-    type: bit
+  # -------------------------------
+  # TFMC classifier (split processes)
+  # -------------------------------
+  - id: tfmc_EtaSandP_2018 
+    type: classifier
     region: SR
-    process: TTLep_pow_2018
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1, 2, 4, 5, 10, 12]
-      pdf_type: PODBasis
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2018, EtaS_2018, EtaP_2018]
     model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
+      activation: relu
+      hidden_layers: [128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 0
+      learning_rate: 0.02
     runtime:
-      training_plots: true        # keep if you want training plots
+      batch_size: 65536
+      num_workers: 1
+    extras:
+      use_scaler: scaler_TTLep_pow_2018 
     output:
-      filename: "BIT_pod_TTLep_pow_2018.pkl"
+      filename: "tfmc_EtaSandP_2018.pkl"
 
   - id: scaler_TTLep_pow_2018
     type: scaler
@@ -595,8 +600,6 @@ jobs:
       epochs: 200
       phaseout_epochs: 50
       learning_rate: 0.001
-      l1: 0.0
-      l2: 0.0001
     runtime:
       n_split: 10
       rebin: 2

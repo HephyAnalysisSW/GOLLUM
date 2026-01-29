@@ -16,13 +16,9 @@ p = argparse.ArgumentParser(description="BIT evaluation (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-p.add_argument("--numba", action="store_true", help="Use the numba implementation")
 args = p.parse_args()
 
-if args.numba:
-    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
-else:
-    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
+from ML.BIT.NumbaBIT import MultiBoostedInformationTree
 
 # ---------------- cfg ----------------
 cfg_path = os.path.expanduser(os.path.expandvars(args.config))
@@ -37,7 +33,6 @@ def list_and_exit():
         sys.exit(0)
     flags = []
     if args.small: flags.append("--small")
-    if args.numba: flags.append("--numba")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")

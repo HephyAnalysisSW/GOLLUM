@@ -1,4 +1,0 @@
-python systematics.py ../../configs/plots/binned_2016APV.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2016APV_unbinned_2016APV_v1_fit.json
-python systematics.py ../../configs/plots/binned_2016.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2016_unbinned_2016_v1_fit.json
-python systematics.py ../../configs/plots/binned_2017.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2017_unbinned_2017_v1_fit.json
-python systematics.py ../../configs/plots/binned_2018.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2018_unbinned_2018_v1_fit.json

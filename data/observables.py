@@ -49,10 +49,11 @@ OLD_BASIC_EVENT = [
 TOP_KINEMATICS = [
     "tr_ttbar_pt",
     "tr_ttbar_mass",
+    "tr_ttbar_y",
     "tr_Top_pt",
     "tr_AntiTop_pt",
-    "tr_Top_eta",
-    "tr_AntiTop_eta",
+    "tr_Top_y",
+    "tr_AntiTop_y",
 ]
 
 LEPTON_KINEMATICS = [
@@ -79,6 +80,11 @@ SPIN_CORRELATION = [
     "tr_xi_r_star_k", "tr_xi_k_r_star", "tr_xi_kk_star",
     "tr_cos_phi", "tr_cos_phi_lab", "tr_abs_delta_phi_ll_lab",
 ]
+
+THRESHOLD = ["tr_ttbar_mass", "tr_ttbar_y", "tr_ttbar_pt", "tr_ttbar_beta_plus", "tr_c_hel", "tr_c_han", 
+       "tr_xi_nn", "tr_xi_rr", "tr_xi_kk", "tr_xi_nr_plus", "tr_xi_nr_minus",
+       "tr_xi_rk_plus", "tr_xi_rk_minus", "tr_xi_nk_plus", "tr_xi_nk_minus",
+       "tr_xi_r_star_k", "tr_xi_k_r_star", "tr_xi_kk_star"]
 
 BASIC_EVENT = [
     "nBJet", "nSelJet", "jet0_pt", "jet1_pt", "lep0_pt", "lep1_pt", "ht",

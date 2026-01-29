@@ -26,7 +26,7 @@ args = p.parse_args()
 
 cfg = yaml_loader.load_yaml(args.config)
 yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
 like_info = load_likelihood(cfg)
 

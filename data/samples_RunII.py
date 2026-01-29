@@ -18,15 +18,24 @@ import common.user as user
 
 # Use Path so that BASE_DIRECTORY / "2018" / "file.root" works.
 BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-2_nJ2p_nB2p_trvalid/"
+    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3-2_nJ2p_nB2p_2l/"
 )
-ERAS = ["2016", "2016APV", "2017", "2018"]
+ERAS = ["2016", "2016APV", "2017", "2018", "RunII"]
 
 GROUPS = {
     "SingleTop": ["TBar_tch", "TBar_tWch_noFullyHad", "T_tch", "T_tWch_noFullyHad"],
     "DrellYan":  ["DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"],
     "EtaS": ["EtaT_scalar_m343_w2p8_ll"],
     "EtaP": ["EtaT_m343_w2p8_ll"],
+}
+
+process_labels = {
+    "SingleTop":  "Single top",
+    "TTSemi_pow": "t#bar{t} (1l)",
+    "TTLep_pow":  "t#bar{t} (2l)",
+    "DrellYan":   "DY",
+    "EtaS": "#chi_{t}/H",
+    "EtaP": "#eta_{t}/A",
 }
 
 # -----------------------------
@@ -50,6 +59,7 @@ _base = RDataLoader(
         "weight",
         "L1PreFiringWeight_Nom",
         "JetPUID_SF",
+        "Pileup_SF",
         "btagSF_fixedWP_SF",
         "lepEle_SF",
         "lepMu_SF",
@@ -61,6 +71,8 @@ _base = RDataLoader(
     ),
     observer_names=observables.OBSERVERS,
 )
+#FIXME The RDataloader should allow string based selections already in the constructor. Also, & binds stronger than &&!!! So parenthesis are needed.
+_base.addSelection( "(lep1_pt>20) & tr_isvalid & isOS & offZ", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -146,11 +158,10 @@ def _available_files_for_era(era: str) -> List[str]:
 
 
 # ----------------------------------------------------------------------
-# Factory for variations
+# Helpers for making variations
 # ----------------------------------------------------------------------
 
-
-def _make_variation(process: str, era: str, tag: str) -> RDataLoader:
+def _make_variation(process: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
     Construct a variation from a process, era, and tag, e.g.
 
@@ -166,24 +177,29 @@ def _make_variation(process: str, era: str, tag: str) -> RDataLoader:
     if not tag:
         tag = "nominal"
 
-    root_dir = BASE_DIRECTORY / era
-    rootfile = root_dir / f"{process}_{tag}.root"
+    eras = [era] if era!="RunII" else ["2016", "2016APV", "2017", "2018"]
 
-    if not root_dir.is_dir():
-        raise FileNotFoundError(
-            f"Era directory '{root_dir}' does not exist "
-            f"(process={process!r}, tag={tag!r})."
-        )
+    rootfiles = []
+    for era in eras:
+        root_dir = BASE_DIRECTORY / era
+        rootfile = root_dir / f"{process}_{tag}.root"
 
-    if not rootfile.is_file():
-        raise FileNotFoundError(
-            f"Did not find ROOT file for process={process!r}, era={era!r}, tag={tag!r}.\n"
-            f"Expected file: {rootfile}"
-        )
+        if not root_dir.is_dir():
+            raise FileNotFoundError(
+                f"Era directory '{root_dir}' does not exist "
+                f"(process={process!r}, tag={tag!r})."
+            )
 
-    return _base.clone_from_files(str(rootfile))
+        if not rootfile.is_file():
+            raise FileNotFoundError(
+                f"Did not find ROOT file for process={process!r}, era={era!r}, tag={tag!r}.\n"
+                f"Expected file: {rootfile}"
+            )
+        rootfiles.append(str(rootfile))
 
-def _make_group_variation(group: str, era: str, tag: str) -> RDataLoader:
+    return _base.clone_from_files(rootfiles)
+
+def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
     Construct a variation for a group of processes, e.g.
 
@@ -203,37 +219,39 @@ def _make_group_variation(group: str, era: str, tag: str) -> RDataLoader:
             f"Unknown group {group!r}. Known groups: {', '.join(GROUPS.keys())}"
         )
 
-    root_dir = BASE_DIRECTORY / era
-    if not root_dir.is_dir():
-        raise FileNotFoundError(
-            f"Era directory '{root_dir}' does not exist for group={group!r}, tag={tag!r}."
-        )
+    eras = [era] if era!="RunII" else ["2016", "2016APV", "2017", "2018"]
 
     members = GROUPS[group]
     missing = []
     existing = []
 
-    for proc in members:
-        f = root_dir / f"{proc}_{tag}.root"
-        if f.is_file():
-            existing.append(str(f))
-        else:
-            missing.append(str(f))
+    for era in eras:
+        root_dir = BASE_DIRECTORY / era
+        if not root_dir.is_dir():
+            raise FileNotFoundError(
+                f"Era directory '{root_dir}' does not exist for group={group!r}, tag={tag!r}."
+            )
 
-    if missing:
-        raise FileNotFoundError(
-            "Some or all files for group "
-            f"{group!r}, era={era!r}, tag={tag!r} are missing.\n"
-            "Missing files:\n"
-            + "\n".join(f"  - {m}" for m in missing)
-        )
+        for proc in members:
+            f = root_dir / f"{proc}_{tag}.root"
+            if f.is_file():
+                existing.append(str(f))
+            else:
+                missing.append(str(f))
+
+        if missing:
+            raise FileNotFoundError(
+                "Some or all files for group "
+                f"{group!r}, era={era!r}, tag={tag!r} are missing.\n"
+                "Missing files:\n"
+                + "\n".join(f"  - {m}" for m in missing)
+            )
 
     # Clone base loader using all member files
     return _base.clone_from_files(existing)
 
-
 # ----------------------------------------------------------------------
-# Module-level __getattr__: lazy factory for all samples
+# Module-level __getattr__: lazy instantiation for all samples
 # ----------------------------------------------------------------------
 def __getattr__(name: str):
     """
@@ -286,8 +304,6 @@ def __getattr__(name: str):
         else:
             loader = _make_variation(process, era, tag)
     except FileNotFoundError as e:
-        # ... your existing detailed error-message construction ...
-        # (unchanged)
         root_dir = BASE_DIRECTORY / era
         msg_lines = [
             f"Could not construct sample {name!r}.",
@@ -344,6 +360,87 @@ def __getattr__(name: str):
 
     globals()[name] = loader
     return loader
+
+# ----------------------------------------------------------------------
+#  A factory class that exposes the base directory
+# ----------------------------------------------------------------------
+class Factory:
+
+    def __init__( self, BASE_DIRECTORY: str = BASE_DIRECTORY):
+        if type(BASE_DIRECTORY) == str:
+            self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
+        else:
+            self.BASE_DIRECTORY = BASE_DIRECTORY
+
+    def get(self, process: str, era: str, tag: str = None) -> RDataLoader:
+            
+        if not tag:
+            tag = "nominal"
+
+        is_group = process in GROUPS
+
+        # Try to build the loader
+        try:
+            if is_group:
+                loader = _make_group_variation(process, era, tag, BASE_DIRECTORY = self.BASE_DIRECTORY)
+            else:
+                loader = _make_variation(process, era, tag, BASE_DIRECTORY = self.BASE_DIRECTORY)
+        except FileNotFoundError as e:
+            root_dir = self.BASE_DIRECTORY / era
+            msg_lines = [
+                f"Could not construct sample {process} {era!r} {tag}.",
+                str(e),
+                "",
+            ]
+
+            if is_group:
+                msg_lines.append(f"{process!r} is defined as a group with members:")
+                msg_lines.append("  " + ", ".join(GROUPS[process]))
+                msg_lines.append("")
+                msg_lines.append(
+                    f"Each member is expected to have a file "
+                    f"'<process>_{tag}.root' in {root_dir}"
+                )
+                msg_lines.append("")
+            elif root_dir.is_dir():
+                available_tags = _available_tags_for(process, era)
+                if available_tags:
+                    msg_lines.append(
+                        f"Available variations for process={process!r} in era={era!r} "
+                        f"(i.e. files '{process}_<tag>.root') are:"
+                    )
+                    msg_lines.append(", ".join(available_tags))
+                    msg_lines.append("")
+                else:
+                    msg_lines.append(
+                        f"No ROOT files found for process={process!r} in era={era!r}."
+                    )
+                    era_files = _available_files_for_era(era)
+                    if era_files:
+                        msg_lines.append(
+                            f"Some ROOT files available in {root_dir} (era={era!r}) are:"
+                        )
+                        max_show = 30
+                        shown = era_files[:max_show]
+                        msg_lines.append("\n".join(f"  - {f}" for f in shown))
+                        if len(era_files) > max_show:
+                            msg_lines.append(
+                                f"  ... and {len(era_files) - max_show} more."
+                            )
+                        msg_lines.append("")
+
+            syst_tags = SYSTEMATICS.get(era, [])
+            if syst_tags:
+                msg_lines.append(
+                    f"Recognised systematic tags for era={era!r} from SYSTEMATICS "
+                    "(may or may not exist on disk for this process/group):"
+                )
+                msg_lines.append(", ".join(sorted(syst_tags)))
+                msg_lines.append("")
+
+            raise e 
+
+        return loader
 
 if __name__ == "__main__":
     print("Base:", _base)

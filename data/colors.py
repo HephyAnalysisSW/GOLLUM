@@ -1,6 +1,6 @@
-import cmsstyle
 # https://cms-analysis.docs.cern.ch/guidelines/plotting/colors/#categorical-data-eg-1d-stackplots
 # https://cms-analysis.docs.cern.ch/guidelines/plotting/examples/#stack-plot-with-cmsstyle
+import cmsstyle
 #cmsstyle.p10.kBlue
 #cmsstyle.p10.kYellow
 #cmsstyle.p10.kRed
@@ -11,12 +11,15 @@ import cmsstyle
 #cmsstyle.p10.kGreen
 #cmsstyle.p10.kGray
 #cmsstyle.p10.kCyan
+import ROOT
 
 colors = {
  'TTLep_pow':   cmsstyle.p10.kRed,
  'DrellYan':    cmsstyle.p10.kBlue,
  'SingleTop':   cmsstyle.p10.kYellow,
  'TTSemi_pow':  cmsstyle.p10.kOrange,
+ 'EtaS':        ROOT.kBlue,
+ 'EtaP':        ROOT.kRed,
 }
 
 def get_color( sample_name ):
