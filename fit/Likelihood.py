@@ -252,7 +252,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     Includes parameters discovered in BOTH unbinned and binned sections.
 
     Heuristics:
-      - POIs are marked isPOI=True if name starts with 'c'.
+      - POIs have initial value of 1.0 if 'mu' in name
       - Nuisances are marked penalized unless penalize_nuisances=False.
     """
     pois = like_info.get('pois', []) or []
@@ -261,7 +261,8 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     params = []
     for nm in pois:
         is_wc = nm.startswith('c')
-        params.append(ModelParameter(name=nm, val=poi_init, isPOI=True, isPenalized=False))
+        poi_init_val = 1.0 if 'mu' in nm else poi_init
+        params.append(ModelParameter(name=nm, val=poi_init_val, isPOI=True, isPenalized=False))
     for nm in nuis:
         params.append(ModelParameter(
             name=nm, val=nuis_init, isPOI=False,
@@ -529,6 +530,8 @@ class N2LL:
         # in-memory pointers
         self._poi_order: Dict[Tuple[str, str], List[str]] = {}         # (rid,cid) -> POI names order for R_A
         self._cache_paths: Dict[Tuple[str, str], Tuple[str, str]] = {} # (rid,cid) -> (h5_path, meta_path)
+        # check if poi is norm/BIT, avoiding string comparisons at runtime
+        self._poi_is_norm: Dict[Tuple[str, str], bool] = {}       # (rid, cid) -> is norm POI
 
         # opened runtime state (filled by prepare_runtime)
         self._h5: Dict[Tuple[str, str], "h5py.File"] = {}
@@ -574,10 +577,20 @@ class N2LL:
                 key = (rid, cid)
 
                 poi = C.get('POI', {}) or {}
-                poi_pred = poi.get('predictor', None)
+                # for now assuming the user will not have
+                # two types of POIs (BIT vs. norm)
+                poi_type = poi.get('type', None)
+                if poi_type == 'norm':
+                    print(f'[N2LL] Using signal strength for {rid}/{cid}')
+                    self._poi_is_norm[key] = True
+                elif poi_type == 'bit':
+                    poi_pred = poi.get('predictor', None)
+                    if poi_pred is None:
+                        raise RuntimeError(f"[N2LL] Missing BIT predictor for {rid}/{cid}")
+                    self._poi_is_norm[key] = False                    
+                else:
+                    raise RuntimeError(f"[N2LL] POI of type {poi_type} does not exist")
                 poi_names = list(poi.get('parameters', []) or [])
-                if poi_pred is None:
-                    raise RuntimeError(f"[N2LL] Missing BIT predictor for {rid}/{cid}")
                 if not poi_names:
                     raise RuntimeError(f"[N2LL] No POI parameter names for {rid}/{cid}")
                 self._poi_order[key] = poi_names
@@ -799,9 +812,13 @@ class N2LL:
                         self._append_1d(writer["w0"], w0)
                         self._append_1d(writer["g"],  G[:, p_index].astype(np.float64, copy=False))
 
+                        # default is POI of type BIT, alternative is type norm. if something else, crashes in _prepare_structure
+                        if self._poi_is_norm:
+                            R_A = np.ones((Nb,1))
+                        else:
                         # BIT R_A
-                        poi_pred = (C.get('POI') or {}).get('predictor')
-                        R_A = predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
+                            poi_pred = (C.get('POI') or {}).get('predictor')
+                            R_A = predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -1002,7 +1019,10 @@ class N2LL:
 
                 # R with POI A-basis headers
                 poi_names = self._poi_order[(rid, cid)]
-                A_names = _poi_A_names(poi_names)
+                if self._poi_is_norm[(rid, cid)]:
+                    A_names = poi_names
+                else:
+                    A_names = _poi_A_names(poi_names)
                 R_dset = f['R']
                 print(f"  - R  shape={R_dset.shape}")
                 print(f"    R columns (|A|={len(A_names)}): {A_names}")
@@ -1167,7 +1187,12 @@ class N2LL:
         c_vec = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
-            cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
+            # key assumption: only one norm per class/region
+            # NB: this part still needs to be more tested
+            if self._poi_is_norm[(rid, cid)]:
+                cA_per_class[cid] = np.array([c_vec[poi_names[0]]], dtype=np.float64)
+            else:
+                cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
         return cA_per_class
 
     def _assemble_nuA_groups(self, rid: str, hypothesis) -> Dict[str, list[tuple[dict, np.ndarray]]]:
@@ -1200,7 +1225,11 @@ class N2LL:
             R_slice = f['R'][start:stop, :]             # (M, nA)
             cA      = cA_per_class[cid]
             if R_slice.shape[1] != cA.shape[0]:
-                raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
+                if self._poi_is_norm:
+                    error_msg = f"[N2LL] POI dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}"
+                else:
+                    error_msg = f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}"
+                raise RuntimeError(error_msg)
             c_dot_R = R_slice @ cA                      # (M,)
 
             # build exponent from all Δ-groups
