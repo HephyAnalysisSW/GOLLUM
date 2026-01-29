@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 
 # Import your likelihood machinery
 sys.path.insert(0, '..')
-sys.path.insert(0, '../..')
 
 from fit.Likelihood import (
     load_likelihood,
@@ -249,8 +248,8 @@ except Exception:
 os.makedirs(out_dir, exist_ok=True)
 
 base_name = os.path.splitext(os.path.basename(args.config))[0]
-rot_path_json = os.path.join(out_dir, f"orthogonal_basis_{base_name}.json")
-rot_path_npz  = os.path.join(out_dir, f"orthogonal_basis_{base_name}.npz")
+rot_path_json = os.path.join(out_dir, f"orthogonal_basis_{base_name}_{cfg['version']}.json")
+rot_path_npz  = os.path.join(out_dir, f"orthogonal_basis_{base_name}_{cfg['version']}.npz")
 
 payload = {
     "config": os.path.basename(args.config),
