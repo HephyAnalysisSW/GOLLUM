@@ -79,50 +79,72 @@ def compute_lambda_unbinned_for_region(n2ll: Likelihood.N2LL, hypothesis, rid: s
     return lam
 
 
-def sample_toy_indices_from_lambda(lam: np.ndarray,
-                                   rng: np.random.Generator,
-                                   mode: str = "poisson",
-                                   fixed_N: int | None = None) -> np.ndarray:
+def sample_toy_indices_from_lambda_signed(lam: np.ndarray,
+                                          rng: np.random.Generator,
+                                          mode: str = "poisson",
+                                          fixed_N: int | None = None,
+                                          scale: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
     """
-    Sample toy indices from a discrete pmf derived from λ_i.
-
-    Parameters
-    ----------
-    lam : array of λ_i (non-negative)
-    rng : np.random.Generator
-    mode : "poisson" or "fixed"
-        - "poisson": N_toy ~ Poisson(sum(lam))
-        - "fixed":   N_toy = fixed_N (required)
-    fixed_N : int or None
-        If mode == "fixed", use this N_toy.
+    Signed bootstrap sampling for possibly negative lam.
 
     Returns
     -------
-    indices : np.ndarray of shape (N_toy,)
-        Event indices in [0, N_events).
+    indices : (N_toy,) int
+    weights : (N_toy,) float   in {+scale, -scale}
     """
     lam = np.asarray(lam, dtype=np.float64)
-    lam = np.clip(lam, 0.0, None)
-    total = lam.sum()
-    if total <= 0:
-        raise RuntimeError("[toys] Sum of λ_i is non-positive.")
 
+    lam_pos = np.clip(lam, 0.0, None)
+    lam_neg = np.clip(-lam, 0.0, None)
+
+    tot_pos = float(lam_pos.sum())
+    tot_neg = float(lam_neg.sum())
+    tot_abs = tot_pos + tot_neg
+    if tot_abs <= 0:
+        raise RuntimeError("[toys] Sum of |λ_i| is non-positive.")
+
+    # choose toy sizes
     if mode == "poisson":
-        N_toy = rng.poisson(total)
-        print('total: ', total, '\t', 'N_toy: ', N_toy)
+        N_pos = int(rng.poisson(tot_pos)) if tot_pos > 0 else 0
+        N_neg = int(rng.poisson(tot_neg)) if tot_neg > 0 else 0
     elif mode == "fixed":
         if fixed_N is None:
             raise ValueError("mode='fixed' requires fixed_N.")
-        N_toy = int(fixed_N)
+        fixed_N = int(fixed_N)
+        if fixed_N < 0:
+            raise ValueError("fixed_N must be >= 0.")
+        # split fixed_N into + and - parts proportional to tot_pos/tot_abs
+        p_pos = tot_pos / tot_abs
+        N_pos = int(rng.binomial(fixed_N, p_pos))
+        N_neg = fixed_N - N_pos
     else:
         raise ValueError(f"Unknown mode '{mode}'.")
 
-    if N_toy == 0:
-        return np.empty(0, dtype=np.int64)
+    if (N_pos + N_neg) == 0:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)
 
-    p = lam / total
-    indices = rng.choice(len(lam), size=N_toy, replace=True, p=p)
-    return indices
+    out_idx = []
+    out_w   = []
+
+    if N_pos > 0:
+        p = lam_pos / tot_pos
+        idx = rng.choice(len(lam_pos), size=N_pos, replace=True, p=p)
+        out_idx.append(idx)
+        out_w.append(np.full(N_pos, +scale, dtype=np.float64))
+
+    if N_neg > 0:
+        p = lam_neg / tot_neg
+        idx = rng.choice(len(lam_neg), size=N_neg, replace=True, p=p)
+        out_idx.append(idx)
+        out_w.append(np.full(N_neg, -scale, dtype=np.float64))
+
+    indices = np.concatenate(out_idx).astype(np.int64, copy=False)
+    weights = np.concatenate(out_w).astype(np.float64, copy=False)
+
+    # shuffle so + and - draws are mixed
+    perm = rng.permutation(indices.size)
+    return indices[perm], weights[perm]
+
 
 # ----------------------------------------------------------------------
 
@@ -258,13 +280,14 @@ def main():
     for rid in region_ids:
         lam = compute_lambda_unbinned_for_region(n2ll, hyp_test, rid)
         for itoy in range(args.n_toys):
-            idx = sample_toy_indices_from_lambda(
+            idx, w = sample_toy_indices_from_lambda_signed(
                 lam,
                 rng=rng,
                 mode=args.mode,
                 fixed_N=args.fixed_N,
             )
             store[f"toy{itoy:04d}_{rid}_indices"] = idx
+            store[f"toy{itoy:04d}_{rid}_weights"] = w
     
     out_dir = os.path.join(user.output_directory, "toys")
     os.makedirs(out_dir, exist_ok=True)

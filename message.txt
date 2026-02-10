@@ -1,0 +1,5 @@
+feat(toys): add dynamic toy generation and plotting utilities
+- update README
+- update generate_toys_v2.py, but keep only for archival.
+- add generate_toys_v3.py with dynamic POI/nuisance CLI parameters
+- add plot_toys.py to plot the toy distributions

@@ -1,0 +1,93 @@
+from subprocess import run
+import numpy as np
+import re
+import json
+import os
+import shutil
+from typing import Dict, Any, Tuple
+
+
+def load_toys_npz(npz_path: str) -> Dict[int, Dict[str, Tuple[np.ndarray, np.ndarray]]]:
+    """
+    Returns:
+      toys[itoy][rid] = (indices, weights)
+    where
+      indices: (Ndraw,) int
+      weights: (Ndraw,) float (signed allowed). If absent, filled with +1.
+    """
+    _TOY_IDX_RE = re.compile(r"^toy(\d{4})_(.*)_indices$")
+    _TOY_WGT_RE = re.compile(r"^toy(\d{4})_(.*)_weights$")
+
+
+    z = np.load(npz_path, allow_pickle=False)
+    # temporary structure: toys[itoy][rid] = {"idx":..., "w":...}
+    tmp: Dict[int, Dict[str, Dict[str, np.ndarray]]] = {}
+
+    for key in z.files:
+        m = _TOY_IDX_RE.match(key)
+        if not m:
+            continue
+        itoy = int(m.group(1))
+        rid = m.group(2)
+        tmp.setdefault(itoy, {}).setdefault(rid, {})["idx"] = np.asarray(z[key], dtype=np.int64)
+
+    for key in z.files:
+        m = _TOY_WGT_RE.match(key)
+        if not m:
+            continue
+        itoy = int(m.group(1))
+        rid = m.group(2)
+        tmp.setdefault(itoy, {}).setdefault(rid, {})["w"] = np.asarray(z[key], dtype=np.float64)
+
+    if not tmp:
+        raise RuntimeError(f"No toy keys matched '{_TOY_IDX_RE.pattern}' in {npz_path}")
+
+    toys: Dict[int, Dict[str, Tuple[np.ndarray, np.ndarray]]] = {}
+    for itoy, by_rid in tmp.items():
+        toys[itoy] = {}
+        for rid, d in by_rid.items():
+            if "idx" not in d:
+                continue
+            idx = d["idx"]
+            w = d.get("w", None)
+            if w is None:
+                w = np.ones(idx.shape[0], dtype=np.float64)
+            if w.shape[0] != idx.shape[0]:
+                raise RuntimeError(
+                    f"[toys] itoy={itoy} rid={rid}: indices and weights have different lengths "
+                    f"({idx.shape[0]} vs {w.shape[0]})"
+                )
+            toys[itoy][rid] = (idx, w)
+
+    return toys
+
+
+
+python3_exe = "python3"
+config = "user/kaan/check_CL_v6.5.py configs/unbinned_merged.yaml"
+toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_c2_1.0_mode-poisson_N1000_scale1.npz"
+print_info = "--print-every 1 --minuit-print-level 2"
+out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/globalfit/"
+
+toys = load_toys_npz(toy_file)
+
+job_dict = {}
+
+for i in range(len(toys)):
+    toy_number = f"--toy-number {i}"
+    fit_out = "--out " + os.path.join(out_dir, f"toy_{i}")
+    command = ' '.join([python3_exe, config, toy_file, toy_number, print_info, fit_out])
+    result = run(f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"', shell=True, capture_output = True, text = True)
+    job_id = re.search("\d+", result.stdout).group()    # Get the number with '\d+'
+    info_dict = {'command': f'sbatch {command}',        # Save command [important for resubmitting]
+                'jobid':   job_id}                      # Save job_id  [identify the status with sacct]
+    job_dict[f'toy_{i}'] = info_dict                    # Add to dict
+    print(result.stdout[:-1])
+
+out_json_path = os.path.join(out_dir, 'job_ids2018.json')
+print(f"\nWriting to {out_json_path}...\n")
+with open(out_json_path, 'w') as f:
+    json.dump(job_dict, f, indent=2)
+
+
+print('\nFinished. Exiting...')
