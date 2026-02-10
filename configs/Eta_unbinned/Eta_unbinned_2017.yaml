@@ -12,7 +12,6 @@ likelihood:
     regions:
         - id: SR_2017 
           classifier:
-          classifier:
             type: tfmc
             job: tfmc_EtaSandP_2017
             asimov: [TTLep_pow_2017, EtaS_2017, EtaP_2017]
@@ -151,9 +150,16 @@ likelihood:
 
             - id: EtaS_2017
               sample: EtaS_2017
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaS]
 
             - id: EtaP_2017
               sample: EtaP_2017
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaP]
+
 
 jobs:
   # -------------------------------

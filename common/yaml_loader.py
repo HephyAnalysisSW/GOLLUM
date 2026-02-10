@@ -129,77 +129,6 @@ def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
         raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
     return out
 
-#def _apply_defaults_and_checks(cfg: dict):
-#    """
-#    - Resolve defaults.default_features via _resolve_features_list.
-#    - For each job of type ICH / ICPH:
-#        * If job.binning missing -> set to defaults
-#    - For each job of type scaler / classifier(tfmc) / pnn / bit:
-#        * If job.features missing -> set to defaults
-#        * Else resolve job.features via _resolve_features_list
-#    - If a PNN or TFMC has extras.use_scaler, ensure features identical to that scaler job.
-#    """
-#    defaults = cfg.get("defaults", {}) or {}
-#    default_tokens = (defaults.get("default_features") or [])
-#    default_features = _resolve_features_list(default_tokens)
-#    # keep a resolved copy (optional)
-#    cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
-#    # default binning, if there is one
-#    default_binning = (defaults.get("default_binning") or None)
-#
-#    default_selection = (defaults.get("default_selection") or None)
-#
-#    jobs = cfg.get("jobs", []) or []
-#    # resolve per job
-#    for j in jobs:
-#        if not isinstance(j, dict):
-#            continue
-#        jtyp = j.get("type")
-#
-#        if jtyp in {"ich", "icph"} and default_binning:
-#            if not "binning" in j:
-#                j["binning"] = default_binning
-#        if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
-#            continue
-#        if jtyp == "classifier" and j.get("framework") != "tfmc":
-#            continue
-#        feat_tokens = j.get("features", None)
-#        if feat_tokens is None:
-#            j["features"] = list(default_features)
-#        else:
-#            j["features"] = _resolve_features_list(feat_tokens)
-#
-#    # scaler-feature consistency for TFMC/PNN that reference a scaler
-#    id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
-#    for j in jobs:
-#        if not isinstance(j, dict):
-#            continue
-#        jtyp = j.get("type")
-#        if jtyp == "classifier" and j.get("framework") == "tfmc":
-#            extras = j.get("extras", {}) or {}
-#            sid = extras.get("use_scaler")
-#            if isinstance(sid, str) and sid in id2job:
-#                sj = id2job[sid]
-#                if sj.get("type") != "scaler":
-#                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
-#                f_a = j.get("features", [])
-#                f_b = sj.get("features", [])
-#                if f_a != f_b:
-#                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' features != scaler '{sid}' features.\n"
-#                                       f"  TFMC : {f_a}\n  Scaler: {f_b}")
-#        if jtyp == "pnn":
-#            extras = j.get("extras", {}) or {}
-#            sid = extras.get("use_scaler")
-#            if isinstance(sid, str) and sid in id2job:
-#                sj = id2job[sid]
-#                if sj.get("type") != "scaler":
-#                    raise RuntimeError(f"[features] PNN '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
-#                f_a = j.get("features", [])
-#                f_b = sj.get("features", [])
-#                if f_a != f_b:
-#                    raise RuntimeError(f"[features] PNN '{j.get('id')}' features != scaler '{sid}' features.\n"
-#                                       f"  PNN   : {f_a}\n  Scaler: {f_b}")
-
 def _apply_defaults_and_checks(cfg: dict):
     """
     - Resolve defaults.default_features via _resolve_features_list.
@@ -565,18 +494,6 @@ def load_surrogates(cfg, config_path, overwrite=False):
             return None
 
     ml_dir = Path(__file__).resolve().parent.parent / "ML"
-
-#    # Define the desired type order
-#    _type_order = ["scaler", "ic", "ich", "icp", "icph"]
-#    _type_rank  = {t: i for i, t in enumerate(_type_order)}
-#
-#    jobs = cfg.get("jobs") or []
-#
-#    # Sort jobs by type, with the specified types first
-#    jobs_sorted = sorted(
-#        jobs,
-#        key=lambda job: _type_rank.get(job.get("type"), len(_type_order))
-#    )
 
     ok, missing = [], []
     # ---------- First pass ----------

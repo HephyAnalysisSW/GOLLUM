@@ -76,7 +76,7 @@ def load_likelihood(cfg):
 
     all_pois = set()
     all_nuis = set()
-
+    floating = []
     # convenience cache of jobs by id
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
 
@@ -97,16 +97,29 @@ def load_likelihood(cfg):
         # classes
         classes = R.get("classes", []) or []
         for C in classes:
-            # POI (BIT)
             poi = C.get("POI", {}) or {}
-            poi_job_id = poi.get("job")
-            if poi_job_id:
-                bit_job = id2job.get(poi_job_id) or _job_by_id(cfg, poi_job_id)
-                poi['predictor'] = _predictor_from_job(bit_job)
-                if poi['predictor'] is None:
-                    logger.warning(f"[likelihood] BIT '{poi_job_id}' has no predictor attached yet.")
+            poi_type = poi.get("type")
+            # POI (BIT)
+            if poi_type == "bit":
+                poi_job_id = poi.get("job")
+                if poi_job_id:
+                    bit_job = id2job.get(poi_job_id) or _job_by_id(cfg, poi_job_id)
+                    poi['predictor'] = _predictor_from_job(bit_job)
+                    if poi['predictor'] is None:
+                        logger.warning(f"[likelihood] BIT '{poi_job_id}' has no predictor attached yet.")
+            elif poi_type == "rate_shift":
+                param_len = len(poi.get("parameters",[]))
+                if len(poi.get("parameters"))!=1:
+                    raise RuntimeError(f"A 'rate_shift' POI must have a single parameter. Found {param_len}.")
+                if not poi.get("parameters")[0].startswith('rate_shift'):
+                    raise RuntimeError("Rate shift parameter name must start with rate_shift.")
+            elif poi_type is None:
+                pass
+            else:
+                raise RuntimeError(f"Unknown POI type {poi_type}")
+
             # collect POI parameter names
-            for nm in (poi.get("paramaters") or poi.get("parameters") or []):
+            for nm in poi.get("parameters", []):
                 all_pois.add(nm)
 
             # systematics
@@ -144,14 +157,20 @@ def load_likelihood(cfg):
                     # collect nuisance names
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
                 else:
                     # future unbinned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
 
     # -----------------------
     # Binned regions (ICH/ICPH)
@@ -162,13 +181,27 @@ def load_likelihood(cfg):
         for C in classes:
             # POI (ICH)
             poi = C.get("POI", {}) or {}
-            poi_job_id = poi.get("job")
-            if poi_job_id:
-                ich_job = id2job.get(poi_job_id) or _job_by_id(cfg, poi_job_id)
-                poi['predictor'] = _predictor_from_job(ich_job)
-                if poi['predictor'] is None:
-                    logger.warning(f"[likelihood] ICH '{poi_job_id}' has no predictor attached yet.")
-            for nm in (poi.get("paramaters") or poi.get("parameters") or []):
+            poi_type = poi.get("type")
+            if poi_type == 'ich':
+                poi_job_id = poi.get("job")
+                if poi_job_id:
+                    ich_job = id2job.get(poi_job_id) or _job_by_id(cfg, poi_job_id)
+                    poi['predictor'] = _predictor_from_job(ich_job)
+                    if poi['predictor'] is None:
+                        logger.warning(f"[likelihood] ICH '{poi_job_id}' has no predictor attached yet.")
+            elif poi_type == "rate_shift":
+                raise NotImplementedError
+                #param_len = len(poi.get("parameters",[]))
+                #if len(poi.get("parameters"))!=1:
+                #    raise RuntimeError(f"A 'rate_shift' POI must have a single parameter. Found {param_len}.")
+                #if not poi.get("parameters")[0].startswith('rate_shift'):
+                #    raise RuntimeError("Rate shift parameter name must start with rate_shift.")
+            elif poi_type is None:
+                pass
+            else:
+                raise RuntimeError(f"Unknown POI type {poi_type}")
+
+            for nm in poi.get("parameters", []):
                 all_pois.add(nm)
 
             # systematics
@@ -191,14 +224,20 @@ def load_likelihood(cfg):
                     # collect nuisance names
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
                 else:
                     # future binned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
+                        if S.get("floating", False):
+                            floating.append(nm)
 
     # Binning consistency check across regions:
     for R in binned:
@@ -242,18 +281,17 @@ def load_likelihood(cfg):
     nuis_list = sorted(all_nuis)
 
     # Return both sections enriched
-    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list}
+    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list, 'floating':floating}
 
 def build_hypothesis_from_likelihood(like_info, *, name=None,
                                      poi_init=0.0, nuis_init=0.0,
-                                     penalize_nuisances=True):
+                                     ):
     """
     Convenience: construct a Hypothesis from load_likelihood(...) output.
     Includes parameters discovered in BOTH unbinned and binned sections.
 
     Heuristics:
       - POIs are marked isPOI=True if name starts with 'c'.
-      - Nuisances are marked penalized unless penalize_nuisances=False.
     """
     pois = like_info.get('pois', []) or []
     nuis = like_info.get('nuisances', []) or []
@@ -265,7 +303,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     for nm in nuis:
         params.append(ModelParameter(
             name=nm, val=nuis_init, isPOI=False,
-            isPenalized=bool(penalize_nuisances)
+            isPenalized=bool(nm not in like_info["floating"])
         ))
     return Hypothesis(parameters=params, name=name or "from_yaml")
 
@@ -488,7 +526,7 @@ class N2LL:
     """
     def __init__(self,
                  likelihood: Dict[str, Any],
-                 module_samples: str,
+                 factory,
                  cache_subdir: str = "caches",
                  cache_root: Optional[str] = None,
                  overwrite: bool = False,
@@ -496,8 +534,10 @@ class N2LL:
         import importlib, os
         self.lk = likelihood
         self.regions = list(likelihood.get('regions', []))
-        self.module_samples = module_samples
-        self.samples_mod = importlib.import_module(module_samples)
+        self.factory = factory 
+        #self.module_samples = module_samples
+        #self.samples_mod = importlib.import_module(module_samples)
+        #self.default_features = default_features
         self.cache_subdir = cache_subdir
         self.overwrite = overwrite
         self.eval_chunk_size = int(eval_chunk_size)
@@ -523,7 +563,7 @@ class N2LL:
             base_dir = user.cache_directory
         except Exception:
             base_dir = "./caches"
-        self.cache_root = cache_root or os.path.join(base_dir, cache_subdir)
+        self.cache_root = cache_root or os.path.join( base_dir, cache_subdir )
         os.makedirs(self.cache_root, exist_ok=True)
 
         # in-memory pointers
@@ -536,6 +576,7 @@ class N2LL:
         self._N_region: Dict[str, int] = {}                            # region id -> number of events
         self._class_ids_by_region: Dict[str, List[str]] = {}           # region id -> [class ids in order]
         self._lnN_by_class: Dict[Tuple[str, str], List[Tuple[str, float]]] = {}
+        self._rate_shift_by_class: Dict[Tuple[str, str], Optional[str]] = {} 
 
         # attach predictors from likelihood (already set by yaml_loader.load_likelihood)
         self._prepare_structure()
@@ -565,8 +606,8 @@ class N2LL:
             if not isinstance(asimov_list, list) or not all(isinstance(s, str) for s in asimov_list):
                 raise RuntimeError(f"[N2LL] Region '{rid}' needs classifier.asimov: [sample, ...]")
             for sname in asimov_list:
-                if not hasattr(self.samples_mod, sname):
-                    raise RuntimeError(f"[N2LL] Asimov sample '{sname}' not found in {self.module_samples}")
+                if not self.factory.get( sname ): #hasattr(self.samples_mod, sname):
+                    raise RuntimeError(f"[N2LL] Asimov sample '{sname}' not found.")
             R['_asimov_samples'] = asimov_list
 
             for C in R.get('classes', []):
@@ -574,13 +615,30 @@ class N2LL:
                 key = (rid, cid)
 
                 poi = C.get('POI', {}) or {}
+                poi_type = poi.get('type', None)
                 poi_pred = poi.get('predictor', None)
-                poi_names = list(poi.get('parameters', []) or [])
-                if poi_pred is None:
-                    raise RuntimeError(f"[N2LL] Missing BIT predictor for {rid}/{cid}")
-                if not poi_names:
-                    raise RuntimeError(f"[N2LL] No POI parameter names for {rid}/{cid}")
+
+                # --- rate_shift: a single additive POI term per class ---
+                rate_shift_param = None
+                if poi_type == "rate_shift":
+                    rs_params = list(poi.get("parameters", []) or [])
+                    if len(rs_params) != 1:
+                        raise RuntimeError(f"[N2LL] 'rate_shift' POI must have exactly one parameter for {rid}/{cid}.")
+                    rate_shift_param = rs_params[0]
+                    poi_names = []  # IMPORTANT: no BIT coefficients in this case
+                else:
+                    # BIT (or empty/None): keep the usual POI parameter list for c_A ⋅ R_A
+                    poi_names = list(poi.get('parameters', []) or [])
+
+                    # Only complain about predictor if we actually asked for BIT
+                    if poi_type == "bit" and poi_pred is None:
+                        print(f"[N2LL] No BIT predictor for {rid}/{cid}")
+                    if poi_type == "bit" and not poi_names:
+                        print(f"[N2LL] No POI parameter names for {rid}/{cid}")
+
                 self._poi_order[key] = poi_names
+                self._rate_shift_by_class[key] = rate_shift_param
+
 
                 # keep only PNN systematics here
                 sys_list = []
@@ -607,7 +665,11 @@ class N2LL:
     # --------- helpers: paths ----------
     def _region_cache_dir(self, region_id: str) -> str:
         import os
-        d = os.path.join(self.cache_root, region_id)
+        d = os.path.join(
+            self.cache_root, 
+            region_id,
+            ('shuffle_'+'_'.join(self.shuffle_features)) if hasattr(self, "shuffle_features") else ""
+        )
         os.makedirs(d, exist_ok=True)
         return d
 
@@ -625,9 +687,10 @@ class N2LL:
         Sets n_split=100 temporarily on RDataLoader-like objects.
         """
         feat_names_ref = None
+        print(region['_asimov_samples'])
         for sname in region['_asimov_samples']:
-            L = getattr(self.samples_mod, sname)
-
+            #L = getattr(self.samples_mod, sname)
+            L = self.factory.get(sname)
             # enforce consistent features
             feat_names = list(getattr(L, "feature_names", []) or [])
             if feat_names_ref is None:
@@ -728,7 +791,8 @@ class N2LL:
                 if not needs[cid]:
                     continue
                 h5_path, meta_path = self._paths_for(rid, cid)
-                print(h5_path, meta_path)
+                print(f"Cache file for {cid}: {h5_path}")
+                print(f"Meta  file for {cid}: {meta_path}")
 
                 # create HDF5 and datasets with resizable first dim
                 f = h5py.File(h5_path, "w")
@@ -749,7 +813,8 @@ class N2LL:
             # Pre-count shards for UI
             total_shards = 0
             for sname in R['_asimov_samples']:
-                L = getattr(self.samples_mod, sname)
+                #L = getattr(self.samples_mod, sname)
+                L = self.factory.get(sname)
                 total_shards += len(getattr(L, "base", L))
 
             # prepare column selection mask
@@ -799,9 +864,26 @@ class N2LL:
                         self._append_1d(writer["w0"], w0)
                         self._append_1d(writer["g"],  G[:, p_index].astype(np.float64, copy=False))
 
-                        # BIT R_A
+                        ## BIT R_A
+                        #poi_pred = (C.get('POI') or {}).get('predictor')
+                        #R_A = predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
+
+                        #if writer["R"] is None:
+                        #    nA = R_A.shape[1]
+                        #    writer["R"] = f.create_dataset("R", (0, nA), maxshape=(None, nA), dtype="f8", chunks=True)
+                        #    first_batch_shapes.setdefault(cid, {})["nA"] = nA
+                        #self._append_2d(writer["R"], R_A)
+
+                        # BIT R_A (could be absent)
                         poi_pred = (C.get('POI') or {}).get('predictor')
-                        R_A = predict_bit_ratio(poi_pred, X[:, C['POI']['column_mask']])  # (Nb, nA)
+                        if poi_pred is None:
+                            # No BIT: R_A has width 0
+                            R_A = np.empty((Nb, 0), dtype=np.float64)
+                        else:
+                            # Use columns only if a mask was set
+                            col_mask = (C.get('POI') or {}).get('column_mask', None)
+                            X_in = X[:, col_mask] if col_mask is not None else X
+                            R_A = predict_bit_ratio(poi_pred, X_in)  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -1170,6 +1252,20 @@ class N2LL:
             cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
         return cA_per_class
 
+    def _assemble_rate_shift_per_class(self, rid: str, hypothesis) -> Dict[str, float]:
+        """
+        rate_shift is a single additive POI per class: (rid,cid) -> parameter name.
+        Returns cid -> float shift (default 0.0 if not configured).
+        """
+        out: Dict[str, float] = {}
+        for cid in self._class_ids_by_region.get(rid, []):
+            pname = self._rate_shift_by_class.get((rid, cid), None)
+            if pname is None:
+                out[cid] = 0.0
+            else:
+                out[cid] = float(hypothesis[pname].val) if pname in hypothesis else 0.0
+        return out
+
     def _assemble_nuA_groups(self, rid: str, hypothesis) -> Dict[str, list[tuple[dict, np.ndarray]]]:
         """Build ν_A vectors per Δ-group for a given hypothesis."""
         nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
@@ -1185,7 +1281,7 @@ class N2LL:
             nuA_per_group[cid] = groups
         return nuA_per_group
 
-    def _compute_T_chunk(self, rid: str, cA_per_class, nuA_per_group, ln_bias_map, start: int, stop: int) -> np.ndarray:
+    def _compute_T_chunk(self, rid: str, cA_per_class, nuA_per_group, ln_bias_map, rate_shift_map, start: int, stop: int) -> np.ndarray:
         """
         Compute T(x; c, ν) on [start:stop) for a single region rid, summing over classes.
         T_i = Σ_p g_p(x_i) * [ (c⋅R_p)(x_i) * e^{Σ_s ν_B Δ_{p,B}(x_i)} + (e^{...} - 1) ].
@@ -1196,11 +1292,21 @@ class N2LL:
         for cid in self._class_ids_by_region[rid]:
             f = self._h5[(rid, cid)]
             g_slice = f['g'][start:stop]                # (M,)
-            R_slice = f['R'][start:stop, :]             # (M, nA)
+            R_slice = f['R'][start:stop, :]                  # (M, nA)
             cA      = cA_per_class[cid]
-            if R_slice.shape[1] != cA.shape[0]:
-                raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
-            c_dot_R = R_slice @ cA                      # (M,)
+
+            if R_slice.shape[1] == 0:
+                # No BIT contribution
+                c_dot_R = np.zeros(R_slice.shape[0], dtype=np.float64)
+            else:
+                if R_slice.shape[1] != cA.shape[0]:
+                    raise RuntimeError(f"[N2LL] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
+                c_dot_R = R_slice @ cA
+
+            # --- additive POI bias: rate_shift (scalar per class) ---
+            rs = float(rate_shift_map.get(cid, 0.0))
+            if rs != 0.0:
+                c_dot_R = c_dot_R + rs
 
             # build exponent from all Δ-groups
             expo = np.zeros_like(g_slice)
@@ -1261,19 +1367,22 @@ class N2LL:
                          for nm, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
                 for cid in class_ids
             }
+            
+            rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis)
 
             # chunked compute and store
             chunk = self.eval_chunk_size
             Ts: list[np.ndarray] = []
             for start in range(0, N, chunk):
                 stop = min(start + chunk, N)
-                T_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                #T_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                T_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
                 Ts.append(T_chunk)
             self._asimov_T[rid] = Ts
 
         # ----- also precompute binned Asimov λ'(i) if binned regions exist -----
         self._binned_asimov_lambda.clear()
-        if self._asimov_active and self._binned_regions_ids:
+        if self._binned_regions_ids:
             for rid in self._binned_regions_ids:
                 lam_prime = self._compute_lambda_binned(rid, hypothesis)  # vector (Nflat,)
                 self._binned_asimov_lambda[rid] = lam_prime
@@ -1480,6 +1589,7 @@ class N2LL:
                                  for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
                         for cid in byc.keys()
                     }
+                    rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis._base)
 
                     for cid, comp in byc.items():
                         g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
@@ -1488,6 +1598,11 @@ class N2LL:
                         if R_slice.shape[1] != cA.shape[0]:
                             raise RuntimeError(f"[N2LL:obs:unbinned] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
                         c_dot_R = R_slice @ cA                                # (N,)
+
+                        # Adding rate shift
+                        rs = float(rate_shift.get(cid, 0.0))
+                        if rs != 0.0:
+                            c_dot_R = c_dot_R + rs
 
                         expo = np.zeros_like(g_slice)
                         for gm, nuA in nuA_per_group[cid]:
@@ -1544,12 +1659,14 @@ class N2LL:
                          for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
                 for cid in class_ids
             }
+            rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis._base)
 
             chunk = self.eval_chunk_size
             asimov_T_chunks = self._asimov_T.get(rid, None) if self._asimov_active else None
             for ichunk, start in enumerate(range(0, N, chunk)):
                 stop = min(start + chunk, N)
-                T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                #T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+                T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
                 W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
                 total_sum += _weighted_sum_log1p_minus_x(T, W)
 
@@ -1639,6 +1756,11 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         m.errors[i] = s
         if hasattr(m, "set_initial_step"):
             m.set_initial_step(i, 0.3 * s)
+
+    # rate_shift nuisances are bound 
+    for name in m.parameters:
+        if name.startswith("rate_shift"):
+            m.limits[name] = (-1.0, None)
 
     if verbosity > 0:
         print("\n[make_minuit] Floating parameters:")
@@ -1883,6 +2005,8 @@ if __name__ == "__main__":
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"], help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",)
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+    p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"), help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
+    p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -1911,7 +2035,9 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
-
+    if args.shuffle:
+        suffix += "_"+"_".join(args.shuffle)
+        print(f"Shuffling these features: {','.join(args.shuffle)}")
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
 
@@ -1920,21 +2046,55 @@ if __name__ == "__main__":
     overwrite_fit = args.overwrite in ("fit", "all")
     overwrite_cache = args.overwrite == "all"
 
+    # Make sample loader factory from default cfg
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+    from common.yaml_loader import _resolve_features_list
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list( default_features ) if default_features else None
+    factory     = samples_mod.Factory( 
+        features  = features,
+        selection = cfg["defaults"].get("default_selection", None),
+        selection_features = cfg["defaults"].get("default_selection_features", None),
+        )
+
     # -------- load fit if available --------
     if (not overwrite_fit) and os.path.exists(out_path):
         fit = json.load(open(out_path))
     else:
         n2ll = N2LL(
             like_info,
-            cfg["defaults"]["module_samples"],
+            #cfg["defaults"]["module_samples"],
+            factory = factory,
             cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
             cache_root=None,
             overwrite=overwrite_cache,
         )
-
+        n2ll.shuffle_features = args.shuffle
         n2ll.build_cache()
         n2ll.prepare_runtime()
-        n2ll.setAsimov()
+
+        # ---- optional off-nominal Asimov point ----
+        if args.asimov is None:
+            n2ll.setAsimov()
+        else:
+            if rotated: raise NotImplementedError
+
+            if len(args.asimov) % 2 != 0:
+                raise RuntimeError(f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}")
+
+            asimov_kwargs = {}
+            for i in range(0, len(args.asimov), 2):
+                par = args.asimov[i]
+                try:
+                    val = float(args.asimov[i + 1])
+                except ValueError as e:
+                    raise RuntimeError(f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'") from e
+                asimov_kwargs[par] = val
+            # Build the modified hypothesis for generating the Asimov expectation
+            asimov_h = hyp.cloneModify(**asimov_kwargs)
+            print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
+            n2ll.setAsimov(asimov_h)
 
         m = run_minuit_fit(
             n2ll,

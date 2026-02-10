@@ -366,13 +366,28 @@ def __getattr__(name: str):
 # ----------------------------------------------------------------------
 class Factory:
 
-    def __init__( self, BASE_DIRECTORY: str = BASE_DIRECTORY):
+    def __init__( self, 
+            BASE_DIRECTORY: str = BASE_DIRECTORY,
+            features: List[str] = None,
+            selection: str = None,
+            selection_features: List[str] = None,
+            ):
         if type(BASE_DIRECTORY) == str:
             self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
         else:
             self.BASE_DIRECTORY = BASE_DIRECTORY
 
-    def get(self, process: str, era: str, tag: str = None) -> RDataLoader:
+        self.features = features
+        self.selection = selection
+        self.selection_features = selection_features
+
+    def get(self, process: str, era: str = None, tag: str = None) -> RDataLoader:
+
+        if not era and tag:
+            raise RuntimeError(f"When you specify a tag (here: {tag}) you must specify the era." )
+        
+        if not era:
+            process, era, tag = _parse_name(process)
             
         if not tag:
             tag = "nominal"
@@ -439,7 +454,10 @@ class Factory:
                 msg_lines.append("")
 
             raise e 
-
+        if self.features:
+            loader.setFeatures( self.features )
+        if self.selection:
+            loader.addSelection( self.selection, required_branches = self.selection_features )
         return loader
 
 if __name__ == "__main__":
