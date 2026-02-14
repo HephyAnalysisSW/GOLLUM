@@ -71,7 +71,9 @@ class PNN:
 
         # model
         self.model = self._build_model()
+        
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.optimizer = tf.keras.optimizers.AdamW(learning_rate=self.learning_rate, weight_decay=1e-4)
 
         # scaler placeholders (optionally set via set_scaler)
         self.feature_means     = None
