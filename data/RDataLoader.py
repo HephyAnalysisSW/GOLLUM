@@ -28,6 +28,19 @@ SelectionNpFn = Callable[[np.ndarray, np.ndarray, np.ndarray], Union[np.ndarray,
 SelectionItem = Union[str, SelectionAkFn, SelectionNpFn]
 SelectionLike = Union[SelectionItem, Sequence[SelectionItem], None]
 
+# -----------------------------------------------------------------------------
+# UID split (event-level, leak-free)
+# -----------------------------------------------------------------------------
+UID_FIELDS_DEFAULT = ("run", "luminosityBlock", "event")
+
+UID_SPLIT_SCHEME = (
+    ("pnn_train", 0.50),
+    ("pnn_val", 0.10),
+    ("c2st_train", 0.15),
+    ("c2st_val", 0.05),
+    ("final_eval", 0.20),
+)
+
 
 def _rss_mb() -> float:
     with open("/proc/self/status", "r") as f:
@@ -59,6 +72,10 @@ class RDataLoader:
         observer_names: Optional[Sequence[str]] = None,
         # ---- NEW & SIMPLE: explicit weight branches (product). If None/empty -> weights = 1.
         weight_branches: Optional[Sequence[str]] = None,
+        # ---- UID split (event-level) ----
+        uid_fields: Sequence[str] = UID_FIELDS_DEFAULT,
+        uid_split_name: Optional[str] = None,  # "pnn_train"|"pnn_val"|"c2st_train"|"c2st_val"|"final_eval"
+        uid_seed: int = 55,
     ) -> None:
         self.tree_name = tree_name
         self.selection = selection
@@ -71,6 +88,10 @@ class RDataLoader:
         self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
         self.observer_names: Optional[List[str]] = list(observer_names) if observer_names else None
         self.weight_branches: List[str] = list(weight_branches) if weight_branches else []
+        # UID split config
+        self.uid_fields = tuple(uid_fields)
+        self.uid_split_name = uid_split_name
+        self.uid_seed = int(uid_seed)
 
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
@@ -105,6 +126,10 @@ class RDataLoader:
             _requested = list(dict.fromkeys(list(_requested) + list(self.observer_names)))
         if self.weight_branches:
             _requested = list(dict.fromkeys(list(_requested) + list(self.weight_branches)))
+        # Ensure UID fields are requested (for UID split)
+        if self.uid_split_name is not None:
+            _requested = list(dict.fromkeys(list(_requested) + list(self.uid_fields)))
+       
         self._requested_branches = _requested
 
         # Split layout
@@ -122,6 +147,11 @@ class RDataLoader:
         with uproot.open(self._all_files[0], object_cache=None, array_cache=None) as f0:
             t0 = f0[self.tree_name]
             self._available0 = set(t0.keys())
+        if self.uid_split_name is not None:
+            missing_uid = [b for b in self.uid_fields if b not in self._available0]
+            if missing_uid:
+                raise KeyError(f"UID split requested but UID fields missing in tree: {missing_uid}")
+
         self._use_branches = self._filter_branches(self._available0, self._requested_branches)
 
         # Persistent file/tree handle (single-file fast path)
@@ -254,6 +284,10 @@ class RDataLoader:
         if extra_branches:
             req += list(extra_branches)
 
+        # ---- NEW: keep UID fields if UID split is enabled ----
+        if self.uid_split_name is not None:
+            req += list(self.uid_fields)
+
         seen = set()
         req_dedup = []
         for b in req:
@@ -306,6 +340,12 @@ class RDataLoader:
                 n = len(ar_all)
                 lo, hi = self._event_bounds(n, self.n_split)[key]
                 ar = ar_all[lo:hi]
+
+        # UID split (event-level) before any user selections
+        if self.uid_split_name is not None:
+            m_uid = self._uid_split_mask(ar)
+            ar = ar[m_uid]
+
 
         # selections: early string exprs
         for sel in self._sel_exprs:
@@ -563,6 +603,65 @@ class RDataLoader:
             raise KeyError(f"Missing branches in tree: {missing}")
         return [b for b in requested if b in available]
 
+    def _uid_hash_u64(self, run: np.ndarray, lumi: np.ndarray, event: np.ndarray) -> np.ndarray:
+        """
+        Vectorized 64-bit stable hash based on splitmix64.
+        Returns uint64 array. Stable across processes/machines.
+        """
+        run = run.astype(np.uint64, copy=False)
+        lumi = lumi.astype(np.uint64, copy=False)
+        event = event.astype(np.uint64, copy=False)
+
+        x = run
+        x ^= lumi * np.uint64(0x9E3779B97F4A7C15)
+        x ^= event * np.uint64(0xBF58476D1CE4E5B9)
+        x ^= np.uint64(self.uid_seed)
+
+        # splitmix64
+        x = (x + np.uint64(0x9E3779B97F4A7C15)) & np.uint64(0xFFFFFFFFFFFFFFFF)
+        z = x
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9) & np.uint64(0xFFFFFFFFFFFFFFFF)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB) & np.uint64(0xFFFFFFFFFFFFFFFF)
+        z = z ^ (z >> np.uint64(31))
+        return z
+
+    def _uid_split_mask(self, ar: ak.Array) -> np.ndarray:
+        """
+        Boolean mask for selecting events that belong to self.uid_split_name
+        according to UID_SPLIT_SCHEME. Uses hash bucket in [0, 9999].
+        """
+        if self.uid_split_name is None:
+            return np.ones(len(ar), dtype=bool)
+
+        names = [k for k, _ in UID_SPLIT_SCHEME]
+        if self.uid_split_name not in names:
+            raise ValueError(f"Unknown uid_split_name='{self.uid_split_name}'. Allowed: {names}")
+
+        rname, lname, ename = self.uid_fields
+        run = ak.to_numpy(ar[rname])
+        lumi = ak.to_numpy(ar[lname])
+        event = ak.to_numpy(ar[ename])
+
+        h = self._uid_hash_u64(run, lumi, event)
+        bucket = (h % np.uint64(10000)).astype(np.uint16)  # 0..9999
+
+        cum = 0.0
+        lo = 0
+        target_lo = target_hi = None
+        for name, frac in UID_SPLIT_SCHEME:
+            hi = int(round((cum + frac) * 10000))
+            if name == self.uid_split_name:
+                target_lo, target_hi = lo, hi
+                break
+            cum += frac
+            lo = hi
+
+        if target_lo is None or target_hi is None:
+            raise RuntimeError("UID split boundaries not found (scheme error).")
+
+        return (bucket >= target_lo) & (bucket < target_hi)
+
+
     def __str__(self) -> str:
         files = getattr(self, "_all_files", [])
         feat = self.feature_names or []
@@ -607,6 +706,9 @@ class RDataLoader:
             feature_names=self.feature_names,
             observer_names=self.observer_names,
             weight_branches=self.weight_branches if weight_branches is None else weight_branches,
+            uid_fields=self.uid_fields,
+            uid_split_name=self.uid_split_name,
+            uid_seed=self.uid_seed,
         )
 
     def clone(self) -> "RDataLoader":
@@ -626,6 +728,9 @@ class RDataLoader:
             feature_names=self.feature_names,
             observer_names=self.observer_names,
             weight_branches=self.weight_branches,
+            uid_fields=self.uid_fields,
+            uid_split_name=self.uid_split_name,
+            uid_seed=self.uid_seed,
         )
 
     def view(
