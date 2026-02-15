@@ -1,11 +1,11 @@
-version: Eta_unbinned_2016APV_v2
+version: Eta_unbinned_2016APV_v3
 
 defaults:
   module_samples: "data.samples_RunII"
   default_features:
     - THRESHOLD 
-  default_selection: "tr_ttbar_mass<500"
-  default_selection_features: ["tr_ttbar_mass"]
+  #default_selection: "tr_ttbar_mass<500" # this was here for v2
+  #default_selection_features: ["tr_ttbar_mass"]
   
 
 likelihood:
