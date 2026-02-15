@@ -1,17 +1,16 @@
-version: Eta_unbinned_2016APV_v2
+version: Eta_unbinned_2016APV_v3
 
 defaults:
   module_samples: "data.samples_RunII"
   default_features:
     - THRESHOLD 
-  default_selection: "tr_ttbar_mass<500"
-  default_selection_features: ["tr_ttbar_mass"]
+  #default_selection: "tr_ttbar_mass<500" # this was here for v2
+  #default_selection_features: ["tr_ttbar_mass"]
   
 
 likelihood:
     regions:
         - id: SR_2016APV 
-          classifier:
           classifier:
             type: tfmc
             job: tfmc_EtaSandP_2016APV
@@ -149,11 +148,17 @@ likelihood:
                   job: pnn_TTLep_pow_2016APV_Uncl
                   parameters: [nu_Uncl]
 
-            - id: EtaS_2016
-              sample: EtaS_2016
+            - id: EtaS_2016APV
+              sample: EtaS_2016APV
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaS]
 
-            - id: EtaP_2016
-              sample: EtaP_2016
+            - id: EtaP_2016APV
+              sample: EtaP_2016APV
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaP]
 
 jobs:
   # -------------------------------

@@ -32,9 +32,9 @@ p.add_argument("--variation", nargs="+", default=None,
                     "Example: --variation alphaS ren jes_abs_16")
 p.add_argument("--eras", nargs="+", default=None,
                help="Subset of eras to run (space-separated). Example: --eras 2017 2018")
-p.add_argument("--selection", default="tr_isvalid & isOS & offZ",
+p.add_argument("--selection", default=" (lep1_pt>20) & tr_isvalid & isOS & offZ",
                help="String-based selection")
-p.add_argument("--branches_for_selection", nargs="+", default=["tr_isvalid", "isOS", "offZ"],
+p.add_argument("--branches_for_selection", nargs="+", default=["lep1_pt", "tr_isvalid", "isOS", "offZ"],
                help="branches we need to make the selection")
 p.add_argument("--features", nargs="+", default=[],
                help="branches we need to make the selection")
@@ -211,7 +211,7 @@ for f in features:
 # Build loaders into variations dict
 # -----------------------------------------------------------------------------
 progress("Instantiating Factory...", force=True)
-factory = Factory(base)
+factory = Factory(BASE_DIRECTORY=base)
 
 progress(
     f"Building loaders for {len(variations)} variations x {len(eras)} eras x {len(processes)} bkg processes (+ nominal signals)...",
