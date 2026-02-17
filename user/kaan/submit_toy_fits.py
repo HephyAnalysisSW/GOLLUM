@@ -64,10 +64,11 @@ def load_toys_npz(npz_path: str) -> Dict[int, Dict[str, Tuple[np.ndarray, np.nda
 
 
 python3_exe = "python3"
-config = "user/kaan/check_CL_v6.5.py configs/unbinned_merged.yaml"
-toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_c2_1.0_mode-poisson_N1000_scale1.npz"
-print_info = "--print-every 1 --minuit-print-level 2"
-out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/globalfit/"
+config = "user/kaan/check_CL_v6.5.py configs/unbinned/unbinned_2016APV.yaml"
+toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_shape_2_1.0_mode-poisson_N1000_scale1.npz"
+print_info = "--print-every 1 --minuit-print-level 2 --minuit-strategy 0"
+out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/globalfit_shape_2_1.0_mode-poisson_N1000_scale1/"
+os.makedirs(out_dir, exist_ok=True)
 
 toys = load_toys_npz(toy_file)
 
@@ -76,7 +77,7 @@ job_dict = {}
 for i in range(len(toys)):
     toy_number = f"--toy-number {i}"
     fit_out = "--out " + os.path.join(out_dir, f"toy_{i}")
-    command = ' '.join([python3_exe, config, toy_file, toy_number, print_info, fit_out])
+    command = ' '.join([python3_exe, '-u', config, toy_file, toy_number, print_info, fit_out])
     result = run(f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"', shell=True, capture_output = True, text = True)
     job_id = re.search("\d+", result.stdout).group()    # Get the number with '\d+'
     info_dict = {'command': f'sbatch {command}',        # Save command [important for resubmitting]

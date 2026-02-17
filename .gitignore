@@ -6,3 +6,5 @@ www
 output
 caches
 models
+*.png
+*.pdf

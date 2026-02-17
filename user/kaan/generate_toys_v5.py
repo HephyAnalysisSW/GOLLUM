@@ -20,6 +20,7 @@ import common.yaml_loader as yaml_loader
 import common.user as user
 
 import fit.Likelihood as Likelihood
+from fit.Modeling import Rotated
 
 
 # ----------------------------------------------------------------------
@@ -46,12 +47,12 @@ def compute_lambda_unbinned_for_region(n2ll: Likelihood.N2LL, hypothesis, rid: s
     if N == 0:
         raise RuntimeError(f"[toys] Region '{rid}' has N = 0 events.")
 
-    cA_per_class = n2ll._assemble_cA_per_class(rid, hypothesis)
-    nuA_per_group = n2ll._assemble_nuA_groups(rid, hypothesis)
+    cA_per_class = n2ll._assemble_cA_per_class(rid, hypothesis._base)
+    nuA_per_group = n2ll._assemble_nuA_groups(rid, hypothesis._base)
 
     # nuisance values
     nu_vals = {}
-    for p in getattr(hypothesis, "parameters", []):
+    for p in getattr(hypothesis._base, "parameters", []):
         if not p.isPOI:
             nu_vals[p.name] = float(p.val)
 
@@ -219,17 +220,20 @@ def main():
     # Load config + surrogates
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
     Likelihood.cfg = cfg
     like_info = Likelihood.load_likelihood(cfg)
     hyp = Likelihood.build_hypothesis_from_likelihood(like_info, name="SR")
+    hyp = Rotated(hyp, '/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json', name="Fisher-basis")#  if rotated else hyp
 
     print("\n[Hypothesis] Initial parameters:")
     hyp.print()
 
     # Apply dynamic parameter modifications
     valid_param_names = [p.name for p in hyp.parameters]
+    print('Valid parameter names: ')
+    print(valid_param_names)
     kwargs = {}
     for k, v in dynamic_kwargs.items():
         if k in valid_param_names:
@@ -251,7 +255,7 @@ def main():
 
     n2ll = Likelihood.N2LL(
         likelihood=like_info,
-        module_samples="data.samples",
+        module_samples=cfg["defaults"]["module_samples"],
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=args.overwrite_cache,

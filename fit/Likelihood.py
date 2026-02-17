@@ -1573,7 +1573,6 @@ class N2LL:
         n2ll += hypothesis._base.penalty()
         return float(n2ll)
 
-<<<<<<< HEAD
     def fisher_information(self, hypothesis, step_scale: float = 1e-4, verbose: bool = False) -> np.ndarray:
         """
         Fisher information I_{ab} = E[(∂_a log L)(∂_b log L)] in Asimov mode.
@@ -1795,14 +1794,13 @@ class N2LL:
     def preload_unbinned_numpy(self):
         """
         Preload HDF5 cached unbinned arrays into RAM as NumPy arrays.
-        Also builds 'full comps' views for fast Mode-C evaluation.
+        Also builds 'full comps' views for fast evaluation.
 
         Creates:
         self._np_unbinned[(rid, cid, dset)] -> np.ndarray
         self._full_comps_by_region[rid][cid] -> dict(dset->np.ndarray view)
         self._w0_full_by_region[rid] -> np.ndarray  (from first cid)
         """
-        import numpy as np
 
         self._np_unbinned = {}
         self._full_comps_by_region = {}
@@ -1844,31 +1842,39 @@ class N2LL:
                 self._full_comps_by_region[rid][cid] = comp
 
 
-    def _np_get(self, rid, cid, dset):
-        """
-        Return numpy array for (rid,cid,dset), using preloaded RAM cache if available,
-        otherwise raise Error.
-        """
-        if hasattr(self, "_np_unbinned") and (rid, cid, dset) in self._np_unbinned:
-            return self._np_unbinned[(rid, cid, dset)]
-        else:
-            raise RuntimeError(f"[N2LL:_np_get] Dataset not preloaded in RAM: ({rid}, {cid}, {dset}). "
-                                "Call preload_unbinned_numpy() first.")
-
 
     def setToyFromIndicesAndWeights(self, toy_indices_by_region, toy_weights_by_region):
         """
-        C-simov toy setter .
+        Prepare (per-region) unbinned data components (such as g, R) needed by the NLL.
 
-        toy_indices_by_region: dict[str, np.ndarray[int]]    # per region, length Ndraw, duplicates allowed
-        toy_weights_by_region: dict[str, np.ndarray[float]]  # per region, same length Ndraw, signed allowed
+        rid: region id
+        cid: class  id
 
-        Stores:
-        self._toy[rid] = {"by_class": {cid: comps}, "w": w_unique}
-        where w_unique is the summed signed weight per unique index.
+        Inputs
+        ------
+        toy_indices_by_region : dict[str, np.ndarray[int]]
+            For each region id (rid), an array of event indices
+            (duplicates allowed)
+
+        toy_weights_by_region : dict[str, np.ndarray[float]]
+            For each rid, an array of per-draw weights (same length as indices).
+            Can be signed (e.g. negative-weight MC events)
+
+        
+        Adds
+        ---------------
+        self._toy[rid] = {
+            "by_class": {cid: comp_dict_for_that_class},
+            "w": w_unique
+        }
+
+        - w: summed signed weight per unique sampled index
+        - by_class: preloaded per-event component arrays, sliced down to only the
+                    unique sampled indices, separately for each class id (cid).
         """
-        import numpy as np
 
+        # Reading one by one from HDF5 is a burden.
+        # Using preload_unbinned_numpy() to cache them into RAM.
         if not hasattr(self, "_np_unbinned") or not hasattr(self, "_full_comps_by_region"):
             raise RuntimeError("Call n2ll.preload_unbinned_numpy() once before setToyFromIndicesAndWeights().")
 
@@ -1880,16 +1886,19 @@ class N2LL:
                 raise RuntimeError(f"[setToyFromIndicesAndWeights] missing weights for rid={rid}")
             wdraw = np.asarray(toy_weights_by_region[rid], dtype=np.float64)
 
+            # Indices and weights must align.
             if idx.shape[0] != wdraw.shape[0]:
                 raise RuntimeError(f"[setToyFromIndicesAndWeights] rid={rid}: indices and weights length mismatch")
 
-            # compress duplicates: unique_idx + summed signed weights
+            # If nothing was drawn for this region, store empty dict.
             if idx.size == 0:
                 self._toy[rid] = {"by_class": {}, "w": np.empty(0, dtype=np.float64)}
                 continue
 
             unique_idx, inv = np.unique(idx, return_inverse=True)
             w = np.zeros(unique_idx.shape[0], dtype=np.float64)
+
+            # w[k] = sum of wdraw[t] over all draws t whose inv[t] == k
             np.add.at(w, inv, wdraw)
 
             # drop exact cancellations
@@ -1897,6 +1906,7 @@ class N2LL:
             unique_idx = unique_idx[keep]
             w = w[keep]
 
+            # If everything canceled, store empty dict.
             if unique_idx.size == 0:
                 self._toy[rid] = {"by_class": {}, "w": np.empty(0, dtype=np.float64)}
                 continue
@@ -1910,6 +1920,8 @@ class N2LL:
                 for dset in comp_full.keys():
                     if dset in ("g", "R"):
                         continue
+                    # For any additional datasets stored in comp_full, slice them too.
+                    # (Nevents, something).
                     comp[dset] = comp_full[dset][unique_idx, :]
                 by_class[cid] = comp
 
@@ -1925,7 +1937,6 @@ class N2LL:
                                       "Delta::...": (N,nB), ...}
         Returns: T: np.ndarray shape (N,)
         """
-        import numpy as np
 
         if not comps_by_class:
             return np.empty(0, dtype=np.float64)
@@ -1935,12 +1946,12 @@ class N2LL:
         N = comps_by_class[any_cid]["g"].shape[0]
         T = np.zeros(N, dtype=np.float64)
 
-        cA_per_class = self._assemble_cA_per_class(rid, hypothesis)   # dict[cid] -> np.ndarray(nA,)
-        nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)    # dict[cid] -> list[(gm, nuA_vec)]
+        cA_per_class = self._assemble_cA_per_class(rid, hypothesis._base)   # dict[cid] -> np.ndarray(nA,)
+        nuA_per_group = self._assemble_nuA_groups(rid, hypothesis._base)    # dict[cid] -> list[(gm, nuA_vec)]
 
         # nuisance numeric values
         nu_vals = {}
-        for p in getattr(hypothesis, "parameters", []):
+        for p in getattr(hypothesis._base, "parameters", []):
             if not p.isPOI:
                 nu_vals[p.name] = float(p.val)
 
@@ -1980,12 +1991,11 @@ class N2LL:
         Notes:
         - penalty is REQUIRED to keep nuisances constrained
         """
-        import numpy as np
 
         if not hasattr(self, "_full_comps_by_region") or not hasattr(self, "_w0_full_by_region"):
-            raise RuntimeError("Call preload_unbinned_numpy() before n2ll_eq238_csimov().")
+            raise RuntimeError("Call preload_unbinned_numpy() before n2ll_toy().")
         if not hasattr(self, "_toy"):
-            raise RuntimeError("Call setToyFromIndicesAndWeights(...) before n2ll_eq238_csimov().")
+            raise RuntimeError("Call setToyFromIndicesAndWeights(...) before n2ll_toy().")
 
         sum_w0T = 0.0
         sum_log = 0.0
@@ -2010,7 +2020,7 @@ class N2LL:
 
             sum_log += float(np.sum(w_toy * np.log1p(T_toy), dtype=np.float64))
 
-        n2ll = 2.0 * sum_w0T - 2.0 * sum_log + float(hypothesis.penalty())
+        n2ll = 2.0 * sum_w0T - 2.0 * sum_log + float(hypothesis._base.penalty())
         if not np.isfinite(n2ll):
             return 1e100
         return n2ll
@@ -2039,7 +2049,6 @@ class _MinuitArrayAdapter:
             print(f"\n[eval {self.eval:6d}] f = {f: .6e}")
             self.hyp.print()
         return f
-=======
 from iminuit import Minuit
 def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                    do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
@@ -2053,7 +2062,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         free = [p for p in hypothesis.parameters
                 if not p.isFrozen and not getattr(p, "isIgnored", False)]
         poi_names = set()
->>>>>>> origin/sbi-pdf
 
     if not free:
         raise RuntimeError("No free parameters to fit.")

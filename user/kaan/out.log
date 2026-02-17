@@ -1,196 +1,77 @@
+HEY
 
-[dynamic params] Parsed: {'c2': '1.0'}
-[toys] mode='poisson', n_toys=1000, scale=1.0
-Overview: root=/users/alikaan.gueven/sbi-pdf/GOLLUM/configs/unbinned_merged.yaml, includes=1 edges across 2 file(s).
-Include tree:
-  unbinned_merged.yaml
-    [jobs]
-      bit_merged.yaml
-Jobs overview: 18 total, 10 root(s), 2 layer(s).
-  Layer 0: bit_tt2l, icp_tt2l_BTag_b, icp_tt2l_BTag_l, icp_tt2l_L1Prefire, icp_tt2l_LeptonSF, icp_tt2l_PU, icp_tt2l_Trigger, icp_tt2l_jesTotal, icp_tt2l_scales, scaler_tt2l
-  Layer 1: pnn_tt2l_BTag_b, pnn_tt2l_BTag_l, pnn_tt2l_L1Prefire, pnn_tt2l_LeptonSF, pnn_tt2l_PU, pnn_tt2l_Trigger, pnn_tt2l_jesTotal, pnn_tt2l_scales
+[dynamic params] Parsed: {'shape_2': '1.0'}
+[toys] mode='poisson', n_toys=13, scale=1.0
+Overview: root=/users/alikaan.gueven/sbi-pdf/GOLLUM/configs/unbinned/unbinned_2016APV.yaml, includes=0 edges across 0 file(s).
+Include tree: (none)
+Jobs overview: 64 total, 33 root(s), 2 layer(s).
+  Layer 0: bit_pod_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_BTag_b, icp_TTLep_pow_2016APV_BTag_l, icp_TTLep_pow_2016APV_CMS_res_j_0_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_1_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_2_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_3_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_4_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_5_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016, icp_TTLep_pow_2016APV_EleSF, icp_TTLep_pow_2016APV_L1Prefire, icp_TTLep_pow_2016APV_MuSF, icp_TTLep_pow_2016APV_PU, icp_TTLep_pow_2016APV_Uncl, icp_TTLep_pow_2016APV_alphaS, icp_TTLep_pow_2016APV_scales, icp_TTLep_pow_2016APV_showerFSR, icp_TTLep_pow_2016APV_showerISR, scaler_TTLep_pow_2016APV
+  Layer 1: pnn_TTLep_pow_2016APV_BTag_b, pnn_TTLep_pow_2016APV_BTag_l, pnn_TTLep_pow_2016APV_CMS_res_j_0_2016APV, pnn_TTLep_pow_2016APV_CMS_res_j_1_2016APV, pnn_TTLep_pow_2016APV_CMS_res_j_2_2016APV, pnn_TTLep_pow_2016APV_CMS_res_j_3_2016APV, pnn_TTLep_pow_2016APV_CMS_res_j_4_2016APV, pnn_TTLep_pow_2016APV_CMS_res_j_5_2016APV, pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom, pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm, pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon, pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal, pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016, pnn_TTLep_pow_2016APV_EleSF, pnn_TTLep_pow_2016APV_L1Prefire, pnn_TTLep_pow_2016APV_MuSF, pnn_TTLep_pow_2016APV_PU, pnn_TTLep_pow_2016APV_Uncl, pnn_TTLep_pow_2016APV_alphaS, pnn_TTLep_pow_2016APV_scales, pnn_TTLep_pow_2016APV_showerFSR, pnn_TTLep_pow_2016APV_showerISR
 Job dependencies:
-  - bit_tt2l [bit]  <=  —
-  - icp_tt2l_BTag_b [icp]  <=  —
-  - icp_tt2l_BTag_l [icp]  <=  —
-  - icp_tt2l_L1Prefire [icp]  <=  —
-  - icp_tt2l_LeptonSF [icp]  <=  —
-  - icp_tt2l_PU [icp]  <=  —
-  - icp_tt2l_Trigger [icp]  <=  —
-  - icp_tt2l_jesTotal [icp]  <=  —
-  - icp_tt2l_scales [icp]  <=  —
-  - pnn_tt2l_BTag_b [pnn]  <=  scaler_tt2l, icp_tt2l_BTag_b
-  - pnn_tt2l_BTag_l [pnn]  <=  scaler_tt2l, icp_tt2l_BTag_l
-  - pnn_tt2l_L1Prefire [pnn]  <=  scaler_tt2l, icp_tt2l_L1Prefire
-  - pnn_tt2l_LeptonSF [pnn]  <=  scaler_tt2l, icp_tt2l_LeptonSF
-  - pnn_tt2l_PU [pnn]  <=  scaler_tt2l, icp_tt2l_PU
-  - pnn_tt2l_Trigger [pnn]  <=  scaler_tt2l, icp_tt2l_Trigger
-  - pnn_tt2l_jesTotal [pnn]  <=  scaler_tt2l, icp_tt2l_jesTotal
-  - pnn_tt2l_scales [pnn]  <=  scaler_tt2l, icp_tt2l_scales
-  - scaler_tt2l [scaler]  <=  —
-[OK] BIT bit_tt2l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/BIT/bit_tt2l/BIT_tt2l.pkl
-[OK] Scaler scaler_tt2l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/Scaler/Scaler_tt2l.pkl
-[OK] ICP icp_tt2l_Trigger  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_Trigger.pkl
-[OK] ICP icp_tt2l_L1Prefire  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_L1Prefire.pkl
-[OK] ICP icp_tt2l_PU  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_PU.pkl
-[OK] ICP icp_tt2l_LeptonSF  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_LeptonSF.pkl
-[OK] ICP icp_tt2l_BTag_b  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_BTag_b.pkl
-[OK] ICP icp_tt2l_BTag_l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_BTag_l.pkl
-[OK] ICP icp_tt2l_scales  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_scales.pkl
-[OK] ICP icp_tt2l_jesTotal  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/ICP/icp_tt2l_jesTotal.pkl
-[OK] PNN pnn_tt2l_Trigger  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_Trigger
-[OK] PNN pnn_tt2l_L1Prefire  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_L1Prefire
-[OK] PNN pnn_tt2l_PU  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_PU
-[OK] PNN pnn_tt2l_LeptonSF  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_LeptonSF
-[OK] PNN pnn_tt2l_BTag_b  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_BTag_b
-[OK] PNN pnn_tt2l_BTag_l  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_BTag_l
-[OK] PNN pnn_tt2l_scales  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_scales
-[OK] PNN pnn_tt2l_jesTotal  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/v1/SR/PNN/pnn_tt2l_jesTotal
-[PNN↔ICP check] pnn_tt2l_Trigger vs icp_tt2l_Trigger: OK
-[PNN↔ICP check] pnn_tt2l_L1Prefire vs icp_tt2l_L1Prefire: OK
-[PNN↔ICP check] pnn_tt2l_PU vs icp_tt2l_PU: OK
-[PNN↔ICP check] pnn_tt2l_LeptonSF vs icp_tt2l_LeptonSF: OK
-[PNN↔ICP check] pnn_tt2l_BTag_b vs icp_tt2l_BTag_b: OK
-[PNN↔ICP check] pnn_tt2l_BTag_l vs icp_tt2l_BTag_l: OK
-[PNN↔ICP check] pnn_tt2l_scales vs icp_tt2l_scales: OK
-[PNN↔ICP check] pnn_tt2l_jesTotal vs icp_tt2l_jesTotal: OK
-
-=== SUMMARY ===
-Found 18 ready artifact(s), 0 missing.
-
-[Hypothesis] Initial parameters:
-Hypothesis (SR)
-
-00  c0(POI)=0.000000e+00
-01  c1(POI)=0.000000e+00
-02  c2(POI)=0.000000e+00
-03  c3(POI)=0.000000e+00
-04  c4(POI)=0.000000e+00
-05  c5(POI)=0.000000e+00
-
-06  nu_btag_b(Nuis.,pen.)=0.000000e+00
-07  nu_btag_l(Nuis.,pen.)=0.000000e+00
-08  nu_jes(Nuis.,pen.)=0.000000e+00
-09  nu_l1prefire(Nuis.,pen.)=0.000000e+00
-10  nu_leptonsf(Nuis.,pen.)=0.000000e+00
-11  nu_mu_fac(Nuis.,pen.)=0.000000e+00
-12  nu_mu_ren(Nuis.,pen.)=0.000000e+00
-13  nu_norm(Nuis.,pen.)=0.000000e+00
-14  nu_pu(Nuis.,pen.)=0.000000e+00
-15  nu_trigger(Nuis.,pen.)=0.000000e+00
-
-[Test hypothesis] Modified parameters:
-Hypothesis (SR)
-
-00  c0(POI)=0.000000e+00
-01  c1(POI)=0.000000e+00
-02  c2(POI)=1.000000e+00
-03  c3(POI)=0.000000e+00
-04  c4(POI)=0.000000e+00
-05  c5(POI)=0.000000e+00
-
-06  nu_btag_b(Nuis.,pen.)=0.000000e+00
-07  nu_btag_l(Nuis.,pen.)=0.000000e+00
-08  nu_jes(Nuis.,pen.)=0.000000e+00
-09  nu_l1prefire(Nuis.,pen.)=0.000000e+00
-10  nu_leptonsf(Nuis.,pen.)=0.000000e+00
-11  nu_mu_fac(Nuis.,pen.)=0.000000e+00
-12  nu_mu_ren(Nuis.,pen.)=0.000000e+00
-13  nu_norm(Nuis.,pen.)=0.000000e+00
-14  nu_pu(Nuis.,pen.)=0.000000e+00
-15  nu_trigger(Nuis.,pen.)=0.000000e+00
-[N2LL] Cache file /groups/hephy/cms/alikaan.gueven/SBIPDF/caches/NN2LCache/unbinned_merged/v1/SR/tt2l.h5 found. Loading (skip rebuild).
-
-[N2LL.prepare_runtime] Region 'SR': opening caches and validating…
-[N2LL.prepare_runtime]  Class 'tt2l': N=1261796
-  - w0 shape=(1261796,)  head[0:5]: [0.04065688 0.0365492  0.04343647 0.041813   0.05121293]
-  - g  shape=(1261796,)   head[0:5]: [1. 1. 1. 1. 1.]
-  - R  shape=(1261796, 27)
-    R columns (|A|=27): ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c0*c0', 'c0*c1', 'c0*c2', 'c0*c3', 'c0*c4', 'c0*c5', 'c1*c1', 'c1*c2', 'c1*c3', 'c1*c4', 'c1*c5', 'c2*c2', 'c2*c3', 'c2*c4', 'c2*c5', 'c3*c3', 'c3*c4', 'c3*c5', 'c4*c4', 'c4*c5', 'c5*c5']
-    R[0]: [ 1.67422151  0.92026173 -0.58953311 -1.42615633 -0.96597701  0.14486834
-  1.42517551  0.77366492 -0.52099408 -1.21698388 -0.79583127  0.15868296
-  0.40177345 -0.32169033 -0.67203073 -0.38017274  0.16808503  0.10823304
-  0.42307146  0.40430601  0.11502208  1.04068758  0.72146086 -0.09020004
-  0.3072931  -0.3277804  -0.34627327]
-    R[1]: [ 1.68376975  0.84379545 -0.79456582 -1.56177549 -0.78870225  0.60638593
-  1.47857641  0.7335245  -0.70866035 -1.36262623 -0.66365334  0.54838118
-  0.35545824 -0.36751149 -0.67414493 -0.29719172  0.3064246   0.30880537
-  0.65490731  0.37815241 -0.19581862  1.25208693  0.60515878 -0.5073379
-  0.18068397 -0.37254524  0.06072672]
-    R[2]: [ 1.66521472  0.85984735 -0.67468592 -1.37712467 -0.77680726  0.26576996
-  1.39248116  0.71319664 -0.57585202 -1.15286941 -0.63177455  0.2441298
-  0.34317907 -0.33889896 -0.59550881 -0.25769556  0.20568384  0.15176151
-  0.47013189  0.39564054  0.05711985  0.96429546  0.54879591 -0.19177851
-  0.09976079 -0.36188291 -0.2525848 ]
-    R[3]: [ 1.71606177  0.79697131 -0.93524678 -1.60015233 -0.58885015  0.88824117
-  1.49987356  0.68966285 -0.82553212 -1.38536401 -0.48656608  0.78158823
-  0.31591042 -0.38158398 -0.63425964 -0.21343351  0.36671071  0.44912202
-  0.76250645  0.28399176 -0.41021026  1.26633048  0.43495483 -0.71304735
-  0.10341989 -0.28994874  0.34705626]
-    R[4]: [ 1.71938455  0.78911888 -0.93947448 -1.56403534 -0.54705091  0.85207846
-  1.46043259  0.6597203  -0.81436589 -1.31926368 -0.42774735  0.74773538
-  0.28978585 -0.38282138 -0.59149302 -0.15788657  0.37116535  0.42510489
-  0.73919235  0.30069195 -0.35117313  1.17960243  0.36700392 -0.67720558
- -0.01353446 -0.34440942  0.24476582]
-  - Δ groups:
-    • id='Trigger'  dset='Delta::Trigger'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_trigger']
-      Δ[0]: [0.00986863]
-      Δ[1]: [0.0099804]
-      Δ[2]: [0.00997803]
-      Δ[3]: [0.0100084]
-      Δ[4]: [0.00986829]
-    • id='L1Prefire'  dset='Delta::L1Prefire'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_l1prefire']
-      Δ[0]: [-0.0045764]
-      Δ[1]: [-0.00527706]
-      Δ[2]: [-0.00843351]
-      Δ[3]: [-0.00444794]
-      Δ[4]: [-0.00805725]
-    • id='PU'  dset='Delta::PU'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_pu']
-      Δ[0]: [-0.00632264]
-      Δ[1]: [-0.01229692]
-      Δ[2]: [-0.01359917]
-      Δ[3]: [-0.00384723]
-      Δ[4]: [-0.00659992]
-    • id='LeptonSF'  dset='Delta::LeptonSF'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_leptonsf']
-      Δ[0]: [0.0077448]
-      Δ[1]: [0.00527975]
-      Δ[2]: [0.01363911]
-      Δ[3]: [0.0058101]
-      Δ[4]: [0.00538238]
-    • id='BTag_b'  dset='Delta::BTag_b'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_btag_b']
-      Δ[0]: [0.02778728]
-      Δ[1]: [0.0285511]
-      Δ[2]: [0.02980909]
-      Δ[3]: [0.02814338]
-      Δ[4]: [0.02912241]
-    • id='BTag_l'  dset='Delta::BTag_l'  shape=(1261796, 1)
-      Δ columns (|B|=1): ['nu_btag_l']
-      Δ[0]: [0.03532847]
-      Δ[1]: [0.03780229]
-      Δ[2]: [0.04855892]
-      Δ[3]: [0.03253103]
-      Δ[4]: [0.04611899]
-    • id='Scales'  dset='Delta::Scales'  shape=(1261796, 5)
-      Δ columns (|B|=5): ['nu_mu_ren', 'nu_mu_fac', 'nu_mu_ren*nu_mu_ren', 'nu_mu_ren*nu_mu_fac', 'nu_mu_fac*nu_mu_fac']
-      Δ[0]: [-0.00601683  0.0045344   0.00089272  0.00164416 -0.00013378]
-      Δ[1]: [ 8.14774819e-03 -5.47832157e-03 -8.25749477e-04 -2.46489653e-03
- -5.93082805e-05]
-      Δ[2]: [-0.02009908 -0.01053141  0.00245334  0.00377695  0.00114169]
-      Δ[3]: [ 0.00161648 -0.00689558  0.00032433 -0.00196574  0.00023256]
-      Δ[4]: [-0.02097917 -0.01271353  0.00351032 -0.00010145  0.0005769 ]
-    • id='JES'  dset='Delta::JES'  shape=(1261796, 2)
-      Δ columns (|B|=2): ['nu_jes', 'nu_jes*nu_jes']
-      Δ[0]: [ 0.07373983 -0.0077751 ]
-      Δ[1]: [ 0.03023766 -0.00941684]
-      Δ[2]: [-0.00232487 -0.01044329]
-      Δ[3]: [ 0.00627887 -0.00480968]
-      Δ[4]: [ 0.0371857  -0.00959143]
-
-[toys] Unbinned regions: ['SR']
-[toys] rid=SR  sum(lam+)=22456.3  sum(lam-)=61.8328
-[toys] Saved 1000 toys to /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_c2_1.0_mode-poisson_N1000_scale1.npz
+  - bit_pod_TTLep_pow_2016APV [bit]  <=  —
+  - icp_TTLep_pow_2016APV_BTag_b [icp]  <=  —
+  - icp_TTLep_pow_2016APV_BTag_l [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_0_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_1_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_2_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_3_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_4_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_res_j_5_2016APV [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal [icp]  <=  —
+  - icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016 [icp]  <=  —
+  - icp_TTLep_pow_2016APV_EleSF [icp]  <=  —
+  - icp_TTLep_pow_2016APV_L1Prefire [icp]  <=  —
+  - icp_TTLep_pow_2016APV_MuSF [icp]  <=  —
+  - icp_TTLep_pow_2016APV_PU [icp]  <=  —
+  - icp_TTLep_pow_2016APV_Uncl [icp]  <=  —
+  - icp_TTLep_pow_2016APV_alphaS [icp]  <=  —
+  - icp_TTLep_pow_2016APV_scales [icp]  <=  —
+  - icp_TTLep_pow_2016APV_showerFSR [icp]  <=  —
+  - icp_TTLep_pow_2016APV_showerISR [icp]  <=  —
+  - pnn_TTLep_pow_2016APV_BTag_b [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_BTag_b
+  - pnn_TTLep_pow_2016APV_BTag_l [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_BTag_l
+  - pnn_TTLep_pow_2016APV_CMS_res_j_0_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_0_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_res_j_1_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_1_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_res_j_2_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_2_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_res_j_3_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_3_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_res_j_4_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_4_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_res_j_5_2016APV [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_res_j_5_2016APV
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal
+  - pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016 [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016
+  - pnn_TTLep_pow_2016APV_EleSF [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_EleSF
+  - pnn_TTLep_pow_2016APV_L1Prefire [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_L1Prefire
+  - pnn_TTLep_pow_2016APV_MuSF [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_MuSF
+  - pnn_TTLep_pow_2016APV_PU [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_PU
+  - pnn_TTLep_pow_2016APV_Uncl [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_Uncl
+  - pnn_TTLep_pow_2016APV_alphaS [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_alphaS
+  - pnn_TTLep_pow_2016APV_scales [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_scales
+  - pnn_TTLep_pow_2016APV_showerFSR [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_showerFSR
+  - pnn_TTLep_pow_2016APV_showerISR [pnn]  <=  scaler_TTLep_pow_2016APV, icp_TTLep_pow_2016APV_showerISR
+  - scaler_TTLep_pow_2016APV [scaler]  <=  —
+[OK] BIT bit_pod_TTLep_pow_2016APV  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/unbinned_2016APV_v2/SR/BIT/bit_pod_TTLep_pow_2016APV/BIT_pod_TTLep_pow_2016APV.pkl
+[OK] Scaler scaler_TTLep_pow_2016APV  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/unbinned_2016APV_v2/SR/Scaler/Scaler_TTLep_pow_2016APV.pkl
+[OK] ICP icp_TTLep_pow_2016APV_L1Prefire  -> /groups/hephy/cms/alikaan.gueven/SBIPDF/models/unbinned_2016APV_v2/SR/ICP/icp_TTLep_pow_2016APV_L1Prefire.pkl

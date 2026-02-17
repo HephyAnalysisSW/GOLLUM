@@ -26,6 +26,7 @@ from iminuit import Minuit
 import common.yaml_loader as yaml_loader
 import fit.Likelihood as Likelihood
 from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2LL
+from fit.Modeling import Rotated
 
 _TOY_IDX_RE = re.compile(r"^toy(\d{4})_(.*)_indices$")
 _TOY_WGT_RE = re.compile(r"^toy(\d{4})_(.*)_weights$")
@@ -70,30 +71,39 @@ def load_toys_npz(npz_path):
 
 
 def free_params(hyp):
+    '''
+    If POIs are not frozen, they are free parameters.
+    If nuisances are not frozen and not ignored, they are free parameters.
+    '''
+    if isinstance(hyp, Rotated):
+        return (
+            [p for p in hyp.POIs if not p.isFrozen] +
+            [p for p in hyp.nuisances if (not p.isFrozen) and (not getattr(p, "isIgnored", False))]
+        )
     return [p for p in hyp.parameters if (not p.isFrozen) and (not getattr(p, "isIgnored", False))]
 
 
-def fit_one_toy(n2ll, hyp_template, toy_idx_by_region, toy_w_by_region, step=0.1, print_level=0, strategy=1, tol=None):
-    """
-    returns (n2ll_min, c_hat_dict)
-    """
-    hyp = hyp_template.clone()
 
-    pars = free_params(hyp)
-    if not pars:
+def fit_one_toy(n2ll, hypothesis, toy_idx_by_region, toy_w_by_region,
+                step=0.1, print_level=0, strategy=1, tol=None):
+    '''
+    Get name and value of the free parameters.
+    POIs + nuisances are free.
+    
+    '''
+    pars0 = free_params(hypothesis)
+    if not pars0:
         raise RuntimeError("No free parameters to fit.")
 
-    names = [p.name for p in pars]
-    x0 = [float(p.val) for p in pars]
+    names = [p.name for p in pars0]
+    x0    = [float(p.val) for p in pars0]
 
-    # set toy once, then FCN only updates parameters and calls Likelihood.py evaluator
     n2ll.setToyFromIndicesAndWeights(toy_idx_by_region, toy_w_by_region)
 
     def fcn(*x):
-        for i, p in enumerate(pars):
-            p.val = float(x[i])
-        # use the method you added in Likelihood.py
-        return float(n2ll.n2ll_toy(hyp))
+        pdict = {names[i]: float(x[i]) for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pdict)
+        return float(n2ll.n2ll_toy(h_eval))
 
     m = Minuit(fcn, *x0, name=names)
     m.errordef = 1.0
@@ -105,12 +115,22 @@ def fit_one_toy(n2ll, hyp_template, toy_idx_by_region, toy_w_by_region, step=0.1
     for i in range(len(names)):
         m.errors[i] = float(step)
 
+    t0 = time.time()
     m.migrad()
+    t1 = time.time()
+    print('Migrad time: ', t1- t0)
 
-    for i, p in enumerate(pars):
-        p.val = float(m.values[i])
+    best = {names[i]: float(m.values[i]) for i in range(len(names))}
+    h_best = hypothesis.cloneModify(**best)
+    h_best.print()
 
-    c_hat = {p.name: float(p.val) for p in hyp.parameters if p.isPOI and p.name.startswith("c")}
+    if isinstance(h_best, Rotated):
+        c_hat = {p.name: float(p.val) for p in h_best.POIs}
+    else:
+        c_hat = {p.name: float(p.val) for p in h_best.parameters if p.isPOI}
+
+    t1 = time.time()
+    print('Total fit time: ', t1- t0)
     return float(m.fval), c_hat
 
 
@@ -123,7 +143,7 @@ def main():
     ap.add_argument("--max-toys", type=int, default=None)
     ap.add_argument("--toy-number", type=int, default=None)
     ap.add_argument("--print-every", type=int, default=1)
-    ap.add_argument("--minuit-step", type=float, default=0.1)
+    ap.add_argument("--minuit-step", type=float, default=1.0)
     ap.add_argument("--minuit-print-level", type=int, default=0)
     ap.add_argument("--minuit-strategy", type=int, default=1, choices=[0, 1, 2])
     ap.add_argument("--minuit-tol", type=float, default=None)
@@ -133,18 +153,19 @@ def main():
 
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
     Likelihood.cfg = cfg
     like_info = load_likelihood(cfg)
     hyp0 = build_hypothesis_from_likelihood(like_info, name="SR")
+    hyp0 = Rotated(hyp0, '/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json', name="Fisher-basis")#  if rotated else hyp
 
     if args.no_syst:
-        for p in hyp0.parameters:
-            if not p.isPOI:
-                p.val = 0.0
-                p.isFrozen = True
-        print("[opts] --no-syst: all nuisances frozen at 0")
+        for p in hyp0.nuisances:   # not hyp0.parameters
+            p.val = 0.0
+            p.isFrozen = True
+
+    POI_names = sorted([p.name for p in (hyp0.POIs if isinstance(hyp0, Rotated) else hyp0.parameters) if p.isPOI])
 
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = args.version or str(cfg.get("version", "v0"))
@@ -152,7 +173,7 @@ def main():
 
     n2ll = N2LL(
         likelihood=like_info,
-        module_samples="data.samples",
+        module_samples=cfg["defaults"]["module_samples"],
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=args.overwrite_cache,
@@ -174,7 +195,7 @@ def main():
     # preload H5 arrays into RAM once (this is the whole point)
     n2ll.preload_unbinned_numpy()
 
-    c_names = sorted([p.name for p in hyp0.parameters if p.isPOI and p.name.startswith("c")])
+    POI_names = sorted([p.name for p in hyp0.parameters if p.isPOI])
     fvals = []
     chat_list = []
 
@@ -200,13 +221,13 @@ def main():
         )
 
         fvals.append(fval)
-        chat_list.append([c_hat.get(nm, np.nan) for nm in c_names])
+        chat_list.append([c_hat.get(nm, np.nan) for nm in POI_names])
 
         if args.print_every > 0 and (k % args.print_every == 0):
             dt = time.time() - t0
             rate = k / dt if dt > 0 else float("inf")
             print(f"[toy {itoy:04d}] k={k:4d}/{len(toy_ids)}  Ndraw={n_draws:7d}  n2ll_min={fval:.6f}  ({rate:.2f} toys/s)")
-            print("  c_hat:", {nm: c_hat.get(nm, np.nan) for nm in c_names})
+            print("  c_hat:", {nm: c_hat.get(nm, np.nan) for nm in POI_names})
 
     out = args.out or (os.path.splitext(args.toys_npz)[0] + "_globalfit.npz")
     np.savez(
@@ -215,7 +236,7 @@ def main():
         toys_npz=np.asarray([args.toys_npz]),
         toy_ids=np.asarray(toy_ids, dtype=np.int64),
         region_ids=np.asarray(region_ids),
-        c_names=np.asarray(c_names),
+        POI_names=np.asarray(POI_names),
         n2ll_min=np.asarray(fvals, dtype=np.float64),
         c_hat=np.asarray(chat_list, dtype=np.float64),
     )

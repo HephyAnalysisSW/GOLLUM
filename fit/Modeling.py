@@ -381,6 +381,8 @@ class Rotated(Hypothesis):
         nuis_updates = {}
 
         for nm, v in zip(names, values):
+            # print('self._d_index: ', self._d_index)
+            # print('self._nuis_index: ', self._nuis_index)
             if nm in self._d_index:
                 d_cur[self._d_index[nm]] = float(v)
             elif nm in self._nuis_index:

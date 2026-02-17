@@ -17,11 +17,11 @@ import fit.Likelihood as Likelihood
 VERSION      = None              # or e.g. "v1"
 OVERWRITE    = False
 
-REGION_ID    = "SR"              # unbinned region id
+REGION_ID    = "SR_2016APV"              # unbinned region id
 FEATURE_NAME = "tr_ttbar_pt"          # change to any feature in loader.feature_names
 
 # TOY_FILE     = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0000.npz"
-TOY_FILE     = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toy_0000_.npz"
+TOY_FILE     = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_rate_20.0_mode-poisson_N100_scale1.npz"
 from pathlib import Path
 TOY_NAME = Path(TOY_FILE).stem
 
@@ -90,7 +90,6 @@ def main():
         cfg,
         CONFIG,
         overwrite=False,
-        prefer_numba=False,
     )
 
     Likelihood.cfg = cfg
@@ -106,7 +105,7 @@ def main():
 
     n2ll = Likelihood.N2LL(
         likelihood=like_info,
-        module_samples="data.samples",
+        module_samples=cfg["defaults"]["module_samples"],
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=OVERWRITE,
@@ -143,7 +142,7 @@ def main():
         x_asimov = X_all[:, feat_idx]
 
         # --- load toy indices from npz ---
-        key = f"{rid}_indices"
+        key = f"toy0000_{rid}_indices"
         with np.load(TOY_FILE) as data:
             if key not in data:
                 raise RuntimeError(f"Toy file '{TOY_FILE}' does not contain key '{key}'.")
@@ -152,7 +151,7 @@ def main():
         x_toy = x_asimov[indices]
         print(f"[info] Loaded {len(indices)} indices from {TOY_FILE}")
 
-        should_normalise = True
+        should_normalise = False
 
         # --- plot ---
         plt.figure(figsize=(7, 5))
