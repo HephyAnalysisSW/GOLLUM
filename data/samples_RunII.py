@@ -48,6 +48,7 @@ _base = RDataLoader(
     tree_name="Events",
     branches=(
         observables.OBSERVERS
+        + observables.TOP_KINEMATICS
         + observables.LEPTON_KINEMATICS
         + observables.ASYMMETRY
     ),
