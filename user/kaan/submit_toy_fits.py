@@ -1,3 +1,11 @@
+"""
+Usage: python3 user/kaan/submit_toy_fits.py 
+
+
+"""
+
+
+
 from subprocess import run
 import numpy as np
 import re
@@ -63,11 +71,11 @@ def load_toys_npz(npz_path: str) -> Dict[int, Dict[str, Tuple[np.ndarray, np.nda
 
 
 
-python3_exe = "python3"
-config = "user/kaan/check_CL_v6.5.py configs/unbinned/unbinned_2016APV.yaml"
-toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_shape_2_1.0_mode-poisson_N1000_scale1.npz"
+config = "user/kaan/fit_toys.py configs/unbinned/unbinned_2016APV.yaml"
+toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_shape_2_1.0_N100.npz"
 print_info = "--print-every 1 --minuit-print-level 2 --minuit-strategy 0"
-out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/globalfit_shape_2_1.0_mode-poisson_N1000_scale1/"
+rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json"
+out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/fit_shape_2_1.0_N100/"
 os.makedirs(out_dir, exist_ok=True)
 
 toys = load_toys_npz(toy_file)
@@ -77,7 +85,7 @@ job_dict = {}
 for i in range(len(toys)):
     toy_number = f"--toy-number {i}"
     fit_out = "--out " + os.path.join(out_dir, f"toy_{i}")
-    command = ' '.join([python3_exe, '-u', config, toy_file, toy_number, print_info, fit_out])
+    command = ' '.join(["python3", '-u', config, toy_file, toy_number, rotate, print_info, fit_out])
     result = run(f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"', shell=True, capture_output = True, text = True)
     job_id = re.search("\d+", result.stdout).group()    # Get the number with '\d+'
     info_dict = {'command': f'sbatch {command}',        # Save command [important for resubmitting]
@@ -85,7 +93,7 @@ for i in range(len(toys)):
     job_dict[f'toy_{i}'] = info_dict                    # Add to dict
     print(result.stdout[:-1])
 
-out_json_path = os.path.join(out_dir, 'job_ids2018.json')
+out_json_path = os.path.join(out_dir, 'fit_jobs.json')
 print(f"\nWriting to {out_json_path}...\n")
 with open(out_json_path, 'w') as f:
     json.dump(job_dict, f, indent=2)

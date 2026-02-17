@@ -1,23 +1,13 @@
 #!/usr/bin/env python
-
 """
-Example toy generator using Likelihood.N2LL
+Generate unbinned toy datasets from N2LL Asimov cache.
 
-Usage:
-    python generate_toys.py path/to/config.yaml \
-        --version v1 \
-        --n-toys 3 \
-        --seed 123
+Supports signed-weight toy sampling (for NLO negative weights).
+- weights are ±1 and Poisson means are Poisson(sum λ±)
 
-This:
-  - loads your config & surrogates
-  - builds/opens the N2LL cache
-  - for each toy:
-      * computes per-event rates λ_i(θ) = w0_i * (1 + T_i(θ))
-      * samples toy events per region from this discrete pmf
-  - prints a small summary
-
-Next step (separate): feed these toys back into N2LL as observations.
+Usage examples:
+    python3 user/kaan/generate_toys.py configs/unbinned/unbinned_2016APV.yaml --rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json --n-toys 1000 --shape_2 1.0
+    python3 user/kaan/generate_toys.py configs/unbinned/unbinned_2016APV.yaml --n-toys 1000 --shape_2 1.0 --c1 0.5 --c2 1.0 --nu_pu 0.2
 """
 
 import argparse
@@ -28,23 +18,24 @@ import common.yaml_loader as yaml_loader
 import common.user as user
 
 import fit.Likelihood as Likelihood
-from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2LL
+from fit.Modeling import Rotated
 
 
 # ----------------------------------------------------------------------
 # Helpers to compute λ_i(θ) and sample toys
 # ----------------------------------------------------------------------
-def compute_lambda_unbinned_for_region(n2ll: N2LL, hypothesis, rid: str) -> np.ndarray:
+def compute_lambda_unbinned_for_region(n2ll: Likelihood.N2LL, hypothesis, rid: str) -> np.ndarray:
     """
-    Compute event-wise rates λ_i(θ) for a single unbinned region:
+    Compute event-wise signed rates λ_i(θ) for a single unbinned region using cached Asimov events:
 
+        dσ(x; c,ν)/dx = dσ(x; 0,0)/dx * (1 + T(x; c,ν))
+        w0_i = dσ(x_i; 0,0)/dx * (integrated luminosity)
         λ_i(θ) = w0_i * (1 + T_i(θ))
-
-    using the cached Asimov events.
 
     Returns
     -------
     lam : np.ndarray of shape (N_region,)
+        May contain negative entries when NLO weights are present (through w0_i).
     """
     class_ids = n2ll._class_ids_by_region.get(rid, [])
     if not class_ids:
@@ -54,318 +45,177 @@ def compute_lambda_unbinned_for_region(n2ll: N2LL, hypothesis, rid: str) -> np.n
     if N == 0:
         raise RuntimeError(f"[toys] Region '{rid}' has N = 0 events.")
 
-    # Current (c, ν) → A-basis and lnN-bias
-    cA_per_class = n2ll._assemble_cA_per_class(rid, hypothesis)
-    nuA_per_group = n2ll._assemble_nuA_groups(rid, hypothesis)
-    nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, "parameters", []) if not p.isPOI}
+    cA_per_class = n2ll._assemble_cA_per_class(rid, hypothesis._base)
+    nuA_per_group = n2ll._assemble_nuA_groups(rid, hypothesis._base)
 
-    ln_bias = {
-        cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
-                 for pname, log1p_alpha in n2ll._lnN_by_class.get((rid, cid), []))
-        for cid in class_ids
-    }
+    # nuisance values
+    nu_vals = {}
+    for p in getattr(hypothesis._base, "parameters", []):
+        if not p.isPOI:
+            nu_vals[p.name] = float(p.val)
+
+    # lnN biases per class
+    ln_bias = {}
+    for cid in class_ids:
+        s = 0.0
+        for pname, log1p_alpha in n2ll._lnN_by_class.get((rid, cid), []):
+            s += log1p_alpha * nu_vals.get(pname, 0.0)
+        ln_bias[cid] = s
 
     lam = np.empty(N, dtype=np.float64)
     chunk = n2ll.eval_chunk_size
-    first_cid = class_ids[0]
+    first_cid = class_ids[0]  # convention: w0 stored per region, read from first class
 
-    # Loop over cached events in chunks, like Asimov mode
     for start in range(0, N, chunk):
         stop = min(start + chunk, N)
         T_chunk = n2ll._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
         w0_chunk = n2ll._h5[(rid, first_cid)]["w0"][start:stop]
-        lam_chunk = w0_chunk * (1.0 + T_chunk)   # our convention
-        lam[start:stop] = lam_chunk
+        lam[start:stop] = w0_chunk * (1.0 + T_chunk)
 
     return lam
 
 
-def sample_toy_indices_from_lambda(lam: np.ndarray,
-                                   rng: np.random.Generator,
-                                   mode: str = "poisson",
-                                   fixed_N: int | None = None) -> np.ndarray:
-    """
-    Sample toy indices from a discrete pmf derived from λ_i.
+def sample_toy_indices_from_lambda_signed(lam, rng):
+    lam = np.asarray(lam, np.float64)
+    lam_pos = np.clip(lam, 0.0, None)
+    lam_neg = np.clip(-lam, 0.0, None)
 
-    Parameters
-    ----------
-    lam : array of λ_i (non-negative)
-    rng : np.random.Generator
-    mode : "poisson" or "fixed"
-        - "poisson": N_toy ~ Poisson(sum(lam))
-        - "fixed":   N_toy = fixed_N (required)
-    fixed_N : int or None
-        If mode == "fixed", use this N_toy.
+    tot_pos = float(lam_pos.sum())
+    tot_neg = float(lam_neg.sum())
+    if (tot_pos + tot_neg) <= 0.0:
+        return np.empty(0, np.int64), np.empty(0, np.float64)
 
-    Returns
-    -------
-    indices : np.ndarray of shape (N_toy,)
-        Event indices in [0, N_events).
-    """
-    lam = np.asarray(lam, dtype=np.float64)
-    lam = np.clip(lam, 0.0, None)
-    total = lam.sum()
-    if total <= 0:
-        raise RuntimeError("[toys] Sum of λ_i is non-positive.")
+    N_pos = int(rng.poisson(tot_pos)) if tot_pos > 0 else 0
+    N_neg = int(rng.poisson(tot_neg)) if tot_neg > 0 else 0
+    if (N_pos + N_neg) == 0:
+        return np.empty(0, np.int64), np.empty(0, np.float64)
 
-    if mode == "poisson":
-        N_toy = rng.poisson(total)
-        print('total:', total)
-        print('N_toy:', N_toy)
-    elif mode == "fixed":
-        if fixed_N is None:
-            raise ValueError("mode='fixed' requires fixed_N.")
-        N_toy = int(fixed_N)
-    else:
-        raise ValueError(f"Unknown mode '{mode}'.")
+    idxs, ws = [], []
+    if N_pos:
+        idxs.append(rng.choice(lam.size, size=N_pos, replace=True, p=lam_pos / tot_pos))
+        ws.append(np.ones(N_pos, np.float64))
+    if N_neg:
+        idxs.append(rng.choice(lam.size, size=N_neg, replace=True, p=lam_neg / tot_neg))
+        ws.append(-np.ones(N_neg, np.float64))
 
-    if N_toy == 0:
-        return np.empty(0, dtype=np.int64)
-
-    p = lam / total
-    indices = rng.choice(len(lam), size=N_toy, replace=True, p=p)
-    return indices
-
-
-def build_by_class_slices_for_indices(n2ll: N2LL, rid: str, indices: np.ndarray) -> dict:
-    """
-    For a given region and a set of event indices, collect the per-class
-    arrays (g, R, Δ...) from the HDF5 caches.
-
-    Returns
-    -------
-    by_class : dict
-        {
-          cid: {
-            "g":  (N_toy,),
-            "R":  (N_toy, nA),
-            "Delta::<sysid>": (N_toy, nB),
-            ...
-          },
-          ...
-        }
-    """
-    by_class = {}
-    indices = np.asarray(indices, dtype=np.int64)
-
-    # No events in this toy for this region
-    if indices.size == 0:
-        for cid in n2ll._class_ids_by_region[rid]:
-            by_class[cid] = {
-                "g": np.empty(0, dtype=np.float64),
-                "R": np.empty((0, 0), dtype=np.float64),
-            }
-        return by_class
-
-    # h5py wants strictly increasing indices, so we:
-    #  - take unique sorted indices for reading
-    #  - then expand back to full toy via "inverse" mapping
-    unique_idx, inverse = np.unique(indices, return_inverse=True)
-
-    for cid in n2ll._class_ids_by_region[rid]:
-        f = n2ll._h5[(rid, cid)]
-        meta = n2ll._meta[(rid, cid)]
-
-        comp = {}
-
-        # Read unique rows once
-        g_unique = f["g"][unique_idx]
-        R_unique = f["R"][unique_idx, :]
-
-        # Expand back to N_toy using inverse
-        comp["g"] = g_unique[inverse]
-        comp["R"] = R_unique[inverse, :]
-
-        # Same trick for all Delta groups
-        for gm in meta.get("delta_groups", []):
-            dset_name = gm.get("dset", f"Delta::{gm['id']}")
-            D_unique = f[dset_name][unique_idx, :]
-            comp[dset_name] = D_unique[inverse, :]
-
-        by_class[cid] = comp
-
-    return by_class
+    idx = np.concatenate(idxs).astype(np.int64, copy=False)
+    w   = np.concatenate(ws).astype(np.float64, copy=False)
+    perm = rng.permutation(idx.size) # OPTIONAL: mix neg/pos weighted events. 
+    return idx[perm], w[perm]
 
 
 
-# Likelihood evaluation with toy data
-# ----------------------------------------------------------------------
-def set_observation_from_toy(n2ll: N2LL, toy_data: dict) -> None:
-    """
-    Put a toy dataset into N2LL in observation mode so that n2ll(hypothesis)
-    evaluates -2 log L for that toy.
-
-    toy_data: dict[rid] -> {
-        "by_class": {...},   # output of build_by_class_slices_for_indices
-        "w": np.ndarray,     # (N_toy,)
-    }
-    """
-    import numpy as np
-
-    # Disable any Asimov state
-    n2ll._asimov_hypothesis_set = False
-    n2ll._asimov_active = False
-    n2ll._asimov_hyp = None
-    n2ll._asimov_T.clear()
-    n2ll._binned_asimov_lambda.clear()
-
-    # Reset observation containers
-    n2ll._obs_unbinned = {}
-    n2ll._obs_binned = {}
-
-    # Flag that we’re now in observed-data mode
-    n2ll._observation_set = True
-
-    # Fill unbinned observation blocks
-    for rid, block in toy_data.items():
-        n2ll._obs_unbinned[rid] = {
-            "by_class": block["by_class"],
-            "w": np.asarray(block["w"], dtype=np.float64),
-        }
-
-
-
-
-
-# ----------------------------------------------------------------------
-# Main CLI
 # ----------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description="Generate unbinned toys from N2LL Asimov cache.")
     ap.add_argument("config", help="Path to global YAML config.")
-    ap.add_argument("--version", help="Analysis version (used in cache dir name).",
-                    default=None)
-    ap.add_argument("--overwrite-cache", action="store_true",
-                    help="Force rebuild of the N2LL cache.")
-    ap.add_argument("--seed", type=int, default=123,
-                    help="Random seed for toy generation.")
-    ap.add_argument("--n-toys", type=int, default=1,
-                    help="Number of toy datasets to generate.")
-    ap.add_argument("--mode", choices=["poisson", "fixed"], default="poisson",
-                    help="Toy size: Poisson(sum λ_i) or fixed N.")
-    ap.add_argument("--fixed-N", type=int, default=None,
-                    help="If mode='fixed', use this N_toy per region.")
-    args = ap.parse_args()
+    ap.add_argument("--version", default=None, help="Analysis version (used in cache dir name).")
+    ap.add_argument("--overwrite-cache", action="store_true", help="Force rebuild of the N2LL cache.")
+    ap.add_argument("--seed", type=int, default=123, help="Random seed for toy generation.")
+    ap.add_argument("--n-toys", type=int, default=1, help="Number of toy datasets to generate.")
+    ap.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
 
-    if args.mode == "fixed" and args.fixed_N is None:
-        ap.error("mode='fixed' requires --fixed-N to be set.")
-    elif args.mode == "poisson" and args.fixed_N is not None:
-        ap.error("--fixed-N is only valid if mode='fixed'.")
-    else:
-        print(f"[toys] Generating toys in mode '{args.mode}'.")
+    # parse known + unknown args
+    args, unknown = ap.parse_known_args()
+
+    # Parse dynamic parameter modifications: --c1 1.0 --nu_pu 0.2 ...
+    dynamic_kwargs = {}
+    i = 0
+    while i < len(unknown):
+        key = unknown[i]
+        if not key.startswith("--"):
+            raise RuntimeError("We expect POIs and nuisances with -- prefix.")
+        name = key[2:]
+        if (i + 1) >= len(unknown):
+            raise RuntimeError(f"Missing value for parameter {key}")
+        dynamic_kwargs[name] = unknown[i + 1]
+        i += 2
+
+    print("\n[dynamic params] Parsed:", dynamic_kwargs)
+
+
+    print(f"[toys] n_toys={args.n_toys}")
 
     rng = np.random.default_rng(args.seed)
 
-    # --- load config + surrogates (like Likelihood.__main__) ---
+    # Load config + surrogates
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config,
-                                overwrite=False,
-                                prefer_numba=False)
+    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
-    # Make cfg visible to Likelihood.N2LL.build_cache(), which expects a
-    # module-global variable named `cfg` (hack but effective).
     Likelihood.cfg = cfg
+    like_info = Likelihood.load_likelihood(cfg)
+    hyp = Likelihood.build_hypothesis_from_likelihood(like_info, name="SR")
 
-    like_info = load_likelihood(cfg)
-    hyp = build_hypothesis_from_likelihood(like_info, name="SR")
+    rotated = bool(args.rotate)
+    if rotated:
+        print('[INFO]: Rotation json is passed. Using the rotated POIs...')
+    hyp = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
     print("\n[Hypothesis] Initial parameters:")
     hyp.print()
 
-    # --- set up N2LL ---
+    # Apply dynamic parameter modifications
+    valid_param_names = [p.name for p in hyp.parameters]
+    print('Valid parameter names: ')
+    print(valid_param_names)
+    kwargs = {}
+    for k, v in dynamic_kwargs.items():
+        if k in valid_param_names:
+            kwargs[k] = float(v)
+        else:
+            raise ValueError(
+                f"Unknown model parameter: {k}\n"
+                f"Available parameters:\n{valid_param_names}"
+            )
+
+    hyp_test = hyp.cloneModify(**kwargs)
+    print("\n[Test hypothesis] Modified parameters:")
+    hyp_test.print()
+
+    # Set up N2LL
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = args.version or str(cfg.get("version", "v0"))
     cache_dir = os.path.join("NN2LCache", base, version)
 
-    n2ll = N2LL(
+    n2ll = Likelihood.N2LL(
         likelihood=like_info,
-        module_samples="data.samples",
+        module_samples=cfg["defaults"]["module_samples"],
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=args.overwrite_cache,
     )
-
-    # Build cache if needed, then open for runtime
     n2ll.build_cache()
     n2ll.prepare_runtime()
-
-    # For toy generation we don't need to call setAsimov / setObservation.
-    # We just use the cached Asimov event set as the support.
 
     region_ids = [R["id"] for R in n2ll.regions]
     print("\n[toys] Unbinned regions:", region_ids)
 
-    print('args.n_toys: ', args.n_toys)
-    for itoy in range(args.n_toys):
-        print(f"\n================= TOY {itoy} =================")
+    # Store all toys for this hypothesis
+    store = {}
 
-        toy_data = {}  # rid -> {"indices", "by_class", "w"}
-        print('region_ids: ', region_ids)
-        for rid in region_ids:
-            lam = compute_lambda_unbinned_for_region(n2ll, hyp, rid)
-            
-            idx = sample_toy_indices_from_lambda(
-                lam,
-                rng=rng,
-                mode=args.mode,
-                fixed_N=args.fixed_N,
-            )
-            
-            # print('lam:', lam)
-            # print('idx:', idx)
+    for rid in region_ids:
+        lam = compute_lambda_unbinned_for_region(n2ll, hyp_test, rid)
 
-            by_class = build_by_class_slices_for_indices(n2ll, rid, idx)
-            # For now, unit weights for toy events
-            w_toy = np.ones(len(idx), dtype=np.float64)
+        # optional helpful prints
+        lam_pos = np.clip(lam, 0.0, None)
+        lam_neg = np.clip(-lam, 0.0, None)
+        print(f"[toys] rid={rid}  sum(lam+)={lam_pos.sum():.6g}  sum(lam-)={lam_neg.sum():.6g}")
 
-            toy_data[rid] = {
-                "indices": idx,
-                "by_class": by_class,
-                "w": w_toy,
-            }
+        for itoy in range(args.n_toys):
+            idx, w = sample_toy_indices_from_lambda_signed(lam,rng=rng)
+            store[f"toy{itoy:04d}_{rid}_indices"] = idx
+            store[f"toy{itoy:04d}_{rid}_weights"] = w
 
-            print(f"[toys] Region '{rid}': "
-                  f"N_events_support={len(lam)}, "
-                  f"N_toy={len(idx)}, "
-                  f"λ_sum={lam.sum():.3g}")
+    out_dir = os.path.join(user.output_directory, "toys")
+    os.makedirs(out_dir, exist_ok=True)
 
-        # At this point `toy_data` holds one full toy dataset.
-        # You can:
-        #   - save it to disk (np.savez, pickle, HDF5, ...)
-        #   - or in the next step, plug it back into n2ll._obs_unbinned
-        #     and call n2ll(hypothesis) to evaluate the likelihood.
-        #
-        # Example: save a very small summary to npz (optional)
-        out_dir = os.path.join(user.output_directory, "toys")
-        os.makedirs(out_dir, exist_ok=True)
-        toy_out = os.path.join(out_dir, f"toy_{itoy:04d}.npz")
+    param_tag = "_".join(f"{k}_{v}" for k, v in sorted(dynamic_kwargs.items())) if dynamic_kwargs else "nominal"
+    filename = f"toys_{param_tag}_N{args.n_toys}.npz"
+    toy_out = os.path.join(out_dir, filename)
 
-        # Store only indices + weights as a demo; by_class is nested and
-        # would need pickling or h5 if you want everything.
-        np.savez(
-            toy_out,
-            **{
-                f"{rid}_indices": toy_data[rid]["indices"]
-                for rid in toy_data.keys()
-            },
-        )
-        print(f"[toys] Saved index summary to {toy_out}")
-
-        # Example: set toy as observation and evaluate likelihood (optional)
-        set_observation_from_toy(n2ll, toy_data)
-        n2ll_value = n2ll(hyp)  # this is -2 log L (including penalty)
-        print(f"[toys] Toy {itoy}: -2 log L = {n2ll_value:.6f}")
-
-        
-        # Example: append to a list or save per toy
-        # (here just simple npy store)
-        out_dir = os.path.join(user.output_directory, "toys")
-        os.makedirs(out_dir, exist_ok=True)
-        ll_out = os.path.join(out_dir, f"toy_{itoy:04d}_n2ll.npy")
-        np.save(ll_out, np.array([n2ll_value], dtype=np.float64))
-        print(f"[toys] Saved -2 log L for toy {itoy} to {ll_out}")
-
+    np.savez(toy_out, **store)
+    print(f"[toys] Saved {args.n_toys} toys to {toy_out}")
 
 
 if __name__ == "__main__":

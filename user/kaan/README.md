@@ -2,21 +2,34 @@
 
 **Important Notes**
 
-- The scripts currently work for hardcoded c1=1e-3 hypothesis only.
-- I am not quite sure of the validity of the codes, a lot of checks must be performed.
-- There might be hidden issues, as much of the repository is coded with the aid of ChatGPT.
-
+- Please pay attention not to use someone else's scratch-cbe directory.
+  
+Step 1: generate toys  
+Step 2: fit the toys  
+Step 3: plot
+  
 ---
 
 ### Scripts
 
-- `user/kaan/generate_toys_v2.py` — Generates toy datasets and computes the test statistic for each toy.
-- `user/kaan/check_CL_v2.py` — Evaluates the Asimov test statistic and computes the expected CL using the generated toys.
+- `user/kaan/generate_toys.py` — Generates toy datasets and computes the test statistic for each toy.
+- `user/kaan/fit_toys.py` — Minimises the likelihood with the POIs and the nuissances floating.
+- `user/kaan/submit_toy_fits.py` — Batch submission for the toy fits.
+
+### Notebooks (for plotting)
+
+- `user/kaan/notebooks/plot_fit_results.ipynb` — Plot fit results
 
 ### Toy generation
-`python user/kaan/generate_toys_v3.py configs/unbinned_merged.yaml --mode poisson --n-toys 100 --c1 0.2 --c0 1.1 --c3 0.4 >user/kaan/out.log`
+`python3 user/kaan/generate_toys.py configs/unbinned/unbinned_2016APV.yaml --rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json --n-toys 1000 --shape_2 1.0`
 
-### CL check
-`python user/kaan/check_CL_v2.py configs/unbinned_merged.yaml --c1 1e-3`
+### Single toy fit (on the login node)
+`export OMP_NUM_THREADS=1`  
+
+`python3 -u user/kaan/fit_toys.py configs/unbinned/unbinned_2016APV.yaml /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_shape_2_1.0_N100.npz --rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json --toy-number 0 --print-every 1 --minuit-print-level 2`
 
 
+### Batch submission of the toy fits.
+
+**Warning: Please modify the paths in this script to submit the fits on the correct toys.**  
+`python3 user/kaan/submit_toy_fits.py`
