@@ -12,7 +12,8 @@ import numpy as np
 import operator
 import functools
 
-import MultiNode
+sys.path.insert(0, '..'); sys.path.insert(0, '../..')
+import ML.BIT.MultiNode as MultiNode
 
 default_cfg = {
     "n_trees" : 100,
@@ -154,39 +155,112 @@ class MultiBoostedInformationTree:
         del self.training_weights       
         del self.training_features      
 
-    def predict( self, feature_array, max_n_tree = None, summed = True, last_tree_counts_full = False):
-        # list learning rates
-        learning_rates = self.learning_rate*np.ones(max_n_tree if max_n_tree is not None else self.n_trees)
-        # keep the last tree?
-        if last_tree_counts_full and (max_n_tree is None or max_n_tree==self.n_trees):
-            learning_rates[-1] = 1
-        # Does the first tree hold the global score?
-        if self.cfg["learn_global_score"]:
-             learning_rates[0] = 1
-            
-        predictions = np.array([ tree.predict( feature_array ) for tree in self.trees[:max_n_tree] ])
-        predictions = predictions[:,1:]/predictions[:,0].reshape(-1,1)
-        if summed:
-            return np.dot(learning_rates, predictions)
-        else:
-            return learning_rates.reshape(-1, 1)*predictions
+    #def predict( self, feature_array, max_n_tree = None, summed = True, last_tree_counts_full = False):
+    #    # list learning rates
+    #    learning_rates = self.learning_rate*np.ones(max_n_tree if max_n_tree is not None else self.n_trees)
+    #    # keep the last tree?
+    #    if last_tree_counts_full and (max_n_tree is None or max_n_tree==self.n_trees):
+    #        learning_rates[-1] = 1
+    #    # Does the first tree hold the global score?
+    #    if self.cfg["learn_global_score"]:
+    #         learning_rates[0] = 1
+    #        
+    #    predictions = np.array([ tree.predict( feature_array ) for tree in self.trees[:max_n_tree] ])
+    #    predictions = predictions[:,1:]/predictions[:,0].reshape(-1,1)
+    #    if summed:
+    #        return np.dot(learning_rates, predictions)
+    #    else:
+    #        return learning_rates.reshape(-1, 1)*predictions
     
-    def vectorized_predict( self, feature_array, max_n_tree = None, summed = True, last_tree_counts_full = False):
-        # list learning rates
-        learning_rates = self.learning_rate*np.ones(max_n_tree if max_n_tree is not None else self.n_trees)
-        # keep the last tree?
-        if last_tree_counts_full and (max_n_tree is None or max_n_tree==self.n_trees):
-            learning_rates[-1] = 1
-        # Does the first tree hold the global score?
-        if self.cfg["learn_global_score"]:
-             learning_rates[0] = 1
-            
-        predictions = np.array([ tree.vectorized_predict( feature_array ) for tree in self.trees[:max_n_tree] ])
-        predictions = predictions[:,:,1:]/np.expand_dims(predictions[:,:,0], -1)
+    #def predict( self, feature_array, max_n_tree = None, summed = True, last_tree_counts_full = False):
+    #    # list learning rates
+    #    learning_rates = self.learning_rate*np.ones(max_n_tree if max_n_tree is not None else self.n_trees)
+    #    # keep the last tree?
+    #    if last_tree_counts_full and (max_n_tree is None or max_n_tree==self.n_trees):
+    #        learning_rates[-1] = 1
+    #    # Does the first tree hold the global score?
+    #    if self.cfg["learn_global_score"]:
+    #         learning_rates[0] = 1
+    #        
+    #    predictions = np.array([ tree.vectorized_predict( feature_array ) for tree in self.trees[:max_n_tree] ])
+    #    predictions = predictions[:,:,1:]/np.expand_dims(predictions[:,:,0], -1)
+    #    if summed:
+    #        return np.sum(learning_rates.reshape(-1,1,1)*predictions, axis=0)
+    #    else:
+    #        return learning_rates.reshape(-1,1,1)*predictions 
+
+    def predict(self, feature_array, max_n_tree=None, summed=True, last_tree_counts_full=False):
+        """
+        Parameters
+        ----------
+        feature_array : np.ndarray, shape (N, d)
+            Input features.
+        max_n_tree : int or None
+            Use only the first max_n_tree trees if set.
+        summed : bool
+            If True, returns the learning-rate-weighted sum over trees (shape (N, K)).
+            If False, returns per-tree predictions (shape (T, N, K)) like before.
+        last_tree_counts_full : bool
+            If True and using all trees, set the last tree's learning rate to 1.
+        """
+        # number of trees to use
+        T = max_n_tree if max_n_tree is not None else self.n_trees
+
+        # learning rates per tree
+        learning_rates = self.learning_rate * np.ones(T, dtype=np.float64)
+        if last_tree_counts_full and (max_n_tree is None or max_n_tree == self.n_trees):
+            learning_rates[-1] = 1.0
+        if self.cfg.get("learn_global_score", False):
+            # first tree holds global score
+            learning_rates[0] = 1.0
+
+        # Fast exit if no trees
+        if T == 0:
+            # determine K from a single tree if available (fallback to 0)
+            K = 0
+            if self.n_trees > 0:
+                tmp = self.trees[0].vectorized_predict(feature_array)
+                K = max(0, tmp.shape[1] - 1)
+            return np.zeros((feature_array.shape[0], K), dtype=np.float64) if summed else \
+                   np.zeros((0, feature_array.shape[0], K), dtype=np.float64)
+
+        # We need output dimension K; get it from the first tree cheaply.
+        first = self.trees[0].vectorized_predict(feature_array[:1])
+        # first has shape (1, 1+K): [denom, num1, num2, ...]
+        K = first.shape[1] - 1
+
+        N = feature_array.shape[0]
+
         if summed:
-            return np.sum(learning_rates.reshape(-1,1,1)*predictions, axis=0)
+            # --- streaming accumulation: O(N*K) memory ---
+            acc = np.zeros((N, K), dtype=np.float64)
+            # work buffers reused to avoid reallocs
+            # We’ll compute `ratio = num / denom` safely via np.divide
+            for t in range(T):
+                raw = self.trees[t].vectorized_predict(feature_array)  # shape (N, 1+K)
+                # ensure float64 for stable accumulation
+                if raw.dtype != np.float64:
+                    raw = raw.astype(np.float64, copy=False)
+                denom = raw[:, :1]              # (N,1)
+                num   = raw[:, 1:]              # (N,K)
+                ratio = np.empty_like(num)      # (N,K)
+                # safe division: where denom==0 -> 0 (same effect as original would be NaN; 0 is safer)
+                np.divide(num, denom, out=ratio, where=(denom != 0.0))
+                acc += learning_rates[t] * ratio
+            return acc
         else:
-            return learning_rates.reshape(-1,1,1)*predictions 
+            # --- per-tree tensor (memory heavy, keep legacy behavior) ---
+            # If you still hit memory issues here, consider adding a chunked writer or return a generator.
+            out = np.empty((T, N, K), dtype=np.float64)
+            for t in range(T):
+                raw = self.trees[t].vectorized_predict(feature_array)  # (N, 1+K)
+                if raw.dtype != np.float64:
+                    raw = raw.astype(np.float64, copy=False)
+                denom = raw[:, :1]
+                num   = raw[:, 1:]
+                np.divide(num, denom, out=out[t], where=(denom != 0.0))
+                out[t] *= learning_rates[t]
+            return out
 
     def losses( self, feature_array, weight_dict, max_n_tree = None, last_tree_counts_full = False):
         ## list learning rates

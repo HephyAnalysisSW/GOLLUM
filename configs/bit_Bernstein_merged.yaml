@@ -1,0 +1,27 @@
+defaults:
+  module_samples: "data.samples"     
+  default_binning:
+    - ["tr_ttbar_mass", [ 500, 620, 820, 1100, 1500, 2500]]
+  default_features: 
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+
+jobs:
+  - id: bit_Bernstein_tt2l
+    type: bit
+    region: SR
+    process: tt2l                 # loader/view name from data.samples
+    selection: null               # optional extra selection layered on top
+    pdf:
+      pdf_n: 5                   # <-- controls the number of coeffs (c0..cN)
+      pdf_type: Bernstein 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_Bernstein_tt2l.pkl"

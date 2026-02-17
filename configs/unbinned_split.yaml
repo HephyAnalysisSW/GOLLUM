@@ -4,9 +4,9 @@ defaults:
   module_samples: "data.samples"     # jobs import datasets/views by name from here
   batch_size: 65536
   default_features: 
-    - TOP_KINEMATICS
-    - LEPTON_KINEMATICS
-    - ASYMMETRY
+    - OLD_TOP_KINEMATICS
+    - OLD_LEPTON_KINEMATICS
+    - OLD_ASYMMETRY
 
 likelihood:
     regions:
@@ -122,40 +122,6 @@ likelihood:
 jobs:
   - include: bit_split.yaml
   # -------------------------------
-  # Inclusive Cross Section (IC)
-  # -------------------------------
-  - id: ic_tt2l
-    type: ic
-    region: SR
-    process: tt2l
-    selection: null
-    output:
-      filename: "IC_tt2l.pkl"
-  - id: ic_tt2l_GG
-    type: ic
-    region: SR
-    process: tt2l_GG
-    selection: null
-    output:
-      filename: "IC_tt2l_GG.pkl"
-
-  - id: ic_tt2l_QG
-    type: ic
-    region: SR
-    process: tt2l_QG
-    selection: null
-    output:
-      filename: "IC_tt2l_QG.pkl"
-
-  - id: ic_tt2l_QQ
-    type: ic
-    region: SR
-    process: tt2l_QQ
-    selection: null
-    output:
-      filename: "IC_tt2l_QQ.pkl"
-
-  # -------------------------------
   # Scalers 
   # -------------------------------
   - id: scaler_tt2l
@@ -210,7 +176,6 @@ jobs:
       batch_size: 65536
       num_workers: 1
     extras:
-      use_ic: ic_tt2l
       use_scaler: scaler_tt2l
     output:
       filename: "tfmc_no_reg.pkl"
@@ -815,7 +780,7 @@ jobs:
         addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_Trigger
@@ -839,7 +804,7 @@ jobs:
         addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_L1Prefire
@@ -863,7 +828,7 @@ jobs:
         addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_PU
@@ -888,7 +853,7 @@ jobs:
         addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_LeptonSF
@@ -912,7 +877,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_BTag_b
@@ -936,7 +901,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_BTag_l
@@ -977,7 +942,7 @@ jobs:
         addweights: ["scale_ren2p0_fac2p0"]
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_scales
@@ -1010,7 +975,7 @@ jobs:
         loader: tt2l_GG_2p0_jesTotalUp
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_jesTotal
@@ -1042,7 +1007,7 @@ jobs:
       #  loader: tt2l_GG_2p0_jesTotalUp
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_GG
       use_icp: icp_tt2l_GG_jesTotal
@@ -1070,7 +1035,7 @@ jobs:
         addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_Trigger
@@ -1094,7 +1059,7 @@ jobs:
         addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_L1Prefire
@@ -1118,7 +1083,7 @@ jobs:
         addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_PU
@@ -1143,7 +1108,7 @@ jobs:
         addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_LeptonSF
@@ -1167,7 +1132,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_BTag_b
@@ -1191,7 +1156,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_BTag_l
@@ -1232,7 +1197,7 @@ jobs:
         addweights: ["scale_ren2p0_fac2p0"]
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_scales
@@ -1264,7 +1229,7 @@ jobs:
       #  loader: tt2l_QG_2p0_jesTotalUp
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QG
       use_icp: icp_tt2l_QG_jesTotal
@@ -1291,7 +1256,7 @@ jobs:
         addweights: ["reweightTriggerUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_Trigger
@@ -1315,7 +1280,7 @@ jobs:
         addweights: ["reweightL1PrefireUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_L1Prefire
@@ -1339,7 +1304,7 @@ jobs:
         addweights: ["reweightPUUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_PU
@@ -1364,7 +1329,7 @@ jobs:
         addweights: ["reweightLeptonSFUp"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_LeptonSF
@@ -1388,7 +1353,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_b_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_BTag_b
@@ -1412,7 +1377,7 @@ jobs:
         addweights: ["reweightBTagSF1a_SF_l_Up"] 
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_BTag_l
@@ -1453,7 +1418,7 @@ jobs:
         addweights: ["scale_ren2p0_fac2p0"]
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_scales
@@ -1486,7 +1451,7 @@ jobs:
         loader: tt2l_QQ_2p0_jesTotalUp
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_jesTotal
@@ -1518,7 +1483,7 @@ jobs:
       #  loader: tt2l_QQ_2p0_jesTotalUp
     model: { hidden_layers: [128,128], activation: relu, initialize_zero: true }
     optim: { epochs: 200, phaseout_epochs: 50, learning_rate: 0.001 }
-    runtime: { n_split: 10, plot_every: 5, rebin: 2 }
+    runtime: { n_split: 10, rebin: 2 }
     extras:
       use_scaler: scaler_tt2l_QQ
       use_icp: icp_tt2l_QQ_jesTotal

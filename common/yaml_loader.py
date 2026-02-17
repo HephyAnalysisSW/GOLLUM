@@ -2,6 +2,7 @@ import os
 import yaml
 from collections import defaultdict, deque
 from typing import List, Iterable
+from pathlib import Path
 
 import sys
 sys.path.insert(0, '..')
@@ -89,7 +90,7 @@ def _expand(node, current_file: str, seen, parent_key: str | None):
 def load_yaml(path: str):
     doc = _read_yaml(path)
     cfg = _expand(doc, os.path.abspath(path), seen=set(), parent_key=None)
-    _apply_feature_defaults_and_checks(cfg)   # <<< NEW
+    _apply_defaults_and_checks(cfg)   # <<< NEW
     return cfg
 
 # --- feature resolution (NEW) ---------------------------------------------
@@ -128,66 +129,244 @@ def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
         raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
     return out
 
-def _apply_feature_defaults_and_checks(cfg: dict):
+#def _apply_defaults_and_checks(cfg: dict):
+#    """
+#    - Resolve defaults.default_features via _resolve_features_list.
+#    - For each job of type ICH / ICPH:
+#        * If job.binning missing -> set to defaults
+#    - For each job of type scaler / classifier(tfmc) / pnn / bit:
+#        * If job.features missing -> set to defaults
+#        * Else resolve job.features via _resolve_features_list
+#    - If a PNN or TFMC has extras.use_scaler, ensure features identical to that scaler job.
+#    """
+#    defaults = cfg.get("defaults", {}) or {}
+#    default_tokens = (defaults.get("default_features") or [])
+#    default_features = _resolve_features_list(default_tokens)
+#    # keep a resolved copy (optional)
+#    cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
+#    # default binning, if there is one
+#    default_binning = (defaults.get("default_binning") or None)
+#
+#    default_selection = (defaults.get("default_selection") or None)
+#
+#    jobs = cfg.get("jobs", []) or []
+#    # resolve per job
+#    for j in jobs:
+#        if not isinstance(j, dict):
+#            continue
+#        jtyp = j.get("type")
+#
+#        if jtyp in {"ich", "icph"} and default_binning:
+#            if not "binning" in j:
+#                j["binning"] = default_binning
+#        if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
+#            continue
+#        if jtyp == "classifier" and j.get("framework") != "tfmc":
+#            continue
+#        feat_tokens = j.get("features", None)
+#        if feat_tokens is None:
+#            j["features"] = list(default_features)
+#        else:
+#            j["features"] = _resolve_features_list(feat_tokens)
+#
+#    # scaler-feature consistency for TFMC/PNN that reference a scaler
+#    id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
+#    for j in jobs:
+#        if not isinstance(j, dict):
+#            continue
+#        jtyp = j.get("type")
+#        if jtyp == "classifier" and j.get("framework") == "tfmc":
+#            extras = j.get("extras", {}) or {}
+#            sid = extras.get("use_scaler")
+#            if isinstance(sid, str) and sid in id2job:
+#                sj = id2job[sid]
+#                if sj.get("type") != "scaler":
+#                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+#                f_a = j.get("features", [])
+#                f_b = sj.get("features", [])
+#                if f_a != f_b:
+#                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' features != scaler '{sid}' features.\n"
+#                                       f"  TFMC : {f_a}\n  Scaler: {f_b}")
+#        if jtyp == "pnn":
+#            extras = j.get("extras", {}) or {}
+#            sid = extras.get("use_scaler")
+#            if isinstance(sid, str) and sid in id2job:
+#                sj = id2job[sid]
+#                if sj.get("type") != "scaler":
+#                    raise RuntimeError(f"[features] PNN '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+#                f_a = j.get("features", [])
+#                f_b = sj.get("features", [])
+#                if f_a != f_b:
+#                    raise RuntimeError(f"[features] PNN '{j.get('id')}' features != scaler '{sid}' features.\n"
+#                                       f"  PNN   : {f_a}\n  Scaler: {f_b}")
+
+def _apply_defaults_and_checks(cfg: dict):
     """
     - Resolve defaults.default_features via _resolve_features_list.
+    - For each job of type ICH / ICPH:
+        * If job.binning missing -> set to defaults
     - For each job of type scaler / classifier(tfmc) / pnn / bit:
         * If job.features missing -> set to defaults
         * Else resolve job.features via _resolve_features_list
+    - Selection handling (NEW):
+        * For all jobs, selection defaults to None and selection_features to []
+        * If defaults.default_selection/default_selection_features are given, apply them
+        * If a job already has a selection, merge into [default, job] (list of two strings)
+          and selection_features becomes the union of both feature lists.
+        * default/job selections are assumed to be strings (or None), but we tolerate a
+          pre-merged list[str] to keep the loader idempotent.
     - If a PNN or TFMC has extras.use_scaler, ensure features identical to that scaler job.
     """
     defaults = cfg.get("defaults", {}) or {}
+
+    # ---------- feature defaults ----------
     default_tokens = (defaults.get("default_features") or [])
     default_features = _resolve_features_list(default_tokens)
-    # keep a resolved copy (optional)
     cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
 
+    # default binning, if there is one
+    default_binning = (defaults.get("default_binning") or None)
+
     jobs = cfg.get("jobs", []) or []
-    # resolve per job
+
+    # ---------- selection defaults/merge (NEW) ----------
+    default_selection = defaults.get("default_selection", None)
+    if default_selection is not None and not isinstance(default_selection, str):
+        raise RuntimeError(
+            f"[selection] defaults.default_selection must be a string or null, got {type(default_selection)}"
+        )
+
+    default_selection_features = defaults.get("default_selection_features", []) or []
+    if isinstance(default_selection_features, str):
+        default_selection_features = [default_selection_features]
+    if not (
+        isinstance(default_selection_features, list)
+        and all(isinstance(x, str) for x in default_selection_features)
+    ):
+        raise RuntimeError(
+            "[selection] defaults.default_selection_features must be a list of strings (or a single string)."
+        )
+
+    def _extend_unique(dst, src):
+        for x in src:
+            if x not in dst:
+                dst.append(x)
+
+    for j in jobs:
+        if not isinstance(j, dict):
+            continue
+
+        # --- normalize job.selection_features ---
+        j_sel_feats = j.get("selection_features", None)
+        if j_sel_feats is None:
+            j_sel_feats = []
+        elif isinstance(j_sel_feats, str):
+            j_sel_feats = [j_sel_feats]
+        elif not (isinstance(j_sel_feats, list) and all(isinstance(x, str) for x in j_sel_feats)):
+            raise RuntimeError(
+                f"[selection] Job '{j.get('id','?')}' selection_features must be a list of strings (or a single string)."
+            )
+
+        # --- normalize job.selection ---
+        j_sel = j.get("selection", None)
+        if j_sel is None:
+            j_sel_list = []
+        elif isinstance(j_sel, str):
+            j_sel_list = [j_sel]
+        elif isinstance(j_sel, list) and all(isinstance(x, str) for x in j_sel):
+            # tolerate already-merged state (idempotent loader)
+            j_sel_list = list(j_sel)
+        else:
+            raise RuntimeError(
+                f"[selection] Job '{j.get('id','?')}' selection must be a string, list[str], or null."
+            )
+
+        # --- merge selections: [default, job] with uniqueness, max length 2 ---
+        merged_sels = []
+        if default_selection is not None:
+            merged_sels.append(default_selection)
+        _extend_unique(merged_sels, j_sel_list)
+
+        if len(merged_sels) == 0:
+            j["selection"] = None
+        elif len(merged_sels) == 1:
+            j["selection"] = merged_sels[0]
+        elif len(merged_sels) == 2:
+            j["selection"] = merged_sels
+        else:
+            raise RuntimeError(
+                f"[selection] Job '{j.get('id','?')}' ended up with >2 selections: {merged_sels}"
+            )
+
+        # --- merge selection features (union, deterministic order) ---
+        merged_feats = []
+        if default_selection is not None:
+            _extend_unique(merged_feats, default_selection_features)
+        _extend_unique(merged_feats, j_sel_feats)
+        j["selection_features"] = merged_feats
+
+    # ---------- resolve per job features/binning ----------
     for j in jobs:
         if not isinstance(j, dict):
             continue
         jtyp = j.get("type")
+
+        if jtyp in {"ich", "icph"} and default_binning:
+            if "binning" not in j:
+                j["binning"] = default_binning
+
         if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
             continue
         if jtyp == "classifier" and j.get("framework") != "tfmc":
             continue
+
         feat_tokens = j.get("features", None)
         if feat_tokens is None:
             j["features"] = list(default_features)
         else:
             j["features"] = _resolve_features_list(feat_tokens)
 
-    # scaler-feature consistency for TFMC/PNN that reference a scaler
+    # ---------- scaler-feature consistency for TFMC/PNN that reference a scaler ----------
     id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
     for j in jobs:
         if not isinstance(j, dict):
             continue
         jtyp = j.get("type")
+
         if jtyp == "classifier" and j.get("framework") == "tfmc":
             extras = j.get("extras", {}) or {}
             sid = extras.get("use_scaler")
             if isinstance(sid, str) and sid in id2job:
                 sj = id2job[sid]
                 if sj.get("type") != "scaler":
-                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+                    raise RuntimeError(
+                        f"[features] TFMC '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job."
+                    )
                 f_a = j.get("features", [])
                 f_b = sj.get("features", [])
                 if f_a != f_b:
-                    raise RuntimeError(f"[features] TFMC '{j.get('id')}' features != scaler '{sid}' features.\n"
-                                       f"  TFMC : {f_a}\n  Scaler: {f_b}")
+                    raise RuntimeError(
+                        f"[features] TFMC '{j.get('id')}' features != scaler '{sid}' features.\n"
+                        f"  TFMC : {f_a}\n  Scaler: {f_b}"
+                    )
+
         if jtyp == "pnn":
             extras = j.get("extras", {}) or {}
             sid = extras.get("use_scaler")
             if isinstance(sid, str) and sid in id2job:
                 sj = id2job[sid]
                 if sj.get("type") != "scaler":
-                    raise RuntimeError(f"[features] PNN '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job.")
+                    raise RuntimeError(
+                        f"[features] PNN '{j.get('id')}' extras.use_scaler='{sid}' is not a scaler job."
+                    )
                 f_a = j.get("features", [])
                 f_b = sj.get("features", [])
                 if f_a != f_b:
-                    raise RuntimeError(f"[features] PNN '{j.get('id')}' features != scaler '{sid}' features.\n"
-                                       f"  PNN   : {f_a}\n  Scaler: {f_b}")
+                    raise RuntimeError(
+                        f"[features] PNN '{j.get('id')}' features != scaler '{sid}' features.\n"
+                        f"  PNN   : {f_a}\n  Scaler: {f_b}"
+                    )
+
 
 # --- pretty printers ------------------------------------------------------
 def _print_include_tree(root_file: str, trace):
@@ -303,8 +482,8 @@ def _normalize_cfg_binning(job_binning):
         edges.append(arr)
     return tuple(axes), edges
 
-# --- surrogate loader (unchanged except for import path fixes) ------------
-def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
+# --- surrogate loader ------------
+def load_surrogates(cfg, config_path, overwrite=False):
     """
     Load artifacts and attach predictors; also checks ICH/ICPH binnings and PNN↔ICP consistency.
     """
@@ -314,17 +493,17 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
     cfg_full = os.path.abspath(os.path.expanduser(os.path.expandvars(config_path)))
     import common.user as user
 
-    def cfg_base_for(job):
-        ver = cfg.get("version", "default")
-        reg = job.get("region", cfg.get("region", "default"))
-        return os.path.join(ver, reg)
-
     def job_by_id(jid):
         return next((j for j in (cfg.get("jobs") or []) if j.get("id") == jid), None)
 
     same_flags = []
     if overwrite: same_flags.append("--overwrite")
     FLAGS = " " + " ".join(same_flags) if same_flags else ""
+
+    def cfg_base_for(job):
+        ver = cfg.get("version", "default")
+        reg = job.get("region", cfg.get("region", "default"))
+        return os.path.join(ver, reg)
 
     def try_load_scaler(path):
         try:
@@ -377,18 +556,31 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
 
     def try_load_bit(path):
         try:
-            if prefer_numba:
-                from ML.BIT.NumbaBIT import MultiBoostedInformationTree
-            else:
-                from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
+            #if prefer_numba:
+            from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+            #else:
+            #    from ML.BIT.MultiBoostedInformationTree import MultiBoostedInformationTree
             return MultiBoostedInformationTree.load(path)
         except Exception:
             return None
 
-    ok, missing = [], []
+    ml_dir = Path(__file__).resolve().parent.parent / "ML"
 
+#    # Define the desired type order
+#    _type_order = ["scaler", "ic", "ich", "icp", "icph"]
+#    _type_rank  = {t: i for i, t in enumerate(_type_order)}
+#
+#    jobs = cfg.get("jobs") or []
+#
+#    # Sort jobs by type, with the specified types first
+#    jobs_sorted = sorted(
+#        jobs,
+#        key=lambda job: _type_rank.get(job.get("type"), len(_type_order))
+#    )
+
+    ok, missing = [], []
     # ---------- First pass ----------
-    for i_job, job in enumerate((cfg.get("jobs") or [])):
+    for i_job, job in enumerate(cfg.get("jobs") or []):
         if not isinstance(job, dict): 
             continue
         jid  = job.get("id")
@@ -411,7 +603,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] Scaler {jid}  (expected at {path})")
-                missing.append(f"python Scaler/scaler_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/Scaler/scaler_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "ic":
             process = job.get("process")
@@ -426,11 +618,12 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] IC {jid}  (expected at {path})")
-                missing.append(f"python IC/ic_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/IC/ic_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "ich":
             outdir = os.path.join(user.model_directory, base, "ICH")
-            fname  = (job.get("output", {}) or {}).get("filename", "ICH.pkl")
+            process = job.get("process")
+            fname  = (job.get("output", {}) or {}).get("filename", f"ICH_{process}.pkl")
             path   = os.path.join(outdir, fname)
             loaded = try_load_ich(path)
             if loaded is not None:
@@ -439,7 +632,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] ICH {jid}  (expected at {path})")
-                missing.append(f"python ICH/ich_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/ICH/ich_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "icp":
             out     = job.get("output", {}) or {}
@@ -453,7 +646,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] ICP {jid}  (expected at {path})")
-                missing.append(f"python ICP/icp_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/ICP/icp_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "icph":
             out     = job.get("output", {}) or {}
@@ -467,7 +660,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 cfg['jobs'][i_job]['predictor'] = loaded
             else:
                 print(f"[MISS] ICPH {jid}  (expected at {path})")
-                missing.append(f"python ICPH/icph_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/ICPH/icph_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "pnn":
             model_dir = os.path.join(user.model_directory, base, "PNN", jid)
@@ -476,9 +669,10 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] PNN {jid}  -> {model_dir}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] PNN {jid}  (expected at {model_dir})")
-                missing.append(f"python PNN/pnn_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/PNN/pnn_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "classifier" and job.get("framework") == "tfmc":
             model_dir = os.path.join(user.model_directory, base, "TFMC", jid)
@@ -487,9 +681,10 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] TFMC {jid}  -> {model_dir}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] TFMC {jid}  (expected at {model_dir})")
-                missing.append(f"python TFMC/tfmc_training.py {cfg_full}{FLAGS} --job {jid}")
+                missing.append(f"python {ml_dir}/TFMC/tfmc_training.py {cfg_full}{FLAGS} --job {jid}")
 
         elif jtyp == "bit":
             outdir = os.path.join(user.model_directory, base, "BIT", jid)
@@ -500,10 +695,10 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
                 print(f"[OK] BIT {jid}  -> {path}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
             else:
                 print(f"[MISS] BIT {jid}  (expected at {path})")
-                nb = " --numba" if prefer_numba else ""
-                missing.append(f"python BIT/pdf_bit_training.py {cfg_full}{FLAGS}{nb} --job {jid}")
+                missing.append(f"python {ml_dir}/BIT/pdf_bit_training.py {cfg_full}{FLAGS} --job {jid}")
 
         # ICH/ICPH binning consistency
         if jtyp in {"ich", "icph"} and cfg['jobs'][i_job].get("predictor") is not None:
@@ -594,6 +789,7 @@ def load_surrogates(cfg, config_path, overwrite=False, prefer_numba=False):
         print("Train the missing ones with:")
         for cmd in missing:
             print(cmd)
+    return missing
 
 # --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
@@ -601,5 +797,5 @@ if __name__ == "__main__":
     root = sys.argv[1]
     cfg = load_yaml(root)
     print_summary(cfg, root, _INCLUDE_TRACE)
-    load_surrogates(cfg, root, overwrite=False, prefer_numba=False)
+    load_surrogates(cfg, root, overwrite=False)
 

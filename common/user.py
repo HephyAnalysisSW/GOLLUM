@@ -19,34 +19,17 @@ if user in ['robert.schoefbeck']:
     output_directory       = "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/"
 
     
-elif user in ['dennis.schwarz']:
-    plot_directory         = "/groups/hephy/cms/dennis.schwarz/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/models/"
-    output_directory       = "/groups/hephy/cms/dennis.schwarz/HiggsChallenge/output/"
-
 elif user in ['ang.li']:
     plot_directory         = "/groups/hephy/cms/ang.li/www/HiggsChallenge/"
     model_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/models/"
     cache_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/caches/"
     output_directory       = "/groups/hephy/cms/ang.li/HiggsChallenge/output/"
 
-elif user in ['cristina.giordano']:
-    plot_directory         = "/groups/hephy/cms/cristina.giordano/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/cristina.giordano/HiggsChallenge/models/"
-    cache_directory        = "/groups/hephy/cms/cristina.giordano/HiggsChallenge/caches/"
-    output_directory       = "/groups/hephy/cms/cristina.giordano/HiggsChallenge/output/"
-
 elif user in ['lisa.benato']:
-    plot_directory         = "/groups/hephy/cms/lisa.benato/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/lisa.benato/HiggsChallenge/models/"
-    cache_directory        = "/groups/hephy/cms/lisa.benato/HiggsChallenge/caches/"
-    output_directory       = "/groups/hephy/cms/lisa.benato/HiggsChallenge/output/"
-
-elif user in ['maryam.shooshtari']:
-    plot_directory         = "/groups/hephy/cms/maryam.shooshtari/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/maryam.shooshtari/HiggsChallenge/models/"
-    cache_directory        = "/groups/hephy/cms/maryam.shooshtari/HiggsChallenge/caches/"
-    output_directory       = "/groups/hephy/cms/maryam.shooshtari/HiggsChallenge/output/"
+    plot_directory         = "/groups/hephy/cms/lisa.benato/www/SBIPDF/"
+    model_directory        = "/groups/hephy/cms/lisa.benato/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/lisa.benato/SBIPDF/caches/"
+    output_directory       = "/groups/hephy/cms/lisa.benato/SBIPDF/output/"
 
 elif user in ['claudius.krause']:
     plot_directory         = "/groups/hephy/mlearning/HiggsChallenge/claudius/plots/"
@@ -56,11 +39,19 @@ elif user in ['claudius.krause']:
 
 elif user in ['sergio.sanchez.cruz']:
     # Where the plots go:
-    plot_directory         = "/groups/hephy/cms/sergio.sanchez.cruz/www/SBIPDF/"
+    plot_directory         = "/groups/hephy/cms/sergio.sanchez.cruz/www/SBIPDF_dev/"
     # For model output:
-    model_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/models/"
-    cache_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF/caches/"
-    output_directory       = "/scratch-cbe/users/sergio.sanchez.cruz/SBIPDF/output/"
+    model_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF_dev/models/"
+    cache_directory        = "/groups/hephy/cms/sergio.sanchez.cruz/SBIPDF_dev/caches/"
+    output_directory       = "/scratch-cbe/users/sergio.sanchez.cruz/SBIPDF_dev/output/"
+    
+elif user in ['ricardo.barrue']:
+    # Where the plots go:
+    plot_directory         = "/groups/hephy/cms/ricardo.barrue/www/SBIPDF/"
+    # For model output:
+    model_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/caches/"
+    output_directory       = "/groups/hephy/cms/ricardo.barrue/SBIPDF/output/"
 
 elif user in ['alikaan.gueven']:
     # Where the plots go:

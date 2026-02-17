@@ -115,7 +115,6 @@ if icph is None or args.overwrite:
             )
 
         base = getattr(samples_mod, loader_name)
-
         remove = list(spec.get("removeweights", []) or [])
         add    = list(spec.get("addweights", []) or [])
 
@@ -215,6 +214,16 @@ if icph is None or args.overwrite:
 
         loaders.append(eff_loader)
 
+    # Add selection
+    sel  = J.get("selection", None)
+    sel_f= J.get("selection_features", [])
+    if sel:
+        for loader in loaders:
+            if isinstance(loader, RDataLoader):
+                loader.addSelection( sel, sel_f)
+            else:
+                loader.base.addSelection( sel, sel_f)
+
     # ---------------- debug print of resolved loaders/views ----------------
     print(f"\nResolved loaders for ICPH job '{J.get('id', '<unknown>')}':")
     for i, (spec, L) in enumerate(zip(bp_specs, loaders)):
@@ -241,9 +250,19 @@ if icph is None or args.overwrite:
             data = loader.materialize(shard=shard, what="fow")
             X, G, w = data
             vals1 = X[:, loader.feature_names.index(axis1_name)] if axis1_name in loader.feature_names else G[:, loader.observer_names.index(axis1_name)]
+
+            n_nans =  len(np.unique(np.where(np.isnan(vals1))))
+            if n_nans>0:
+                print( f"Found {n_nans} NaN entries out of {len(X)} events!" )
+                #raise RuntimeError( f"Found {n_nans} NaN entries out of {len(X)} events!" )
+
             vals2 = None
             if axis2_name is not None:
                 vals2 = X[:, loader.feature_names.index(axis2_name)] if axis2_name in loader.feature_names else G[:, loader.observer_names.index(axis2_name)]
+                n_nans =  len(np.unique(np.where(np.isnan(vals2))))
+                if n_nans>0:
+                    print ( f"Found {n_nans} NaN entries out of {len(X)} events!" )
+                    #raise RuntimeError( f"Found {n_nans} NaN entries out of {len(X)} events!" )
             if len(axis_names) == 1:
                 hist, _ = np.histogram(vals1, bins=bin_edges[0], weights=w)
             else:

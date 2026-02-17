@@ -1,12 +1,12 @@
-
 # RDataLoader.py
 """
 RDataLoader — lightweight ROOT/UPROOT data loader with group-aware branch handling.
 """
+
 from __future__ import annotations
 import os
 import glob
-import warnings
+import time
 from typing import Callable, List, Optional, Sequence, Union, Tuple
 
 import numpy as np
@@ -16,12 +16,30 @@ import uproot
 
 import SelectionView
 
+# -----------------------------------------------------------------------------
+# Module-level debug switch (timing + memory prints)
+# -----------------------------------------------------------------------------
+VERBOSE = False
+
 PathLike = Union[str, os.PathLike]
 
-# A single selection function: ar -> boolean mask (or awkward array mask)
-SelectionFn = Callable[[ak.Array], Union[ak.Array, np.ndarray]]
-# For the public interface we now allow: None, a single SelectionFn, or a list of SelectionFn
-SelectionLike = Union[SelectionFn, Sequence[SelectionFn], None]
+SelectionAkFn = Callable[[ak.Array], Union[ak.Array, np.ndarray]]
+SelectionNpFn = Callable[[np.ndarray, np.ndarray, np.ndarray], Union[np.ndarray, ak.Array]]
+SelectionItem = Union[str, SelectionAkFn, SelectionNpFn]
+SelectionLike = Union[SelectionItem, Sequence[SelectionItem], None]
+
+
+def _rss_mb() -> float:
+    with open("/proc/self/status", "r") as f:
+        for line in f:
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) / 1024.0
+    return float("nan")
+
+
+def _ak_mb(ar: ak.Array) -> float:
+    # Awkward 2.6.x compatible payload-bytes estimate
+    return sum(buf.nbytes for buf in ak.to_buffers(ar)[2].values()) / 1024.0 / 1024.0
 
 
 class RDataLoader:
@@ -43,33 +61,21 @@ class RDataLoader:
         weight_branches: Optional[Sequence[str]] = None,
     ) -> None:
         self.tree_name = tree_name
-        # keep the original attribute for backwards-compatibility / introspection
         self.selection = selection
         self.strict_branches = strict_branches
         self.splitting_strategy = splitting_strategy
         self.n_split = max(1, int(n_split))
-
-        # normalize selection(s) to an internal list of callables
-        self._selection_fns: List[SelectionFn] = []
-        if selection is None:
-            self._selection_fns = []
-        else:
-            # allow single callable or iterable of callables
-            if callable(selection):
-                self._selection_fns = [selection]  # type: ignore[arg-type]
-            else:
-                self._selection_fns = list(selection)  # type: ignore[arg-type]
+        self.file_pattern = file_pattern
 
         # Persist configured features/observers (optional)
         self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
         self.observer_names: Optional[List[str]] = list(observer_names) if observer_names else None
-
-        # NEW: purely explicit list of weight branches (product)
         self.weight_branches: List[str] = list(weight_branches) if weight_branches else []
 
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
             input_paths = [str(input_paths)]
+        self.input_paths = input_paths
         files: List[str] = []
         for p in input_paths or []:
             p = os.path.expanduser(str(p))
@@ -78,7 +84,7 @@ class RDataLoader:
             elif os.path.isfile(p):
                 files.append(p)
             else:
-                warnings.warn(f"RDataLoader: path not found: {p}")
+                raise FileNotFoundError(f"RDataLoader: path not found: {p}")
         if not files:
             raise FileNotFoundError("RDataLoader: no ROOT files found.")
         if max_files is not None:
@@ -88,31 +94,140 @@ class RDataLoader:
         # Discover branches if not provided
         _requested = list(branches) if branches else None
         if _requested is None:
-            with uproot.open(self._all_files[0]) as f:
+            with uproot.open(self._all_files[0], object_cache=None, array_cache=None) as f:
                 t = f[self.tree_name]
                 _requested = list(t.keys())
-                warnings.warn("RDataLoader: 'branches' not provided, loading all tree branches.")
 
-        # Ensure requested branches include configured features/observers if any
+        # Ensure requested branches include configured features/observers/weights
         if self.feature_names:
             _requested = list(dict.fromkeys(list(_requested) + list(self.feature_names)))
         if self.observer_names:
             _requested = list(dict.fromkeys(list(_requested) + list(self.observer_names)))
-
-        # Ensure requested branches include weight_branches (if any)
         if self.weight_branches:
             _requested = list(dict.fromkeys(list(_requested) + list(self.weight_branches)))
-
         self._requested_branches = _requested
 
-        # Compute split layout
+        # Split layout
         if self.splitting_strategy not in ("files", "events"):
             raise ValueError("splitting_strategy must be 'files' or 'events'")
         self._file_splits: List[List[str]] = self._make_file_splits(self._all_files, self.n_split)
 
-        # -------- caches (per shard) --------
-        self._arr_cache: dict[int, ak.Array] = {}
+        # Selection storage
+        self._selection_items: List[SelectionItem] = []
+        self._sel_exprs: List[SelectionAkFn] = []
+        self._sel_ak_fns: List[SelectionAkFn] = []
+        self._sel_np_fns: List[SelectionNpFn] = []
+
+        # Probe available branches once; used for filtering and later re-filter after setFeatures/addSelection
+        with uproot.open(self._all_files[0], object_cache=None, array_cache=None) as f0:
+            t0 = f0[self.tree_name]
+            self._available0 = set(t0.keys())
+        self._use_branches = self._filter_branches(self._available0, self._requested_branches)
+
+        # Persistent file/tree handle (single-file fast path)
+        self._open_path: Optional[str] = None
+        self._open_file = None
+        self._open_tree = None
+
+        # Single-shard cache (awkward + materialized)
+        self._cache_shard: Optional[int] = None
+        self._cache_ar: Optional[ak.Array] = None
+        self._cache_X: Optional[np.ndarray] = None
+        self._cache_G: Optional[np.ndarray] = None
+        self._cache_w: Optional[np.ndarray] = None
+        self._cache_X_names: Optional[Tuple[str, ...]] = None
+        self._cache_G_names: Optional[Tuple[str, ...]] = None
+        self._cache_w_branches: Optional[Tuple[str, ...]] = None
+
+        # Kept for compatibility (unused here)
         self._mask_cache: dict[str, dict[int, np.ndarray]] = {}
+
+        # Apply constructor selection(s)
+        if selection is not None:
+            items = [selection] if isinstance(selection, (str,)) or callable(selection) else list(selection)
+            for it in items:
+                self.addSelection(it)
+
+    # ----------------------- selections -----------------------
+    def addSelection(
+        self,
+        selection: Union[SelectionAkFn, SelectionNpFn, str],
+        required_branches: Optional[Sequence[str]] = None,
+        execute_on_numpy: bool = False,
+    ) -> "RDataLoader":
+        """
+        Add an additional selection.
+
+        - Must be called before any shard has been loaded/materialized.
+        - required_branches extend requested branches (order-preserving de-dup).
+        - string selections: evaluated early on awkward record array fields.
+        - callable selections: default evaluated on awkward (execute_on_numpy=False).
+          If execute_on_numpy=True: evaluated on materialized (f,o,w) numpy.
+        """
+        if self._cache_shard is not None or self._cache_ar is not None:
+            raise RuntimeError("RDataLoader.addSelection: data already materialized; call only right after initialization.")
+
+        req = list(required_branches) if required_branches else []
+        if req:
+            curr = list(self._requested_branches or [])
+            seen = set(curr)
+            for b in req:
+                if b not in seen:
+                    seen.add(b)
+                    curr.append(b)
+            self._requested_branches = curr
+            self._use_branches = self._filter_branches(self._available0, self._requested_branches)
+
+        if selection not in self._selection_items:
+            self._selection_items.append(selection)
+        else:
+            print(f"Selection {selection} already applied. Skip.")
+
+        if isinstance(selection, str):
+            expr = selection.strip()
+            code = compile(expr, "<RDataLoader.selection>", "eval")
+
+            def _sel(ar: ak.Array) -> Union[ak.Array, np.ndarray]:
+                # locals are required_branches if provided, else all fields
+                fields = req if req else list(ar.fields)
+                loc = {}
+                for b in fields:
+                    if b in ar.fields:
+                        loc[b] = ar[b]
+                    else:
+                        if self.strict_branches:
+                            raise KeyError(f"Selection requires missing branch '{b}'.")
+                        loc[b] = np.zeros(len(ar), dtype=np.float32)
+                out = eval(code, {"__builtins__": {}, "np": np, "ak": ak}, loc)
+                if isinstance(out, (bool, np.bool_)):
+                    return np.full(len(ar), bool(out), dtype=bool)
+                if isinstance(out, ak.Array):
+                    return out
+                return np.asarray(out, dtype=bool)
+
+            setattr(_sel, "_rdata_expr", expr)
+            self._sel_exprs.append(_sel)
+            return self
+
+        if execute_on_numpy:
+            self._sel_np_fns.append(selection)  # type: ignore[arg-type]
+        else:
+            self._sel_ak_fns.append(selection)  # type: ignore[arg-type]
+        return self
+
+    def set_n_split(self, n_split: int) -> "RDataLoader":
+        if self._cache_shard is not None or self._cache_ar is not None:
+            raise RuntimeError("RDataLoader.set_n_split: data already materialized; call only right after initialization.")
+
+        self.n_split = max(1, int(n_split))
+
+        if self.splitting_strategy == "files":
+            self._file_splits = self._make_file_splits(self._all_files, self.n_split)
+
+        # defensive: make sure no stale shard state survives
+        self.clear_cache()
+        return self
+
 
     # ----------------------- reset features post-init----------------------
     def setFeatures(
@@ -121,41 +236,24 @@ class RDataLoader:
         observer_names: Optional[Sequence[str]] = None,
         extra_branches: Optional[Sequence[str]] = None,
     ) -> "RDataLoader":
-        """
-        Reconfigure feature/observer names and ensure the requested-branch list
-        contains them (plus optional extra_branches). Must be called *before*
-        any shard has been loaded; otherwise raises.
+        if self._cache_shard is not None or self._cache_ar is not None:
+            raise RuntimeError("RDataLoader.setFeatures: data already materialized; call only right after initialization.")
 
-        Returns self to allow chaining.
-        """
-        if getattr(self, "_arr_cache", None) and len(self._arr_cache):
-            raise RuntimeError("RDataLoader.setFeatures: data already materialized; "
-                               "call only right after initialization.")
-
-        # Update configured names if provided
         if feature_names is not None:
             self.feature_names = list(feature_names)
         if observer_names is not None:
             self.observer_names = list(observer_names)
 
-        # Start from current requested list
         req = list(self._requested_branches or [])
-
-        # Ensure features/observers are present
         if self.feature_names:
             req += list(self.feature_names)
         if self.observer_names:
             req += list(self.observer_names)
-
-        # Always ensure weight branches are included
         if self.weight_branches:
             req += list(self.weight_branches)
-
-        # Optional extra branches
         if extra_branches:
             req += list(extra_branches)
 
-        # De-duplicate while preserving order
         seen = set()
         req_dedup = []
         for b in req:
@@ -164,7 +262,7 @@ class RDataLoader:
                 req_dedup.append(b)
 
         self._requested_branches = req_dedup
-        # Reset any selection-mask caches (paranoia; should be empty anyway)
+        self._use_branches = self._filter_branches(self._available0, self._requested_branches)
         self._mask_cache = {}
         return self
 
@@ -173,33 +271,113 @@ class RDataLoader:
         return len(self._file_splits) if self.splitting_strategy == "files" else self.n_split
 
     def __getitem__(self, idx: int) -> ak.Array:
-        """Load one shard as an awkward Array, apply all configured selections if present. Result is cached."""
-        key = self._wrap_index(idx)
-        if key in self._arr_cache:
-            return self._arr_cache[key]
+        key = idx
+        if self._cache_shard == key and self._cache_ar is not None:
+            return self._cache_ar
 
+        t0 = time.perf_counter() if VERBOSE else None
+        rss0 = _rss_mb() if VERBOSE else None
+
+        # evict single-shard caches
+        self._cache_shard = key
+        self._cache_ar = None
+        self._cache_X = None
+        self._cache_G = None
+        self._cache_w = None
+        self._cache_X_names = None
+        self._cache_G_names = None
+        self._cache_w_branches = None
+
+        # load shard
         if self.splitting_strategy == "files":
             files = self._file_splits[key]
+            if not files:
+                raise ValueError("RDataLoader: empty file split (n_split too large for number of files?)")
             ar = self._load_files(files)
-        else:  # events
-            ar_all = self._load_files(self._all_files)
-            n = len(ar_all)
-            lo, hi = self._event_bounds(n, self.n_split)[key]
-            ar = ar_all[lo:hi]
+        else:
+            if len(self._all_files) == 1:
+                self._ensure_open(self._all_files[0])
+                assert self._open_tree is not None
+                n_entries = int(self._open_tree.num_entries)
+                lo, hi = self._event_bounds(n_entries, self.n_split)[key]
+                ar = self._open_tree.arrays(expressions=self._use_branches, entry_start=lo, entry_stop=hi, library="ak")
+            else:
+                ar_all = self._load_files(self._all_files)
+                n = len(ar_all)
+                lo, hi = self._event_bounds(n, self.n_split)[key]
+                ar = ar_all[lo:hi]
 
-        # apply all base selections consecutively
-        for i, sel in enumerate(getattr(self, "_selection_fns", []) or []):
-            if sel is None:
-                continue
-            mask = sel(ar)
-            mask = ak.to_numpy(mask) if isinstance(mask, ak.Array) else mask
-            if mask is None:
-                warnings.warn(f"RDataLoader: selection function {i} returned None; skipping.")
-                continue
-            ar = ar[mask]
+        # selections: early string exprs
+        for sel in self._sel_exprs:
+            m = sel(ar)
+            m = m if isinstance(m, ak.Array) else np.asarray(m, dtype=bool)
+            ar = ar[m]
 
-        self._arr_cache[key] = ar
+        # selections: ak callables (default)
+        for sel in self._sel_ak_fns:
+            m = sel(ar)
+            m = m if isinstance(m, ak.Array) else np.asarray(m, dtype=bool)
+            ar = ar[m]
+
+        # selections: numpy callables (opt-in)
+        if self._sel_np_fns:
+            fnames = tuple(self.feature_names or [])
+            onames = tuple(self.observer_names or [])
+            wbs = tuple(self.weight_branches or [])
+
+            f = self.scalar_branches(ar, fnames) if fnames else np.empty((len(ar), 0), dtype=np.float32)
+            o = self.scalar_branches(ar, onames) if onames else np.empty((len(ar), 0), dtype=np.float32)
+            if wbs:
+                Wcols = self.scalar_branches(ar, wbs).astype(np.float32, copy=False)
+                w = np.prod(Wcols, axis=1)
+            else:
+                w = np.ones(len(ar), dtype=np.float32)
+
+            for fn in self._sel_np_fns:
+                m = fn(f, o, w)
+                m = ak.to_numpy(m) if isinstance(m, ak.Array) else np.asarray(m, dtype=bool)
+                ar = ar[m]
+                f = f[m]
+                o = o[m]
+                w = w[m]
+
+            # cache materialized results produced for selection
+            self._cache_X = f if fnames else None
+            self._cache_G = o if onames else None
+            self._cache_w = w
+            self._cache_X_names = fnames if fnames else None
+            self._cache_G_names = onames if onames else None
+            self._cache_w_branches = wbs
+
+        self._cache_ar = ar
+
+        if VERBOSE:
+            dt_ms = 1e3 * (time.perf_counter() - t0)  # type: ignore[operator]
+            print(
+                f"[RDataLoader] shard={key:3d} n={len(ar):7d} "
+                f"ak={_ak_mb(ar):6.1f}MB rss={_rss_mb():7.1f}MB dt={dt_ms:7.1f}ms (rss0={rss0:7.1f}MB)"
+            )
+
         return ar
+
+    def clear_cache(self) -> None:
+        self._cache_shard = None
+        self._cache_ar = None
+        self._cache_X = None
+        self._cache_G = None
+        self._cache_w = None
+        self._cache_X_names = None
+        self._cache_G_names = None
+        self._cache_w_branches = None
+        self._mask_cache.clear()
+
+    def close(self) -> None:
+        self.clear_cache()
+        if self._open_file is not None:
+            self._open_file.close()
+        self._open_file = None
+        self._open_tree = None
+        self._open_path = None
 
     @property
     def files(self) -> List[str]:
@@ -211,13 +389,11 @@ class RDataLoader:
 
     # ---- helpers for extracting data ----
     def scalar_branches(self, ar: ak.Array, names: Sequence[str]) -> np.ndarray:
-        """Return a 2D numpy array stack of scalar branches `names` from awkward record array `ar`."""
         cols = []
         for n in names:
             if n not in ar.fields:
                 if self.strict_branches:
                     raise KeyError(f"Requested branch '{n}' not in array fields.")
-                warnings.warn(f"scalar_branches: missing '{n}', filling with zeros.")
                 cols.append(np.zeros(len(ar), dtype=np.float32))
                 continue
             v = ar[n]
@@ -232,22 +408,28 @@ class RDataLoader:
         return np.stack(cols, axis=1)
 
     def vector_branch(self, ar: ak.Array, name: str) -> ak.Array:
-        """Return a single jagged/vector branch as awkward Array."""
         if name not in ar.fields:
             if self.strict_branches:
                 raise KeyError(f"Requested branch '{name}' not in array fields.")
-            warnings.warn(f"vector_branch: missing '{name}', returning empty jagged array.")
             return ak.Array([[] for _ in range(len(ar))])
         return ar[name]
 
-    # -------- direct feature/observer access (no awkward escapes) ----------
+    # -------- direct feature/observer access ----------
     def observers(self, shard: int = 0, n: Optional[int] = None,
                   observer_names: Optional[Sequence[str]] = None) -> np.ndarray:
         names = list(observer_names) if observer_names is not None else (self.observer_names or [])
         if not names:
             raise ValueError("No observer names configured. Pass observer_names=... or set observer_names in the constructor.")
+        names_t = tuple(names)
+
+        if n is None and self._cache_shard == shard and self._cache_G is not None and self._cache_G_names == names_t:
+            return self._cache_G
+
         ar = self[shard]
         G = self.scalar_branches(ar, names)
+        if n is None and self._cache_shard == shard and observer_names is None:
+            self._cache_G = G
+            self._cache_G_names = names_t
         return G if n is None else G[:n]
 
     def features(self, shard: int = 0, n: Optional[int] = None,
@@ -255,46 +437,49 @@ class RDataLoader:
         names = list(feature_names) if feature_names is not None else (self.feature_names or [])
         if not names:
             raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
+        names_t = tuple(names)
+
+        if n is None and self._cache_shard == shard and self._cache_X is not None and self._cache_X_names == names_t:
+            return self._cache_X
+
         ar = self[shard]
         X = self.scalar_branches(ar, names)
+        if n is None and self._cache_shard == shard and feature_names is None:
+            self._cache_X = X
+            self._cache_X_names = names_t
         return X if n is None else X[:n]
 
     def features_and_observers(self, shard: int = 0, n: Optional[int] = None,
                                feature_names: Optional[Sequence[str]] = None,
                                observer_names: Optional[Sequence[str]] = None) -> tuple[np.ndarray, np.ndarray]:
-        fnames = list(feature_names) if feature_names is not None else (self.feature_names or [])
-        onames = list(observer_names) if observer_names is not None else (self.observer_names or [])
-        if not fnames:
-            raise ValueError("No feature names configured. Pass feature_names=... or set feature_names in the constructor.")
-        if not onames:
-            raise ValueError("No observer names configured. Pass observer_names=... or set observer_names in the constructor.")
-        ar = self[shard]
-        X = self.scalar_branches(ar, fnames)
-        G = self.scalar_branches(ar, onames)
+        X = self.features(shard=shard, n=None, feature_names=feature_names)
+        G = self.observers(shard=shard, n=None, observer_names=observer_names)
         if n is not None:
             X = X[:n]
             G = G[:n]
         return X, G
 
-    # -------- NEW: explicit weight product or ones --------
+    # -------- Explicit weight product or ones --------
     def weight_vector(self, shard: int = 0, n: Optional[int] = None) -> np.ndarray:
-        """
-        Return event weights for this shard.
-        - If self.weight_branches is empty -> all ones
-        - Else product of listed scalar branches (must exist)
-        """
-        ar = self[shard]
         if not self.weight_branches:
+            ar = self[shard]
             w = np.ones(len(ar), dtype=np.float32)
             return w if n is None else w[:n]
 
+        wbs_t = tuple(self.weight_branches)
+        if n is None and self._cache_shard == shard and self._cache_w is not None and self._cache_w_branches == wbs_t:
+            return self._cache_w
+
+        ar = self[shard]
         missing = [bn for bn in self.weight_branches if bn not in ar.fields]
-        if missing:
-            raise KeyError(
-                f"Weight branches missing: {missing}. Include them in 'branches' (and usually 'observer_names')."
-            )
-        Wcols = self.scalar_branches(ar, self.weight_branches).astype(np.float32, copy=False)
-        w = np.prod(Wcols, axis=1)
+        if missing and self.strict_branches:
+            raise KeyError(f"Weight branches missing: {missing}. Include them in 'branches'.")
+        Wcols = self.scalar_branches(ar, [w for w in self.weight_branches if w not in missing]).astype(np.float32, copy=False)
+        w = np.prod(Wcols, axis=1) if Wcols.shape[1] else np.ones(len(ar), dtype=np.float32)
+
+        if n is None and self._cache_shard == shard:
+            self._cache_w = w
+            self._cache_w_branches = wbs_t
         return w if n is None else w[:n]
 
     def materialize(
@@ -305,10 +490,6 @@ class RDataLoader:
         feature_names: Optional[Sequence[str]] = None,
         observer_names: Optional[Sequence[str]] = None,
     ) -> Tuple[np.ndarray, ...]:
-        """
-        Materialize any combination (and order) of Features/Observers/Weights.
-        `what` is a string composed of letters in {'f','o','w'}; order is preserved (e.g. 'fwo', 'wof').
-        """
         outputs: list[np.ndarray] = []
         for ch in what:
             if ch == 'f':
@@ -328,12 +509,6 @@ class RDataLoader:
         return self[shard]
 
     # --------------------------- internals ----------------------------
-    def _wrap_index(self, idx: int) -> int:
-        if not isinstance(idx, int):
-            raise TypeError("RDataLoader indices must be integers")
-        n = len(self)
-        return idx % n
-
     def _make_file_splits(self, files: List[str], n_split: int) -> List[List[str]]:
         if n_split <= 1:
             return [files]
@@ -354,71 +529,72 @@ class RDataLoader:
             start = end
         return bounds
 
+    def _ensure_open(self, path: str) -> None:
+        if self._open_path == path and self._open_tree is not None:
+            return
+        if self._open_file is not None:
+            self._open_file.close()
+        self._open_file = uproot.open(path, object_cache=None, array_cache=None)
+        self._open_tree = self._open_file[self.tree_name]
+        self._open_path = path
+
     def _load_files(self, files: Sequence[str]) -> ak.Array:
         if len(files) == 1:
-            f = files[0]
-            with uproot.open(f) as rf:
-                t = rf[self.tree_name]
-                available = set(t.keys())
-                use_branches = self._filter_branches(available, self._requested_branches)
-                return t.arrays(expressions=use_branches, library="ak")
-        else:
-            with uproot.open(files[0]) as rf0:
-                t0 = rf0[self.tree_name]
-                available0 = set(t0.keys())
-                use_branches = self._filter_branches(available0, self._requested_branches)
-            return uproot.concatenate(
-                {f: self.tree_name for f in files},
-                expressions=use_branches,
-                library="ak",
-            )
+            self._ensure_open(files[0])
+            assert self._open_tree is not None
+            return self._open_tree.arrays(expressions=self._use_branches, library="ak")
+
+        # multi-file shard: concatenate (keeps existing behavior)
+        if self._open_file is not None:
+            self._open_file.close()
+            self._open_file = None
+            self._open_tree = None
+            self._open_path = None
+
+        return uproot.concatenate(
+            {f: self.tree_name for f in files},
+            expressions=self._use_branches,
+            library="ak",
+        )
 
     def _filter_branches(self, available: set, requested: Sequence[str]) -> List[str]:
         missing = [b for b in requested if b not in available]
-        if missing:
-            if self.strict_branches:
-                raise KeyError(f"Missing branches in tree: {missing}")
-            warnings.warn(f"RDataLoader: missing branches will be skipped: {missing}")
+        if missing and self.strict_branches:
+            raise KeyError(f"Missing branches in tree: {missing}")
         return [b for b in requested if b in available]
 
     def __str__(self) -> str:
         files = getattr(self, "_all_files", [])
-        first = files[0] if files else None
         feat = self.feature_names or []
         obs = self.observer_names or []
         wbs = getattr(self, "weight_branches", []) or []
         weight_expr = "1" if not wbs else " * ".join(wbs)
-        n_sel = len(getattr(self, "_selection_fns", []) or [])
+
+        sels = []
+        for it in (getattr(self, "_selection_items", []) or []):
+            if isinstance(it, str):
+                sels.append(it)
+            else:
+                expr = getattr(it, "_rdata_expr", None)
+                sels.append(expr if expr is not None else getattr(it, "__name__", repr(it)))
+
         lines = [
             "RDataLoader(",
             f"  tree_name='{self.tree_name}', splitting='{self.splitting_strategy}', n_split={self.n_split},",
-            f"  files={len(files)}"
-            + (f", first='{os.path.basename(first)}'" if first is not None else ""),
+            f"  files={len(files)}" + (f", files='{files}'" if files else ""),
             f"  features ({len(feat)}): {feat}",
             f"  observers ({len(obs)}): {obs}",
             f"  weights (product): {weight_expr}",
-            f"  selections: {n_sel} function(s) applied consecutively",
+            f"  selections ({len(sels)}): {sels}",
             ")",
         ]
         return "\n".join(lines)
 
     def clone_from_files(self, input_paths: Union[PathLike, Sequence[PathLike]], weight_branches: Sequence[str] = None) -> "RDataLoader":
-        """
-        Shallow clone of this loader, but reading from a different file or list of files.
-
-        - Copies all configuration (tree_name, branches, selection(s), features, observers, weights, splits, etc.)
-        - Does NOT copy caches; the clone starts "fresh".
-        """
-        # Use the fully resolved branch list (including weights, added branches, etc.)
         branches = list(self._requested_branches) if getattr(self, "_requested_branches", None) is not None else None
-
-        # Reuse the normalized list of selection functions; if empty, pass None
-        selection = list(getattr(self, "_selection_fns", [])) or None
-
-        # Reuse original file_pattern if we have it, else default
+        selection = list(getattr(self, "_selection_items", [])) or None
         file_pattern = getattr(self, "file_pattern", "*.root")
-
-        clone = RDataLoader(
+        return RDataLoader(
             input_paths=input_paths,
             tree_name=self.tree_name,
             branches=branches,
@@ -427,12 +603,30 @@ class RDataLoader:
             n_split=self.n_split,
             splitting_strategy=self.splitting_strategy,
             strict_branches=self.strict_branches,
-            max_files=None,  # usually not meaningful for a clone; change if you want
+            max_files=None,
             feature_names=self.feature_names,
             observer_names=self.observer_names,
             weight_branches=self.weight_branches if weight_branches is None else weight_branches,
         )
-        return clone
+
+    def clone(self) -> "RDataLoader":
+        branches = list(self._requested_branches) if getattr(self, "_requested_branches", None) is not None else None
+        selection = list(getattr(self, "_selection_items", [])) or None
+        file_pattern = getattr(self, "file_pattern", "*.root")
+        return RDataLoader(
+            input_paths=self.input_paths,
+            tree_name=self.tree_name,
+            branches=branches,
+            selection=selection,
+            file_pattern=file_pattern,
+            n_split=self.n_split,
+            splitting_strategy=self.splitting_strategy,
+            strict_branches=self.strict_branches,
+            max_files=None,
+            feature_names=self.feature_names,
+            observer_names=self.observer_names,
+            weight_branches=self.weight_branches,
+        )
 
     def view(
         self,
@@ -441,7 +635,7 @@ class RDataLoader:
         feature_names: Optional[Sequence[str]] = None,
         observer_names: Optional[Sequence[str]] = None,
         selection_feature_names: Optional[Sequence[str]] = None,
-    ) -> 'SelectionView.SelectionView':
+    ) -> "SelectionView.SelectionView":
         return SelectionView.SelectionView(
             base=self,
             name=name,
@@ -453,41 +647,42 @@ class RDataLoader:
 
 
 # -----------------------------
-# Minimal in-memory test (no file I/O)
+# Usage / micro-test
 # -----------------------------
 if __name__ == "__main__":
-    # Build a tiny awkward shard in memory
-    N = 8
-    ar = ak.Array({
-        "f1": np.linspace(0, 1, N).astype(np.float32),
-        "o1": np.arange(N).astype(np.int32),
-        "w":  np.ones(N, dtype=np.float32) * 2.0,
-        "a":  np.linspace(1.0, 2.0, N).astype(np.float32),
-        "b":  np.linspace(0.5, 1.5, N).astype(np.float32),
-    })
+    VERBOSE = True
 
-    dummy = object.__new__(RDataLoader)  # bypass __init__
-    dummy.tree_name = "Events"
-    dummy.selection = None
-    dummy.strict_branches = False
-    dummy.splitting_strategy = "files"
-    dummy.n_split = 1
-    dummy.feature_names = ["f1"]
-    dummy.observer_names = ["o1", "w", "a", "b"]
-    dummy.weight_branches = ["w", "a"]
-    dummy._all_files = ["dummy.root"]
-    dummy._requested_branches = ["f1", "o1", "w", "a", "b"]
-    dummy._file_splits = [dummy._all_files]
-    dummy._arr_cache = {0: ar}
-    dummy._mask_cache = {}
-    dummy._selection_fns = []  # since we bypassed __init__
+    from samples_RunII import TTLep_pow_2016
 
-    F, O, W = dummy.materialize(shard=0, what="fow")
-    print("shapes:", F.shape, O.shape, W.shape, "| W[:3] =", W[:3])
+    # String selection (early, ak fields)
+    TTLep_pow_2016.addSelection(
+        "(tr_ttbar_mass >= 1000) & (tr_ttbar_eta > 1)",
+        required_branches=["tr_ttbar_mass", "tr_ttbar_eta"],
+    )
 
-    dummy.weight_branches = []  # -> ones
-    W1, = dummy.materialize(shard=0, what="w")
-    print("ones W[:3] =", W1[:3])
-    print()
-    print(dummy)
+    # Callable selection (default: ak-based)
+    #TTLep_pow_2016.addSelection(
+    #    lambda ar: (ar["tr_ttbar_mass"] >= 1000) & (ar["tr_ttbar_eta"] > 1),
+    #    required_branches=["tr_ttbar_mass", "tr_ttbar_eta"],
+    #)
+
+    # Callable selection on numpy (explicit opt-in)
+    # i_mass = TTLep_pow_2016.feature_names.index("tr_ttbar_mass")
+    # i_eta  = TTLep_pow_2016.feature_names.index("tr_ttbar_eta")
+    # TTLep_pow_2016.addSelection(
+    #     lambda f, o, w: (f[:, i_mass] >= 1000) & (f[:, i_eta] > 1),
+    #     execute_on_numpy=True,
+    # )
+
+    print(TTLep_pow_2016)
+
+    TTLep_pow_2016.set_n_split(20)
+    for shard in range(len(TTLep_pow_2016)):
+        t0 = time.perf_counter()
+        f, o, w = TTLep_pow_2016.materialize(shard, "fow")
+        histos = [np.histogram(f[:, i], weights=w) for i in range(f.shape[1])]
+        dt = time.perf_counter() - t0
+        print(f"[main] shard={shard:2d}  n={f.shape[0]:7d}  dt={dt:7.3f}s  rss={_rss_mb():7.1f}MB  nh={len(histos)}")
+
+    TTLep_pow_2016.close()
 

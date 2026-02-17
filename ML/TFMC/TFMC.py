@@ -98,9 +98,10 @@ class TFMC:
             else:
                 raise RuntimeError(f"Missing IC weight for class '{name}'.")
         vals = np.asarray(vals, dtype=np.float64)
-        total = np.sum(vals)
-        self.class_weights = np.where(vals > 0, total / vals, 1.0)
-
+#        total = np.sum(vals)
+#        self.class_weights = np.where(vals > 0, total / vals, 1.0)
+        mean = np.mean(vals)
+        self.class_weights = np.where(vals > 0, mean / vals, 1.0)
     # ---------------- inference ----------------
     def _normalize(self, X: np.ndarray) -> np.ndarray:
         return (X - self.feature_means) / np.sqrt(self.feature_variances)
@@ -124,7 +125,7 @@ class TFMC:
             #print("hello:higher",pred[X[:,0]>0.5], )
             loss_per = self.loss_fn(y_onehot, pred)  # shape [N]
             if w is not None:
-                loss = tf.reduce_mean(loss_per * w)
+                loss = tf.reduce_sum(loss_per * w) / (tf.reduce_sum(w) + 1e-12)
             else:
                 loss = tf.reduce_mean(loss_per)
         grads = tape.gradient(loss, self.model.trainable_variables)

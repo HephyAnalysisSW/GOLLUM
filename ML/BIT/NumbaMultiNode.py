@@ -30,7 +30,11 @@ default_cfg = {
     "positive":         False,
     "min_node_size_neg_adjust": False,
     "loss" : "MSE", # or "CrossEntropy"
-    "_get_only_score":False, 
+    "_get_only_score":False,
+    "split_mode": "exact",   # "exact" (current) or "binned"
+    "n_bins": 256,           # used only if split_mode == "binned"
+    "quantile_bins": False,  # if True: quantile edges; else uniform edges
+
 }
 
 # ------------------ Numba kernels for heavy numerics ------------------
@@ -181,33 +185,306 @@ class MultiNode:
         del self.features 
         del self.split_left_group 
 
-    def get_split_vectorized( self ):
-        ''' determine where to split the features, with numba-accelerated FI maximization
-        '''
+#    def get_split_vectorized( self ):
+#        ''' determine where to split the features, with numba-accelerated FI maximization
+#        '''
+#
+#        # loop over the features ... assume the features consists of rows with [x1, x2, ...., xN]
+#        self.split_i_feature, self.split_value, self.split_gain, self.split_left_group = 0, -float('inf'), 0, None
+#
+#        # for a valid binary split, we need at least twice the mean size
+#        assert self.size >= 2*self.min_size
+#
+#        # precompute transposes used in kernels
+#        B_T  = self.base_point_const.transpose()
+#        loss_mode = self.cfg['loss']
+#
+#        for i_feature in range(len(self.features[0])):
+#            feature_values = self.features[:,i_feature]
+#
+#            feature_sorted_indices = np.argsort(feature_values)
+#            # cumulative sums along rows (sorted)
+#            sorted_weight_sums     = np.cumsum(self.training_weights[feature_sorted_indices],axis=0) # 2D cumsum
+#
+#            # respect min size for split & optional max_n_split
+#            if self.max_n_split<2:
+#                plateau_and_split_range_mask = np.ones(self.size-1, dtype=np.dtype('bool'))
+#            else:
+#                min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
+#                # create at most 'max_n_split' plateaus between min/max
+#                bins = np.linspace(min_, max_, self.max_n_split+2, endpoint=True)
+#                digit = np.digitize(feature_values[feature_sorted_indices], bins)
+#                plateau_and_split_range_mask = (digit[1:] != digit[:-1])
+#                plateau_and_split_range_mask = np.insert(plateau_and_split_range_mask, 0, False)[:-1]
+#
+#            if self.min_size > 1:
+#                plateau_and_split_range_mask[0:self.min_size-1] = False
+#                plateau_and_split_range_mask[-self.min_size+1:] = False
+#            plateau_and_split_range_mask &= (np.diff(feature_values[feature_sorted_indices]) != 0)
+#
+#            total_weight_sum         = sorted_weight_sums[-1]
+#            sorted_weight_sums       = sorted_weight_sums[0:-1]
+#            sorted_weight_sums_right = total_weight_sum-sorted_weight_sums
+#
+#            # mask negative definite splits
+#            if self.cfg['positive']:
+#                pos       = np.apply_along_axis(all, 1, np.dot(sorted_weight_sums,self.base_point_const_for_pos.transpose())>=0)
+#                pos_right = np.apply_along_axis(all, 1, np.dot(sorted_weight_sums_right,self.base_point_const_for_pos.transpose())>=0)
+#                plateau_and_split_range_mask &= pos
+#                plateau_and_split_range_mask &= pos_right
+#
+#            # Never allow negative yields
+#            plateau_and_split_range_mask &= (sorted_weight_sums[:,0]>0)
+#            plateau_and_split_range_mask &= (sorted_weight_sums_right[:,0]>0)
+#
+#            # --------- compute neg_loss_gains (JIT kernels) ----------
+#            if loss_mode == 'MSE':
+#                if NUMBA_AVAILABLE:
+#                    neg_loss_gains = _mse_neg_loss_gains(sorted_weight_sums, sorted_weight_sums_right, B_T)
+#                else:
+#                    L = sorted_weight_sums @ B_T
+#                    R = sorted_weight_sums_right @ B_T
+#                    neg_loss_gains = (np.sum(L*L, axis=1)/sorted_weight_sums[:,0]
+#                                      + np.sum(R*R, axis=1)/sorted_weight_sums_right[:,0])
+#            elif loss_mode == 'CrossEntropy':
+#                if NUMBA_AVAILABLE:
+#                    neg_loss_gains = _crossentropy_neg_loss_gains(sorted_weight_sums, sorted_weight_sums_right, B_T)
+#                    # shift by min to make positive (parity with original)
+#                    neg_loss_gains -= np.nanmin(neg_loss_gains)
+#                else:
+#                    with np.errstate(divide='ignore', invalid='ignore'):
+#                        r       = (sorted_weight_sums @ B_T)/sorted_weight_sums[:,0].reshape(-1,1)
+#                        r_right = (sorted_weight_sums_right @ B_T)/sorted_weight_sums_right[:,0].reshape(-1,1)
+#                        neg_loss_gains  = sorted_weight_sums[:,0]*np.sum( ( 0.5*np.log((1./(1.+r))**2) + r*0.5*np.log((r/(1.+r))**2) ), axis=1)
+#                        neg_loss_gains += sorted_weight_sums_right[:,0]*np.sum( ( 0.5*np.log((1./(1.+r_right))**2) + r_right*0.5*np.log((r_right/(1.+r_right))**2) ), axis=1)
+#                        neg_loss_gains -= np.nanmin(neg_loss_gains)
+#
+#            # Optional: min_node_size_neg_adjust (unchanged logic)
+#            if self.cfg['min_node_size_neg_adjust']:
+#                with np.errstate(divide='ignore', invalid='ignore'):
+#                    sorted_pos_sums       = np.cumsum( (self.training_weights[:,0]>0).astype('int')[feature_sorted_indices])
+#                    total_pos_sum         = sorted_pos_sums[-1]
+#                    sorted_pos_sums       = sorted_pos_sums[0:-1]
+#                    sorted_pos_sums_right = total_pos_sum-sorted_pos_sums
+#                    sorted_neg_sum       = np.arange(1, len(self.training_weights[:,0])) - sorted_pos_sums
+#                    sorted_neg_sum_right = np.arange(len(self.training_weights[:,0])-1,0,-1) - sorted_pos_sums_right
+#                    f      = sorted_neg_sum/np.maximum(sorted_pos_sums, 1).astype(float)
+#                    f_right= sorted_neg_sum_right/np.maximum(sorted_pos_sums_right, 1).astype(float)
+#
+#                    plateau_and_split_range_mask &= (np.arange(1, len(self.training_weights[:,0]))>(1+f)/(1-f)*self.min_size)
+#                    plateau_and_split_range_mask &= (np.arange(len(self.training_weights[:,0])-1,0,-1)>(1+f_right)/(1-f_right)*self.min_size)
+#
+#            gain_masked = np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask
+#            argmax_fi   = np.argmax(gain_masked)
+#            gain        = gain_masked[argmax_fi]
+#            value       = feature_values[feature_sorted_indices[argmax_fi]]
+#
+#            debug_self_split_gain = self.split_gain
+#            if gain > self.split_gain: 
+#                self.split_i_feature = i_feature
+#                self.split_value     = value
+#                self.split_gain      = gain
+#
+#            if np.count_nonzero(self.features[:,self.split_i_feature]<=self.split_value) == 1:
+#                print ("sorted_weight_sums[:,0]      ", sorted_weight_sums[:,0])
+#                print ("sorted_weight_sums_right[:,0]", sorted_weight_sums_right[:,0])
+#                print ("plateau_and_split_range_mask", plateau_and_split_range_mask)
+#                if loss_mode == 'MSE':
+#                    L = sorted_weight_sums @ B_T
+#                    R = sorted_weight_sums_right @ B_T
+#                    print ("neg_loss_gains left", np.sum(L*L,axis=1)/sorted_weight_sums[:,0] )
+#                    print ("neg_loss_gains right", np.sum(R*R,axis=1)/sorted_weight_sums_right[:,0])
+#                print ("neg_loss_gains", neg_loss_gains)
+#                print ("np.nan_to_num(neg_loss_gains)", np.nan_to_num(neg_loss_gains))
+#                print ("np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask", np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask)
+#                print ("argmax_fi", np.argmax(np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask) )
+#                print ("gain", gain )
+#                print ("found split?", gain > debug_self_split_gain, "gain", gain, "self.split_gain (before)",debug_self_split_gain, "self.split_gain(after)",self.split_gain)
+#                print ("self.split_left_group", self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool'))
+#                print ("non_zero", np.count_nonzero(self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool')))
+#                print ()
+#                assert False, "single-entry node!!"
+#
+#        assert not np.isnan(self.split_value)
+#
+#        self.split_left_group = self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
 
-        # loop over the features ... assume the features consists of rows with [x1, x2, ...., xN]
+    def get_split_vectorized( self ):
+        """Determine where to split the features.
+
+        Modes:
+          - exact  (default): current behavior (argsort + full cumsum over events)
+          - binned: bin feature values into n_bins, accumulate *weighted sums* per bin,
+                    do prefix sums over bins only, evaluate gains at bin boundaries.
+        """
+
         self.split_i_feature, self.split_value, self.split_gain, self.split_left_group = 0, -float('inf'), 0, None
 
-        # for a valid binary split, we need at least twice the mean size
+        # for a valid binary split, we need at least twice the mean size (in events)
         assert self.size >= 2*self.min_size
 
         # precompute transposes used in kernels
         B_T  = self.base_point_const.transpose()
         loss_mode = self.cfg['loss']
 
-        for i_feature in range(len(self.features[0])):
-            feature_values = self.features[:,i_feature]
+        mode = getattr(self, "split_mode", "exact")
+        if mode not in ("exact", "binned"):
+            mode = "exact"
+        n_bins = int(getattr(self, "n_bins", 256))
+        if n_bins < 2:
+            mode = "exact"
 
+        # convenience (used in both modes)
+        TW = self.training_weights  # shape (N, D)
+
+        for i_feature in range(len(self.features[0])):
+
+            feature_values = self.features[:, i_feature]
+
+            # ------------------------ BINNED MODE ------------------------
+            if mode == "binned":
+
+                min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
+                if not np.isfinite(min_) or not np.isfinite(max_) or max_ <= min_:
+                    continue
+                # --- choose bin edges ---
+                quant = bool(getattr(self, "quantile_bins", False))
+
+                if quant:
+                    # quantile edges (can contain duplicates -> compress)
+                    qs = np.linspace(0.0, 1.0, n_bins + 1, endpoint=True)
+                    edges = np.quantile(feature_values, qs)
+                    edges = np.unique(edges)
+                    if edges.size < 3:
+                        continue
+                    nbin = int(edges.size - 1)
+                else:
+                    # uniform edges
+                    edges = np.linspace(min_, max_, n_bins + 1, endpoint=True)
+                    nbin = int(n_bins)
+
+                # bin index in [0, nbin-1]
+                idx = np.searchsorted(edges, feature_values, side="right") - 1
+                idx[idx < 0] = 0
+                idx[idx >= nbin] = nbin - 1
+
+                # per-bin event counts (for min_size constraint)
+                bin_counts = np.bincount(idx, minlength=nbin).astype(np.int64)
+
+                # accumulate *weighted sums* per bin: shape (nbin, D)
+                # fast path: sort-by-bin, then reduceat over contiguous runs
+                order = np.argsort(idx, kind="mergesort")  # stable; helps reproducibility
+                idx_s = idx[order]
+                TW_s  = TW[order]
+
+                # run starts for each new bin id
+                # starts: [0, ...] indices where idx changes
+                change = np.flatnonzero(idx_s[1:] != idx_s[:-1]) + 1
+                starts = np.concatenate(([0], change))
+
+                run_bins = idx_s[starts]  # unique bin ids present
+                run_sums = np.add.reduceat(TW_s, starts, axis=0)  # (n_runs, D)
+
+                bin_sums = np.zeros((nbin, TW.shape[1]), dtype=np.float64)
+                bin_sums[run_bins] = run_sums
+
+                # prefix sums over bins -> candidates are boundaries between bins
+                prefix_sums = np.cumsum(bin_sums, axis=0)         # (nbin, D)
+                left_sums   = prefix_sums[:-1]                    # (nbin-1, D)
+                total_sum   = prefix_sums[-1]                     # (D,)
+                right_sums  = total_sum - left_sums               # (nbin-1, D)
+
+                prefix_cnt  = np.cumsum(bin_counts)               # (nbin,)
+                left_cnt    = prefix_cnt[:-1]                     # (nbin-1,)
+                total_cnt   = prefix_cnt[-1]
+                right_cnt   = total_cnt - left_cnt                # (nbin-1,)
+
+                # candidate mask
+                mask = np.ones(nbin - 1, dtype=np.bool_)
+
+                # respect min_size in EVENTS (parity with original)
+                if self.min_size > 1:
+                    mask &= (left_cnt  >= self.min_size)
+                    mask &= (right_cnt >= self.min_size)
+
+                # optional negative-adjust logic (approximate in binned space)
+                if self.cfg['min_node_size_neg_adjust']:
+                    # count positives in column 0 per bin
+                    pos0 = (TW[:, 0] > 0).astype(np.int64)
+                    pos_per_bin = np.bincount(idx, weights=pos0, minlength=nbin).astype(np.float64)
+                    prefix_pos  = np.cumsum(pos_per_bin)[:-1]
+                    left_pos    = prefix_pos
+                    right_pos   = float(np.sum(pos_per_bin)) - left_pos
+
+                    left_neg  = left_cnt.astype(np.float64)  - left_pos
+                    right_neg = right_cnt.astype(np.float64) - right_pos
+
+                    left_pos_safe  = np.maximum(left_pos,  1.0)
+                    right_pos_safe = np.maximum(right_pos, 1.0)
+                    f      = left_neg  / left_pos_safe
+                    f_right= right_neg / right_pos_safe
+
+                    mask &= (left_cnt.astype(np.float64)  > (1+f)/(1-f) * self.min_size)
+                    mask &= (right_cnt.astype(np.float64) > (1+f_right)/(1-f_right) * self.min_size)
+
+                # positivity constraints (use weighted sums, as in original)
+                if self.cfg['positive']:
+                    Mpos = self.base_point_const_for_pos.transpose()
+                    posL = np.all((left_sums  @ Mpos) >= 0, axis=1)
+                    posR = np.all((right_sums @ Mpos) >= 0, axis=1)
+                    mask &= posL
+                    mask &= posR
+
+                # Never allow negative yields (weighted yield is column 0)
+                mask &= (left_sums[:, 0]  > 0)
+                mask &= (right_sums[:, 0] > 0)
+
+                # --------- compute neg_loss_gains (same kernels, now over bins) ----------
+                if loss_mode == 'MSE':
+                    if NUMBA_AVAILABLE:
+                        neg_loss_gains = _mse_neg_loss_gains(left_sums, right_sums, B_T)
+                    else:
+                        L = left_sums @ B_T
+                        R = right_sums @ B_T
+                        neg_loss_gains = (np.sum(L*L, axis=1)/left_sums[:,0]
+                                          + np.sum(R*R, axis=1)/right_sums[:,0])
+
+                elif loss_mode == 'CrossEntropy':
+                    if NUMBA_AVAILABLE:
+                        neg_loss_gains = _crossentropy_neg_loss_gains(left_sums, right_sums, B_T)
+                        neg_loss_gains -= np.nanmin(neg_loss_gains)
+                    else:
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            r       = (left_sums  @ B_T)/left_sums[:,0].reshape(-1,1)
+                            r_right = (right_sums @ B_T)/right_sums[:,0].reshape(-1,1)
+                            neg_loss_gains  = left_sums[:,0]*np.sum( ( 0.5*np.log((1./(1.+r))**2) + r*0.5*np.log((r/(1.+r))**2) ), axis=1)
+                            neg_loss_gains += right_sums[:,0]*np.sum( ( 0.5*np.log((1./(1.+r_right))**2) + r_right*0.5*np.log((r_right/(1.+r_right))**2) ), axis=1)
+                            neg_loss_gains -= np.nanmin(neg_loss_gains)
+
+                gain_masked = np.nan_to_num(neg_loss_gains) * mask
+                argmax_fi   = np.argmax(gain_masked)
+                gain        = gain_masked[argmax_fi]
+
+                # split at boundary after bin argmax_fi
+                value = edges[argmax_fi + 1]
+
+                if gain > self.split_gain:
+                    self.split_i_feature = i_feature
+                    self.split_value     = value
+                    self.split_gain      = gain
+
+                continue  # next feature
+
+            # ------------------------ EXACT MODE (CURRENT) ------------------------
             feature_sorted_indices = np.argsort(feature_values)
-            # cumulative sums along rows (sorted)
-            sorted_weight_sums     = np.cumsum(self.training_weights[feature_sorted_indices],axis=0) # 2D cumsum
+
+            sorted_weight_sums     = np.cumsum(TW[feature_sorted_indices], axis=0)  # (N, D)
 
             # respect min size for split & optional max_n_split
-            if self.max_n_split<2:
+            if self.max_n_split < 2:
                 plateau_and_split_range_mask = np.ones(self.size-1, dtype=np.dtype('bool'))
             else:
                 min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
-                # create at most 'max_n_split' plateaus between min/max
                 bins = np.linspace(min_, max_, self.max_n_split+2, endpoint=True)
                 digit = np.digitize(feature_values[feature_sorted_indices], bins)
                 plateau_and_split_range_mask = (digit[1:] != digit[:-1])
@@ -220,18 +497,19 @@ class MultiNode:
 
             total_weight_sum         = sorted_weight_sums[-1]
             sorted_weight_sums       = sorted_weight_sums[0:-1]
-            sorted_weight_sums_right = total_weight_sum-sorted_weight_sums
+            sorted_weight_sums_right = total_weight_sum - sorted_weight_sums
 
             # mask negative definite splits
             if self.cfg['positive']:
-                pos       = np.apply_along_axis(all, 1, np.dot(sorted_weight_sums,self.base_point_const_for_pos.transpose())>=0)
-                pos_right = np.apply_along_axis(all, 1, np.dot(sorted_weight_sums_right,self.base_point_const_for_pos.transpose())>=0)
+                Mpos = self.base_point_const_for_pos.transpose()
+                pos       = np.all((sorted_weight_sums       @ Mpos) >= 0, axis=1)
+                pos_right = np.all((sorted_weight_sums_right @ Mpos) >= 0, axis=1)
                 plateau_and_split_range_mask &= pos
                 plateau_and_split_range_mask &= pos_right
 
             # Never allow negative yields
-            plateau_and_split_range_mask &= (sorted_weight_sums[:,0]>0)
-            plateau_and_split_range_mask &= (sorted_weight_sums_right[:,0]>0)
+            plateau_and_split_range_mask &= (sorted_weight_sums[:,0]       > 0)
+            plateau_and_split_range_mask &= (sorted_weight_sums_right[:,0] > 0)
 
             # --------- compute neg_loss_gains (JIT kernels) ----------
             if loss_mode == 'MSE':
@@ -242,10 +520,10 @@ class MultiNode:
                     R = sorted_weight_sums_right @ B_T
                     neg_loss_gains = (np.sum(L*L, axis=1)/sorted_weight_sums[:,0]
                                       + np.sum(R*R, axis=1)/sorted_weight_sums_right[:,0])
+
             elif loss_mode == 'CrossEntropy':
                 if NUMBA_AVAILABLE:
                     neg_loss_gains = _crossentropy_neg_loss_gains(sorted_weight_sums, sorted_weight_sums_right, B_T)
-                    # shift by min to make positive (parity with original)
                     neg_loss_gains -= np.nanmin(neg_loss_gains)
                 else:
                     with np.errstate(divide='ignore', invalid='ignore'):
@@ -255,55 +533,34 @@ class MultiNode:
                         neg_loss_gains += sorted_weight_sums_right[:,0]*np.sum( ( 0.5*np.log((1./(1.+r_right))**2) + r_right*0.5*np.log((r_right/(1.+r_right))**2) ), axis=1)
                         neg_loss_gains -= np.nanmin(neg_loss_gains)
 
-            # Optional: min_node_size_neg_adjust (unchanged logic)
             if self.cfg['min_node_size_neg_adjust']:
                 with np.errstate(divide='ignore', invalid='ignore'):
-                    sorted_pos_sums       = np.cumsum( (self.training_weights[:,0]>0).astype('int')[feature_sorted_indices])
+                    sorted_pos_sums       = np.cumsum( (TW[:,0]>0).astype('int')[feature_sorted_indices])
                     total_pos_sum         = sorted_pos_sums[-1]
                     sorted_pos_sums       = sorted_pos_sums[0:-1]
-                    sorted_pos_sums_right = total_pos_sum-sorted_pos_sums
-                    sorted_neg_sum       = np.arange(1, len(self.training_weights[:,0])) - sorted_pos_sums
-                    sorted_neg_sum_right = np.arange(len(self.training_weights[:,0])-1,0,-1) - sorted_pos_sums_right
+                    sorted_pos_sums_right = total_pos_sum - sorted_pos_sums
+                    sorted_neg_sum       = np.arange(1, len(TW[:,0])) - sorted_pos_sums
+                    sorted_neg_sum_right = np.arange(len(TW[:,0])-1,0,-1) - sorted_pos_sums_right
                     f      = sorted_neg_sum/np.maximum(sorted_pos_sums, 1).astype(float)
                     f_right= sorted_neg_sum_right/np.maximum(sorted_pos_sums_right, 1).astype(float)
 
-                    plateau_and_split_range_mask &= (np.arange(1, len(self.training_weights[:,0]))>(1+f)/(1-f)*self.min_size)
-                    plateau_and_split_range_mask &= (np.arange(len(self.training_weights[:,0])-1,0,-1)>(1+f_right)/(1-f_right)*self.min_size)
+                    plateau_and_split_range_mask &= (np.arange(1, len(TW[:,0]))>(1+f)/(1-f)*self.min_size)
+                    plateau_and_split_range_mask &= (np.arange(len(TW[:,0])-1,0,-1)>(1+f_right)/(1-f_right)*self.min_size)
 
-            gain_masked = np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask
+            gain_masked = np.nan_to_num(neg_loss_gains) * plateau_and_split_range_mask
             argmax_fi   = np.argmax(gain_masked)
             gain        = gain_masked[argmax_fi]
             value       = feature_values[feature_sorted_indices[argmax_fi]]
 
-            debug_self_split_gain = self.split_gain
-            if gain > self.split_gain: 
+            if gain > self.split_gain:
                 self.split_i_feature = i_feature
                 self.split_value     = value
                 self.split_gain      = gain
 
-            if np.count_nonzero(self.features[:,self.split_i_feature]<=self.split_value) == 1:
-                print ("sorted_weight_sums[:,0]      ", sorted_weight_sums[:,0])
-                print ("sorted_weight_sums_right[:,0]", sorted_weight_sums_right[:,0])
-                print ("plateau_and_split_range_mask", plateau_and_split_range_mask)
-                if loss_mode == 'MSE':
-                    L = sorted_weight_sums @ B_T
-                    R = sorted_weight_sums_right @ B_T
-                    print ("neg_loss_gains left", np.sum(L*L,axis=1)/sorted_weight_sums[:,0] )
-                    print ("neg_loss_gains right", np.sum(R*R,axis=1)/sorted_weight_sums_right[:,0])
-                print ("neg_loss_gains", neg_loss_gains)
-                print ("np.nan_to_num(neg_loss_gains)", np.nan_to_num(neg_loss_gains))
-                print ("np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask", np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask)
-                print ("argmax_fi", np.argmax(np.nan_to_num(neg_loss_gains)*plateau_and_split_range_mask) )
-                print ("gain", gain )
-                print ("found split?", gain > debug_self_split_gain, "gain", gain, "self.split_gain (before)",debug_self_split_gain, "self.split_gain(after)",self.split_gain)
-                print ("self.split_left_group", self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool'))
-                print ("non_zero", np.count_nonzero(self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool')))
-                print ()
-                assert False, "single-entry node!!"
-
         assert not np.isnan(self.split_value)
 
-        self.split_left_group = self.features[:,self.split_i_feature]<=self.split_value if not  np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
+        self.split_left_group = self.features[:,self.split_i_feature] <= self.split_value if not np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
+
 
     def coefficient_sum( self, group ):
         return np.sum(self.training_weights[group],axis=0)

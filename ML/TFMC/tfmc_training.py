@@ -15,7 +15,7 @@ from data.plot_options import plot_options
 
 from ML.TFMC.TFMC import TFMC
 from ML.Scaler.Scaler import Scaler
-from ML.IC.IC import InclusiveCrosssection
+#from ML.IC.IC import InclusiveCrosssection
 
 from tqdm import trange, tqdm
 import math
@@ -29,8 +29,10 @@ p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch-size", type=int, default=None, help="Override batch size")
 # plotting
-p.add_argument("--plot", action="store_true", help="Enable convergence plots")
-p.add_argument("--plot-every", type=int, default=5, help="Plot every N epochs (default 5)")
+p.add_argument("--plot-directory", default="", help="Plot directory")
+p.add_argument("--plot", action="store_true", help="Plot?")
+p.add_argument("--norm-plot", action="store_true", help="Only plot the shapes.")
+p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
 # ---------------- load cfg ----------------
@@ -52,7 +54,7 @@ def list_jobs_and_exit():
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
     if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
     if args.plot: flags.append("--plot")
-    if args.plot_every != 5: flags.append(f"--plot-every {args.plot_every}")
+    if args.every != 5: flags.append(f"--every {args.every}")
     script = os.path.basename(__file__)
     for j in jobs:
         print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}".strip())
@@ -89,7 +91,7 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
 model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base, "TFMC", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  "TFMC", args.plot_directory, cfg_base, "TFMC", J["id"])
 
 from common.helpers import copyIndexPHP
 copyIndexPHP( plot_dir )
@@ -110,6 +112,14 @@ for name in classes_names:
     loader.setFeatures( J['features'] )
     loaders.append(loader)
 
+sel  = job.get("selection", None)
+sel_f= job.get("selection_features", [])
+if sel:
+    for loader in loaders:
+        loader.addSelection( sel, sel_f)
+        print("Added selection to loader: {sel} and selection_features {sel_f}")
+    print(loader)
+
 # Consistency: same feature_names across classes
 feat_names = getattr(loaders[0], "feature_names", None)
 if not feat_names:
@@ -118,6 +128,30 @@ for L in loaders[1:]:
     if list(getattr(L, "feature_names", [])) != list(feat_names):
         raise RuntimeError("Feature mismatch across class loaders.")
 input_dim = len(feat_names)
+
+# ---------------- data iterator ----------------
+def iterate_epoch(shard_limit: int | None = None):
+    """Yield one mixed batch (X, y1hot, w) by concatenating per-class shards."""
+    shard_counts = [len(getattr(L, "base", L)) for L in loaders]
+    n_shards = min(shard_counts)
+    if shard_limit is not None:
+        n_shards = min(n_shards, shard_limit)
+    for shard in range(n_shards):
+        Xs, Ys, Ws = [], [], []
+        for ci, (name, L) in enumerate(zip(classes_names, loaders)):
+            # Use materialize to fetch features and weights; views apply masks internally.
+            X, w = L.materialize(shard=shard, what="fw", n=None)
+            y = np.zeros((len(X), len(classes_names)), dtype=np.float32)
+            y[:, ci] = 1.0
+            Xs.append(X); Ys.append(y); Ws.append(w)
+        X = np.concatenate(Xs, axis=0) if Xs else np.empty((0, input_dim))
+        y = np.concatenate(Ys, axis=0) if Ys else np.empty((0, len(classes_names)))
+        w = np.concatenate(Ws, axis=0) if Ws else np.empty((0,))
+        #yield X, y, w
+        #idx = rng.permutation(len(X))
+        #yield X[idx], y[idx], w[idx]
+        idx = np.random.permutation(len(X))
+        yield X[idx], y[idx], w[idx]
 
 # (No explicit observer weight index anymore — weights come from materialize("w"))
 
@@ -136,16 +170,17 @@ else:
     feature_variances = np.ones(input_dim,  dtype=np.float64)
     print("No Scaler used (identity).")
 
-# ---------------- load IC (by job id; broadcast to all classes) ----------------
-ic_id = J["extras"].get("use_ic", None)
-if ic_id:
-    ij    = next(jj for jj in (cfg.get("jobs") or []) if jj.get("id") == ic_id)
-    iname = ij["output"]["filename"]
-    ipath = os.path.join(user.model_directory, cfg_base, "IC", iname)
-    ic    = InclusiveCrosssection.load(ipath)
-    w     = float(ic.total_weight)
-    ic_weights = {name: w for name in classes_names}
-    print(f"Loaded IC {ipath} (broadcast w={w})")
+# ---------------- IC: precompute sums from data once ----------------
+if J["extras"].get("use_ic", True):
+    print("Pre-compute inclusive cross sections.")
+    ic_sums = np.zeros(len(classes_names), dtype=np.float64)
+    for _, y, w in iterate_epoch(shard_limit=None):
+        if len(w) == 0:
+            continue
+        w1 = np.asarray(w).reshape(-1)
+        ic_sums += y.T @ w1
+    ic_weights = {name: float(s) for name, s in zip(classes_names, ic_sums)}
+    print(f"Computed IC weights from data (sum of weights per class): {ic_weights}")
 else:
     ic_weights = {name: 1.0 for name in classes_names}
     print("No IC used (all weights = 1.0).")
@@ -166,27 +201,6 @@ model = TFMC(
 )
 model.set_scaler(feature_means, feature_variances)
 model.set_ic_weights_from_sums(classes_names, ic_weights)
-
-# ---------------- data iterator ----------------
-def iterate_epoch(shard_limit: int | None = None):
-    """Yield one mixed batch (X, y1hot, w) by concatenating per-class shards."""
-    shard_counts = [len(getattr(L, "base", L)) for L in loaders]
-    n_shards = min(shard_counts)
-    if shard_limit is not None:
-        n_shards = min(n_shards, shard_limit)
-    for shard in range(n_shards):
-        Xs, Ys, Ws = [], [], []
-        for ci, (name, L) in enumerate(zip(classes_names, loaders)):
-            # Use materialize to fetch features and weights; views apply masks internally.
-            X, w = L.materialize(shard=shard, what="fw", n=None)
-            y = np.zeros((len(X), len(classes_names)), dtype=np.float32)
-            y[:, ci] = 1.0
-            Xs.append(X); Ys.append(y); Ws.append(w)
-        X = np.concatenate(Xs, axis=0) if Xs else np.empty((0, input_dim))
-        y = np.concatenate(Ys, axis=0) if Ys else np.empty((0, len(classes_names)))
-        w = np.concatenate(Ws, axis=0) if Ws else np.empty((0,))
-        idx = rng.permutation(len(X))
-        yield X[idx], y[idx], w[idx]
 
 # ---------------- plotting utils (in training loop only) ----------------
 # Only plot features that are actually in the training feature list.
@@ -236,12 +250,18 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
         # work on copies to avoid in-place modifications across epochs
         th = {k: v.copy() for k, v in true_h.items()}
         ph = {k: v.copy() for k, v in pred_h.items()}
+        if args.norm_plot:
+            for k,v in th.items():
+                th[k] = th[k]/th[k].sum(axis=0)
+                ph[k] = ph[k]/ph[k].sum(axis=0)
         if normalized:
             for feat in feature_names:
-                tot = th[feat].sum(axis=1, keepdims=True)
-                tot = np.where(tot == 0, 1, tot)
-                th[feat] /= tot
-                ph[feat] /= tot
+                tot_t = th[feat].sum(axis=1, keepdims=True)   # per-bin truth total over classes
+                tot_p = ph[feat].sum(axis=1, keepdims=True)   # per-bin pred  total over classes
+                tot_t = np.where(tot_t == 0, 1, tot_t)
+                tot_p = np.where(tot_p == 0, 1, tot_p)
+                th[feat] /= tot_t
+                ph[feat] /= tot_p
 
         total_pads = num_features + 1
         gx = int(math.ceil(math.sqrt(total_pads)))
@@ -333,7 +353,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     model.optimizer.learning_rate.assign(lr_now)
 
     # hist accumulation (only when plotting this epoch)
-    do_plot = args.plot and (epoch % args.plot_every == 0)
+    do_plot = args.plot and (epoch % args.every == 0)
     if do_plot:
         true_h, pred_h, bins = init_histograms(plot_feats)
 
@@ -358,8 +378,9 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 losses.append(loss)
 
                 if do_plot:
-                    dcrs = model.predict(Xb, probability=False)
-                    accumulate_histograms(true_h, pred_h, bins, Xb, yb, dcrs, wb, plot_feats, feat2col)
+                    dcrs = model.predict(Xb, probability=False)  # plot WITH IC priors restored
+                    ones = np.ones_like(wb, dtype=np.float32)    # plot unweighted
+                    accumulate_histograms(true_h, pred_h, bins, Xb, yb, dcrs, ones, plot_feats, feat2col)
 
                 pbar.set_postfix(loss=float(loss))
                 pbar.update(1)
