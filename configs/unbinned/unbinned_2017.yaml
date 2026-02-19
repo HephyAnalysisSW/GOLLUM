@@ -7,31 +7,19 @@ defaults:
     - LEPTON_KINEMATICS
     - ASYMMETRY
 
-uid_splitting:
-  enabled: true
-  uid_fields: ["run", "luminosityBlock", "event"]
-  seed: 42
-  n_buckets: 10000 
+  splitting:
+    enabled: true
+    uid_fields: ["run", "luminosityBlock", "event"]
+    seed: 42
+    n_buckets: 10000 
 
-  scheme:
-    pnn_train:     { fraction: 0.50 }
-    pnn_val:       { fraction: 0.10 }
-    c2st_train:    { fraction: 0.15 }
-    c2st_val:      { fraction: 0.05 }
-    final_eval:    { fraction: 0.20 }
+    scheme:
+      pnn_train:     { fraction: 0.50 }
+      pnn_val:       { fraction: 0.10 }
+      c2st_train:    { fraction: 0.15 }
+      c2st_val:      { fraction: 0.05 }
+      final_eval:    { fraction: 0.20 }
 
-  assignment:
-    pnn:
-      train: pnn_train
-      validation: pnn_val
-    c2st:
-      train: c2st_train
-      validation: c2st_val
-    evaluate:
-      dataset: final_eval
-
-# Global early-stopping policy for ALL PNN jobs
-pnn_training:
   early_stopping:
     enabled: true
     patience: 20        # same as current hard-coded
