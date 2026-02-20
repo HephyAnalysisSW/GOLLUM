@@ -91,6 +91,6 @@ BASIC_EVENT = [
 ]
 
 # Generator-level observers (not directly features)
-OBSERVERS = ["weight", "Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
+OBSERVERS = ["weight", "Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "run", "luminosityBlock", "event"]
 
 ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT
