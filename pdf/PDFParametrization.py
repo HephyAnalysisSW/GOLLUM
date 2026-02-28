@@ -7,7 +7,7 @@ from pdf.AnalyticPDFParametrization import AnalyticPDFParametrization
 from pdf.PODBasis import PODBasis 
 logger = logging.getLogger(__name__)
 
-def PDFParametrization(n, typ):
+def PDFParametrization(n, typ, basis=None):
     """
     Interface to all PDF parametrizations.
 
@@ -51,8 +51,7 @@ def PDFParametrization(n, typ):
 
     elif typ == "PODBasis":
         # PODBasis wants the full list of variations
-        return PODBasis(variations=n_list)
-
+        return PODBasis(variations=n_list, var_set=basis)
     else:
         raise ValueError(f"Unknown PDF parametrization type: {typ!r}")
 
