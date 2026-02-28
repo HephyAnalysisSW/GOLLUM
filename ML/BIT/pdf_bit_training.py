@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os, sys, argparse, importlib, time, pickle, io, contextlib
 import numpy as np
-
+import matplotlib.pyplot as plt
 import cProfile, pstats
 
 # project roots
@@ -20,6 +20,9 @@ from ML.BIT.NumbaBIT import MultiBoostedInformationTree
 import ML.BIT.NumbaMultiNode as NumbaMultiNode
 
 from tqdm import trange, tqdm
+
+from data.UIDSplitter import UIDSplitter
+import math
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="BIT training (YAML-driven)")
@@ -89,6 +92,48 @@ missing_gen = [n for n in GEN_OBS if n not in obs_names]
 if missing_gen:
     raise RuntimeError(f"Observer_names must include {GEN_OBS}, missing {missing_gen} in loader '{loader_name}'.")
 
+# -------------------------- UID Splitting --------------------------
+UID_CFG = (J.get("splitting") or {})
+uid_enabled   = bool(UID_CFG.get("enabled", False))
+uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+uid_seed      = int(UID_CFG.get("seed", 0))
+uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+uid_scheme    = (UID_CFG.get("scheme") or {})
+
+uid_intervals = None
+uid_splitter = None
+train_interval = None
+val_interval   = None
+
+if uid_enabled:
+    uid_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=uid_seed,
+        n_buckets=uid_n_buckets,
+    )
+
+    # build bucket intervals EXACTLY like PNN
+    keys  = list(uid_scheme.keys())
+    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+    sizes[-1] += uid_n_buckets - sum(sizes)
+
+    uid_intervals = {}
+    lo = 0
+    for k, sz in zip(keys, sizes):
+        uid_intervals[k] = (lo, lo + int(sz))
+        lo += int(sz)
+    bit_train_key = "pnn_train"
+    bit_val_key   = "pnn_val"
+    train_interval = uid_intervals[bit_train_key]
+    val_interval   = uid_intervals[bit_val_key]
+
+    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+    print(f"[UID] scheme intervals: {uid_intervals}")
+    print(f"[UID] BIT train split '{bit_train_key}' -> {train_interval}")
+    print(f"[UID] BIT val   split '{bit_val_key}' -> {val_interval}")
+
 # ---------------- PDF parametrization & combinations ----------------
 pdf_n = J.get("pdf", {}).get("pdf_n", None)
 pdf_type = J.get("pdf", {}).get("pdf_type", None)
@@ -107,47 +152,122 @@ for comb in itertools.combinations_with_replacement(vars_, 2):
 
 # ---------------- collect all data (single pass) ----------------
 def iterate_all(shard_limit=None):
+    """
+    Yields per-shard arrays PLUS (optionally) UID masks for train/val.
+    - Always yields X,Q,x1,x2,id1,id2,w
+    - If uid_enabled: also yields (m_tr, m_va) boolean masks with same length as X
+    """
     n_shards = len(L)
     if args.small: n_shards = 1
     if shard_limit is not None: n_shards = min(n_shards, shard_limit)
     on2idx = {n: i for i, n in enumerate(obs_names)}
+
+    # indices for generator obs (existing behavior) with shape (N,)
+    i_Q   = on2idx["Generator_scalePDF"]
+    i_x1  = on2idx["Generator_x1"]
+    i_x2  = on2idx["Generator_x2"]
+    i_id1 = on2idx["Generator_id1"]
+    i_id2 = on2idx["Generator_id2"]
+
+    # indices for UID obs
+    if uid_enabled:
+        uid_idx = [on2idx[f] for f in uid_fields]
+        lo_tr, hi_tr = train_interval
+        lo_va, hi_va = val_interval
+
     for shard in range(n_shards):
         X, G, w = L.materialize(shard=shard, what="fow")
-        gQ   = G[:, on2idx["Generator_scalePDF"]]
-        gx1  = G[:, on2idx["Generator_x1"]]
-        gx2  = G[:, on2idx["Generator_x2"]]
-        gid1 = G[:, on2idx["Generator_id1"]]
-        gid2 = G[:, on2idx["Generator_id2"]]
-        yield (X.astype(np.float32, copy=False),
-               gQ.astype(np.float32, copy=False),
-               gx1.astype(np.float32, copy=False),
-               gx2.astype(np.float32, copy=False),
-               gid1.astype(np.int32,  copy=False),
-               gid2.astype(np.int32,  copy=False),
-               w.astype(np.float32,   copy=False))
+        gQ   = G[:, i_Q]
+        gx1  = G[:, i_x1]
+        gx2  = G[:, i_x2]
+        gid1 = G[:, i_id1]
+        gid2 = G[:, i_id2]
 
-Xs = []
-targets_acc = []
-for X, Q, x1, x2, id1, id2, w in iterate_all():
-    deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)  # (N_i, M)
-    deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)
-    Xs.append(X)
-    targets_acc.append(deriv_w)
+        # UID masks (computed from observer matrix G)
+        if uid_enabled:
+            O_uid = G[:, uid_idx]  # shape (N, len(uid_fields))
+            m_tr = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo_tr, hi_tr)
+            m_va = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo_va, hi_va)
+            yield (
+                X.astype(np.float32, copy=False),
+                gQ.astype(np.float32, copy=False),
+                gx1.astype(np.float32, copy=False),
+                gx2.astype(np.float32, copy=False),
+                gid1.astype(np.int32,  copy=False),
+                gid2.astype(np.int32,  copy=False),
+                w.astype(np.float32,   copy=False),
+                m_tr,
+                m_va,
+            )
+        else:
+            yield (
+                X.astype(np.float32, copy=False),
+                gQ.astype(np.float32, copy=False),
+                gx1.astype(np.float32, copy=False),
+                gx2.astype(np.float32, copy=False),
+                gid1.astype(np.int32,  copy=False),
+                gid2.astype(np.int32,  copy=False),
+                w.astype(np.float32,   copy=False),
+            )
 
-X_all   = np.concatenate(Xs, axis=0) if len(Xs) > 1 else Xs[0]
-DER_all = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targets_acc[0]
+Xs_tr, targets_tr = [], []
+Xs_va, targets_va = [], []
+
+if uid_enabled:
+    for X, Q, x1, x2, id1, id2, w, m_tr, m_va in iterate_all():
+        deriv   = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)      # (N, M)
+        deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)   # (N, M)
+
+        # append train slice
+        if np.any(m_tr):
+            Xs_tr.append(X[m_tr])
+            targets_tr.append(deriv_w[m_tr])
+
+        # append valid slice
+        if np.any(m_va):
+            Xs_va.append(X[m_va])
+            targets_va.append(deriv_w[m_va])
+
+    # concatenate
+    X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
+    DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
+
+    X_valid   = np.concatenate(Xs_va, axis=0) if len(Xs_va) > 1 else Xs_va[0]
+    DER_valid = np.concatenate(targets_va, axis=0) if len(targets_va) > 1 else targets_va[0]
+
+else:
+    # old behavior: everything is "train"
+    Xs, targets_acc = [], []
+    for X, Q, x1, x2, id1, id2, w in iterate_all():
+        deriv   = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)
+        deriv_w = deriv * w.reshape(-1, 1).astype(np.float32, copy=False)
+        Xs.append(X)
+        targets_acc.append(deriv_w)
+
+    X_train   = np.concatenate(Xs, axis=0) if len(Xs) > 1 else Xs[0]
+    DER_train = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targets_acc[0]
+    X_valid, DER_valid = None, None
 
 # Truth weights (fixed; used for plotting)
-training_weights = {tuple(sorted(combos[i])): DER_all[:, i] for i in range(len(combos))}
+training_weights_train = {tuple(sorted(combos[i])): DER_train[:, i] for i in range(len(combos))}
+training_weights_valid = None
+if DER_valid is not None:
+    training_weights_valid = {tuple(sorted(combos[i])): DER_valid[:, i] for i in range(len(combos))}
 
 if args.small:
-    n_max = len(X_all)//30
-    X_all   = X_all[:n_max]
-    DER_all = DER_all[:n_max]
-    training_weights = {key: val[:n_max] for key, val in training_weights.items()}
+    n_max = len(X_train)//30
+    X_train   = X_train[:n_max]
+    DER_train = DER_train[:n_max]
+    training_weights_train = {k: v[:n_max] for k, v in training_weights_train.items()}
+
+    if X_valid is not None:
+        n_max_v = len(X_valid)//30
+        X_valid   = X_valid[:n_max_v]
+        DER_valid = DER_valid[:n_max_v]
+        training_weights_valid = {k: v[:n_max_v] for k, v in training_weights_valid.items()}
 
 # ---------------- plotting function ----------------
-def plot_bit_training_root(bit, t, X_all, training_weights, feat_names, cfg_base, J):
+def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J):
     """
     Plot truth vs prediction ratios after t trees.
     Syncer output is captured so tqdm bars remain usable.
@@ -178,13 +298,13 @@ def plot_bit_training_root(bit, t, X_all, training_weights, feat_names, cfg_base
         else:
             colors[der] = ROOT.kGreen + i_mix; i_mix += 1
 
-    pred = bit.predict(X_all, max_n_tree=t)  # (N, M-1), aligned to ders[1:]
-    w0 = training_weights[()]
+    pred = bit.predict(X_train, max_n_tree=t)  # (N, M-1), aligned to ders[1:]
+    w0 = training_weights_train[()]
 
     truth_mat = np.stack([
-        training_weights.get(der, training_weights.get(tuple(reversed(der))))
+        training_weights_train.get(der, training_weights_train.get(tuple(reversed(der))))
         for der in ders
-    ], axis=1)  # (N, M)
+    ], axis=1)
 
     total_pads = len(plot_feats) + 1
     gx = int(math.ceil(math.sqrt(total_pads)))
@@ -212,7 +332,7 @@ def plot_bit_training_root(bit, t, X_all, training_weights, feat_names, cfg_base
         n, lo, hi = PLOT_OPTS[feat]['binning']
         edges = np.linspace(lo, hi, n+1)
         col = feat_names.index(feat)
-        x = X_all[:, col]
+        x = X_train[:, col]
 
         h_w0, _ = np.histogram(x, bins=edges, weights=w0)
 
@@ -335,6 +455,61 @@ bit = None
 start_tree = 0
 boost_weights = None
 
+def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
+    """
+    Loss in ratio space:
+      r_true(der) = w_der / w0
+      r_pred(der) = bit.predict(...)
+
+    Return: average over derivatives of weighted MSE in ratio space.
+    Event weight for averaging: |w0|.
+    Uses truth_weights keys to define the derivative list, then aligns to bit.predict columns.
+    """
+    if X is None:
+        return float("nan")
+
+    # nominal weights
+    if () not in truth_weights:
+        raise RuntimeError("truth_weights must contain key () for nominal weights.")
+    w0 = truth_weights[()]  # (N,)
+
+    pred = bit.predict(X, max_n_tree=max_n_tree)  # (N, K)  K = number of non-empty derivatives model predicts
+
+    # ---- use bit.derivatives ordering ----
+    ders = getattr(bit, "derivatives", None)
+    if ders is None or len(ders) == 0:
+        raise RuntimeError("bit.derivatives not initialized yet.")
+
+    # predict columns correspond to non-empty derivatives, in this order
+    ders_eval = [d for d in ders if len(d) != 0]
+
+    if pred.shape[1] != len(ders_eval):
+        raise RuntimeError(
+            f"Mismatch: bit.predict returns {pred.shape[1]} columns, "
+            f"but bit.derivatives has {len(ders_eval)} non-empty derivatives."
+        )
+    # -------------------------------------
+
+    mask = (w0 != 0)
+    if not np.any(mask):
+        return float("inf")
+
+    w_abs = np.abs(w0[mask])
+
+    losses = []
+    for i, der in enumerate(ders_eval):
+        wt = truth_weights.get(der, truth_weights.get(tuple(reversed(der))))
+        if wt is None:
+            raise RuntimeError(f"Missing truth_weights for derivative {der} (or reversed)")
+
+        r_true = wt[mask] / w0[mask]
+        r_pred = pred[mask, i]
+
+        mse = np.average((r_pred - r_true) ** 2, weights=w_abs)
+        losses.append(mse)
+
+    return float(np.mean(losses))
+
 # ---- load / resume from model_path directly ----
 if not args.overwrite and os.path.exists(model_path):
     try:
@@ -362,16 +537,24 @@ if not args.overwrite and os.path.exists(model_path):
 if bit is None:
     mcfg = J.get("model", {}) or {}
     bit = MultiBoostedInformationTree(**mcfg)
-    boost_weights = {k: v.copy() for k, v in training_weights.items()}
+    boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
 
 # If training needed but weights missing, start from truth
 if boost_weights is None and len(bit.trees) < bit.n_trees:
-    boost_weights = {k: v.copy() for k, v in training_weights.items()}
+    boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
 
 # ---------------- external training loop ----------------
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
 
+# ---------------- loss history ----------------
+loss_trees = []
+train_losses = []
+valid_losses = []  # if no valid -> store np.nan
+best_valid_loss = float("inf")
+best_tree = -1
+best_model_path = os.path.join(model_dir, "BIT_best.pkl")
+best_weights_path = os.path.join(model_dir, "BIT_best.weights.pkl")  # 可选
 
 if len(bit.trees) < bit.n_trees:
 
@@ -395,7 +578,7 @@ if len(bit.trees) < bit.n_trees:
         # fit tree (root needs base_points / feature_names)
         t1 = time.process_time()
         root = NumbaMultiNode.MultiNode(
-            X_all,
+            X_train,
             training_weights = boost_weights,
             base_points      = base_points,
             feature_names    = feat_names,
@@ -437,9 +620,55 @@ if len(bit.trees) < bit.n_trees:
 
         bit.trees.append(root)
 
+        # ---------------- TRAIN LOSS (metric) ----------------
+        # only valid after bit.derivatives is set (i.e. after first tree finished)
+        train_loss = bit_ratio_mse_loss(
+        	bit=bit,
+        	X=X_train,
+        	truth_weights=training_weights_train,
+        	max_n_tree=len(bit.trees),   # == n_tree + 1
+        )
+        tqdm.write(f"[LOSS] tree={len(bit.trees):04d} train_loss={train_loss:.6g}")
+
+        # ---------------- VALID LOSS (metric) ----------------
+        if X_valid is not None:
+            valid_loss = bit_ratio_mse_loss(
+                bit=bit,
+                X=X_valid,
+                truth_weights=training_weights_valid,
+                max_n_tree=len(bit.trees),   # == n_tree + 1
+            )
+            tqdm.write(f"[LOSS] tree={len(bit.trees):04d} valid_loss={valid_loss:.6g}")
+
+            # ---------------- save BEST on valid ----------------
+            if np.isfinite(valid_loss) and (valid_loss < best_valid_loss):
+                best_valid_loss = float(valid_loss)
+                best_tree = len(bit.trees)
+                _trees = bit.trees
+                bit.trees = _trees[:best_tree]
+                tmp = best_model_path + ".tmp"
+                bit.save(tmp)
+                os.replace(tmp, best_model_path)
+                bit.trees = _trees
+                tmpw = best_weights_path + ".tmp"
+                with open(tmpw, "wb") as f:
+                    pickle.dump(boost_weights, f, protocol=pickle.HIGHEST_PROTOCOL)
+                os.replace(tmpw, best_weights_path)
+                tqdm.write(f"[BEST] tree={best_tree:04d} valid_loss={best_valid_loss:.6g} -> {best_model_path}")
+
+        # ---------------- append loss history ----------------
+        tree_now = len(bit.trees)
+        loss_trees.append(tree_now)
+        train_losses.append(float(train_loss))
+
+        if X_valid is not None:
+            valid_losses.append(float(valid_loss))
+        else:
+            valid_losses.append(float("nan"))
+
         # update weights
         t1 = time.process_time()
-        prediction = root.vectorized_predict(X_all)
+        prediction = root.vectorized_predict(X_train)
         len_ = len(prediction)
 
         delta_weight = boost_weights[tuple()].reshape(len_, -1) * prediction[:, 1:] / prediction[:, 0].reshape(len_, -1)
@@ -468,8 +697,34 @@ if len(bit.trees) < bit.n_trees:
         do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
         if do_plot:
             tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
-            plot_bit_training_root(bit, t=n_tree+1, X_all=X_all, training_weights=training_weights,
+            plot_bit_training_root(bit, t=n_tree+1, X_train=X_train, training_weights_train=training_weights_train,
                                    feat_names=feat_names, cfg_base=cfg_base, J=J)
+
+    # ---------------- save loss history ----------------
+    loss_txt = os.path.join(model_dir, "loss_history.txt")
+    with open(loss_txt, "w") as f:
+        f.write("# tree\ttrain_loss\tvalid_loss\n")
+        for t, tr, va in zip(loss_trees, train_losses, valid_losses):
+            f.write(f"{t}\t{tr:.8e}\t{va:.8e}\n")
+    tqdm.write(f"[LOSS] wrote {loss_txt}")
+
+    # ---------------- plot loss curves ----------------
+    plt.figure()
+    plt.plot(loss_trees, train_losses, label="train")
+    # only plot valid curve if at least one finite value exists
+    va_arr = np.array(valid_losses, dtype=float)
+    if np.isfinite(va_arr).any():
+        plt.plot(loss_trees, valid_losses, label="valid")
+    plt.xlabel("n_trees")
+    plt.ylabel("ratio_mse_loss")
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.legend()
+
+    loss_pdf = os.path.join(model_dir, "loss_history.pdf")
+    plt.tight_layout()
+    plt.savefig(loss_pdf, dpi=500)
+    plt.close()
+    tqdm.write(f"[LOSS] wrote {loss_pdf}")
 
     # After last training: keep weights file, print filename
     szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
@@ -480,6 +735,4 @@ else:
         szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
         tqdm.write(f"Kept boosting weights snapshot -> {weights_path} ({szz:.1f} MB)")
 
-
 print("Done.")
-
