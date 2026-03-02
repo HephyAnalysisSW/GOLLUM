@@ -182,6 +182,7 @@ jobs:
     pdf:
       pdf_n: [1, 2, 4, 5, 10, 12]
       pdf_type: PODBasis
+      pdf_basis: 250503_pod_basis_40k
     model:
       n_trees: 200
       learning_rate: 0.2

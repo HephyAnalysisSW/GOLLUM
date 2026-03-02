@@ -1,12 +1,24 @@
-version: Eta_unbinned_2016APV_v2
-#version: Eta_unbinned_2016APV_v3
+version: unbinned_2016APV_v2
 
 defaults:
   module_samples: "data.samples_RunII"
   default_features:
-    - THRESHOLD 
-  default_selection: "tr_ttbar_mass<500" # this is here for v2
-  default_selection_features: ["tr_ttbar_mass"]
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+
+  splitting:
+    enabled: true
+    uid_fields: ["run", "luminosityBlock", "event"]
+    seed: 42
+    n_buckets: 10000 
+
+    scheme:
+      pnn_train:     { fraction: 0.50 }
+      pnn_val:       { fraction: 0.10 }
+      c2st_train:    { fraction: 0.15 }
+      c2st_val:      { fraction: 0.05 }
+      final_eval:    { fraction: 0.20 }
 
   early_stopping:
     enabled: true
@@ -14,19 +26,22 @@ defaults:
     min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
     mode: "min"         # val_loss should decrease
     warmup_epochs: 0    # optional: do not early-stop before this epoch
-  
 
 likelihood:
     regions:
         - id: SR_2016APV 
           classifier:
-            type: tfmc
-            job: tfmc_EtaSandP_2016APV
-            asimov: [TTLep_pow_2016APV, EtaS_2016APV, EtaP_2016APV]
-
+            type: null
+            id: null    # no classifier needed for a single process
+            asimov: [TTLep_pow_2016APV]
           classes: 
             - id: TTLep_pow_2016APV
               sample: TTLep_pow_2016APV
+              POI:
+                job: bit_pod_TTLep_pow_2016APV 
+                type: bit
+                parameters: [c0, c1, c2, c3, c4, c5]
+
               systematics:
                 - id: Normalization_TTLep
                   type: lnN
@@ -59,6 +74,7 @@ likelihood:
                 - id: Scales
                   type: pnn
                   job: pnn_TTLep_pow_2016APV_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
                 - id: ShowerISR
                   type: pnn
                   job: pnn_TTLep_pow_2016APV_showerISR
@@ -156,42 +172,650 @@ likelihood:
                   job: pnn_TTLep_pow_2016APV_Uncl
                   parameters: [nu_Uncl]
 
-            - id: EtaS_2016APV
-              sample: EtaS_2016APV
-              POI:
-                type: rate_shift
-                parameters: [rate_shift_EtaS]
-
-            - id: EtaP_2016APV
-              sample: EtaP_2016APV
-              POI:
-                type: rate_shift
-                parameters: [rate_shift_EtaP]
-
 jobs:
-  # -------------------------------
-  # TFMC classifier (split processes)
-  # -------------------------------
-  - id: tfmc_EtaSandP_2016APV 
-    type: classifier
+  - id: bit_pod_TTLep_pow_2016APV
+    type: bit
     region: SR
-    framework: "tfmc"
-    data:
-      classes: [TTLep_pow_2016APV, EtaS_2016APV, EtaP_2016APV]
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1, 2, 4, 5, 10, 12]
+      pdf_type: PODBasis
+      pdf_basis: 250503_pod_basis_40k
     model:
-      activation: relu
-      hidden_layers: [128, 128]
-    optim:
-      epochs: 500
-      phaseout_epochs: 0
-      learning_rate: 0.02
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
     runtime:
-      batch_size: 65536
-      num_workers: 1
-    extras:
-      use_scaler: scaler_TTLep_pow_2016APV 
+      training_plots: true        # keep if you want training plots
     output:
-      filename: "tfmc_EtaSandP_2016APV.pkl"
+      filename: "BIT_pod_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_1_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_1_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_2_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_2_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_3_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_3_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_4_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_4_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_5_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_5_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_6_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_7_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_7_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_8_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_8_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_PDF4LHC21_9_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8,9]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_9_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_1_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_1_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_2_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_2_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_3_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_3_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_4_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_4_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_5_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_5_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_6_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_6_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_7_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_7_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_8_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_8_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF40_9_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8,9]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF40 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF40_9_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_1_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_1_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_2_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_2_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_3_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_3_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_4_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_4_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_5_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_5_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_6_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_6_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_7_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_7_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_8_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_8_TTLep_pow_2016APV.pkl"
+
+  - id: bit_NG_NNPDF31_9_TTLep_pow_2016APV
+    type: bit
+    region: SR
+    process: TTLep_pow_2016APV
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6,7,8,9]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_NNPDF31_9_TTLep_pow_2016APV.pkl"
 
   - id: scaler_TTLep_pow_2016APV
     type: scaler
@@ -221,7 +845,6 @@ jobs:
     train_ratio: true
     output:
       filename: icp_TTLep_pow_2016APV_L1Prefire.pkl
-
   - id: pnn_TTLep_pow_2016APV_L1Prefire
     type: pnn
     region: SR
@@ -334,7 +957,6 @@ jobs:
     train_ratio: true
     output:
       filename: icp_TTLep_pow_2016APV_MuSF.pkl
-
   - id: pnn_TTLep_pow_2016APV_MuSF
     type: pnn
     region: SR
@@ -1777,4 +2399,4 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
       use_icp: icp_TTLep_pow_2016APV_Uncl
-
+  
