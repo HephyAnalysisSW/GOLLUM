@@ -306,9 +306,9 @@ combinations    = [tuple(c) for c in J["combinations"]]
 hidden_layers   = J.get("model", {}).get("hidden_layers", [128, 128])
 activation      = J.get("model", {}).get("activation", "relu")
 initialize_zero = bool(J.get("model", {}).get("initialize_zero", False))
-epochs          = int(J.get("optim", {}).get("epochs", 200))
-phaseout        = 200
-lr              = 2e-4
+epochs          = 500
+phaseout        = 500
+lr              = 1.5e-4
 l1              = float(J.get("optim", {}).get("l1", 0))
 l2              = float(J.get("optim", {}).get("l2", 0))
 
@@ -489,7 +489,7 @@ def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, base_points, n
             hp, _ = np.histogram(X0[:, col], bins=edges, weights=pred_w)
             h_pred[feat][:, i_bp] += hp
 
-def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1):
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1, fixed_stem=None, prefix=""):
     import ROOT, os, math
     import numpy as np
     try:
@@ -603,7 +603,8 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
         tex.DrawLatex(0.30, 0.95, f"Epoch = {epoch:04d}")
         keep.append(tex)
 
-        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
+        stem = (fixed_stem if fixed_stem else f"epoch_{epoch:04d}")
+        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}{prefix}{stem}.png")
         for fmt in ["png"]:
             canvas.SaveAs(fname.replace(".png", f".{fmt}"))
 
@@ -691,7 +692,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
     do_plot = (epoch % args.every == 0)
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if do_plot:
-        true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+        true_h_tr, pred_h_tr, bins_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+        true_h_va, pred_h_va, bins_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
 
     # ONE pass over shards: materialize once, then split in memory into train/val
     for Xs_tr, Ws_tr, Xs_va, Ws_va in tqdm(iterate_epoch(loaders, shard_limit=shard_limit), desc="Shard", unit="shard"):
@@ -712,7 +714,11 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
         # plots: keep behavior identical (accumulate on TRAIN slice)
         if do_plot:
             accumulate_histograms(
-                true_h, pred_h, bins, Xs_tr, Ws_tr, pnn, VkA,
+                true_h_tr, pred_h_tr, bins_tr, Xs_tr, Ws_tr, pnn, VkA,
+                base_points, nom_idx, plot_feats, feat2col
+            )
+            accumulate_histograms(
+                true_h_va, pred_h_va, bins_va, Xs_va, Ws_va, pnn, VkA,
                 base_points, nom_idx, plot_feats, feat2col
             )
  
@@ -766,7 +772,65 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
             break
 
     if do_plot:
-        plot_convergence_root(true_h, pred_h, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin)
+        # ---------------- current epoch: train + valid ----------------
+        plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin, prefix="train_")
+        plot_convergence_root(true_h_va, pred_h_va, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin, prefix="valid_")
+
+        # ---------------- best / last checkpoints: train + valid ----------------
+        ck_best = os.path.join(model_dir, "checkpoint")
+        ck_last = os.path.join(model_dir, "last_checkpoint")
+
+        if os.path.exists(ck_best):
+            pnn_best = PNN.load(model_dir, latest_filename="checkpoint")
+
+            true_h_b_tr, pred_h_b_tr, bins_b_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+            true_h_b_va, pred_h_b_va, bins_b_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+
+            for Xs_tr2, Ws_tr2, Xs_va2, Ws_va2 in iterate_epoch(loaders, shard_limit=shard_limit):
+                accumulate_histograms(
+                    true_h_b_tr, pred_h_b_tr, bins_b_tr, Xs_tr2, Ws_tr2, pnn_best, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+                accumulate_histograms(
+                    true_h_b_va, pred_h_b_va, bins_b_va, Xs_va2, Ws_va2, pnn_best, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+
+            e_best = (best_epoch if best_epoch >= 0 else epoch)
+            plot_convergence_root(
+                true_h_b_tr, pred_h_b_tr, e_best, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="best_epoch", prefix="train_"
+            )
+            plot_convergence_root(
+                true_h_b_va, pred_h_b_va, e_best, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="best_epoch", prefix="valid_"
+            )
+
+        if os.path.exists(ck_last):
+            pnn_last = PNN.load(model_dir, latest_filename="last_checkpoint")
+
+            true_h_l_tr, pred_h_l_tr, bins_l_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+            true_h_l_va, pred_h_l_va, bins_l_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+
+            for Xs_tr2, Ws_tr2, Xs_va2, Ws_va2 in iterate_epoch(loaders, shard_limit=shard_limit):
+                accumulate_histograms(
+                    true_h_l_tr, pred_h_l_tr, bins_l_tr, Xs_tr2, Ws_tr2, pnn_last, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+                accumulate_histograms(
+                    true_h_l_va, pred_h_l_va, bins_l_va, Xs_va2, Ws_va2, pnn_last, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+
+            plot_convergence_root(
+                true_h_l_tr, pred_h_l_tr, epoch, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="last_epoch", prefix="train_"
+            )
+            plot_convergence_root(
+                true_h_l_va, pred_h_l_va, epoch, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="last_epoch", prefix="valid_"
+            )
+
         syncer.sync()
     elif not args.small:
         syncer.sync()
