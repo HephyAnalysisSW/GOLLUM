@@ -668,7 +668,7 @@ class N2LL:
         d = os.path.join(
             self.cache_root, 
             region_id,
-            ('shuffle_'+'_'.join(self.shuffle_features)) if hasattr(self, "shuffle_features") else ""
+            ('shuffle_'+'_'.join(self.shuffle_features)) if (hasattr(self, "shuffle_features") and self.shuffle_features is not None) else ""
         )
         os.makedirs(d, exist_ok=True)
         return d
@@ -831,7 +831,7 @@ class N2LL:
             with tqdm(total=total_shards, desc=f"[N2LL] cache {rid}", unit="shard", leave=False) as pbar:
                 for feat_names, X, w0 in self._iter_asimov_batches(R):
                    
-                    if hasattr( self, "shuffle_features" ):
+                    if hasattr( self, "shuffle_features" ) and ( self.shuffle_features is not None ):
                         for s_feature in self.shuffle_features:
                             if s_feature not in feat_names:
                                 raise RuntimeError( f"Can't shuffle {s_feature} because that's not in {feat_names}" )

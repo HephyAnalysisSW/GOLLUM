@@ -20,10 +20,10 @@ if user in ['robert.schoefbeck']:
 
     
 elif user in ['ang.li']:
-    plot_directory         = "/groups/hephy/cms/ang.li/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/models/"
-    cache_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/caches/"
-    output_directory       = "/groups/hephy/cms/ang.li/HiggsChallenge/output/"
+    plot_directory         = "/groups/hephy/cms/ang.li/www/SBIPDF/"
+    model_directory        = "/groups/hephy/cms/ang.li/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/ang.li/SBIPDF/caches/"
+    output_directory       = "/groups/hephy/cms/ang.li/SBIPDF/output/"
 
 elif user in ['lisa.benato']:
     plot_directory         = "/groups/hephy/cms/lisa.benato/www/SBIPDF/"
