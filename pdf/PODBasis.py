@@ -226,9 +226,8 @@ class PODBasis:
 
     all_pdg_ids = [21, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
 
-    def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = "NNPDF31_nnlo_as_0118", var_set = "250503_pod_basis_40k"):
-
-        self.central_pdf = lhapdf.mkPDF(central_pdf, 0)
+    #def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = "NNPDF31_nnlo_as_0118", var_set = "250503_pod_basis_40k"):
+    def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = None, var_set = "250503_pod_basis_40k"):
 
         self.original_variations = variations
         self.nvariations= len(self.original_variations)
@@ -241,6 +240,11 @@ class PODBasis:
             self.scale_c = None
             print("You need to define max_amplitudes. I got a Keyerror")
             raise e #Remove this by hand when you determine max_amplitudes
+
+        if central_pdf:
+            self.central_pdf = lhapdf.mkPDF(central_pdf, 0)
+        else:
+            self.central_pdf = lhapdf.mkPDF(self.var_set, 0)
 
         if active_pids == "all":
             self.active_pids = PODBasis.all_pdg_ids
