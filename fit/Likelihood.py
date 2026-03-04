@@ -2007,6 +2007,7 @@ if __name__ == "__main__":
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"), help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
+    p.add_argument("--minos", action="store_true", default=False, help="Whether to use MINOS in the fit. If not set, then use HESSE by default.")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2102,8 +2103,8 @@ if __name__ == "__main__":
             step=step,
             print_every=1,
             do_migrad=True,
-            do_hesse=True,
-            do_minos=False,
+            do_hesse=not args.minos,
+            do_minos=args.minos,
         )
 
         serialize_result(m, base, version, args, out_path)
