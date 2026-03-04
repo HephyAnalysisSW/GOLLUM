@@ -227,7 +227,7 @@ class PODBasis:
     all_pdg_ids = [21, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
 
     #def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = "NNPDF31_nnlo_as_0118", var_set = "250503_pod_basis_40k"):
-    def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = None, var_set = "250503_pod_basis_40k"):
+    def __init__( self, variations = hand_picked, active_pids="all", central_pdf = None, var_set = "250503_pod_basis_40k"):
 
         self.original_variations = variations
         self.nvariations= len(self.original_variations)
@@ -250,6 +250,8 @@ class PODBasis:
             self.active_pids = PODBasis.all_pdg_ids
         else:
             self.active_pids = active_pids
+
+        print ("Active PIDs", self.active_pids)
 
         #self.typ = "PODBasis" 
         logger.debug(f"Using PODBasis with basis vectors {self.original_variations}")
