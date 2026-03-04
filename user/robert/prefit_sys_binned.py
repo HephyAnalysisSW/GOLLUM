@@ -41,17 +41,22 @@ p.add_argument("--features", nargs="+", default=[],
 p.add_argument("--templates", nargs="*", default=None,
                help="Make per-variation template plots for the given process(es). "
                     "If passed without values, defaults to TTLep_pow.")
+p.add_argument("--small", action="store_true", help="Run on one shard for debugging.")
 args, _unknown = p.parse_known_args()
 
 # -----------------------------------------------------------------------------
 # User-editable config (in IPython you can override before %run -i)
 # -----------------------------------------------------------------------------
 #base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
+
+# (Ricardo) the .root files from make_ntuple live in
+# /groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_TotalJES_EtaSplit/v2-3-2_nJ2p_nB2p_2l/
+# the files with the variations are symlinked into Robert's base folder
 from data.samples_RunII import BASE_DIRECTORY
 base = str(BASE_DIRECTORY)
 
 eras = ["2016", "2016APV", "2017", "2018"]
-processes = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"]
+processes = ["TTLep_pow"]
 signals = []
 
 # shard splitting (default 10; override per-process if needed)
@@ -349,6 +354,8 @@ def _materialize_fw_once(loader, shard):
     return X, W
 
 progress("Filling per-(era,proc,var) histograms (shard-major)...", force=True)
+if args.small:
+    progress("Looping only over the first shard.", force=True)
 for era in eras:
     for proc in (processes + signals):
         progress(f"[hists] era='{era}' proc='{proc}'", force=True)
@@ -381,6 +388,9 @@ for era in eras:
         mem_report(f"before shard loop {era}/{proc} (n_shards={n_shards})")
 
         for shard in tqdm(range(n_shards), desc=f"{era}:{proc}", leave=False):
+
+            if args.small and shard>1:
+                continue
 
             # nominal once per shard (this populates base cache for views)
             X_nom, W_nom = _materialize_fw_once(l_nom, shard)
