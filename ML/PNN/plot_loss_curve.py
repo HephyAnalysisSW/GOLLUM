@@ -1,12 +1,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-
-root_dir = "/groups/hephy/mlearning/daohan/gluonPDF_PNN_retrain/models/unbinned_2018_v2/SR/PNN"
-out_dir  = "/groups/hephy/mlearning/daohan/gluonPDF_PNN_retrain/plots"
-os.makedirs(out_dir, exist_ok=True)
-
-version_prefix = "unbinned_2018_v2"
+import argparse as ap
+import common.user as user
+import common.syncer as syncer
 
 def read_loss_txt(path):
     epochs, train_loss, valid_loss = [], [], []
@@ -21,7 +18,19 @@ def read_loss_txt(path):
             train_loss.append(float(parts[2]))
             valid_loss.append(float(parts[3]))
     return np.array(epochs), np.array(train_loss), np.array(valid_loss)
- 
+
+parser = ap.ArgumentParser(description="Generate loss curve plots from training logs.")
+parser.add_argument("-r","--root-dir", required=True, help="Directory containing model subdirectories with loss_curve.txt files")
+parser.add_argument("-v","--version-prefix", required=True, help="Prefix for plot titles")
+
+args = parser.parse_args()
+
+root_dir = args.root_dir
+version_prefix = args.version_prefix
+out_dir = os.path.join(user.plot_directory,f"PNN_losses_{version_prefix}")
+
+os.makedirs(out_dir, exist_ok=True)
+
 subdirs = sorted(
     d for d in os.listdir(root_dir)
     if os.path.isdir(os.path.join(root_dir, d))
@@ -60,9 +69,10 @@ for sub in subdirs:
     plt.tight_layout()
 
     plt.savefig(out_pdf)
+    plt.savefig(out_pdf.replace(".pdf",".png"))
     plt.close()
 
-    print(f"[ok] {sub}  ->  {out_pdf}")
+    print(f"[ok] {sub}  ->  {out_pdf}/.png")
     n_done += 1
 
 print(f"\nDone. Plots written: {n_done}, skipped: {n_skipped}, output dir: {out_dir}")
