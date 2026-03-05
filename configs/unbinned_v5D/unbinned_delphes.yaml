@@ -1,0 +1,47 @@
+version: unbinned_delphes
+
+defaults:
+  module_samples: "data.samples_RunII"
+  default_features:
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+
+likelihood:
+    regions:
+        - id: SR_2018 
+          classifier:
+            type: null
+            id: null    # no classifier needed for a single process
+            asimov: [tt2l_delphes]
+          classes: 
+            - id: tt2l_delphes
+              sample: tt2l_delphes
+              POI:
+                job: bit_pod_tt2l_delphes 
+                type: bit
+                parameters: [c0, c1, c2, c3, c4, c5]
+
+jobs:
+  - id: bit_pod_tt2l_delphes
+    type: bit
+    region: SR
+    process: tt2l_delphes
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1, 2, 4, 5, 10, 12]
+      pdf_type: PODBasis
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_pod_tt2l_delphes.pkl"
+
