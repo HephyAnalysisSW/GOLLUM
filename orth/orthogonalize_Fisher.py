@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os, sys, json, math, argparse
 import numpy as np
+import importlib
 
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -73,11 +74,24 @@ print("\n[free] Parameters to probe:")
 for nm in free_names:
     print("   -", nm)
 
+# Make sample loader factory from default cfg
+samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+from common.yaml_loader import _resolve_features_list
+default_features = cfg["defaults"].get("default_features", None)
+features = _resolve_features_list( default_features ) if default_features else None
+factory     = samples_mod.Factory( 
+    features  = features,
+    selection = cfg["defaults"].get("default_selection", None),
+    selection_features = cfg["defaults"].get("default_selection_features", None),
+    )
+
 # ---- Build caches, prepare runtime ----
 n2ll = N2LLExtensions(
     like_info,
-    cfg['defaults']['module_samples'],
-    os.path.join(
+    # cfg['defaults']['module_samples'],
+    factory = factory,
+    cache_subdir = os.path.join(
         "NN2LCache",
         os.path.splitext(os.path.basename(args.config))[0],
         str(cfg.get("version", "v0")),
@@ -285,7 +299,7 @@ from common import helpers
 import common.user as user
 
 plot_directory = os.path.join(
-    user.plot_directory, args.plot_directory, os.path.splitext(os.path.basename(args.config))[0],
+    user.plot_directory, args.plot_directory, cfg['version'],os.path.splitext(os.path.basename(args.config))[0],
 )
 os.makedirs(plot_directory, exist_ok=True)
 
@@ -324,7 +338,7 @@ for R in n2ll.regions:
     region_feats, region_w0s = [], []
     feature_names_ref = None
     for sname in asimov_list:
-        L = getattr(n2ll.samples_mod, sname)
+        L = n2ll.factory.get(sname)
         feat_names = list(getattr(L, "feature_names", []) or [])
         if feature_names_ref is None: feature_names_ref = feat_names
         elif feat_names != feature_names_ref:
