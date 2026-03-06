@@ -93,8 +93,8 @@ n2ll = N2LLExtensions(
     factory = factory,
     cache_subdir = os.path.join(
         "NN2LCache",
-        os.path.splitext(os.path.basename(args.config))[0],
         str(cfg.get("version", "v0")),
+        os.path.splitext(os.path.basename(args.config))[0],
     ),
     cache_root=args.cache_root,
     overwrite=args.overwrite,
