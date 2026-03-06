@@ -1,0 +1,375 @@
+version: unbinned_2017_v4
+
+defaults:
+  module_samples: "data.samples_RunII_TotalJES_EtaSplit_train"
+  default_features:
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+
+  splitting:
+    enabled: true
+    uid_fields: ["run", "luminosityBlock", "event"]
+    seed: 42
+    n_buckets: 10000 
+
+    scheme:
+      pnn_train:     { fraction: 0.50 }
+      pnn_val:       { fraction: 0.10 }
+      c2st_train:    { fraction: 0.15 }
+      c2st_val:      { fraction: 0.05 }
+      final_eval:    { fraction: 0.20 }
+
+  early_stopping:
+    enabled: true
+    patience: 20        # same as current hard-coded
+    min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
+    mode: "min"         # val_loss should decrease
+    warmup_epochs: 0    # optional: do not early-stop before this epoch
+
+likelihood:
+    regions:
+        - id: SR_2017 
+          classifier:
+            type: null
+            id: null    # no classifier needed for a single process
+            asimov: [TTLep_pow_2017]
+          classes: 
+            - id: TTLep_pow_2017
+              sample: TTLep_pow_2017
+
+              systematics:
+                - id: CMS_scale_j_Total_EtaBin0
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin0
+                  parameters: [nu_CMS_scale_j_Total_EtaBin0]
+                - id: CMS_scale_j_Total_EtaBin1
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin1
+                  parameters: [nu_CMS_scale_j_Total_EtaBin1]
+                - id: CMS_scale_j_Total_EtaBin2
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin2
+                  parameters: [nu_CMS_scale_j_Total_EtaBin2]
+                - id: CMS_scale_j_Total_EtaBin3
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin3
+                  parameters: [nu_CMS_scale_j_Total_EtaBin3]
+                - id: CMS_scale_j_Total_EtaBin4
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin4
+                  parameters: [nu_CMS_scale_j_Total_EtaBin4]
+                - id: CMS_scale_j_Total_EtaBin5
+                  type: pnn
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin5
+                  parameters: [nu_CMS_scale_j_Total_EtaBin5]
+
+jobs:
+
+  - id: scaler_TTLep_pow_2017
+    type: scaler
+    process: TTLep_pow_2017
+    region: SR_2017
+    selection: null
+    output:
+      filename: "Scaler_TTLep_pow_2017.pkl"
+
+  # JES Eta-split bin 0
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin0
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin0]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin0_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin0_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin0.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin0
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin0]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin0_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin0_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin0
+
+  # JES Eta-split bin 1
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin1
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin1]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin1_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin1_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin1.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin1
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin1]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin1_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin1_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin1
+
+  # JES Eta-split bin 2
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin2
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin2]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin2_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin2_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin2.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin2
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin2]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin2_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin2_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin2
+
+  # JES Eta-split bin 3
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin3
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin3]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin3_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin3_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin3.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin3
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin3]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin3_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin3_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin3
+
+  # JES Eta-split bin 4
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin4
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin4]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin4_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin4_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin4.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin4
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin4]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin4_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin4_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin4
+
+  # JES Eta-split bin 5
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin5
+    type: icp
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin5]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin5_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin5_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin5.pkl
+
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Total_EtaBin5
+    type: pnn
+    region: SR_2017
+    parameters: [nu_CMS_scale_j_Total_EtaBin5]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin5_down
+    - coords: [0]
+      loader: TTLep_pow_2017
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2017_CMS_scale_j_Total_EtaBin5_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2017
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Total_EtaBin5  
