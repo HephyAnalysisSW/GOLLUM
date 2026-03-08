@@ -6,13 +6,15 @@ sys.path.insert(0, '..')
 import fit.Likelihood as lh 
 import pickle  as pck 
 import common.user as user 
-import json 
+import json, importlib
 from fit.Modeling import Rotated
 
 
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+
+import common.syncer as syncer
 
 def impact_table_plot(
     nuis_names, nuis_vals, nuis_errs,
@@ -174,7 +176,7 @@ def fit_result_to_dict( result ):
 if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
-    p = argparse.ArgumentParser(description="TFMC training (YAML-driven)")
+    p = argparse.ArgumentParser(description="Calculates impacts of individual nuisance parameters and plots.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--step", default="step0")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
@@ -193,6 +195,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Prepare Slurm scripts for per-nuisance step1+impact jobs and exit",
     )
+    p.add_argument(
+        '--conda',
+        type=str,
+        help='location of conda.sh path',
+        default='/software/f2022/software/anaconda3/2023.03/etc/profile.d/conda.sh')
     
     args = p.parse_args()
 
@@ -200,7 +207,7 @@ if __name__ == "__main__":
 
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
     like_info = lh.load_likelihood(cfg)
 
@@ -210,7 +217,9 @@ if __name__ == "__main__":
         suffix += f"_freezePOIs_{args.freezePOIs.replace(',','_')}" 
     base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "") + suffix
     version = str(cfg.get("version", "v0"))
+    overwrite_fit = (args.overwrite == "fit") or (args.overwrite == "all")
     overwrite_cache = args.overwrite == "all"
+    conda_path = args.conda
 
     hyp  = lh.build_hypothesis_from_likelihood(like_info, name="SR")
 
@@ -218,6 +227,8 @@ if __name__ == "__main__":
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
     if args.prepareSlurmJobs:
+        if args.step != "step1":
+            raise ValueError(f"It only makes sense to set up SLURM jobs for step1. Currently {args.step=}")
         from slurm_utils import prepare_slurm_jobs, get_base_command
         base_cmd = get_base_command()
         prepare_slurm_jobs(
@@ -225,6 +236,7 @@ if __name__ == "__main__":
             base_cmd=base_cmd,
             base=base,
             version=version,
+            conda_path=conda_path
         )
         print("Slurm job files prepared. Exiting.")
         sys.exit(0)
@@ -237,9 +249,21 @@ if __name__ == "__main__":
         for poi in args.freezePOIs.split("," ):
             hyp_for_fit.set_nuisance_frozen(poi, True)
 
+    # Make sample loader factory from default cfg
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+    from common.yaml_loader import _resolve_features_list
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list( default_features ) if default_features else None
+    factory     = samples_mod.Factory( 
+        features  = features,
+        selection = cfg["defaults"].get("default_selection", None),
+        selection_features = cfg["defaults"].get("default_selection_features", None),
+        )
+
     n2ll = lh.N2LL(
         like_info,
-        cfg["defaults"]["module_samples"],
+        factory = factory,
         cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
         cache_root=None,
         overwrite=overwrite_cache,
@@ -277,6 +301,12 @@ if __name__ == "__main__":
                 continue
 
             for direction in [ 'down', 'up']:
+
+                out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
+                if os.path.exists(out_path) and (not overwrite_fit):
+                    print(f"Fit result in {out_path} already exists and did not ask to overwrite, skipping.")
+                    continue
+                
                 hyp_var = hyp_for_fit.clone()
                 value = initial_fit_dict[param_name]["value"] + initial_fit_dict[param_name]["error"] * (1. if direction == "up" else -1.) 
                 print(f"Setting parameter {param_name} to {value}")
@@ -284,7 +314,6 @@ if __name__ == "__main__":
                 hyp_var.set_nuisance_frozen(param_name, True)
                 m = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=False, do_minos=False)
 
-                out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
                 args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
                 lh.serialize_result(m, base, version, args, out_path)
             
@@ -335,12 +364,12 @@ if __name__ == "__main__":
                 impacts_dn.append( [0. for _ in POIs])
 
                    
-            
+        plot_outpath = os.path.join(user.plot_directory, "likelihood_fit", base, version, "impacts.png")
         impact_table_plot( nuisances_names, nuisances_values, nuisances_errors,
-                           impacts_up, impacts_dn, [x.name for x in POIs if x.name not in args.freezePOIs.split("," )], outpath=f'{base}_{version}_impacts.png')
+                           impacts_up, impacts_dn, [x.name for x in POIs if x.name not in args.freezePOIs.split("," )], outpath=plot_outpath)
 
 
-
+        syncer.sync()
                 
                     
 

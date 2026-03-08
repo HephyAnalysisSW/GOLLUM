@@ -53,6 +53,14 @@ elif user in ['ricardo.barrue']:
     cache_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/caches/"
     output_directory       = "/groups/hephy/cms/ricardo.barrue/SBIPDF/output/"
 
+elif user in ['daohan.wang']:
+    plot_directory   = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/plots/"
+    model_directory  = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/models/"
+    cache_directory  = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/caches/"
+    output_directory = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/output/"
+    
+
+
 else:
 
     raise RuntimeError( "HELLO NEW USER! Configure your directories in common/user.py! Look in the file how others did it." )

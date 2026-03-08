@@ -46,6 +46,7 @@ p.add_argument("--doAsimov", action="store_true",
                help="Shows data as sum of total MC.")
 p.add_argument("--processes", nargs="+", help="Processes on which to run. If none given, does all.",
                choices=["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"])
+
 p.add_argument("--small", action="store_true", help="Run on one shard for debugging.")
 args, _unknown = p.parse_known_args()
 
@@ -53,11 +54,15 @@ args, _unknown = p.parse_known_args()
 # User-editable config (in IPython you can override before %run -i)
 # -----------------------------------------------------------------------------
 #base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
+
+# (Ricardo) the .root files from make_ntuple live in
+# /groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_TotalJES_EtaSplit/v2-3-2_nJ2p_nB2p_2l/
+# the files with the variations are symlinked into Robert's base folder
 from data.samples_RunII import BASE_DIRECTORY
 base = str(BASE_DIRECTORY)
 
 eras = ["2016", "2016APV", "2017", "2018"]
-processes = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"]
+processes = ["TTLep_pow"]
 signals = []
 data = [] if args. doAsimov else ["Data"]
 
@@ -399,6 +404,9 @@ for era in eras:
 
         for shard in tqdm(range(n_shards), desc=f"{era}:{proc}", leave=False):
             
+            if args.small and shard>1:
+                continue
+
             if args.small and shard>1:
                 continue
 
