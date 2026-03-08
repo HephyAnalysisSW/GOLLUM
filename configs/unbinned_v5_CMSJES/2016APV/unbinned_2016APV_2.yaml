@@ -1,4 +1,4 @@
-version: unbinned_2016APV_v2
+version: unbinned_2016APV_v5_CMSJES
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -38,9 +38,9 @@ likelihood:
             - id: TTLep_pow_2016APV
               sample: TTLep_pow_2016APV
               POI:
-                job: bit_pod_TTLep_pow_2016APV 
+                job: bit_NG_PDF4LHC21_2_TTLep_pow_2016APV 
                 type: bit
-                parameters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1]
 
               systematics:
                 - id: Normalization_TTLep
@@ -111,30 +111,62 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2016APV_CMS_res_j_5_2016APV
                   parameters: [nu_CMS_res_j_5]
-                - id: CMS_scale_j_Total_EtaBin0
+                - id: CMS_scale_j_FlavorPureBottom
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0
-                  parameters: [nu_CMS_scale_j_Total_EtaBin0]
-                - id: CMS_scale_j_Total_EtaBin1
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom
+                  parameters: [nu_CMS_scale_j_FlavorPureBottom]
+                - id: CMS_scale_j_FlavorPureCharm
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1
-                  parameters: [nu_CMS_scale_j_Total_EtaBin1]
-                - id: CMS_scale_j_Total_EtaBin2
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm
+                  parameters: [nu_CMS_scale_j_FlavorPureCharm]
+                - id: CMS_scale_j_FlavorPureGluon
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2
-                  parameters: [nu_CMS_scale_j_Total_EtaBin2]
-                - id: CMS_scale_j_Total_EtaBin3
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon
+                  parameters: [nu_CMS_scale_j_FlavorPureGluon]
+                - id: CMS_scale_j_FlavorPureQuark
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3
-                  parameters: [nu_CMS_scale_j_Total_EtaBin3]
-                - id: CMS_scale_j_Total_EtaBin4
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark
+                  parameters: [nu_CMS_scale_j_FlavorPureQuark]
+                - id: CMS_scale_j_Regrouped_Absolute_2016APV
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4
-                  parameters: [nu_CMS_scale_j_Total_EtaBin4]
-                - id: CMS_scale_j_Total_EtaBin5
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
+                - id: CMS_scale_j_Regrouped_Absolute
                   type: pnn
-                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5
-                  parameters: [nu_CMS_scale_j_Total_EtaBin5]
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute]
+                - id: CMS_scale_j_Regrouped_BBEC1_2016APV
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
+                - id: CMS_scale_j_Regrouped_BBEC1
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
+                - id: CMS_scale_j_Regrouped_EC2_2016APV
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
+                - id: CMS_scale_j_Regrouped_EC2
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2]
+                - id: CMS_scale_j_Regrouped_HF_2016APV
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016
+                  parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
+                - id: CMS_scale_j_Regrouped_HF
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF
+                  parameters: [nu_CMS_scale_j_Regrouped_HF]
+                - id: CMS_scale_j_Regrouped_RelativeBal
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
+                - id: CMS_scale_j_Regrouped_RelativeSample_2016
+                  type: pnn
+                  job: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
                 - id: Uncl
                   type: pnn
                   job: pnn_TTLep_pow_2016APV_Uncl
@@ -1657,39 +1689,38 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
       use_icp: icp_TTLep_pow_2016APV_CMS_res_j_5_2016APV
-
-  # JES Eta-split bin 0
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin0]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
+    parameters: [nu_CMS_scale_j_FlavorPureBottom]
+    combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom_up
+  
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin0]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
+    parameters: [nu_CMS_scale_j_FlavorPureBottom]
+    combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom_up
+  
   
     model:
       hidden_layers:
@@ -1706,40 +1737,37 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin0
-
-  # JES Eta-split bin 1
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureBottom
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin1]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
+    parameters: [nu_CMS_scale_j_FlavorPureCharm]
+    combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin1]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
+    parameters: [nu_CMS_scale_j_FlavorPureCharm]
+    combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm_up
   
     model:
       hidden_layers:
@@ -1756,40 +1784,37 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin1
-
-  # JES Eta-split bin 2
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureCharm
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin2]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
+    parameters: [nu_CMS_scale_j_FlavorPureGluon]
+    combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin2]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
+    parameters: [nu_CMS_scale_j_FlavorPureGluon]
+    combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon_up
   
     model:
       hidden_layers:
@@ -1806,40 +1831,37 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin2
-
-  # JES Eta-split bin 3
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureGluon
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin3]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
+    parameters: [nu_CMS_scale_j_FlavorPureQuark]
+    combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin3]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
+    parameters: [nu_CMS_scale_j_FlavorPureQuark]
+    combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark_up
   
     model:
       hidden_layers:
@@ -1856,40 +1878,37 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin3
-
-  # JES Eta-split bin 4
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_FlavorPureQuark
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin4]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin4]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016_up
   
     model:
       hidden_layers:
@@ -1906,40 +1925,39 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin4
-
-  # JES Eta-split bin 5
-  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_2016
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute
     type: icp
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin5]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_up
+  
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5.pkl
-
-  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute
     type: pnn
     region: SR_2016APV
-    parameters: [nu_CMS_scale_j_Total_EtaBin5]
-    combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5_down
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_down
     - coords: [0]
       loader: TTLep_pow_2016APV
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5_up
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute_up
+  
   
     model:
       hidden_layers:
@@ -1956,8 +1974,384 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2016APV
-      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Total_EtaBin5
-
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_Absolute
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_2016
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_BBEC1
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_2016
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_EC2]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_EC2]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_EC2
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_2016
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_HF]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_HF]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_HF
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal_up
+  
+    train_ratio: true
+    output:
+      filename: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeBal
+  - id: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016
+    type: icp
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016_up
+  
+    train_ratio: true
+    output:
+      filename: 
+        icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016.pkl
+  - id: pnn_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016
+    type: pnn
+    region: SR_2016APV
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    base_points:
+    - coords: [-1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016_down
+    - coords: [0]
+      loader: TTLep_pow_2016APV
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016_up
+  
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+      use_icp: icp_TTLep_pow_2016APV_CMS_scale_j_Regrouped_RelativeSample_2016
   - id: icp_TTLep_pow_2016APV_Uncl
     type: icp
     region: SR_2016APV

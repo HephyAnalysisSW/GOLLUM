@@ -1,4 +1,4 @@
-version: unbinned_2016APV_v2
+version: unbinned_2016APV_v5
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -38,9 +38,9 @@ likelihood:
             - id: TTLep_pow_2016APV
               sample: TTLep_pow_2016APV
               POI:
-                job: bit_pod_TTLep_pow_2016APV 
+                job: bit_NG_PDF4LHC21_3_TTLep_pow_2016APV 
                 type: bit
-                parameters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1, c2]
 
               systematics:
                 - id: Normalization_TTLep
