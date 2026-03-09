@@ -27,6 +27,13 @@ sys_grouping = {
          'nu_CMS_scale_j_Regrouped_RelativeBal',
          'nu_CMS_scale_j_Regrouped_RelativeSample_2016',
          'nu_Uncl',
+
+         'nu_CMS_scale_j_Total_EtaBin0',
+         'nu_CMS_scale_j_Total_EtaBin1',
+         'nu_CMS_scale_j_Total_EtaBin2',
+         'nu_CMS_scale_j_Total_EtaBin3',
+         'nu_CMS_scale_j_Total_EtaBin4',
+         'nu_CMS_scale_j_Total_EtaBin5',         
         ]],
         [ "leptons", [
          'nu_EleSF',
@@ -81,6 +88,13 @@ sys_grouping = {
          'nu_CMS_scale_j_Regrouped_RelativeBal',
          'nu_CMS_scale_j_Regrouped_RelativeSample_2017',
          'nu_Uncl',
+
+         'nu_CMS_scale_j_Total_EtaBin0',
+         'nu_CMS_scale_j_Total_EtaBin1',
+         'nu_CMS_scale_j_Total_EtaBin2',
+         'nu_CMS_scale_j_Total_EtaBin3',
+         'nu_CMS_scale_j_Total_EtaBin4',
+         'nu_CMS_scale_j_Total_EtaBin5',         
         ]],
         [ "leptons", [
          'nu_EleSF',
@@ -135,6 +149,13 @@ sys_grouping = {
          'nu_CMS_scale_j_Regrouped_RelativeBal',
          'nu_CMS_scale_j_Regrouped_RelativeSample_2018',
          'nu_Uncl',
+
+         'nu_CMS_scale_j_Total_EtaBin0',
+         'nu_CMS_scale_j_Total_EtaBin1',
+         'nu_CMS_scale_j_Total_EtaBin2',
+         'nu_CMS_scale_j_Total_EtaBin3',
+         'nu_CMS_scale_j_Total_EtaBin4',
+         'nu_CMS_scale_j_Total_EtaBin5',         
         ]],
         [ "leptons", [
          'nu_EleSF',

@@ -43,11 +43,11 @@ likelihood:
                 parameters: [c0, c1]
 
               systematics:
-                - id: Normalization_TTLep
-                  type: lnN
-                  value: 0.05
-                  parameters: [nu_norm_TTLep]
-                - id: L1Prefire
+                #- id: Normalization_TTLep
+                #  type: lnN
+                #  value: 0.05
+                #  parameters: [nu_norm_TTLep]
+                #- id: L1Prefire
                   type: pnn
                   job: pnn_TTLep_pow_2018_L1Prefire
                   parameters: [nu_l1prefire]

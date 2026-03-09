@@ -190,6 +190,7 @@ if J is None:
 pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
+pdf_basis = pdf_cfg.get("pdf_basis", None)
 
 if pdf_n is None or pdf_type is None:
     print(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
@@ -203,7 +204,7 @@ if len(pdf_n) != len(like_params):
     print(f"  len(POIs)    = {len(like_params)}")
 
 # instantiate PDF parametrization
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
 # map parameter names -> indices in fit result
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
@@ -332,7 +333,7 @@ def _sample_pdf_band_from_cov_poi(cov_poi_stage):
     Sample POIs from N(coeffs_central, cov_poi_stage), convert to base coeffs, evaluate
     PDF on the full x-grid, and return (q_low, q_high) quantiles.
 
-    Quantiles: [0.32, 0.68].
+    Quantiles: [0.16, 0.84].
     """
     if args.freezePOI:
         return central_pdf.copy(), central_pdf.copy()
@@ -358,8 +359,8 @@ def _sample_pdf_band_from_cov_poi(cov_poi_stage):
             x=x_vals, id=id_arr, Q=Q_arr, coeffs=poi_samples_base[itoy, :]
         )
 
-    q_low  = np.quantile(pdf_samples, 0.32, axis=0)
-    q_high = np.quantile(pdf_samples, 0.68, axis=0)
+    q_low  = np.quantile(pdf_samples, 0.16, axis=0)
+    q_high = np.quantile(pdf_samples, 0.84, axis=0)
     return q_low, q_high
 
 
@@ -392,63 +393,38 @@ central_pdf = np.array(
 # ----------------------------------------------------------------------
 
 # Discover the systematics era, because we added little years everywhere
-sys_grouping_era = None
+group_to_nu_names = {}
 for p in all_nu_names_fit:
+    sys_grouping_era = sys_grouping[2016] # default
     if "2016" in p:
         sys_grouping_era = sys_grouping[2016]
-        break
-    if "2017" in p:
+    elif "2017" in p:
         sys_grouping_era = sys_grouping[2017]
-        break
-    if "2018" in p:
+    elif "2018" in p:
         sys_grouping_era = sys_grouping[2018]
-        break
 
-group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
+    for gname, nu_list in sys_grouping_era:
+        if p in nu_list:
+            if gname not in group_to_nu_names:
+                group_to_nu_names[gname] = []
+            group_to_nu_names[gname].append(p)
+            break
+
 group_names       = [gname for gname, _ in sys_grouping_era]
 
+#group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
+#group_names       = [gname for gname, _ in sys_grouping_era]
+
 # enforce that grouping covers *all* nuisances present in the fit
-all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
-assert set(all_nu_names_fit) == set(all_nu_names_grp)
+#all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
+
+assert set(sum(group_to_nu_names.values(),[])) == set(all_nu_names_fit)
+
 
 x_ref = float(args.x_ref)
 f_ref, g_ref = _grad_f_wrt_poi_rot_at_xref(x_ref)
 print(f"[info] Ranking grouped nuisances at x_ref = {x_ref:g} (Bjorken-x)")
 print(f"[info] Central f_g(x_ref, Q={Q_val:.2f}) = {f_ref:.6e}")
-
-# ----------------------------------------------------------------------
-# (OLD) Greedy "fix largest" ordering (commented out; keep for easy switch)
-# ----------------------------------------------------------------------
-# fixed_groups = []
-# remaining    = list(group_names)
-# ranked       = []
-#
-# cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)
-# var_curr = float(g_ref.T @ cov_curr @ g_ref)
-#
-# for istep in range(len(group_names)):
-#     best_g   = None
-#     best_red = None
-#     best_var = None
-#
-#     for gname in remaining:
-#         cov_try = _stage_cov_poi(fixed_groups + [gname], group_to_nu_names)
-#         var_try = float(g_ref.T @ cov_try @ g_ref)
-#         red = var_curr - var_try
-#         if (best_red is None) or (red > best_red):
-#             best_red = red
-#             best_g   = gname
-#             best_var = var_try
-#
-#     ranked.append(best_g)
-#     fixed_groups.append(best_g)
-#     remaining.remove(best_g)
-#     var_curr = best_var
-#
-#     print(f"  step {istep+1:2d}: fix {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
-#
-# print("[info] Final ordering (largest incremental impact first):")
-# print("  " + "  >  ".join(ranked))
 
 
 # ----------------------------------------------------------------------
