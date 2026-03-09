@@ -43,10 +43,6 @@ likelihood:
                 parameters: [c0, c1, c2, c3, c4, c5]
 
               systematics:
-                - id: Normalization_TTLep
-                  type: lnN
-                  value: 0.05
-                  parameters: [nu_norm_TTLep]
                 - id: L1Prefire
                   type: pnn
                   job: pnn_TTLep_pow_2017_L1Prefire
@@ -173,6 +169,7 @@ likelihood:
                   parameters: [nu_Uncl]
 
 jobs:
+
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2017
     type: bit
     region: SR_2017
@@ -1258,7 +1255,6 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark
-
   - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
     type: icp
     region: SR_2017
