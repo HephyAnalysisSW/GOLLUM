@@ -18,6 +18,7 @@ p = argparse.ArgumentParser(description="ICPH training (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="ICPH job id to run")
 p.add_argument("--overwrite", action="store_true", help="Overwrite saved ICPH?")
+p.add_argument("--n_split", default=None, help="Set sample split")
 p.add_argument("--small", action="store_true", help="Only first shard, for debugging")
 args = p.parse_args()
 
@@ -223,6 +224,15 @@ if icph is None or args.overwrite:
                 loader.addSelection( sel, sel_f)
             else:
                 loader.base.addSelection( sel, sel_f)
+
+    # Reset n_split - using same structure as pnn_training.py
+    if args.n_split:
+        print( f"Set the loaders to n_split {args.n_split}" ) 
+        for l in loaders:
+            if isinstance( l, RDataLoader):
+                l.set_n_split( args.n_split )
+            else:
+                l.base.set_n_split( args.n_split )
 
     # ---------------- debug print of resolved loaders/views ----------------
     print(f"\nResolved loaders for ICPH job '{J.get('id', '<unknown>')}':")

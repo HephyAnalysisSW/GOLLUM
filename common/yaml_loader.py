@@ -555,7 +555,7 @@ def load_surrogates(cfg, config_path, overwrite=False):
         elif jtyp == "ich":
             outdir = os.path.join(user.model_directory, base, "ICH")
             process = job.get("process")
-            fname  = (job.get("output", {}) or {}).get("filename", f"ICH_{process}.pkl")
+            fname  = (job.get("output", {}) or {}).get("filename", f"ICH_{jid}.pkl")
             path   = os.path.join(outdir, fname)
             loaded = try_load_ich(path)
             if loaded is not None:
