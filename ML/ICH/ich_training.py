@@ -166,7 +166,7 @@ region = J.get("region", None)
 if region:
     cfg_base = os.path.join(cfg_base, region)
 
-filename = pdf_cfg.get("filename", f"ICH_{loader_name}.pkl")
+filename = pdf_cfg.get("filename", f"ICH_{J.get('id')}.pkl")
 model_dir = os.path.join(user.model_directory, cfg_base, "ICH")
 os.makedirs(model_dir, exist_ok=True)
 out_path = os.path.join(model_dir, filename)
