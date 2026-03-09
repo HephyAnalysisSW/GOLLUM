@@ -43,10 +43,6 @@ likelihood:
                 parameters: [c0, c1, c2, c3, c4]
 
               systematics:
-                - id: Normalization_TTLep
-                  type: lnN
-                  value: 0.05
-                  parameters: [nu_norm_TTLep]
                 - id: L1Prefire
                   type: pnn
                   job: pnn_TTLep_pow_2016APV_L1Prefire
@@ -141,6 +137,7 @@ likelihood:
                   parameters: [nu_Uncl]
 
 jobs:
+
   - id: bit_NG_PDF4LHC21_5_TTLep_pow_2016APV
     type: bit
     region: SR_2016APV

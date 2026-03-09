@@ -1,0 +1,642 @@
+version: binned_2017_v5_CMSJES
+
+defaults:
+  module_samples: "data.samples_RunII"
+  default_binning:
+    - ["tr_ttbar_mass", [300, 400, 500, 650, 1500]]
+    - ["tr_ttbar_y", [-2.5, -1.2, -0.8, -0.4, 0.4, 0.8, 1.2, 2.5]]
+
+likelihood:
+    binned:
+        - id: SR_2017 
+          classes: 
+            - id: TTLep_pow_2017 
+              sample: TTLep_pow_2017
+              POI:
+                job: ich_NG_PDF4LHC21_7_TTLep_pow_2017
+                type: ich
+                parameters: [c0, c1, c2, c3, c4, c5, c6]
+              systematics:
+                - id: L1Prefire
+                  type: icph
+                  job: icph_TTLep_pow_2017_L1Prefire
+                  parameters: [nu_l1prefire]
+                - id: PU
+                  type: icph
+                  job: icph_TTLep_pow_2017_PU
+                  parameters: [nu_pu]
+                - id: MuSF 
+                  type: icph
+                  job: icph_TTLep_pow_2017_MuSF
+                  parameters: [nu_MuSF]
+                - id: EleSF
+                  type: icph
+                  job: icph_TTLep_pow_2017_EleSF
+                  parameters: [nu_EleSF]
+                - id: BTag_b
+                  type: icph
+                  job: icph_TTLep_pow_2017_BTag_b
+                  parameters: [nu_btag_b]
+                - id: BTag_l
+                  type: icph
+                  job: icph_TTLep_pow_2017_BTag_l
+                  parameters: [nu_btag_l]
+                # - id: Scales
+                #   type: icph
+                #   job: icph_TTLep_pow_2017_scales
+                #   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: ShowerISR
+                  type: icph
+                  job: icph_TTLep_pow_2017_showerISR
+                  parameters: [nu_showerISR]
+                - id: ShowerFSR
+                  type: icph
+                  job: icph_TTLep_pow_2017_showerFSR
+                  parameters: [nu_showerFSR]
+                - id: AlphaS
+                  type: icph
+                  job: icph_TTLep_pow_2017_alphaS
+                  parameters: [nu_alphaS]
+                - id: CMS_res_j_0
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_0_2017
+                  parameters: [nu_CMS_res_j_0]
+                - id: CMS_res_j_1
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_1_2017
+                  parameters: [nu_CMS_res_j_1]
+                - id: CMS_res_j_2
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_2_2017
+                  parameters: [nu_CMS_res_j_2]
+                - id: CMS_res_j_3
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_3_2017
+                  parameters: [nu_CMS_res_j_3]
+                - id: CMS_res_j_4
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_4_2017
+                  parameters: [nu_CMS_res_j_4]
+                - id: CMS_res_j_5
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_res_j_5_2017
+                  parameters: [nu_CMS_res_j_5]
+                - id: CMS_scale_j_FlavorPureBottom
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureBottom
+                  parameters: [nu_CMS_scale_j_FlavorPureBottom]
+                - id: CMS_scale_j_FlavorPureCharm
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureCharm
+                  parameters: [nu_CMS_scale_j_FlavorPureCharm]
+                - id: CMS_scale_j_FlavorPureGluon
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureGluon
+                  parameters: [nu_CMS_scale_j_FlavorPureGluon]
+                - id: CMS_scale_j_FlavorPureQuark
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark
+                  parameters: [nu_CMS_scale_j_FlavorPureQuark]
+                - id: CMS_scale_j_Regrouped_Absolute_2017
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
+                - id: CMS_scale_j_Regrouped_Absolute
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute]
+                - id: CMS_scale_j_Regrouped_BBEC1_2017
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
+                - id: CMS_scale_j_Regrouped_BBEC1
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
+                - id: CMS_scale_j_Regrouped_EC2_2017
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
+                - id: CMS_scale_j_Regrouped_EC2
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2]
+                - id: CMS_scale_j_Regrouped_HF_2017
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
+                - id: CMS_scale_j_Regrouped_HF
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_HF
+                  parameters: [nu_CMS_scale_j_Regrouped_HF]
+                - id: CMS_scale_j_Regrouped_RelativeBal
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
+                - id: CMS_scale_j_Regrouped_RelativeSample_2017
+                  type: icph
+                  job: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
+                - id: Uncl
+                  type: icph
+                  job: icph_TTLep_pow_2017_Uncl
+                  parameters: [nu_Uncl]
+
+jobs:
+  - id: ich_NG_PDF4LHC21_7_TTLep_pow_2017
+    type: ich
+    region: SR_binned
+    process: TTLep_pow_2017
+    pdf:
+      #pdf_n: [1, 2, 4, 5, 10, 12]
+       #pdf_type: PODBasis
+       pdf_n: [1,2,3,4,5,6,7]
+       pdf_type: PODBasis
+       pdf_basis: gluon_POD_nongluon_PDF4LHC21
+ 
+  - id: icph_TTLep_pow_2017_L1Prefire
+    type: icph
+    region: SR_binned
+    parameters: [nu_l1prefire]
+    combinations: [[nu_l1prefire]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["L1PreFiringWeight_Nom"] 
+        addweights: ["L1PreFiringWeight_Dn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["L1PreFiringWeight_Nom"] 
+        addweights: ["L1PreFiringWeight_Up"] 
+  
+  - id: icph_TTLep_pow_2017_PU
+    type: icph
+    region: SR_binned
+    parameters: [nu_pu]
+    combinations: [[nu_pu]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["Pileup_SF"] 
+        addweights: ["Pileup_SFDn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["Pileup_SF"] 
+        addweights: ["Pileup_SFUp"] 
+
+  - id: icph_TTLep_pow_2017_MuSF 
+    type: icph
+    region: SR_binned
+    parameters: [nu_MuSF]
+    combinations: [[nu_MuSF]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["lepMu_SF"] 
+        addweights: ["lepMu_SFDn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["lepMu_SF"] 
+        addweights: ["lepMu_SFUp"] 
+
+  - id: icph_TTLep_pow_2017_EleSF 
+    type: icph
+    region: SR_binned
+    parameters: [nu_EleSF]
+    combinations: [[nu_EleSF]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["lepEle_SF"] 
+        addweights: ["lepEle_SFDn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["lepEle_SF"] 
+        addweights: ["lepEle_SFUp"] 
+  
+  - id: icph_TTLep_pow_2017_BTag_b
+    type: icph
+    region: SR_binned
+    parameters: [nu_btag_b]
+    combinations: [[nu_btag_b]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["btagSF_fixedWP_SF"] 
+        addweights: ["btagSF_fixedWP_SF__CMS_eff_b_correlated_heavy_SFDn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["btagSF_fixedWP_SF"] 
+        addweights: ["btagSF_fixedWP_SF__CMS_eff_b_correlated_heavy_SFUp"] 
+  
+  - id: icph_TTLep_pow_2017_BTag_l
+    type: icph
+    region: SR_binned
+    parameters: [nu_btag_l]
+    combinations: [[nu_btag_l]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["btagSF_fixedWP_SF"] 
+        addweights: ["btagSF_fixedWP_SF__CMS_eff_b_light_SFDn"] 
+      - coords: [ 0.0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [ 1.0]
+        loader: TTLep_pow_2017
+        removeweights: ["btagSF_fixedWP_SF"] 
+        addweights: ["btagSF_fixedWP_SF__CMS_eff_b_light_SFUp"] 
+
+  - id: icph_TTLep_pow_2017_scales
+    type: icph
+    region: SR_binned
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+      - coords: [-1.0, -1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren0p5_fac0p5"]
+      - coords: [-1.0, 0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren0p5_fac1p0"]
+      - coords: [-1.0, 1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren0p5_fac2p0"]
+      - coords: [0, -1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren1p0_fac0p5"]
+      - coords: [0, 0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren1p0_fac1p0"]
+        nominal: true
+      - coords: [0, 1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren1p0_fac2p0"]
+      - coords: [1.0, -1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren2p0_fac0p5"]
+      - coords: [1.0, 0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren2p0_fac1p0"]
+      - coords: [1.0, 1.0]
+        loader: TTLep_pow_2017
+        addweights: ["scale_ren2p0_fac2p0"]
+
+  - id: icph_TTLep_pow_2017_showerISR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerISR]
+    combinations: [[nu_showerISR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        addweights: ["shower_isr0p5_fsr1p0"]
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017
+        addweights: ["shower_isr2p0_fsr1p0"]
+
+  - id: icph_TTLep_pow_2017_showerFSR
+    type: icph
+    region: SR_binned
+    parameters: [nu_showerFSR]
+    combinations: [[nu_showerFSR]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        addweights: ["shower_isr1p0_fsr0p5"]
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017
+        addweights: ["shower_isr1p0_fsr2p0"]
+
+  - id: icph_TTLep_pow_2017_alphaS
+    type: icph
+    region: SR_binned
+    parameters: [nu_alphaS]
+    combinations: [[nu_alphaS]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017
+        addweights: ["pdf_alphas_dn"]
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017
+        addweights: ["pdf_alphas_up"]
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_0_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_0]
+    combinations: [[nu_CMS_res_j_0]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_0_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_0_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_1_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_1]
+    combinations: [[nu_CMS_res_j_1]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_1_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_1_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_2_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_2]
+    combinations: [[nu_CMS_res_j_2]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_2_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_2_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_3_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_3]
+    combinations: [[nu_CMS_res_j_3]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_3_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_3_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_4_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_4]
+    combinations: [[nu_CMS_res_j_4]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_4_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_4_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_res_j_5_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_res_j_5]
+    combinations: [[nu_CMS_res_j_5]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_res_j_5_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_res_j_5_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureBottom 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_FlavorPureBottom]
+    combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureBottom_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureBottom_up
+
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureCharm 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_FlavorPureCharm]
+    combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureCharm_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureCharm_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureGluon 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_FlavorPureGluon]
+    combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureGluon_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureGluon_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_FlavorPureQuark]
+    combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureQuark_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_FlavorPureQuark_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2017]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_up
+
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2017]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2017]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_EC2]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2017]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_HF
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_HF]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal_up
+
+  - id: icph_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017 
+    type: icph
+    region: SR_binned
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2017]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_up
+
+  - id: icph_TTLep_pow_2017_Uncl 
+    type: icph
+    region: SR_binned
+    parameters: [nu_Uncl]
+    combinations: [[nu_Uncl]]
+    base_points:
+      - coords: [-1.0]
+        loader: TTLep_pow_2017_Uncl_down 
+      - coords: [0]
+        loader: TTLep_pow_2017
+        nominal: true
+      - coords: [1.0]
+        loader: TTLep_pow_2017_Uncl_up
