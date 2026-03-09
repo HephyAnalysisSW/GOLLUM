@@ -17,10 +17,6 @@ likelihood:
                 type: ich
                 parameters: [c0, c1, c2, c3, c4, c5]
               systematics:
-                - id: Normalization_TTLep
-                  type: lnN
-                  value: 0.05
-                  parameters: [nu_norm_TTLep]
                 - id: L1Prefire
                   type: icph
                   job: icph_TTLep_pow_2016_L1Prefire
@@ -45,10 +41,10 @@ likelihood:
                   type: icph
                   job: icph_TTLep_pow_2016_BTag_l
                   parameters: [nu_btag_l]
-                - id: Scales
-                  type: icph
-                  job: icph_TTLep_pow_2016_scales
-                  parameters: [nu_mu_ren, nu_mu_fac]
+                # - id: Scales
+                #   type: icph
+                #   job: icph_TTLep_pow_2016_scales
+                #   parameters: [nu_mu_ren, nu_mu_fac]
                 - id: ShowerISR
                   type: icph
                   job: icph_TTLep_pow_2016_showerISR
