@@ -146,8 +146,10 @@ for name in axis_names:
 
 pdf_cfg = J.get("pdf", {}) or {}
 pdf_n   = pdf_cfg.get("pdf_n", None)
-pdf_type = pdf_cfg.get("pdf_type", "Chebyshev")
-pdf     = PDFParametrization(n=pdf_n, typ=pdf_type)
+pdf_type  = pdf_cfg.get("pdf_type", None)
+pdf_basis = pdf_cfg.get("pdf_basis", None)
+
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
 variables   = list(pdf.variables)     # ['c0', ..., 'cN']
 combinations = list(pdf.combinations) # [(), ('c0',),..., ('ci','cj'),...]

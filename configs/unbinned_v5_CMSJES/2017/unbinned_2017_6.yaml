@@ -129,32 +129,32 @@ likelihood:
                   parameters: [nu_CMS_scale_j_FlavorPureQuark]
                 - id: CMS_scale_j_Regrouped_Absolute_2017
                   type: pnn
-                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
                 - id: CMS_scale_j_Regrouped_Absolute
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
                   parameters: [nu_CMS_scale_j_Regrouped_Absolute]
                 - id: CMS_scale_j_Regrouped_BBEC1_2017
                   type: pnn
-                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
                 - id: CMS_scale_j_Regrouped_BBEC1
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
                   parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
                 - id: CMS_scale_j_Regrouped_EC2_2017
                   type: pnn
-                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
                 - id: CMS_scale_j_Regrouped_EC2
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
                   parameters: [nu_CMS_scale_j_Regrouped_EC2]
                 - id: CMS_scale_j_Regrouped_HF_2017
                   type: pnn
-                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
                 - id: CMS_scale_j_Regrouped_HF
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF
@@ -163,154 +163,16 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal
                   parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
-                - id: CMS_scale_j_Regrouped_RelativeSample_2016
+                - id: CMS_scale_j_Regrouped_RelativeSample_2017
                   type: pnn
-                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
+                  job: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
                 - id: Uncl
                   type: pnn
                   job: pnn_TTLep_pow_2017_Uncl
                   parameters: [nu_Uncl]
 
 jobs:
-  - id: bit_pod_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1, 2, 4, 5, 10, 12]
-      pdf_type: PODBasis
-      pdf_basis: 250503_pod_basis_40k
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_pod_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_1_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_1_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_2_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_2_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_3_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_3_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_4_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_4_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_5_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_5_TTLep_pow_2017.pkl"
-
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2017
     type: bit
     region: SR_2017
@@ -333,489 +195,6 @@ jobs:
       training_plots: true        # keep if you want training plots
     output:
       filename: "BIT_NG_PDF4LHC21_6_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_7_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_7_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_8_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_8_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_PDF4LHC21_9_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8,9]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_9_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_1_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_1_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_2_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_2_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_3_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_3_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_4_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_4_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_5_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_5_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_6_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_6_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_7_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_7_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_8_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_8_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF40_9_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8,9]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF40 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF40_9_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_1_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_1_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_2_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_2_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_3_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_3_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_4_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_4_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_5_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_5_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_6_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_6_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_7_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_7_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_8_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_8_TTLep_pow_2017.pkl"
-
-  - id: bit_NG_NNPDF31_9_TTLep_pow_2017
-    type: bit
-    region: SR_2017
-    process: TTLep_pow_2017
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6,7,8,9]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_NNPDF31_hessian 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_NNPDF31_9_TTLep_pow_2017.pkl"
 
   - id: scaler_TTLep_pow_2017
     type: scaler
@@ -1879,36 +1258,37 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_FlavorPureQuark
-  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016
+
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
     type: icp
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016.pkl
-  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017.pkl
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
     type: pnn
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017_up
   
     model:
       hidden_layers:
@@ -1925,7 +1305,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2016
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute_2017
   - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
     type: icp
     region: SR_2017
@@ -1975,36 +1355,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_Absolute
-  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
     type: icp
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016.pkl
-  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017.pkl
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
     type: pnn
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017_up
   
     model:
       hidden_layers:
@@ -2021,7 +1401,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2016
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1_2017
   - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
     type: icp
     region: SR_2017
@@ -2069,36 +1449,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_BBEC1
-  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
     type: icp
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016.pkl
-  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017.pkl
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
     type: pnn
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017_up
   
     model:
       hidden_layers:
@@ -2115,7 +1495,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2016
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2_2017
   - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
     type: icp
     region: SR_2017
@@ -2163,36 +1543,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_EC2
-  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
     type: icp
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016.pkl
-  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016
+      filename: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017.pkl
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
     type: pnn
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017_up
   
     model:
       hidden_layers:
@@ -2209,7 +1589,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2016
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF_2017
   - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_HF
     type: icp
     region: SR_2017
@@ -2304,37 +1684,37 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeBal
-  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016
+  - id: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
     type: icp
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_up
   
     train_ratio: true
     output:
       filename: 
-        icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016.pkl
-  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016
+        icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017.pkl
+  - id: pnn_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
     type: pnn
     region: SR_2017
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2017]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2017]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016_down
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_down
     - coords: [0]
       loader: TTLep_pow_2017
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016_up
+      loader: TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017_up
   
     model:
       hidden_layers:
@@ -2351,7 +1731,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2017
-      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2016
+      use_icp: icp_TTLep_pow_2017_CMS_scale_j_Regrouped_RelativeSample_2017
   - id: icp_TTLep_pow_2017_Uncl
     type: icp
     region: SR_2017
