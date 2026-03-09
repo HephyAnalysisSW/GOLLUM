@@ -129,32 +129,32 @@ likelihood:
                   parameters: [nu_CMS_scale_j_FlavorPureQuark]
                 - id: CMS_scale_j_Regrouped_Absolute_2018
                   type: pnn
-                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
+                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018
+                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2018]
                 - id: CMS_scale_j_Regrouped_Absolute
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute
                   parameters: [nu_CMS_scale_j_Regrouped_Absolute]
                 - id: CMS_scale_j_Regrouped_BBEC1_2018
                   type: pnn
-                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
+                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018
+                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2018]
                 - id: CMS_scale_j_Regrouped_BBEC1
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1
                   parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
                 - id: CMS_scale_j_Regrouped_EC2_2018
                   type: pnn
-                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
+                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018
+                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2018]
                 - id: CMS_scale_j_Regrouped_EC2
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2
                   parameters: [nu_CMS_scale_j_Regrouped_EC2]
                 - id: CMS_scale_j_Regrouped_HF_2018
                   type: pnn
-                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
+                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018
+                  parameters: [nu_CMS_scale_j_Regrouped_HF_2018]
                 - id: CMS_scale_j_Regrouped_HF
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF
@@ -163,10 +163,10 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeBal
                   parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
-                - id: CMS_scale_j_Regrouped_RelativeSample_2016
+                - id: CMS_scale_j_Regrouped_RelativeSample_2018
                   type: pnn
-                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
+                  job: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018
+                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2018]
                 - id: Uncl
                   type: pnn
                   job: pnn_TTLep_pow_2018_Uncl
@@ -1258,36 +1258,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_CMS_scale_j_FlavorPureQuark
-  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016
+  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018
     type: icp
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016.pkl
-  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016
+      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018.pkl
+  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018
     type: pnn
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018_up
   
     model:
       hidden_layers:
@@ -1304,7 +1304,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
-      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2016
+      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018
   - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute
     type: icp
     region: SR_2018
@@ -1354,36 +1354,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute
-  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016
+  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018
     type: icp
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016.pkl
-  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016
+      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018.pkl
+  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018
     type: pnn
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018_up
   
     model:
       hidden_layers:
@@ -1400,7 +1400,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
-      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2016
+      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018
   - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1
     type: icp
     region: SR_2018
@@ -1448,36 +1448,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1
-  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016
+  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018
     type: icp
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016.pkl
-  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016
+      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018.pkl
+  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018
     type: pnn
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_EC2_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018_up
   
     model:
       hidden_layers:
@@ -1494,7 +1494,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
-      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2016
+      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018
   - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2
     type: icp
     region: SR_2018
@@ -1542,36 +1542,36 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2
-  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016
+  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018
     type: icp
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018_up
   
     train_ratio: true
     output:
-      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016.pkl
-  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016
+      filename: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018.pkl
+  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018
     type: pnn
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_HF_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_HF_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018_up
   
     model:
       hidden_layers:
@@ -1588,7 +1588,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
-      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2016
+      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018
   - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_HF
     type: icp
     region: SR_2018
@@ -1683,37 +1683,37 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2018
       use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeBal
-  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016
+  - id: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018
     type: icp
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018_up
   
     train_ratio: true
     output:
       filename: 
-        icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016.pkl
-  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016
+        icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018.pkl
+  - id: pnn_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018
     type: pnn
     region: SR_2018
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
+    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2018]
+    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2018]]
     base_points:
     - coords: [-1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016_down
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018_down
     - coords: [0]
       loader: TTLep_pow_2018
       nominal: true
     - coords: [1.0]
-      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016_up
+      loader: TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018_up
   
     model:
       hidden_layers:
@@ -1730,7 +1730,7 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
-      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2016
+      use_icp: icp_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018
   - id: icp_TTLep_pow_2018_Uncl
     type: icp
     region: SR_2018
