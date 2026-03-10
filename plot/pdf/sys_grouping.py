@@ -1,8 +1,9 @@
 sys_grouping = { 
     2016 :
-        [ [ "t#bar{t} norm.", [
-         'nu_norm_TTLep',
-        ]],
+        [ 
+        #[ "t#bar{t} norm.", [
+        # 'nu_norm_TTLep',
+        #]],
         [ "JER", [ 
          'nu_CMS_res_j_0',
          'nu_CMS_res_j_1',

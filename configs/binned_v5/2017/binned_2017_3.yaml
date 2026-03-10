@@ -41,10 +41,10 @@ likelihood:
                   type: icph
                   job: icph_TTLep_pow_2017_BTag_l
                   parameters: [nu_btag_l]
-                # - id: Scales
-                #   type: icph
-                #   job: icph_TTLep_pow_2017_scales
-                #   parameters: [nu_mu_ren, nu_mu_fac]
+                - id: Scales
+                  type: icph
+                  job: icph_TTLep_pow_2017_scales
+                  parameters: [nu_mu_ren, nu_mu_fac]
                 - id: ShowerISR
                   type: icph
                   job: icph_TTLep_pow_2017_showerISR

@@ -1,8 +1,8 @@
 version: unbinned_2017_v5
 
 defaults:
-module_samples: "data.samples_RunII"
-default_features:
+  module_samples: "data.samples_RunII"
+  default_features:
     - TOP_KINEMATICS
     - LEPTON_KINEMATICS
     - ASYMMETRY
