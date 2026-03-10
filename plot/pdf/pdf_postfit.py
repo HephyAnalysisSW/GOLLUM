@@ -172,6 +172,7 @@ if J is None:
 pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
+pdf_basis = pdf_cfg.get("pdf_basis", None)
 
 if pdf_n is None or pdf_type is None:
     print(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
@@ -185,7 +186,7 @@ if len(pdf_n) != len(like_params):
     print(f"  len(POIs)    = {len(like_params)}")
 
 # instantiate PDF parametrization
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
 # map parameter names -> indices in fit result
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
@@ -266,8 +267,8 @@ if poi_samples_base is not None:
         pdf_samples[itoy, :] = pdf.evaluate(
             x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_toy
         )
-    q_low  = np.quantile(pdf_samples, 0.32, axis=0)
-    q_high = np.quantile(pdf_samples, 0.68, axis=0)
+    q_low  = np.quantile(pdf_samples, 0.16, axis=0)
+    q_high = np.quantile(pdf_samples, 0.84, axis=0)
 else:
     # no sampling: band collapses to central
     q_low  = central_pdf.copy()
@@ -468,11 +469,11 @@ with open(csv_path, "w", newline="") as f_csv:
     writer.writerow([
         "x",
         "pdf_central",
-        "pdf_q32",
-        "pdf_q68",
+        "pdf_q16",
+        "pdf_q84",
         "ratio_central",
-        "ratio_q32",
-        "ratio_q68",
+        "ratio_q16",
+        "ratio_q84",
     ])
     # rows
     for i in range(n_x):
