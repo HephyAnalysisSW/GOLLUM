@@ -340,7 +340,7 @@ class PODBasis:
 if __name__ == "__main__":
     import numpy as np
 
-    pod = PODBasis(variations=[1,2,3,4,5,6,7,8,9], active_pids="all", central_pdf = "NNPDF31_nnlo_as_0118", var_set="gluon_POD_nongluon_NNPDF31_hessian")
+    pod = PODBasis(variations=[1,2,3,4,5,6,7,8,9], active_pids="all", central_pdf = "NNPDF31_nnlo_as_0118", var_set="gluon_POD_nongluon_PDF4LHC21")
     #pod = PODBasis()  # uses default variations and active_pids
     print("nvariations =", pod.nvariations)
 
