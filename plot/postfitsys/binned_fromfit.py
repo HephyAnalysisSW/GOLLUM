@@ -718,9 +718,8 @@ for region in like_info['binned']:
 
             total_samples[itoy, :] = total_this
 
-        # quantile-based uncertainties (32% and 68%)
-        q_low  = np.quantile(total_samples, 0.32, axis=0)
-        q_high = np.quantile(total_samples, 0.68, axis=0)
+        q_low  = np.quantile(total_samples, 0.16, axis=0)
+        q_high = np.quantile(total_samples, 0.84, axis=0)
     else:
         # no parameters to sample: no extra uncertainty
         q_low  = total_central.copy()
