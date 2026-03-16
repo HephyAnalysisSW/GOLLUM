@@ -222,29 +222,46 @@ max_amplitudes = {
          29: 1.8461019016279236},
     }
 
+max_amplitudes = {} #{'gluon_POD_nongluon_PDF4LHC21': {1: 93.5975626622538, 2: 249.21241221809504, 3: 339.37005603497437, 4: 264.02632535099633, 5: 225.30767182488103, 6: 168.4700626402868, 7: 99.9671081559107, 8: 63.239975107467714, 9: 40.81468668723638, 10: 1.0, 11: 20.95482103186426, 12: 10.976756475229259, 13: 5.687165558552786, 14: 3.0338760257228805, 15: 1.4341920895518476, 16: 1.0, 17: 1.0, 18: 1.0, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 1.0, 24: 1.0, 25: 1.0, 26: 1.0, 27: 1.0, 28: 1.0, 29: 1.0}}
+
 class PODBasis:
 
     all_pdg_ids = [21, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
 
-    #def __init__( self, variations = hand_picked, active_pids=[21], central_pdf = "NNPDF31_nnlo_as_0118", var_set = "250503_pod_basis_40k"):
-    def __init__( self, variations = hand_picked, active_pids="all", central_pdf = None, var_set = "250503_pod_basis_40k"):
+    def __init__( self, variations = hand_picked, active_pids="all", 
+            reference_pdf = None, 
+            x_max = None, #0.6, 
+            gen_pdf = "NNPDF31_nnlo_as_0118", var_set = "gluon_POD_nongluon_PDF4LHC21"):
 
         self.original_variations = variations
         self.nvariations= len(self.original_variations)
         self.var_set = var_set
-
+        self.x_max = x_max
         self.var_pdfs   = [ lhapdf.mkPDF(self.var_set, var) for var in self.original_variations ]
         try:
             self.scale_c = np.array([1./max_amplitudes[self.var_set][var] for var in self.original_variations])
+            print("Max_amplitudes used.")
         except KeyError as e:
             self.scale_c = None
-            print("You need to define max_amplitudes. I got a Keyerror")
-            raise e #Remove this by hand when you determine max_amplitudes
+            print("Max_amplitudes not used.")
+            #raise e 
 
-        if central_pdf:
-            self.central_pdf = lhapdf.mkPDF(central_pdf, 0)
+        if reference_pdf:
+            self.reference_pdf_name = reference_pdf
+            self.reference_pdf = lhapdf.mkPDF(reference_pdf, 0)
         else:
-            self.central_pdf = lhapdf.mkPDF(self.var_set, 0)
+            self.reference_pdf_name = self.var_set
+            self.reference_pdf = lhapdf.mkPDF(self.var_set, 0)
+
+        if gen_pdf:
+            self.gen_pdf_name = gen_pdf
+            self.gen_pdf = lhapdf.mkPDF(gen_pdf, 0)
+        else:
+            self.gen_pdf_name = self.reference_pdf_name
+            self.gen_pdf = self.reference_pdf
+            print("Warning! No gen pdf set. Using the reference PDF")
+
+        self.reference_equals_gen = (self.reference_pdf_name == self.gen_pdf_name)
 
         if active_pids == "all":
             self.active_pids = PODBasis.all_pdg_ids
@@ -253,30 +270,39 @@ class PODBasis:
 
         print ("Active PIDs", self.active_pids)
 
-        #self.typ = "PODBasis" 
         logger.debug(f"Using PODBasis with basis vectors {self.original_variations}")
+        logger.debug(f"Using reference PDF {self.reference_pdf_name}")
+        logger.debug(f"Using generator PDF {self.gen_pdf_name}")
         self.variables = [f"c{i}" for i in range(self.nvariations)]
 
     def evaluate(self, x: ArrayLike, id: ArrayLike, Q: ArrayLike,
                  coeffs: Sequence[float] = None, return_derivative=False) -> ArrayLike:
 
-        mask = np.isin(id, self.active_pids).astype(float)
-        central_vals = np.array([t.get(id_) for t, id_ in
-                                 zip(self.central_pdf.xfxQ(tuple(x), tuple(Q)), id)])
+        mask = np.isin(id, self.active_pids)
+
+        if self.x_max is not None:
+            mask &= (x<self.x_max)
+
+        mask = mask.astype(float)
+
+        reference_vals = np.array([t.get(id_) for t, id_ in
+                                   zip(self.reference_pdf.xfxQ(tuple(x), tuple(Q)), id)])
         var_vals = np.array([[t.get(id_) for t, id_ in
                               zip(self.var_pdfs[i_var].xfxQ(tuple(x), tuple(Q)), id)]
                              for i_var in range(self.nvariations)])
 
-        shifts = np.array(self.scale_c[:,np.newaxis]*(var_vals - central_vals)*mask)
-        coeffs = np.array(coeffs)
-        if not return_derivative:
-            #print (central_vals.shape, central_vals)
-            #print (self.scale_c.shape, self.scale_c)
-            #print (coeffs.shape, coeffs)
-            #print (shifts.shape, shifts) 
-            return central_vals + coeffs @ shifts 
+        if self.scale_c is not None:
+            shifts = np.array(self.scale_c[:,np.newaxis]*(var_vals - reference_vals)*mask)
         else:
-            rel = (shifts/central_vals)
+            shifts = np.array((var_vals - reference_vals)*mask)
+
+        if not return_derivative:
+            if coeffs is None:
+                coeffs = np.zeros(self.nvariations)
+            coeffs = np.array(coeffs)
+            return reference_vals + coeffs @ shifts
+        else:
+            rel = (shifts/reference_vals)
             return np.moveaxis(rel, 0, -1)
 
     def make_combinations(self, order: int = 2):
@@ -295,28 +321,57 @@ class PODBasis:
         return self._combinations
 
     def product_parametrizations(self, x1, x2, id1, id2, coeffs, Q):
-        """Return f(x1; c) * f(x2; c) using the same coefficient vector c."""
-        return self.evaluate(x1, id1, Q=Q, coeffs=coeffs) * self.evaluate(x2, id2, Q=Q, coeffs=coeffs)
+        """Return [f(x1; c) / f_gen(x1)] * [f(x2; c) / f_gen(x2)] using the same coefficient vector c."""
+
+        f1 = self.evaluate(x1, id1, Q=Q, coeffs=coeffs)
+        f2 = self.evaluate(x2, id2, Q=Q, coeffs=coeffs)
+
+        reference_vals_1 = np.array([t.get(id_) for t, id_ in
+                                     zip(self.reference_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
+        reference_vals_2 = np.array([t.get(id_) for t, id_ in
+                                     zip(self.reference_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+
+        if self.reference_equals_gen:
+            ref_over_gen_1 = np.ones_like(reference_vals_1)
+            ref_over_gen_2 = np.ones_like(reference_vals_2)
+        else:
+            gen_vals_1 = np.array([t.get(id_) for t, id_ in
+                                   zip(self.gen_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
+            gen_vals_2 = np.array([t.get(id_) for t, id_ in
+                                   zip(self.gen_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+
+            ref_over_gen_1 = reference_vals_1/gen_vals_1
+            ref_over_gen_2 = reference_vals_2/gen_vals_2
+
+            warning_threshold = 10.0
+            if np.any(np.abs(ref_over_gen_1*ref_over_gen_2) > warning_threshold):
+                logger.warning(
+                    "Large reference/gen PDF ratios encountered. "
+                    "max |(f_ref/f_gen)(x1) * (f_ref/f_gen)(x2)| = %s",
+                    np.max(np.abs(ref_over_gen_1*ref_over_gen_2))
+                )
+
+        return (f1/reference_vals_1) * (f2/reference_vals_2) * ref_over_gen_1 * ref_over_gen_2
 
     __call__ = product_parametrizations  # allow pdf(x, coeffs)
 
     def derivatives(self, x1, x2, id1, id2, Q):
         """
         Compute all *relative* derivatives of
-          F(c) = f(x1,id1;c) * f(x2,id2;c)
+          F(c) = [f(x1,id1;c) / f_gen(x1,id1)] * [f(x2,id2;c) / f_gen(x2,id2)]
         at c=0, in the order:
           (), ('c0',),...,('c_n',), ('c0','c0'), ('c0','c1'), ..., ('c_n','c_n').
 
         Returns a list of arrays aligned with self.combinations.
         """
 
-        # relative derivatives r = (1/f0) df/dc_i, last axis = coeff index
+        # relative derivatives r = (1/f_ref) df/dc_i, last axis = coeff index
         r1 = self.evaluate(x1, id1, Q, return_derivative=True)
         r2 = self.evaluate(x2, id2, Q, return_derivative=True)
 
         ones = np.ones_like(r1[..., 0])
 
-        # first relative derivatives of the product: (F'/F) = r1 + r2
+        # first relative derivatives of the product ratio: (F'/F) = r1 + r2
         g = r1 + r2                                      # shape (..., nvariations)
 
         # second relative derivatives: (1/F) d^2F/dc_a dc_b = r1_a r2_b + r1_b r2_a
@@ -332,16 +387,30 @@ class PODBasis:
 
         return np.array(out).transpose()
 
-
-#if __name__ == "__main__":
-#    pod=PODBasis(variations=range(1,101))
-#    max_amplitudes = { i_var+1: max(map(abs, pod.var_pdfs[i_var].xfxQ(21, np.linspace(0.05,0.5,100),[1.65]*100))) for i_var in range(0,100)}
+    def print(self):
+        print("PODBasis")
+        print("  var_set              =", self.var_set)
+        print("  reference_pdf        =", self.reference_pdf_name)
+        print("  gen_pdf              =", self.gen_pdf_name)
+        print("  reference_equals_gen =", self.reference_equals_gen)
+        print("  nvariations          =", self.nvariations)
+        print("  variations           =", list(self.original_variations))
+        print("  active_pids          =", self.active_pids)
+        print("  variables            =", self.variables)
+        print("  scale_c is None      =", self.scale_c is None)
+        if self.scale_c is not None:
+            print("  scale_c.shape        =", self.scale_c.shape)
 
 if __name__ == "__main__":
     import numpy as np
 
-    pod = PODBasis(variations=[1,2,3,4,5,6,7,8,9], active_pids="all", central_pdf = "NNPDF31_nnlo_as_0118", var_set="gluon_POD_nongluon_PDF4LHC21")
-    #pod = PODBasis()  # uses default variations and active_pids
+    pod = PODBasis(
+        variations=[1,2,3,4,5,6,7,8,9],
+        active_pids="all",
+        #reference_pdf=None, #"NNPDF31_nnlo_as_0118",
+        gen_pdf="NNPDF31_nnlo_as_0118",
+        var_set="gluon_POD_nongluon_PDF4LHC21"
+    )
     print("nvariations =", pod.nvariations)
 
     # --- Taylor reconstruction using relative derivatives ---
@@ -354,7 +423,7 @@ if __name__ == "__main__":
         derivs_list = pdf.derivatives(x1, x2, id1, id2, Q).transpose()
         derivs = np.stack(derivs_list, axis=-1)  # shape (..., M)
 
-        # Central value F(0) with all coeffs = 0
+        # Reference value F(0)
         zero_coeffs = np.zeros(npar, dtype=float)
         F0 = pdf.product_parametrizations(x1, x2, id1, id2, zero_coeffs, Q)
 
@@ -386,12 +455,12 @@ if __name__ == "__main__":
     rng = np.random.default_rng(1)
     coeffs = rng.uniform(-0.2, 0.2, pod.nvariations)
 
-    F_nom = pod(x1, x2, id1, id2, coeffs, Q)
-    F_taylor = taylor_reconstruct(pod, x1, x2, id1, id2, coeffs, Q)
+    R_nom = pod(x1, x2, id1, id2, coeffs, Q)
+    R_taylor = taylor_reconstruct(pod, x1, x2, id1, id2, coeffs, Q)
 
-    print("Vector test: max |F_nom - F_taylor| =",
-          float(np.max(np.abs(F_nom - F_taylor))))
-    assert np.allclose(F_nom, F_taylor, rtol=1e-10, atol=1e-10)
+    print("Vector test: max |R_nom - R_taylor| =",
+          float(np.max(np.abs(R_nom - R_taylor))))
+    assert np.allclose(R_nom, R_taylor, rtol=1e-10, atol=1e-10)
 
     # ---- "Scalar" tests via length-1 arrays (to avoid tuple(float) issues) ----
     xs1, xs2 = np.array([0.2]), np.array([0.5])
@@ -399,19 +468,80 @@ if __name__ == "__main__":
 
     # gg case
     ids1, ids2 = np.array([21]), np.array([21])
-    F_nom_s = pod(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    F_taylor_s = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    print("Scalar gg test: |F_nom - F_taylor| =",
-          float(abs(F_nom_s - F_taylor_s)))
-    assert np.allclose(F_nom_s, F_taylor_s, rtol=1e-10, atol=1e-10)
+    R_nom_s = pod(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    R_taylor_s = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    print("Scalar gg test: |R_nom - R_taylor| =",
+          float(abs(R_nom_s - R_taylor_s)))
+    assert np.allclose(R_nom_s, R_taylor_s, rtol=1e-10, atol=1e-10)
 
     # gq case (only one active leg → linear only)
     ids1, ids2 = np.array([21]), np.array([1])
-    F_nom_s2 = pod.product_parametrizations(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    F_taylor_s2 = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
-    print("Scalar gq test: |F_nom - F_taylor| =",
-          float(abs(F_nom_s2 - F_taylor_s2)))
-    assert np.allclose(F_nom_s2, F_taylor_s2, rtol=1e-10, atol=1e-10)
+    R_nom_s2 = pod.product_parametrizations(xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    R_taylor_s2 = taylor_reconstruct(pod, xs1, xs2, ids1, ids2, coeffs, Qs)[0]
+    print("Scalar gq test: |R_nom - R_taylor| =",
+          float(abs(R_nom_s2 - R_taylor_s2)))
+    assert np.allclose(R_nom_s2, R_taylor_s2, rtol=1e-10, atol=1e-10)
 
     print("All PODBasis Taylor tests passed ✅")
 
+
+
+    def make_max_amplitudes(var_set,
+                                       nvars=29,
+                                       reference_pdf=None,
+                                       pid=21,
+                                       x_min=1e-4,
+                                       x_max=0.8,
+                                       n_x_log=250,
+                                       n_x_lin=250,
+                                       q_values=(1.65, 5.0, 10.0, 30.0, 100.0),
+                                       quantile=0.995,
+                                       floor=1e-12):
+        import numpy as np
+        import lhapdf
+
+        if reference_pdf is None:
+            reference_pdf = var_set
+
+        ref_pdf = lhapdf.mkPDF(reference_pdf, 0)
+        var_pdfs = [lhapdf.mkPDF(var_set, i) for i in range(1, nvars + 1)]
+
+        x_log = np.geomspace(x_min, min(1e-2, x_max), n_x_log)
+        x_lin = np.linspace(max(1e-2, x_min), x_max, n_x_lin)
+        xx = np.unique(np.concatenate((x_log, x_lin)))
+
+        out = {}
+        ids = np.full(len(xx), pid, dtype=int)
+
+        for i_var, var_pdf in enumerate(var_pdfs, start=1):
+            rel_all = []
+
+            for Q0 in q_values:
+                QQ = np.full(len(xx), Q0)
+
+                ref = np.array([t.get(i) for t, i in zip(ref_pdf.xfxQ(tuple(xx), tuple(QQ)), ids)])
+                var = np.array([t.get(i) for t, i in zip(var_pdf.xfxQ(tuple(xx), tuple(QQ)), ids)])
+
+                good = np.abs(ref) > floor
+                if np.any(good):
+                    rel = np.abs((var[good] - ref[good]) / ref[good])
+                    rel_all.append(rel)
+
+            if len(rel_all) == 0:
+                out[i_var] = 1.0
+            else:
+                rel_all = np.concatenate(rel_all)
+                amp = float(np.quantile(rel_all, quantile))
+                out[i_var] = max(amp, 1.0)
+
+        return {var_set: out}
+
+    max_amplitudes = make_max_amplitudes(
+        var_set="gluon_POD_nongluon_PDF4LHC21",
+        nvars=29,
+        reference_pdf="gluon_POD_nongluon_PDF4LHC21",
+        q_values=(1.65, 10.0, 30.0, 100.0),
+        x_max=0.8,
+        quantile=0.995,
+    )
+    print(max_amplitudes)
