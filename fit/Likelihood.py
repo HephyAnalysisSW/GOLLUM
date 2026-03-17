@@ -1692,7 +1692,7 @@ class N2LL:
 
 from iminuit import Minuit
 def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-                   do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
+                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
 
     # -- collect free parameters (works for rotated or plain) --
     if isinstance(hypothesis, Rotated):
@@ -1778,10 +1778,13 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         if verbosity > 0:
             print("\n[HESSE]");  print(m)
     if do_minos:
-        poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
-        m.minos(*poi_list)
+        minos_parameter_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
+        if minosNP:
+            print(f"Running MINOS uncertainties also for the following NPs: {minosNP}")
+            minos_parameter_list+=minosNP
+        m.minos(*minos_parameter_list)
         if verbosity > 0: 
-            print("\n[MINOS]", poi_list);
+            print("\n[MINOS]", minos_parameter_list); print(m)
 
     # write back best fit once (avoid repeated __setattr__ compounding)
     final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
@@ -2007,7 +2010,8 @@ if __name__ == "__main__":
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"), help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
-    p.add_argument("--minos", action="store_true", default=False, help="Whether to use MINOS in the fit. If not set, then use HESSE by default.")
+    p.add_argument("--minos", action="store_true", default=False, help="Whether to use MINOS in the fit (POIs only). If not set, then use HESSE by default.")
+    p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos.")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2103,8 +2107,9 @@ if __name__ == "__main__":
             step=step,
             print_every=1,
             do_migrad=True,
-            do_hesse=not args.minos,
+            do_hesse=True,
             do_minos=args.minos,
+            minosNP=args.minosNP
         )
 
         serialize_result(m, base, version, args, out_path)
