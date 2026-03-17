@@ -227,79 +227,78 @@ lumi  = np.concatenate(Ls, axis=0) if len(Ls) > 1 else Ls[0]
 
 mask=(X[:,11] > 770) & (X[:,11]<820)
 
-## ---------------- compact debug table: only c8 ----------------
-#
-#debug_mask = mask.copy()
-#max_rows = 80
-#
-#dbg = np.flatnonzero(debug_mask)
-#if max_rows is not None:
-#    dbg = dbg[:max_rows]
-#
-#k = 8
-#scales = pdf.scale_c if pdf.scale_c is not None else np.ones(pdf.nvariations)
-#
-#xx1  = x1[dbg]
-#xx2  = x2[dbg]
-#QQ   = Q[dbg]
-#iid1 = id1[dbg]
-#iid2 = id2[dbg]
-#llum = lumi[dbg]
-#eevt = event[dbg]
-#
-#mask1 = np.isin(iid1, pdf.active_pids)
-#mask2 = np.isin(iid2, pdf.active_pids)
-#if pdf.x_max is not None:
-#    mask1 &= (xx1 < pdf.x_max)
-#    mask2 &= (xx2 < pdf.x_max)
-#mask1f = mask1.astype(float)
-#mask2f = mask2.astype(float)
-#
-#gen1 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(xx1), tuple(QQ)), iid1)])
-#gen2 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(xx2), tuple(QQ)), iid2)])
-#
-#ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(xx1), tuple(QQ)), iid1)])
-#ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(xx2), tuple(QQ)), iid2)])
-#
-#var1 = np.array([t.get(i) for t, i in zip(pdf.var_pdfs[k].xfxQ(tuple(xx1), tuple(QQ)), iid1)])
-#var2 = np.array([t.get(i) for t, i in zip(pdf.var_pdfs[k].xfxQ(tuple(xx2), tuple(QQ)), iid2)])
-#
-#phi1_8 = scales[k] * (var1 - ref1) * mask1f
-#phi2_8 = scales[k] * (var2 - ref2) * mask2f
-#
-#coeffs = np.zeros(pdf.nvariations)
-#coeffs[k] = 1.0
-#
-#f1_eval = pdf.evaluate(xx1, iid1, QQ, coeffs)
-#f2_eval = pdf.evaluate(xx2, iid2, QQ, coeffs)
-#
-#with np.errstate(divide='ignore', invalid='ignore'):
-#    rw8_man = ((ref1 + phi1_8) / gen1) * ((ref2 + phi2_8) / gen2)
-#
-#rw8_pdf = pdf.product_parametrizations(xx1, xx2, iid1, iid2, coeffs, QQ)
-#
-#header = (
-#    f"{'idx':>7s} {'lumi':>7s} {'event':>11s} | "
-#    f"{'x1':>8s} {'x2':>8s} {'Q':>8s} {'id1':>4s} {'id2':>4s} | "
-#    f"{'gen1':>9s} {'gen2':>9s} {'ref1':>9s} {'ref2':>9s} | "
-#    f"{'phi1_8':>9s} {'phi2_8':>9s} | "
-#    f"{'f1_eval':>9s} {'f2_eval':>9s} | "
-#    f"{'rw8_man':>9s} {'rw8_pdf':>9s}"
-#)
-#print(header)
-#print("-" * len(header))
-#
-#for j, i_evt in enumerate(dbg):
-#    row = (
-#        f"{i_evt:7d} {int(llum[j]):7d} {int(eevt[j]):11d} | "
-#        f"{xx1[j]:8.2e} {xx2[j]:8.2e} {QQ[j]:8.2e} {int(iid1[j]):4d} {int(iid2[j]):4d} | "
-#        f"{gen1[j]:9.2e} {gen2[j]:9.2e} {ref1[j]:9.2e} {ref2[j]:9.2e} | "
-#        f"{phi1_8[j]:9.2e} {phi2_8[j]:9.2e} | "
-#        f"{f1_eval[j]:9.2e} {f2_eval[j]:9.2e} | "
-#        f"{rw8_man[j]:9.2e} {rw8_pdf[j]:9.2e}"
-#    )
-#    print(row)
+# ---------------- compact debug table: only c8 ----------------
 
+debug_mask = mask.copy()
+max_rows = 80
+
+dbg = np.flatnonzero(debug_mask)
+if max_rows is not None:
+    dbg = dbg[:max_rows]
+
+k = 8
+scales = pdf.scale_c if pdf.scale_c is not None else np.ones(pdf.nvariations)
+
+xx1  = x1[dbg]
+xx2  = x2[dbg]
+QQ   = Q[dbg]
+iid1 = id1[dbg]
+iid2 = id2[dbg]
+llum = lumi[dbg]
+eevt = event[dbg]
+
+mask1 = np.isin(iid1, pdf.active_pids)
+mask2 = np.isin(iid2, pdf.active_pids)
+if pdf.x_max is not None:
+    mask1 &= (xx1 < pdf.x_max)
+    mask2 &= (xx2 < pdf.x_max)
+mask1f = mask1.astype(float)
+mask2f = mask2.astype(float)
+
+gen1 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(xx1), tuple(QQ)), iid1)])
+gen2 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(xx2), tuple(QQ)), iid2)])
+
+ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(xx1), tuple(QQ)), iid1)])
+ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(xx2), tuple(QQ)), iid2)])
+
+var1 = np.array([t.get(i) for t, i in zip(pdf.var_pdfs[k].xfxQ(tuple(xx1), tuple(QQ)), iid1)])
+var2 = np.array([t.get(i) for t, i in zip(pdf.var_pdfs[k].xfxQ(tuple(xx2), tuple(QQ)), iid2)])
+
+phi1_8 = scales[k] * (var1 - ref1) * mask1f
+phi2_8 = scales[k] * (var2 - ref2) * mask2f
+
+coeffs = np.zeros(pdf.nvariations)
+coeffs[k] = 1.0
+
+f1_eval = pdf.evaluate(xx1, iid1, QQ, coeffs)
+f2_eval = pdf.evaluate(xx2, iid2, QQ, coeffs)
+
+with np.errstate(divide='ignore', invalid='ignore'):
+    rw8_man = ((ref1 + phi1_8) / gen1) * ((ref2 + phi2_8) / gen2)
+
+rw8_pdf = pdf.product_parametrizations(xx1, xx2, iid1, iid2, coeffs, QQ)
+
+header = (
+    f"{'idx':>7s} {'lumi':>7s} {'event':>11s} | "
+    f"{'x1':>11s} {'x2':>11s} {'Q':>11s} {'id1':>4s} {'id2':>4s} | "
+    f"{'gen1':>11s} {'gen2':>11s} {'ref1':>11s} {'ref2':>11s} | "
+    f"{'phi1_8':>11s} {'phi2_8':>11s} | "
+    f"{'f1_eval':>11s} {'f2_eval':>11s} | "
+    f"{'rw8_man':>11s} {'rw8_pdf':>11s}"
+)
+print(header)
+print("-" * len(header))
+
+for j, i_evt in enumerate(dbg):
+    row = (
+        f"{i_evt:7d} {int(llum[j]):7d} {int(eevt[j]):11d} | "
+        f"{xx1[j]:11.5e} {xx2[j]:11.5e} {QQ[j]:11.5e} {int(iid1[j]):4d} {int(iid2[j]):4d} | "
+        f"{gen1[j]:11.4e} {gen2[j]:11.4e} {ref1[j]:11.4e} {ref2[j]:11.4e} | "
+        f"{phi1_8[j]:11.4e} {phi2_8[j]:11.4e} | "
+        f"{f1_eval[j]:11.4e} {f2_eval[j]:11.4e} | "
+        f"{rw8_man[j]:11.4e} {rw8_pdf[j]:11.4e}"
+    )
+    print(row)
 
 #debug_mask = mask.copy()
 #max_rows = 80
@@ -378,400 +377,400 @@ mask=(X[:,11] > 770) & (X[:,11]<820)
 #        f"{rw_single[0,j]:9.2e} {rw_single[1,j]:9.2e} {rw_single[2,j]:9.2e}"
 #    )
 #    print(row)
-
-DER = np.concatenate(targets, axis=0) if len(targets) > 1 else targets[0]
-training_weights = {combos[i]: DER[:, i] for i in range(len(combos))}
-
- ---------------- reweighting ----------------
-def weight_at_point_old(point):
-    """
-    Quadratic polynomial in the derivative-combination basis:
-      w(theta) = sum_c [ prod_{v in c} theta_v ] * w_c
-    with coefficient 1 for the empty tuple ().
-    """
-    w = training_weights[()].astype(np.float64, copy=True)
-    for comb, wc in training_weights.items():
-        if len(comb) == 0:
-            continue
-        coeff = 1.0
-        for v in comb:
-            coeff *= point.get(v, 0.0)
-        if coeff != 0.0:
-            w += coeff * wc
-    return w
-
-def weight_at_point(point):
-    w = training_weights[()].astype(np.float64, copy=True)
-    for comb, wc in training_weights.items():
-        if len(comb) == 0:
-            continue
-        coeff = 1.0
-        for v in comb:
-            coeff *= point.get(v, 0.0)
-        if len(comb) == 2 and comb[0] == comb[1]:
-            coeff *= 0.5
-        if coeff != 0.0:
-            w += coeff * wc
-    return w
-
-# ---------------- plotting ----------------
-def plot_truth_root():
-    import ROOT
-    from data.plot_options import plot_options as PLOT_OPTS
-
-    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
-    if not plot_feats:
-        raise RuntimeError("No plotable features found in PLOT_OPTS.")
-
-    cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
-    out_dir = os.path.join(user.plot_directory, "PDF", cfg_base, J["id"], "truth")
-    os.makedirs(out_dir, exist_ok=True)
-
-    ROOT.gStyle.SetOptStat(0)
-    ROOT.gROOT.SetBatch(True)
-
-    colors = [
-        ROOT.kBlue + 1,
-        ROOT.kRed + 1,
-        ROOT.kGreen + 2,
-        ROOT.kMagenta + 1,
-        ROOT.kOrange + 7,
-        ROOT.kCyan + 1,
-        ROOT.kViolet + 1,
-        ROOT.kSpring + 5,
-        ROOT.kPink + 7,
-    ]
-
-    curves = []
-    for i, point in enumerate(points):
-        curves.append(
-            {
-                "point": point,
-                "label": point_label(point),
-                "tag": point_tag(point),
-                "weight": weight_at_point(point),
-                "color": colors[i % len(colors)],
-            }
-        )
-
-    w0 = training_weights[()]
-
-    total_pads = len(plot_feats) + 1
-    gx = int(math.ceil(math.sqrt(total_pads)))
-    gy = int(math.ceil(total_pads / gx))
-    c = ROOT.TCanvas("c_truth", "truth", 500 * gx, 500 * gy)
-    c.Divide(gx, gy)
-
-    keep = []
-
-    def safe_ratio(num, den):
-        den2 = den.copy()
-        den2[den2 == 0] = 1.0
-        return num / den2
-
-    for i_feat, feat in enumerate(plot_feats):
-        pad = c.cd(i_feat + 1)
-        pad.SetTicks(1, 1)
-        pad.SetBottomMargin(0.15)
-        pad.SetLeftMargin(0.15)
-
-        n, lo, hi = PLOT_OPTS[feat]["binning"]
-        edges = np.linspace(lo, hi, n + 1)
-        col = feat_names.index(feat)
-        x = X[:, col]
-
-        h_sm, _ = np.histogram(x, bins=edges, weights=w0)
-
-        ratios = []
-        for crv in curves:
-            h, _ = np.histogram(x, bins=edges, weights=crv["weight"])
-            crv["hist_" + feat] = h
-            crv["ratio_" + feat] = safe_ratio(h, h_sm)
-            ratios.append(crv["ratio_" + feat])
-
-        vals = np.concatenate(ratios) if ratios else np.array([1.0])
-        vals = vals[np.isfinite(vals)]
-        if len(vals) == 0:
-            y_min, y_max = 0.0, 2.0
-        else:
-            y_min = float(np.min(vals))
-            y_max = float(np.max(vals))
-            if y_max <= y_min:
-                y_max = y_min + 1.0
-
-        pad_frac = 0.20
-        y_low = y_min - pad_frac * (y_max - y_min)
-        y_hi = y_max + pad_frac * (y_max - y_min)
-
-        hframe = ROOT.TH2F(
-            f"hf_{feat}",
-            f";{PLOT_OPTS[feat]['tex']};ratio to SM",
-            n, lo, hi, 100, y_low, y_hi
-        )
-        hframe.GetYaxis().SetTitleOffset(1.3)
-        hframe.Draw()
-        keep.append(hframe)
-
-        # scaled nominal yield, same idea as in the training plot
-        hY = ROOT.TH1F(f"hY_{feat}", "", n, lo, hi)
-        for b in range(1, n + 1):
-            hY.SetBinContent(b, float(h_sm[b - 1]))
-        y_max0 = float(np.max(h_sm) if len(h_sm) else 0.0)
-        if y_max0 > 0:
-            for b in range(1, n + 1):
-                v = hY.GetBinContent(b)
-                scaled = y_low + 0.92 * (y_hi - y_low) * (v / max(1e-12, y_max0))
-                hY.SetBinContent(b, scaled)
-        hY.SetLineColor(ROOT.kGray + 2)
-        hY.SetLineWidth(2)
-        hY.SetMarkerStyle(0)
-        hY.Draw("hist same")
-        keep.append(hY)
-
-        for crv in curves:
-            hR = ROOT.TH1F(f"hR_{feat}_{crv['tag']}", "", n, lo, hi)
-            for b in range(1, n + 1):
-                hR.SetBinContent(b, float(crv["ratio_" + feat][b - 1]))
-            hR.SetLineColor(crv["color"])
-            hR.SetLineStyle(1)
-            hR.SetLineWidth(2)
-            hR.SetMarkerStyle(0)
-            hR.Draw("hist same")
-            keep.append(hR)
-
-    # legend panel
-    pad = c.cd(len(plot_feats) + 1)
-    pad.SetTicks(1, 1)
-    pad.SetBottomMargin(0.15)
-    pad.SetLeftMargin(0.15)
-
-    leg = ROOT.TLegend(0.08, 0.08, 0.92, 0.92)
-    leg.SetBorderSize(0)
-    leg.SetFillStyle(0)
-    leg.SetNColumns(1)
-
-    for crv in curves:
-        htmp = ROOT.TH1F(f"leg_{crv['tag']}", "", 1, 0, 1)
-        htmp.SetLineColor(crv["color"])
-        htmp.SetLineStyle(1)
-        htmp.SetLineWidth(2)
-        leg.AddEntry(htmp, crv["label"], "l")
-        keep.append(htmp)
-
-    hy = ROOT.TH1F("leg_yield", "", 1, 0, 1)
-    hy.SetLineColor(ROOT.kGray + 2)
-    hy.SetLineWidth(2)
-    leg.AddEntry(hy, "SM yield (scaled)", "l")
-    keep.append(hy)
-
-    leg.Draw()
-    keep.append(leg)
-
-    basename = "truth_" + "__".join(crv["tag"] for crv in curves)
-    if args.postfix:
-        basename+="_"+args.postfix
-    out_png = os.path.join(out_dir, basename + ".png")
-    c.Print(out_png)
-    c.Close()
-
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        syncer.sync()
-    out = buf.getvalue().strip()
-    if out:
-        print(out)
-
-    print(f"Wrote {out_png}")
-
-
-plot_truth_root()
-print("Done.")
-
-#c=np.zeros(pdf.nvariations); 
-#c[8]=1.; 
-#rdir=pdf.product_parametrizations(x1,x2,id1,id2,c,Q); 
-#idx=np.argsort(np.abs(rdir))[-20:][::-1]; 
-#print(np.c_[idx,run[idx],lumi[idx],event[idx],id1[idx],id2[idx],x1[idx],x2[idx],Q[idx],rdir[idx]])
+#
+#DER = np.concatenate(targets, axis=0) if len(targets) > 1 else targets[0]
+#training_weights = {combos[i]: DER[:, i] for i in range(len(combos))}
+#
+# ---------------- reweighting ----------------
+#def weight_at_point_old(point):
+#    """
+#    Quadratic polynomial in the derivative-combination basis:
+#      w(theta) = sum_c [ prod_{v in c} theta_v ] * w_c
+#    with coefficient 1 for the empty tuple ().
+#    """
+#    w = training_weights[()].astype(np.float64, copy=True)
+#    for comb, wc in training_weights.items():
+#        if len(comb) == 0:
+#            continue
+#        coeff = 1.0
+#        for v in comb:
+#            coeff *= point.get(v, 0.0)
+#        if coeff != 0.0:
+#            w += coeff * wc
+#    return w
+#
+#def weight_at_point(point):
+#    w = training_weights[()].astype(np.float64, copy=True)
+#    for comb, wc in training_weights.items():
+#        if len(comb) == 0:
+#            continue
+#        coeff = 1.0
+#        for v in comb:
+#            coeff *= point.get(v, 0.0)
+#        if len(comb) == 2 and comb[0] == comb[1]:
+#            coeff *= 0.5
+#        if coeff != 0.0:
+#            w += coeff * wc
+#    return w
+#
+## ---------------- plotting ----------------
+#def plot_truth_root():
+#    import ROOT
+#    from data.plot_options import plot_options as PLOT_OPTS
+#
+#    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
+#    if not plot_feats:
+#        raise RuntimeError("No plotable features found in PLOT_OPTS.")
+#
+#    cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
+#    out_dir = os.path.join(user.plot_directory, "PDF", cfg_base, J["id"], "truth")
+#    os.makedirs(out_dir, exist_ok=True)
+#
+#    ROOT.gStyle.SetOptStat(0)
+#    ROOT.gROOT.SetBatch(True)
+#
+#    colors = [
+#        ROOT.kBlue + 1,
+#        ROOT.kRed + 1,
+#        ROOT.kGreen + 2,
+#        ROOT.kMagenta + 1,
+#        ROOT.kOrange + 7,
+#        ROOT.kCyan + 1,
+#        ROOT.kViolet + 1,
+#        ROOT.kSpring + 5,
+#        ROOT.kPink + 7,
+#    ]
+#
+#    curves = []
+#    for i, point in enumerate(points):
+#        curves.append(
+#            {
+#                "point": point,
+#                "label": point_label(point),
+#                "tag": point_tag(point),
+#                "weight": weight_at_point(point),
+#                "color": colors[i % len(colors)],
+#            }
+#        )
+#
+#    w0 = training_weights[()]
+#
+#    total_pads = len(plot_feats) + 1
+#    gx = int(math.ceil(math.sqrt(total_pads)))
+#    gy = int(math.ceil(total_pads / gx))
+#    c = ROOT.TCanvas("c_truth", "truth", 500 * gx, 500 * gy)
+#    c.Divide(gx, gy)
+#
+#    keep = []
+#
+#    def safe_ratio(num, den):
+#        den2 = den.copy()
+#        den2[den2 == 0] = 1.0
+#        return num / den2
+#
+#    for i_feat, feat in enumerate(plot_feats):
+#        pad = c.cd(i_feat + 1)
+#        pad.SetTicks(1, 1)
+#        pad.SetBottomMargin(0.15)
+#        pad.SetLeftMargin(0.15)
+#
+#        n, lo, hi = PLOT_OPTS[feat]["binning"]
+#        edges = np.linspace(lo, hi, n + 1)
+#        col = feat_names.index(feat)
+#        x = X[:, col]
+#
+#        h_sm, _ = np.histogram(x, bins=edges, weights=w0)
+#
+#        ratios = []
+#        for crv in curves:
+#            h, _ = np.histogram(x, bins=edges, weights=crv["weight"])
+#            crv["hist_" + feat] = h
+#            crv["ratio_" + feat] = safe_ratio(h, h_sm)
+#            ratios.append(crv["ratio_" + feat])
+#
+#        vals = np.concatenate(ratios) if ratios else np.array([1.0])
+#        vals = vals[np.isfinite(vals)]
+#        if len(vals) == 0:
+#            y_min, y_max = 0.0, 2.0
+#        else:
+#            y_min = float(np.min(vals))
+#            y_max = float(np.max(vals))
+#            if y_max <= y_min:
+#                y_max = y_min + 1.0
+#
+#        pad_frac = 0.20
+#        y_low = y_min - pad_frac * (y_max - y_min)
+#        y_hi = y_max + pad_frac * (y_max - y_min)
+#
+#        hframe = ROOT.TH2F(
+#            f"hf_{feat}",
+#            f";{PLOT_OPTS[feat]['tex']};ratio to SM",
+#            n, lo, hi, 100, y_low, y_hi
+#        )
+#        hframe.GetYaxis().SetTitleOffset(1.3)
+#        hframe.Draw()
+#        keep.append(hframe)
+#
+#        # scaled nominal yield, same idea as in the training plot
+#        hY = ROOT.TH1F(f"hY_{feat}", "", n, lo, hi)
+#        for b in range(1, n + 1):
+#            hY.SetBinContent(b, float(h_sm[b - 1]))
+#        y_max0 = float(np.max(h_sm) if len(h_sm) else 0.0)
+#        if y_max0 > 0:
+#            for b in range(1, n + 1):
+#                v = hY.GetBinContent(b)
+#                scaled = y_low + 0.92 * (y_hi - y_low) * (v / max(1e-12, y_max0))
+#                hY.SetBinContent(b, scaled)
+#        hY.SetLineColor(ROOT.kGray + 2)
+#        hY.SetLineWidth(2)
+#        hY.SetMarkerStyle(0)
+#        hY.Draw("hist same")
+#        keep.append(hY)
+#
+#        for crv in curves:
+#            hR = ROOT.TH1F(f"hR_{feat}_{crv['tag']}", "", n, lo, hi)
+#            for b in range(1, n + 1):
+#                hR.SetBinContent(b, float(crv["ratio_" + feat][b - 1]))
+#            hR.SetLineColor(crv["color"])
+#            hR.SetLineStyle(1)
+#            hR.SetLineWidth(2)
+#            hR.SetMarkerStyle(0)
+#            hR.Draw("hist same")
+#            keep.append(hR)
+#
+#    # legend panel
+#    pad = c.cd(len(plot_feats) + 1)
+#    pad.SetTicks(1, 1)
+#    pad.SetBottomMargin(0.15)
+#    pad.SetLeftMargin(0.15)
+#
+#    leg = ROOT.TLegend(0.08, 0.08, 0.92, 0.92)
+#    leg.SetBorderSize(0)
+#    leg.SetFillStyle(0)
+#    leg.SetNColumns(1)
+#
+#    for crv in curves:
+#        htmp = ROOT.TH1F(f"leg_{crv['tag']}", "", 1, 0, 1)
+#        htmp.SetLineColor(crv["color"])
+#        htmp.SetLineStyle(1)
+#        htmp.SetLineWidth(2)
+#        leg.AddEntry(htmp, crv["label"], "l")
+#        keep.append(htmp)
+#
+#    hy = ROOT.TH1F("leg_yield", "", 1, 0, 1)
+#    hy.SetLineColor(ROOT.kGray + 2)
+#    hy.SetLineWidth(2)
+#    leg.AddEntry(hy, "SM yield (scaled)", "l")
+#    keep.append(hy)
+#
+#    leg.Draw()
+#    keep.append(leg)
+#
+#    basename = "truth_" + "__".join(crv["tag"] for crv in curves)
+#    if args.postfix:
+#        basename+="_"+args.postfix
+#    out_png = os.path.join(out_dir, basename + ".png")
+#    c.Print(out_png)
+#    c.Close()
+#
+#    buf = io.StringIO()
+#    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+#        syncer.sync()
+#    out = buf.getvalue().strip()
+#    if out:
+#        print(out)
+#
+#    print(f"Wrote {out_png}")
 #
 #
-#c = np.zeros(pdf.nvariations)
-#c[8] = 1.
+#plot_truth_root()
+#print("Done.")
 #
-#f1 = pdf.evaluate(x1, id1, Q, c)
-#f2 = pdf.evaluate(x2, id2, Q, c)
+##c=np.zeros(pdf.nvariations); 
+##c[8]=1.; 
+##rdir=pdf.product_parametrizations(x1,x2,id1,id2,c,Q); 
+##idx=np.argsort(np.abs(rdir))[-20:][::-1]; 
+##print(np.c_[idx,run[idx],lumi[idx],event[idx],id1[idx],id2[idx],x1[idx],x2[idx],Q[idx],rdir[idx]])
+##
+##
+##c = np.zeros(pdf.nvariations)
+##c[8] = 1.
+##
+##f1 = pdf.evaluate(x1, id1, Q, c)
+##f2 = pdf.evaluate(x2, id2, Q, c)
+##
+##ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
+##ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+##
+##gen1 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
+##gen2 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+##
+##fixed  = (ref1 / gen1) * (ref2 / gen2)
+##deform = (f1 / ref1) * (f2 / ref2)
+##full   = fixed * deform
+##
+##idx = np.argsort(np.abs(full))[-20:][::-1]
+##print(np.c_[idx, run[idx], lumi[idx], event[idx],
+##            id1[idx], id2[idx], x1[idx], x2[idx], Q[idx],
+##            fixed[idx], deform[idx], full[idx]])
+##
+##
+##c = np.zeros(pdf.nvariations)
+##c[8] = 1.
+##
+##f1 = pdf.evaluate(x1, id1, Q, c)
+##f2 = pdf.evaluate(x2, id2, Q, c)
+##
+##r = pdf.product_parametrizations(x1, x2, id1, id2, c, Q)
+##idx = np.argsort(np.abs(r))[-20:][::-1]
+##
+##print(np.c_[idx, run[idx], lumi[idx], event[idx],
+##            id1[idx], id2[idx], x1[idx], x2[idx], Q[idx],
+##            f1[idx], f2[idx], r[idx]])
+##
+##
+##c = np.zeros(pdf.nvariations)
+##c[8] = 1.
+##
+##f1 = pdf.evaluate(x1, id1, Q, c)
+##f2 = pdf.evaluate(x2, id2, Q, c)
+##
+##ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
+##ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+##
+##d1 = f1 / ref1
+##d2 = f2 / ref2
+##
+##r = pdf.product_parametrizations(x1, x2, id1, id2, c, Q)
+##idx = np.argsort(np.abs(r))[-20:][::-1]
+##
+##print(np.c_[idx, id1[idx], id2[idx],
+##            x1[idx], x2[idx], Q[idx],
+##            d1[idx], d2[idx], d1[idx] * d2[idx], r[idx]])
+##
+##
+##
+### for debugging
+#max_x    =  np.max(np.column_stack((x1,x2)),axis=1)
+#ratio_c8 = weight_at_point({'c8':1})/weight_at_point({'c8':0})
+#ratio_c7 = weight_at_point({'c7':1})/weight_at_point({'c7':0})
+#ratio_c6 = weight_at_point({'c6':1})/weight_at_point({'c6':0})
+#x_prod = x1*x2
 #
-#ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
-#ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+#assert False, ""
 #
-#gen1 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
-#gen2 = np.array([t.get(i) for t, i in zip(pdf.gen_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+#def plot_np_2d_root(
+#    x,
+#    y,
+#    xtitle="x",
+#    ytitle="y",
+#    bins_x=None,   # e.g. [100, 0.0, 1.0]
+#    bins_y=None,   # e.g. [ 80, -4.0, 4.0]
+#    name="np2d",
+#    title="",
+#    draw_option="COLZ",
+#    canvas=None,
+#    filename=None,
+#    save=True,
+#    subdir="debug",
+#    log_z=True,
+#):
+#    import os
+#    import ROOT
+#    import numpy as np
+#    import common.user as user
 #
-#fixed  = (ref1 / gen1) * (ref2 / gen2)
-#deform = (f1 / ref1) * (f2 / ref2)
-#full   = fixed * deform
+#    x = np.asarray(x, dtype=np.float64).reshape(-1)
+#    y = np.asarray(y, dtype=np.float64).reshape(-1)
 #
-#idx = np.argsort(np.abs(full))[-20:][::-1]
-#print(np.c_[idx, run[idx], lumi[idx], event[idx],
-#            id1[idx], id2[idx], x1[idx], x2[idx], Q[idx],
-#            fixed[idx], deform[idx], full[idx]])
+#    if len(x) != len(y):
+#        raise ValueError(f"x and y must have same length, got {len(x)} and {len(y)}")
+#    if len(x) == 0:
+#        raise ValueError("x and y are empty")
 #
+#    def _auto_root_binning(a):
+#        edges = np.histogram_bin_edges(a, bins="auto")
+#        n = len(edges) - 1
+#        lo = float(edges[0])
+#        hi = float(edges[-1])
 #
-#c = np.zeros(pdf.nvariations)
-#c[8] = 1.
+#        if n <= 0:
+#            n = 1
+#        if lo == hi:
+#            lo -= 0.5
+#            hi += 0.5
 #
-#f1 = pdf.evaluate(x1, id1, Q, c)
-#f2 = pdf.evaluate(x2, id2, Q, c)
+#        return [int(n), lo, hi]
 #
-#r = pdf.product_parametrizations(x1, x2, id1, id2, c, Q)
-#idx = np.argsort(np.abs(r))[-20:][::-1]
+#    if bins_x is None:
+#        bins_x = _auto_root_binning(x)
+#    else:
+#        bins_x = [int(bins_x[0]), float(bins_x[1]), float(bins_x[2])]
 #
-#print(np.c_[idx, run[idx], lumi[idx], event[idx],
-#            id1[idx], id2[idx], x1[idx], x2[idx], Q[idx],
-#            f1[idx], f2[idx], r[idx]])
+#    if bins_y is None:
+#        bins_y = _auto_root_binning(y)
+#    else:
+#        bins_y = [int(bins_y[0]), float(bins_y[1]), float(bins_y[2])]
 #
+#    nx, xlo, xhi = bins_x
+#    ny, ylo, yhi = bins_y
 #
-#c = np.zeros(pdf.nvariations)
-#c[8] = 1.
+#    if nx <= 0 or ny <= 0:
+#        raise ValueError("Number of bins must be positive")
+#    if not xlo < xhi:
+#        raise ValueError(f"Need xlo < xhi, got {xlo} >= {xhi}")
+#    if not ylo < yhi:
+#        raise ValueError(f"Need ylo < yhi, got {ylo} >= {yhi}")
 #
-#f1 = pdf.evaluate(x1, id1, Q, c)
-#f2 = pdf.evaluate(x2, id2, Q, c)
+#    # Fast event aggregation in numpy
+#    H, _, _ = np.histogram2d(
+#        x,
+#        y,
+#        bins=[nx, ny],
+#        range=[[xlo, xhi], [ylo, yhi]],
+#    )
 #
-#ref1 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x1), tuple(Q)), id1)])
-#ref2 = np.array([t.get(i) for t, i in zip(pdf.reference_pdf.xfxQ(tuple(x2), tuple(Q)), id2)])
+#    ROOT.gStyle.SetOptStat(0)
 #
-#d1 = f1 / ref1
-#d2 = f2 / ref2
+#    if canvas is None:
+#        canvas = ROOT.TCanvas(f"c_{name}", title or name, 800, 700)
 #
-#r = pdf.product_parametrizations(x1, x2, id1, id2, c, Q)
-#idx = np.argsort(np.abs(r))[-20:][::-1]
+#    if not hasattr(canvas, "_keep"):
+#        canvas._keep = []
 #
-#print(np.c_[idx, id1[idx], id2[idx],
-#            x1[idx], x2[idx], Q[idx],
-#            d1[idx], d2[idx], d1[idx] * d2[idx], r[idx]])
+#    hist = ROOT.TH2F(
+#        f"h2_{name}",
+#        f"{title};{xtitle};{ytitle}",
+#        nx, xlo, xhi,
+#        ny, ylo, yhi,
+#    )
 #
+#    # Loop only over bins, not events
+#    for ix in range(nx):
+#        for iy in range(ny):
+#            hist.SetBinContent(ix + 1, iy + 1, float(H[ix, iy]))
 #
+#    if log_z:
+#        canvas.SetLogz(True)
+#        if hist.GetMaximum() > 0:
+#            hist.SetMinimum(0.5)
 #
-## for debugging
-max_x    =  np.max(np.column_stack((x1,x2)),axis=1)
-ratio_c8 = weight_at_point({'c8':1})/weight_at_point({'c8':0})
-ratio_c7 = weight_at_point({'c7':1})/weight_at_point({'c7':0})
-ratio_c6 = weight_at_point({'c6':1})/weight_at_point({'c6':0})
-x_prod = x1*x2
-
-assert False, ""
-
-def plot_np_2d_root(
-    x,
-    y,
-    xtitle="x",
-    ytitle="y",
-    bins_x=None,   # e.g. [100, 0.0, 1.0]
-    bins_y=None,   # e.g. [ 80, -4.0, 4.0]
-    name="np2d",
-    title="",
-    draw_option="COLZ",
-    canvas=None,
-    filename=None,
-    save=True,
-    subdir="debug",
-    log_z=True,
-):
-    import os
-    import ROOT
-    import numpy as np
-    import common.user as user
-
-    x = np.asarray(x, dtype=np.float64).reshape(-1)
-    y = np.asarray(y, dtype=np.float64).reshape(-1)
-
-    if len(x) != len(y):
-        raise ValueError(f"x and y must have same length, got {len(x)} and {len(y)}")
-    if len(x) == 0:
-        raise ValueError("x and y are empty")
-
-    def _auto_root_binning(a):
-        edges = np.histogram_bin_edges(a, bins="auto")
-        n = len(edges) - 1
-        lo = float(edges[0])
-        hi = float(edges[-1])
-
-        if n <= 0:
-            n = 1
-        if lo == hi:
-            lo -= 0.5
-            hi += 0.5
-
-        return [int(n), lo, hi]
-
-    if bins_x is None:
-        bins_x = _auto_root_binning(x)
-    else:
-        bins_x = [int(bins_x[0]), float(bins_x[1]), float(bins_x[2])]
-
-    if bins_y is None:
-        bins_y = _auto_root_binning(y)
-    else:
-        bins_y = [int(bins_y[0]), float(bins_y[1]), float(bins_y[2])]
-
-    nx, xlo, xhi = bins_x
-    ny, ylo, yhi = bins_y
-
-    if nx <= 0 or ny <= 0:
-        raise ValueError("Number of bins must be positive")
-    if not xlo < xhi:
-        raise ValueError(f"Need xlo < xhi, got {xlo} >= {xhi}")
-    if not ylo < yhi:
-        raise ValueError(f"Need ylo < yhi, got {ylo} >= {yhi}")
-
-    # Fast event aggregation in numpy
-    H, _, _ = np.histogram2d(
-        x,
-        y,
-        bins=[nx, ny],
-        range=[[xlo, xhi], [ylo, yhi]],
-    )
-
-    ROOT.gStyle.SetOptStat(0)
-
-    if canvas is None:
-        canvas = ROOT.TCanvas(f"c_{name}", title or name, 800, 700)
-
-    if not hasattr(canvas, "_keep"):
-        canvas._keep = []
-
-    hist = ROOT.TH2F(
-        f"h2_{name}",
-        f"{title};{xtitle};{ytitle}",
-        nx, xlo, xhi,
-        ny, ylo, yhi,
-    )
-
-    # Loop only over bins, not events
-    for ix in range(nx):
-        for iy in range(ny):
-            hist.SetBinContent(ix + 1, iy + 1, float(H[ix, iy]))
-
-    if log_z:
-        canvas.SetLogz(True)
-        if hist.GetMaximum() > 0:
-            hist.SetMinimum(0.5)
-
-    hist.Draw(draw_option)
-    canvas._keep.append(hist)
-    canvas.Modified()
-    canvas.Update()
-
-    out_path = None
-    if save:
-        plot_dir = os.path.join(user.plot_directory, subdir)
-        os.makedirs(plot_dir, exist_ok=True)
-
-        if filename is None:
-            filename = f"{name}.png"
-
-        out_path = os.path.join(plot_dir, filename)
-        canvas.SaveAs(out_path)
-        print(f"Wrote {out_path}")
-
-    syncer.sync()
-    #return canvas, hist, out_path, bins_x, bins_y
+#    hist.Draw(draw_option)
+#    canvas._keep.append(hist)
+#    canvas.Modified()
+#    canvas.Update()
+#
+#    out_path = None
+#    if save:
+#        plot_dir = os.path.join(user.plot_directory, subdir)
+#        os.makedirs(plot_dir, exist_ok=True)
+#
+#        if filename is None:
+#            filename = f"{name}.png"
+#
+#        out_path = os.path.join(plot_dir, filename)
+#        canvas.SaveAs(out_path)
+#        print(f"Wrote {out_path}")
+#
+#    syncer.sync()
+#    #return canvas, hist, out_path, bins_x, bins_y

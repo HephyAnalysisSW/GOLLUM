@@ -222,14 +222,15 @@ max_amplitudes = {
          29: 1.8461019016279236},
     }
 
-max_amplitudes = {} #{'gluon_POD_nongluon_PDF4LHC21': {1: 93.5975626622538, 2: 249.21241221809504, 3: 339.37005603497437, 4: 264.02632535099633, 5: 225.30767182488103, 6: 168.4700626402868, 7: 99.9671081559107, 8: 63.239975107467714, 9: 40.81468668723638, 10: 1.0, 11: 20.95482103186426, 12: 10.976756475229259, 13: 5.687165558552786, 14: 3.0338760257228805, 15: 1.4341920895518476, 16: 1.0, 17: 1.0, 18: 1.0, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 1.0, 24: 1.0, 25: 1.0, 26: 1.0, 27: 1.0, 28: 1.0, 29: 1.0}}
+max_amplitudes = {} 
+#{'gluon_POD_nongluon_PDF4LHC21': {1: 93.5975626622538, 2: 249.21241221809504, 3: 339.37005603497437, 4: 264.02632535099633, 5: 225.30767182488103, 6: 168.4700626402868, 7: 99.9671081559107, 8: 63.239975107467714, 9: 40.81468668723638, 10: 1.0, 11: 20.95482103186426, 12: 10.976756475229259, 13: 5.687165558552786, 14: 3.0338760257228805, 15: 1.4341920895518476, 16: 1.0, 17: 1.0, 18: 1.0, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 1.0, 24: 1.0, 25: 1.0, 26: 1.0, 27: 1.0, 28: 1.0, 29: 1.0}}
 
 class PODBasis:
 
     all_pdg_ids = [21, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
 
     def __init__( self, variations = hand_picked, active_pids="all", 
-            reference_pdf = None, 
+            #reference_pdf = None, 
             x_max = None, #0.6, 
             gen_pdf = "NNPDF31_nnlo_as_0118", var_set = "gluon_POD_nongluon_PDF4LHC21"):
 
@@ -246,12 +247,12 @@ class PODBasis:
             print("Max_amplitudes not used.")
             #raise e 
 
-        if reference_pdf:
-            self.reference_pdf_name = reference_pdf
-            self.reference_pdf = lhapdf.mkPDF(reference_pdf, 0)
-        else:
-            self.reference_pdf_name = self.var_set
-            self.reference_pdf = lhapdf.mkPDF(self.var_set, 0)
+        #if reference_pdf:
+        #    self.reference_pdf_name = reference_pdf
+        #    self.reference_pdf = lhapdf.mkPDF(reference_pdf, 0)
+        #else:
+        self.reference_pdf_name = self.var_set
+        self.reference_pdf = lhapdf.mkPDF(self.var_set, 0)
 
         if gen_pdf:
             self.gen_pdf_name = gen_pdf

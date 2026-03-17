@@ -1,4 +1,9 @@
-python binned_fromfit.py ../../configs/plots/binned_2016APV.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2016APV_unbinned_2016APV_v1_fit.json
-python binned_fromfit.py ../../configs/plots/binned_2016.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2016_unbinned_2016_v1_fit.json
-python binned_fromfit.py ../../configs/plots/binned_2017.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2017_unbinned_2017_v1_fit.json
-python binned_fromfit.py ../../configs/plots/binned_2018.yaml --feature tr_ttbar_mass --binning 0 500 620 820 1100 1500 2500 --postfit /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/unbinned_2018_unbinned_2018_v1_fit.json
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_1_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_1.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_2_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_2.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_3_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_3.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_4_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_4.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_5_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_5.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_6_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_6.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_7_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_7.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_8_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_8.yaml
+python binned_fromfit.py /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/binned_2016_no_syst_9_binned_2016_v5_fit.json --config ../../configs/binned_v5/2016/binned_2016_no_syst_9.yaml

@@ -948,7 +948,7 @@ class N2LL:
                 if ich is None:
                     raise RuntimeError(f"[binned] Missing ICH predictor for {rid}/{cid}")
                 poi_params = list(poi.get('parameters', []) or [])
-                # ICPh groups
+                # ICPH groups
                 icph_groups = []
                 for S in (C.get('systematics', []) or []):
                     if S.get('type') != 'icph':
@@ -1162,17 +1162,23 @@ class N2LL:
     # ---------- Binned A-basis assembly ----------
     def _assemble_c_vector_for_ich(self, rid: str, hypothesis, cid: str) -> np.ndarray:
         """
-        ICH expects the *plain* c-vector in parameter order (not expanded A-basis).
+        ICH expects the plain c-vector in the stored parameter order.
+        Fail hard if a required POI is missing.
         """
-        C = None
-        # find POI params order for this class (already stored for unbinned BIT; reuse mapping)
         poi_names = self._poi_order.get((rid, cid), None)
         if poi_names is None:
-            # For binned ICH we still stored _poi_order in prepare step (below)
             raise RuntimeError(f"[binned] Missing POI names order for ({rid}/{cid}).")
-        C = np.array([float(getattr(hypothesis, name, self[name]).val) if name in hypothesis else float(self[name].val)
-                      for name in poi_names], dtype=np.float64)
-        return C
+
+        h = getattr(hypothesis, "_base", hypothesis)
+
+        missing = [name for name in poi_names if name not in h]
+        if missing:
+            raise RuntimeError(
+                f"[binned] Missing POIs in hypothesis for ({rid}/{cid}): {missing}. "
+                f"Expected order: {poi_names}"
+            )
+
+        return np.array([float(h[name].val) for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
@@ -1219,6 +1225,7 @@ class N2LL:
             ich = C['_ich']
             cvec = np.array([float(p.val) for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
+            cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
             # accumulate nuisance exponent per bin from all ICPh groups
@@ -1780,8 +1787,10 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     if do_minos:
         poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
         m.minos(*poi_list)
+        
         if verbosity > 0: 
             print("\n[MINOS]", poi_list);
+            print(m)
 
     # write back best fit once (avoid repeated __setattr__ compounding)
     final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
@@ -1838,8 +1847,7 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
 
     base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
-    nuis = [p.name for p in getattr(hyp, "nuisances", [])]
-    names = pois + nuis
+    nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
