@@ -117,16 +117,31 @@ fit_names = list(fit["free_parameter_order"])
 fit_param_map = {p["name"]: float(p["value"]) for p in fit["parameters"]}
 fit_cov = np.asarray(fit["covariance"]["matrix"], dtype=np.float64)
 
-active_params = [par for par in hyp_for_fit.parameters if not par.isFrozen]
-active_names = [par.name for par in active_params]
+all_unfrozen = [par for par in hyp_for_fit.parameters if not par.isFrozen]
+all_unfrozen_names = [par.name for par in all_unfrozen]
+poi_name_set = {par.name for par in hyp_for_fit.POIs}
 
-missing_in_fit = [n for n in active_names if n not in fit_param_map or n not in fit_names]
-if missing_in_fit:
-    raise RuntimeError(f"These active fit parameters are missing in the fit JSON: {missing_in_fit}")
+missing_in_fit = [n for n in all_unfrozen_names if n not in fit_param_map or n not in fit_names]
+missing_pois_in_fit = [n for n in missing_in_fit if n in poi_name_set]
+missing_other_in_fit = [n for n in missing_in_fit if n not in poi_name_set]
 
-extra_in_fit = [n for n in fit_names if n not in active_names]
+if missing_pois_in_fit:
+    print(f"[warning] These POIs are missing in the fit JSON; setting them to zero and not sampling them: {missing_pois_in_fit}")
+    for n in missing_pois_in_fit:
+        if hasattr(hyp_for_fit, n):
+            getattr(hyp_for_fit, n).val = 0.0
+        if hasattr(hyp, n):
+            getattr(hyp, n).val = 0.0
+
+if missing_other_in_fit:
+    raise RuntimeError(f"These active non-POI parameters are missing in the fit JSON: {missing_other_in_fit}")
+
+extra_in_fit = [n for n in fit_names if n not in all_unfrozen_names]
 if extra_in_fit:
     print(f"[warning] Ignoring parameters present in fit JSON but not active here: {extra_in_fit}")
+
+active_params = [par for par in all_unfrozen if par.name in fit_param_map and par.name in fit_names]
+active_names = [par.name for par in active_params]
 
 fit_idx = {n: i for i, n in enumerate(fit_names)}
 cov_idx = [fit_idx[n] for n in active_names]
