@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Any, Optional
 from iminuit import Minuit
 
-
 import os
 import yaml
 import json, math, importlib
@@ -948,7 +947,7 @@ class N2LL:
                 if ich is None:
                     raise RuntimeError(f"[binned] Missing ICH predictor for {rid}/{cid}")
                 poi_params = list(poi.get('parameters', []) or [])
-                # ICPh groups
+                # ICPH groups
                 icph_groups = []
                 for S in (C.get('systematics', []) or []):
                     if S.get('type') != 'icph':
@@ -1162,17 +1161,23 @@ class N2LL:
     # ---------- Binned A-basis assembly ----------
     def _assemble_c_vector_for_ich(self, rid: str, hypothesis, cid: str) -> np.ndarray:
         """
-        ICH expects the *plain* c-vector in parameter order (not expanded A-basis).
+        ICH expects the plain c-vector in the stored parameter order.
+        Fail hard if a required POI is missing.
         """
-        C = None
-        # find POI params order for this class (already stored for unbinned BIT; reuse mapping)
         poi_names = self._poi_order.get((rid, cid), None)
         if poi_names is None:
-            # For binned ICH we still stored _poi_order in prepare step (below)
             raise RuntimeError(f"[binned] Missing POI names order for ({rid}/{cid}).")
-        C = np.array([float(getattr(hypothesis, name, self[name]).val) if name in hypothesis else float(self[name].val)
-                      for name in poi_names], dtype=np.float64)
-        return C
+
+        h = getattr(hypothesis, "_base", hypothesis)
+
+        missing = [name for name in poi_names if name not in h]
+        if missing:
+            raise RuntimeError(
+                f"[binned] Missing POIs in hypothesis for ({rid}/{cid}): {missing}. "
+                f"Expected order: {poi_names}"
+            )
+
+        return np.array([float(h[name].val) for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
@@ -1219,6 +1224,7 @@ class N2LL:
             ich = C['_ich']
             cvec = np.array([float(p.val) for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
+            cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
             # accumulate nuisance exponent per bin from all ICPh groups
@@ -1740,9 +1746,10 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
         f = float(n2ll(h_eval))
         eval_count += 1
-        if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
-            print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
-            h_eval.print()  # print the actually evaluated point
+        if verbosity >= 2:
+            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
+                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
+                h_eval.print()  # print the actually evaluated point
         return f
 
     # ---- Minuit with positional args and explicit names ----
@@ -1762,7 +1769,7 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         if name.startswith("rate_shift"):
             m.limits[name] = (-1.0, None)
 
-    if verbosity > 0:
+    if verbosity >= 1:
         print("\n[make_minuit] Floating parameters:")
         for i, nm in enumerate(names):
             print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
@@ -1771,17 +1778,19 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     print(f"Minuit precision: {m.precision}") 
     if do_migrad:
         m.migrad();
-        if verbosity > 0:
+        if verbosity >= 1:
             print("\n[MIGRAD]");  print(m)
     if do_hesse:
         m.hesse();
-        if verbosity > 0:
+        if verbosity >= 1:
             print("\n[HESSE]");  print(m)
     if do_minos:
         poi_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
         m.minos(*poi_list)
-        if verbosity > 0: 
+        
+        if verbosity >= 1: 
             print("\n[MINOS]", poi_list);
+            print(m)
 
     # write back best fit once (avoid repeated __setattr__ compounding)
     final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
@@ -1789,7 +1798,7 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     # copy final values onto the original object (single pass)
     for k, v in final_pars.items():
         setattr(hypothesis, k, v)
-    if verbosity > 0:
+    if verbosity >= 1:
         print("\n[final] Best-fit hypothesis:")
         h_final.print()
     return m
@@ -1838,8 +1847,7 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
 
     base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
-    nuis = [p.name for p in getattr(hyp, "nuisances", [])]
-    names = pois + nuis
+    nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
@@ -1998,16 +2006,24 @@ def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
 
 if __name__ == "__main__":
     import common.syncer as syncer
+    import contextlib
+
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="Likelihood fit")
     p.add_argument("config", help="Path to global YAML config")
-    p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"], help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",)
+    p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
+                   help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
+    p.add_argument("--freezePOI", type=float, default=None,
+                   help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
-    p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"), help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
-    p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
-    p.add_argument("--minos", action="store_true", default=False, help="Whether to use MINOS in the fit. If not set, then use HESSE by default.")
+    p.add_argument("--asimov", nargs="+", default=None, metavar=("PAR", "VAL"),
+                   help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
+    p.add_argument("--shuffle", nargs="+", default=None, help="Shuffle these features")
+    p.add_argument("--verbosity", type=int, default=1, help="Verbosity passed to the fitter")
+    p.add_argument("--minos", action="store_true", default=False,
+                   help="Whether to use MINOS in the fit. If not set, then use HESSE by default.")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2019,15 +2035,15 @@ if __name__ == "__main__":
     like_info = load_likelihood(cfg)
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
 
-    if args.no_syst:
-        for p_ in hyp.nuisances:
-            p_.val = 0.0
-            p_.isFrozen = True
-        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
-
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
     step = 1.0 if rotated else 0.1
+
+    if args.no_syst:
+        for p_ in hyp.nuisances + hyp_for_fit.nuisances:
+            p_.val = 0.0
+            p_.isFrozen = True
+        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
 
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
@@ -2036,83 +2052,225 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
+    if args.freezePOI is not None:
+        suffix += f"_freezePOI{args.freezePOI:g}"
     if args.shuffle:
-        suffix += "_"+"_".join(args.shuffle)
+        suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
+
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
 
     plot_dir = os.path.join(plot_directory, "likelihood_fit", base, f"{version}{suffix}")
     os.makedirs(plot_dir, exist_ok=True)
+
     overwrite_fit = args.overwrite in ("fit", "all")
     overwrite_cache = args.overwrite == "all"
+
+    fit_log_path = os.path.join(plot_dir, f"fit_log_{version}{suffix}.txt")
+    if hasattr(syncer, "file_sync_storage"):
+        syncer.file_sync_storage.append(fit_log_path)
+
+    if args.freezePOI is not None and not rotated:
+        raise RuntimeError("--freeze-poi requires --rotate")
 
     # Make sample loader factory from default cfg
     samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
 
     from common.yaml_loader import _resolve_features_list
     default_features = cfg["defaults"].get("default_features", None)
-    features = _resolve_features_list( default_features ) if default_features else None
-    factory     = samples_mod.Factory( 
-        features  = features,
-        selection = cfg["defaults"].get("default_selection", None),
-        selection_features = cfg["defaults"].get("default_selection_features", None),
-        )
+    features = _resolve_features_list(default_features) if default_features else None
+    factory = samples_mod.Factory(
+        features=features,
+        selection=cfg["defaults"].get("default_selection", None),
+        selection_features=cfg["defaults"].get("default_selection_features", None),
+    )
 
-    # -------- load fit if available --------
-    if (not overwrite_fit) and os.path.exists(out_path):
-        fit = json.load(open(out_path))
-    else:
-        n2ll = N2LL(
-            like_info,
-            #cfg["defaults"]["module_samples"],
-            factory = factory,
-            cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
-            cache_root=None,
-            overwrite=overwrite_cache,
-        )
-        n2ll.shuffle_features = args.shuffle
-        n2ll.build_cache()
-        n2ll.prepare_runtime()
+    fit = None
 
-        # ---- optional off-nominal Asimov point ----
-        if args.asimov is None:
-            n2ll.setAsimov()
-        else:
-            if rotated: raise NotImplementedError
+    with open(fit_log_path, "w", encoding="utf-8") as _fit_log:
+        _tee = helpers.Tee(sys.stdout, _fit_log, ascii_only=True)
+        with contextlib.redirect_stdout(_tee), contextlib.redirect_stderr(_tee):
 
-            if len(args.asimov) % 2 != 0:
-                raise RuntimeError(f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}")
+            # -------- optional rotated-POI EV printout / freezing --------
+            if rotated:
+                with open(args.rotate, "r") as f:
+                    rot_payload = json.load(f)
 
-            asimov_kwargs = {}
-            for i in range(0, len(args.asimov), 2):
-                par = args.asimov[i]
-                try:
-                    val = float(args.asimov[i + 1])
-                except ValueError as e:
-                    raise RuntimeError(f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'") from e
-                asimov_kwargs[par] = val
-            # Build the modified hypothesis for generating the Asimov expectation
-            asimov_h = hyp.cloneModify(**asimov_kwargs)
-            print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
-            n2ll.setAsimov(asimov_h)
+                basis_labels = list(rot_payload.get("basis_labels", []) or [])
+                eigenvalues = list(rot_payload.get("eigenvalues", []) or [])
 
-        m = run_minuit_fit(
-            n2ll,
-            hyp_for_fit,
-            step=step,
-            print_every=1,
-            do_migrad=True,
-            do_hesse=not args.minos,
-            do_minos=args.minos,
-        )
+                if basis_labels and eigenvalues and len(basis_labels) != len(eigenvalues):
+                    raise RuntimeError(
+                        f"Rotation JSON mismatch: len(basis_labels)={len(basis_labels)} "
+                        f"!= len(eigenvalues)={len(eigenvalues)}"
+                    )
 
-        serialize_result(m, base, version, args, out_path)
-        fit = json.load(open(out_path))
+                ev_by_name = {lab: float(ev) for lab, ev in zip(basis_labels, eigenvalues)}
 
-        print("Best -2logL =", fit["fval"])
-        print("Correlation")
-        print(np.asarray(fit["correlation"]["matrix"]))
+                print("[rotation] Rotated POIs and eigenvalues:")
+                for var in hyp_for_fit.POIs:
+                    ev = ev_by_name.get(var.name, None)
+                    if ev is None:
+                        print(f"  {var.name:>12s}   EV = <not provided>")
+                    else:
+                        print(f"  {var.name:>12s}   EV = {ev:.6e}")
+
+                if args.freezePOI is not None:
+                    thr = float(args.freezePOI)
+                    frozen_rotated = []
+                    kept_rotated = []
+
+                    for var in hyp_for_fit.POIs:
+                        ev = ev_by_name.get(var.name, None)
+                        if ev is not None and ev < thr:
+                            var.freeze(value=0.0)
+                            frozen_rotated.append((var.name, ev))
+                        else:
+                            kept_rotated.append((var.name, ev))
+
+                    print(f"[rotation] --freeze-poi = {thr:.6e}")
+                    if frozen_rotated:
+                        print("[rotation] Frozen rotated POIs:")
+                        for nm, ev in frozen_rotated:
+                            print(f"  {nm:>12s}   EV = {ev:.6e}")
+                    else:
+                        print("[rotation] No rotated POIs were frozen.")
+
+                    print("[rotation] Rotated POIs kept floating:")
+                    for nm, ev in kept_rotated:
+                        if ev is None:
+                            print(f"  {nm:>12s}   EV = <not provided>")
+                        else:
+                            print(f"  {nm:>12s}   EV = {ev:.6e}")
+
+            # -------- load fit if available --------
+            if (not overwrite_fit) and os.path.exists(out_path):
+                fit = json.load(open(out_path))
+                print(f"[info] Loaded existing fit result from {out_path}")
+            else:
+                n2ll = N2LL(
+                    like_info,
+                    factory=factory,
+                    cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
+                    cache_root=None,
+                    overwrite=overwrite_cache,
+                )
+                n2ll.shuffle_features = args.shuffle
+                n2ll.build_cache()
+                n2ll.prepare_runtime()
+
+                # ---- optional off-nominal Asimov point ----
+                if args.asimov is None:
+                    n2ll.setAsimov()
+                else:
+                    if rotated:
+                        raise NotImplementedError
+
+                    if len(args.asimov) % 2 != 0:
+                        raise RuntimeError(
+                            f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}"
+                        )
+
+                    asimov_kwargs = {}
+                    for i in range(0, len(args.asimov), 2):
+                        par = args.asimov[i]
+                        try:
+                            val = float(args.asimov[i + 1])
+                        except ValueError as e:
+                            raise RuntimeError(
+                                f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'"
+                            ) from e
+                        asimov_kwargs[par] = val
+
+                    asimov_h = hyp.cloneModify(**asimov_kwargs)
+                    print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
+                    n2ll.setAsimov(asimov_h)
+
+                m = run_minuit_fit(
+                    n2ll,
+                    hyp_for_fit,
+                    step=step,
+                    print_every=1,
+                    do_migrad=True,
+                    do_hesse=not args.minos,
+                    do_minos=args.minos,
+                    verbosity=args.verbosity,
+                )
+
+                serialize_result(m, base, version, args, out_path)
+                fit = json.load(open(out_path))
+
+            print("Best -2logL =", fit["fval"])
+            print("Correlation")
+            print(np.asarray(fit["correlation"]["matrix"]))
+
+            # -------- generic Minuit covariance diagnosis (fit basis only) --------
+            cov = np.asarray(fit["covariance"]["matrix"], dtype=np.float64)
+            cov = 0.5 * (cov + cov.T)  # symmetrize numerically
+            names_cov = list(fit["free_parameter_order"])
+
+            evals_cov, evecs_cov = np.linalg.eigh(cov)   # ascending
+            lam_abs_max = float(np.max(np.abs(evals_cov))) if len(evals_cov) else 0.0
+
+            tol_neg = 1e-10 * max(1.0, lam_abs_max)
+            tol_tiny = 1e-8 * max(1.0, lam_abs_max)
+
+            neg_idx = [i for i, lam in enumerate(evals_cov) if lam < -tol_neg]
+            tiny_idx = [i for i, lam in enumerate(evals_cov) if abs(lam) <= tol_tiny]
+
+            pos = evals_cov[evals_cov > tol_neg]
+            cond = float(np.max(pos) / np.min(pos)) if len(pos) else np.inf
+
+            print("[covariance] eigensystem diagnostics in fitted-parameter basis")
+            print("  parameter order:", names_cov)
+            print("  max |eigenvalue| =", lam_abs_max)
+            print("  negative modes   =", neg_idx)
+            print("  tiny modes       =", tiny_idx)
+            print("  cond(pos part)   =", cond)
+
+            # largest covariance eigenvalues = weakest constrained combinations
+            n_show = min(5, len(evals_cov))
+
+            print(f"[covariance] Largest {n_show} eigenvalues:")
+            for k in range(len(evals_cov) - n_show, len(evals_cov)):
+                lam = float(evals_cov[k])
+                print(f"  mode {k:2d}: lambda = {lam:.6e}")
+
+            print("[covariance] Best constrained combinations:")
+            for k in range(n_show):
+                lam = float(evals_cov[k])
+                vec = evecs_cov[:, k]
+                order = np.argsort(-np.abs(vec))
+
+                print(f"  mode {k:2d}: lambda = {lam:.6e}")
+                n_printed = 0
+                for j in order:
+                    if abs(vec[j]) < 0.15:
+                        continue
+                    print(f"    {names_cov[j]:>16s} : {vec[j]:+.4f}")
+                    n_printed += 1
+                    if n_printed >= 6:
+                        break
+                if n_printed == 0:
+                    for j in order[:3]:
+                        print(f"    {names_cov[j]:>16s} : {vec[j]:+.4f}")
+
+            print("[covariance] Least constrained combinations:")
+            for k in range(len(evals_cov) - n_show, len(evals_cov)):
+                lam = float(evals_cov[k])
+                vec = evecs_cov[:, k]
+                order = np.argsort(-np.abs(vec))
+
+                print(f"  mode {k:2d}: lambda = {lam:.6e}")
+                n_printed = 0
+                for j in order:
+                    if abs(vec[j]) < 0.15:
+                        continue
+                    print(f"    {names_cov[j]:>16s} : {vec[j]:+.4f}")
+                    n_printed += 1
+                    if n_printed >= 6:
+                        break
 
     # -------- plots --------
     names = fit["free_parameter_order"]

@@ -4,7 +4,8 @@ from typing import Sequence, Union
 import sys
 sys.path.insert(0, '..')
 from pdf.AnalyticPDFParametrization import AnalyticPDFParametrization 
-from pdf.PODBasis import PODBasis 
+#from pdf.PODBasis import PODBasis 
+from pdf.PODBasis import PODBasis
 logger = logging.getLogger(__name__)
 
 def PDFParametrization(n, typ, basis=None, active_pids="all"):
