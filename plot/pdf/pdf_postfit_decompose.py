@@ -182,10 +182,10 @@ for region in like_info.get(region_string, []):
         break
 
 if like_params is None or poi_job_id is None:
-    print("[error] Could not find a POI-dependent BIT term in the likelihood.")
+    print("[error] Could not find a POI-dependent term in the likelihood.")
     sys.exit(1)
 
-print(f"[info] Using POI-dependent BIT job '{poi_job_id}' with POIs: {', '.join(like_params)}")
+print(f"[info] Using POI-dependent job '{poi_job_id}' with POIs: {', '.join(like_params)}")
 
 # find corresponding job J in cfg['jobs']
 J = None
