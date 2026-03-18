@@ -159,11 +159,22 @@ else:
 # ----------------------------------------------------------------------
 like_params = None
 poi_job_id = None
+region_string = None
 
-for region in like_info.get("regions", []):
+# binned
+if like_info.get("regions", []):
+    region_string = "regions"
+    poi_type = "bit"
+elif like_info.get("binned", []) != []:
+    region_string = "binned"
+    poi_type = "ich"
+else:
+    raise KeyError("Missing definition of regions.")
+
+for region in like_info.get(region_string, []):
     for cls in region.get("classes", []):
         poi = cls.get("POI", None)
-        if poi and poi.get("type") == "bit" and poi.get("parameters"):
+        if poi and poi.get("type") == poi_type and poi.get("parameters"):
             like_params = poi["parameters"]
             poi_job_id = poi["job"]
             break
@@ -392,103 +403,112 @@ central_pdf = np.array(
 #   - build staged bands
 # ----------------------------------------------------------------------
 
-# Discover the systematics era, because we added little years everywhere
-group_to_nu_names = {}
-for p in all_nu_names_fit:
-    sys_grouping_era = sys_grouping[2016] # default
-    if "2016" in p:
-        sys_grouping_era = sys_grouping[2016]
-    elif "2017" in p:
-        sys_grouping_era = sys_grouping[2017]
-    elif "2018" in p:
-        sys_grouping_era = sys_grouping[2018]
-
-    for gname, nu_list in sys_grouping_era:
-        if p in nu_list:
-            if gname not in group_to_nu_names:
-                group_to_nu_names[gname] = []
-            group_to_nu_names[gname].append(p)
-            break
-
-group_names       = [gname for gname, _ in sys_grouping_era]
-
-#group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
-#group_names       = [gname for gname, _ in sys_grouping_era]
-
-# enforce that grouping covers *all* nuisances present in the fit
-#all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
-
-assert set(sum(group_to_nu_names.values(),[])) == set(all_nu_names_fit)
-
-
 x_ref = float(args.x_ref)
 f_ref, g_ref = _grad_f_wrt_poi_rot_at_xref(x_ref)
 print(f"[info] Ranking grouped nuisances at x_ref = {x_ref:g} (Bjorken-x)")
 print(f"[info] Central f_g(x_ref, Q={Q_val:.2f}) = {f_ref:.6e}")
 
+if n_nu == 0:
+    q_low, q_high = _sample_pdf_band_from_cov_poi(cov_poi)
+    stage_q_low = [np.array(q_low, dtype=float)]
+    stage_q_high = [np.array(q_high, dtype=float)]
+    stage_labels = ["POI-only (no nuisances)"]
+else:
+    # if n_nu > 0:
+    # Discover the systematics era, because we added little years everywhere
+    group_to_nu_names = {}
+    for p in all_nu_names_fit:
+        sys_grouping_era = sys_grouping[2016] # default
+        if "2016" in p:
+            sys_grouping_era = sys_grouping[2016]
+        elif "2017" in p:
+            sys_grouping_era = sys_grouping[2017]
+        elif "2018" in p:
+            sys_grouping_era = sys_grouping[2018]
 
-# ----------------------------------------------------------------------
-# (NEW) Greedy "add smallest" ordering:
-#   Start at stats-only (all nu fixed), then add back groups with smallest
-#   incremental increase in Var[f(x_ref)] at each step.
-# ----------------------------------------------------------------------
-fixed_groups = list(group_names)   # all fixed -> stats-only
-remaining    = list(group_names)   # candidates to "add back" (unfix)
-ranked_add   = []
+        for gname, nu_list in sys_grouping_era:
+            if p in nu_list:
+                if gname not in group_to_nu_names:
+                    group_to_nu_names[gname] = []
+                group_to_nu_names[gname].append(p)
+                break
 
-cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)  # stats-only cov
-var_curr = float(g_ref.T @ cov_curr @ g_ref)
+    group_names       = [gname for gname, _ in sys_grouping_era]
 
-for istep in range(len(group_names)):
-    print(f"At {istep}/{len(group_names)}")
-    best_g   = None
-    best_inc = None
-    best_var = None
+    #group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
+    #group_names       = [gname for gname, _ in sys_grouping_era]
 
-    for gname in remaining:
-        fixed_try = [g for g in fixed_groups if g != gname]  # unfix gname
-        cov_try = _stage_cov_poi(fixed_try, group_to_nu_names)
-        var_try = float(g_ref.T @ cov_try @ g_ref)
-        inc = var_try - var_curr  # incremental variance increase
+    # enforce that grouping covers *all* nuisances present in the fit
+    #all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
 
-        if (best_inc is None) or (inc < best_inc):
-            best_inc = inc
-            best_g   = gname
-            best_var = var_try
+    assert set(sum(group_to_nu_names.values(),[])) == set(all_nu_names_fit)
 
-    ranked_add.append(best_g)
-    fixed_groups.remove(best_g)
-    remaining.remove(best_g)
-    var_curr = best_var
 
-    print(f"  step {istep+1:2d}: add {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
 
-print("[info] Final ordering (smallest incremental impact first):")
-print("  " + "  <  ".join(ranked_add))
 
-# Build staged bands:
-#   stage 0: stats-only          (all nu fixed)
-#   stage k: add ranked_add[:k]  (unfix these k groups)
-#   stage G: all nuisances       (none fixed)
-stage_labels = []
-stage_q_low  = []
-stage_q_high = []
+    # if n_nu > 0:
+    # ----------------------------------------------------------------------
+    # (NEW) Greedy "add smallest" ordering:
+    #   Start at stats-only (all nu fixed), then add back groups with smallest
+    #   incremental increase in Var[f(x_ref)] at each step.
+    # ----------------------------------------------------------------------
+    fixed_groups = list(group_names)   # all fixed -> stats-only
+    remaining    = list(group_names)   # candidates to "add back" (unfix)
+    ranked_add   = []
 
-for k in range(len(ranked_add) + 1):
-    print(f"At {k}/{len(ranked_add)}")
-    fixed_k = [g for g in group_names if g not in ranked_add[:k]]
-    cov_k   = _stage_cov_poi(fixed_k, group_to_nu_names)
-    ql, qh  = _sample_pdf_band_from_cov_poi(cov_k)
+    cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)  # stats-only cov
+    var_curr = float(g_ref.T @ cov_curr @ g_ref)
 
-    stage_q_low.append(np.array(ql, dtype=float))
-    stage_q_high.append(np.array(qh, dtype=float))
+    for istep in range(len(group_names)):
+        print(f"At {istep}/{len(group_names)}")
+        best_g   = None
+        best_inc = None
+        best_var = None
 
-    if k == 0:
-        stage_labels.append("Stats-only (all #nu fixed)")
-    elif k == len(ranked_add):
-        stage_labels.append(f"Add {ranked_add[k-1]} #rightarrow all")
-    else:
-        stage_labels.append(f"Add {ranked_add[k-1]}")
+        for gname in remaining:
+            fixed_try = [g for g in fixed_groups if g != gname]  # unfix gname
+            cov_try = _stage_cov_poi(fixed_try, group_to_nu_names)
+            var_try = float(g_ref.T @ cov_try @ g_ref)
+            inc = var_try - var_curr  # incremental variance increase
+
+            if (best_inc is None) or (inc < best_inc):
+                best_inc = inc
+                best_g   = gname
+                best_var = var_try
+
+        ranked_add.append(best_g)
+        fixed_groups.remove(best_g)
+        remaining.remove(best_g)
+        var_curr = best_var
+
+        print(f"  step {istep+1:2d}: add {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
+
+    print("[info] Final ordering (smallest incremental impact first):")
+    print("  " + "  <  ".join(ranked_add))
+
+    # Build staged bands:
+    #   stage 0: stats-only          (all nu fixed)
+    #   stage k: add ranked_add[:k]  (unfix these k groups)
+    #   stage G: all nuisances       (none fixed)
+    stage_labels = []
+    stage_q_low  = []
+    stage_q_high = []
+
+    for k in range(len(ranked_add) + 1):
+        print(f"At {k}/{len(ranked_add)}")
+        fixed_k = [g for g in group_names if g not in ranked_add[:k]]
+        cov_k   = _stage_cov_poi(fixed_k, group_to_nu_names)
+        ql, qh  = _sample_pdf_band_from_cov_poi(cov_k)
+
+        stage_q_low.append(np.array(ql, dtype=float))
+        stage_q_high.append(np.array(qh, dtype=float))
+
+        if k == 0:
+            stage_labels.append("Stats-only (all #nu fixed)")
+        elif k == len(ranked_add):
+            stage_labels.append(f"Add {ranked_add[k-1]} #rightarrow all")
+        else:
+            stage_labels.append(f"Add {ranked_add[k-1]}")
 
 # --------------- build ratio (PDF / central) for bottom pad ------------
 
