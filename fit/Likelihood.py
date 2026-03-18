@@ -2012,6 +2012,8 @@ if __name__ == "__main__":
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"], help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",)
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
+    p.add_argument("--freeze-poi-below-ev", type=float, default=None,
+                   help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"), help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2027,15 +2029,72 @@ if __name__ == "__main__":
     like_info = load_likelihood(cfg)
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
 
+    rotated = bool(args.rotate)
+    hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
+    step = 1.0 if rotated else 0.1
+
+    
     if args.no_syst:
-        for p_ in hyp.nuisances:
+        for p_ in hyp.nuisances + hyp_for_fit.nuisances:
             p_.val = 0.0
             p_.isFrozen = True
         print("[opts] --no_syst: all nuisances set to 0 and frozen.")
 
-    rotated = bool(args.rotate)
-    hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
-    step = 1.0 if rotated else 0.1
+
+    # -------- optional rotated-POI EV printout / freezing --------
+    if args.freeze_poi_below_ev is not None and not rotated:
+        raise RuntimeError("--freeze-poi-below-ev requires --rotate")
+
+    if rotated:
+        with open(args.rotate, "r") as f:
+            rot_payload = json.load(f)
+
+        basis_labels = list(rot_payload.get("basis_labels", []) or [])
+        eigenvalues = list(rot_payload.get("eigenvalues", []) or [])
+
+        if basis_labels and eigenvalues and len(basis_labels) != len(eigenvalues):
+            raise RuntimeError(
+                f"Rotation JSON mismatch: len(basis_labels)={len(basis_labels)} "
+                f"!= len(eigenvalues)={len(eigenvalues)}"
+            )
+
+        ev_by_name = {lab: float(ev) for lab, ev in zip(basis_labels, eigenvalues)}
+
+        print("[rotation] Rotated POIs and eigenvalues:")
+        for var in hyp_for_fit.POIs:
+            ev = ev_by_name.get(var.name, None)
+            if ev is None:
+                print(f"  {var.name:>12s}   EV = <not provided>")
+            else:
+                print(f"  {var.name:>12s}   EV = {ev:.6e}")
+
+        if args.freeze_poi_below_ev is not None:
+            thr = float(args.freeze_poi_below_ev)
+            frozen_rotated = []
+            kept_rotated = []
+
+            for var in hyp_for_fit.POIs:
+                ev = ev_by_name.get(var.name, None)
+                if ev is not None and ev < thr:
+                    var.freeze(value=0.0)
+                    frozen_rotated.append((var.name, ev))
+                else:
+                    kept_rotated.append((var.name, ev))
+
+            print(f"[rotation] --freeze-poi-below-ev = {thr:.6e}")
+            if frozen_rotated:
+                print("[rotation] Frozen rotated POIs:")
+                for nm, ev in frozen_rotated:
+                    print(f"  {nm:>12s}   EV = {ev:.6e}")
+            else:
+                print("[rotation] No rotated POIs were frozen.")
+
+            print("[rotation] Rotated POIs kept floating:")
+            for nm, ev in kept_rotated:
+                if ev is None:
+                    print(f"  {nm:>12s}   EV = <not provided>")
+                else:
+                    print(f"  {nm:>12s}   EV = {ev:.6e}")
 
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
@@ -2044,6 +2103,8 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
+    if args.freeze_poi_below_ev is not None:
+        suffix += f"_evcut{args.freeze_poi_below_ev:g}"
     if args.shuffle:
         suffix += "_"+"_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
@@ -2061,7 +2122,7 @@ if __name__ == "__main__":
     from common.yaml_loader import _resolve_features_list
     default_features = cfg["defaults"].get("default_features", None)
     features = _resolve_features_list( default_features ) if default_features else None
-    factory     = samples_mod.Factory( 
+    factory     = samples_mod.Factory(
         features  = features,
         selection = cfg["defaults"].get("default_selection", None),
         selection_features = cfg["defaults"].get("default_selection_features", None),
@@ -2073,7 +2134,6 @@ if __name__ == "__main__":
     else:
         n2ll = N2LL(
             like_info,
-            #cfg["defaults"]["module_samples"],
             factory = factory,
             cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
             cache_root=None,
@@ -2100,7 +2160,6 @@ if __name__ == "__main__":
                 except ValueError as e:
                     raise RuntimeError(f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'") from e
                 asimov_kwargs[par] = val
-            # Build the modified hypothesis for generating the Asimov expectation
             asimov_h = hyp.cloneModify(**asimov_kwargs)
             print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
             n2ll.setAsimov(asimov_h)
