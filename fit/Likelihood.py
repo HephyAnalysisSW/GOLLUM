@@ -2015,7 +2015,7 @@ if __name__ == "__main__":
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
                    help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
-    p.add_argument("--freeze-poi", type=float, default=None,
+    p.add_argument("--freezePOI", type=float, default=None,
                    help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--asimov", nargs="+", default=None, metavar=("PAR", "VAL"),
@@ -2052,8 +2052,8 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
-    if args.freeze_poi is not None:
-        suffix += f"_evcut{args.freeze_poi:g}"
+    if args.freezePOI is not None:
+        suffix += f"_freezePOI{args.freezePOI:g}"
     if args.shuffle:
         suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
@@ -2071,7 +2071,7 @@ if __name__ == "__main__":
     if hasattr(syncer, "file_sync_storage"):
         syncer.file_sync_storage.append(fit_log_path)
 
-    if args.freeze_poi is not None and not rotated:
+    if args.freezePOI is not None and not rotated:
         raise RuntimeError("--freeze-poi requires --rotate")
 
     # Make sample loader factory from default cfg
@@ -2116,8 +2116,8 @@ if __name__ == "__main__":
                     else:
                         print(f"  {var.name:>12s}   EV = {ev:.6e}")
 
-                if args.freeze_poi is not None:
-                    thr = float(args.freeze_poi)
+                if args.freezePOI is not None:
+                    thr = float(args.freezePOI)
                     frozen_rotated = []
                     kept_rotated = []
 
@@ -2237,7 +2237,26 @@ if __name__ == "__main__":
                 lam = float(evals_cov[k])
                 print(f"  mode {k:2d}: lambda = {lam:.6e}")
 
-            print("[covariance] Weakly constrained combinations:")
+            print("[covariance] Best constrained combinations:")
+            for k in range(n_show):
+                lam = float(evals_cov[k])
+                vec = evecs_cov[:, k]
+                order = np.argsort(-np.abs(vec))
+
+                print(f"  mode {k:2d}: lambda = {lam:.6e}")
+                n_printed = 0
+                for j in order:
+                    if abs(vec[j]) < 0.15:
+                        continue
+                    print(f"    {names_cov[j]:>16s} : {vec[j]:+.4f}")
+                    n_printed += 1
+                    if n_printed >= 6:
+                        break
+                if n_printed == 0:
+                    for j in order[:3]:
+                        print(f"    {names_cov[j]:>16s} : {vec[j]:+.4f}")
+
+            print("[covariance] Least constrained combinations:")
             for k in range(len(evals_cov) - n_show, len(evals_cov)):
                 lam = float(evals_cov[k])
                 vec = evecs_cov[:, k]
