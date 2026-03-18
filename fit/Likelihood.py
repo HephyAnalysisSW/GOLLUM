@@ -1842,7 +1842,9 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
     nuis = [p.name for p in getattr(hyp, "nuisances", [])]
-    names = pois + nuis
+    names = pois
+    if not args.no_syst:
+        names += nuis 
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
