@@ -108,11 +108,15 @@ if missing_gen:
 pdf_n = J.get("pdf", {}).get("pdf_n", None)
 pdf_type = J.get("pdf", {}).get("pdf_type", None)
 pdf_basis = J.get("pdf", {}).get("pdf_basis", None)
+#pdf_basis = "gluon_POD_nongluon_NNPDF31_hessian"
+#pdf_basis = "gluon_POD_nongluon_NNPDF40"
+#pdf_basis = "gluon_POD_nongluon_PDF4LHC21"
+
 pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, active_pids=args.active_pdgids if args.active_pdgids=='all' else list(map(int, args.active_pdgids)))
+pdf.print()
 
 combos = [tuple(sorted(c)) for c in pdf.combinations]
 allowed_pois = set(pdf.variables)
-
 
 # ---------------- parse parameter points ----------------
 def parse_points(raw_points):
@@ -133,7 +137,6 @@ def parse_points(raw_points):
             point[name] = float(val)
         out.append(point)
     return out
-
 
 points = parse_points(args.point)
 
@@ -221,11 +224,11 @@ run   = np.concatenate(Rs, axis=0) if len(Rs) > 1 else Rs[0]
 event = np.concatenate(Es, axis=0) if len(Es) > 1 else Es[0]
 lumi  = np.concatenate(Ls, axis=0) if len(Ls) > 1 else Ls[0]
 
+
 DER = np.concatenate(targets, axis=0) if len(targets) > 1 else targets[0]
 training_weights = {combos[i]: DER[:, i] for i in range(len(combos))}
 
-# ---------------- reweighting ----------------
-def weight_at_point(point):
+def weight_at_point_old(point):
     """
     Quadratic polynomial in the derivative-combination basis:
       w(theta) = sum_c [ prod_{v in c} theta_v ] * w_c
@@ -242,176 +245,184 @@ def weight_at_point(point):
             w += coeff * wc
     return w
 
+def weight_at_point(point):
+    w = training_weights[()].astype(np.float64, copy=True)
+    for comb, wc in training_weights.items():
+        if len(comb) == 0:
+            continue
+        coeff = 1.0
+        for v in comb:
+            coeff *= point.get(v, 0.0)
+        if len(comb) == 2 and comb[0] == comb[1]:
+            coeff *= 0.5
+        if coeff != 0.0:
+            w += coeff * wc
+    return w
 
-# ---------------- plotting ----------------
-def plot_truth_root():
-    import ROOT
-    from data.plot_options import plot_options as PLOT_OPTS
+import ROOT
+from data.plot_options import plot_options as PLOT_OPTS
 
-    plot_feats = [f for f in feat_names if f in PLOT_OPTS]
-    if not plot_feats:
-        raise RuntimeError("No plotable features found in PLOT_OPTS.")
+plot_feats = [f for f in feat_names if f in PLOT_OPTS]
+if not plot_feats:
+    raise RuntimeError("No plotable features found in PLOT_OPTS.")
 
-    cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
-    out_dir = os.path.join(user.plot_directory, "PDF", cfg_base, J["id"], "truth")
-    os.makedirs(out_dir, exist_ok=True)
+cfg_base = os.path.join(CFG.get("version", "default"), J["region"])
+out_dir = os.path.join(user.plot_directory, "PDF", cfg_base, J["id"], "truth")
+os.makedirs(out_dir, exist_ok=True)
 
-    ROOT.gStyle.SetOptStat(0)
-    ROOT.gROOT.SetBatch(True)
+ROOT.gStyle.SetOptStat(0)
+ROOT.gROOT.SetBatch(True)
 
-    colors = [
-        ROOT.kBlue + 1,
-        ROOT.kRed + 1,
-        ROOT.kGreen + 2,
-        ROOT.kMagenta + 1,
-        ROOT.kOrange + 7,
-        ROOT.kCyan + 1,
-        ROOT.kViolet + 1,
-        ROOT.kSpring + 5,
-        ROOT.kPink + 7,
-    ]
+colors = [
+    ROOT.kBlue + 1,
+    ROOT.kRed + 1,
+    ROOT.kGreen + 2,
+    ROOT.kMagenta + 1,
+    ROOT.kOrange + 7,
+    ROOT.kCyan + 1,
+    ROOT.kViolet + 1,
+    ROOT.kSpring + 5,
+    ROOT.kPink + 7,
+]
 
-    curves = []
-    for i, point in enumerate(points):
-        curves.append(
-            {
-                "point": point,
-                "label": point_label(point),
-                "tag": point_tag(point),
-                "weight": weight_at_point(point),
-                "color": colors[i % len(colors)],
-            }
-        )
+curves = []
+for i, point in enumerate(points):
+    curves.append(
+        {
+            "point": point,
+            "label": point_label(point),
+            "tag": point_tag(point),
+            "weight": weight_at_point(point),
+            "color": colors[i % len(colors)],
+        }
+    )
 
-    w0 = training_weights[()]
+w0 = training_weights[()]
 
-    total_pads = len(plot_feats) + 1
-    gx = int(math.ceil(math.sqrt(total_pads)))
-    gy = int(math.ceil(total_pads / gx))
-    c = ROOT.TCanvas("c_truth", "truth", 500 * gx, 500 * gy)
-    c.Divide(gx, gy)
+total_pads = len(plot_feats) + 1
+gx = int(math.ceil(math.sqrt(total_pads)))
+gy = int(math.ceil(total_pads / gx))
+c = ROOT.TCanvas("c_truth", "truth", 500 * gx, 500 * gy)
+c.Divide(gx, gy)
 
-    keep = []
+keep = []
 
-    def safe_ratio(num, den):
-        den2 = den.copy()
-        den2[den2 == 0] = 1.0
-        return num / den2
+def safe_ratio(num, den):
+    den2 = den.copy()
+    den2[den2 == 0] = 1.0
+    return num / den2
 
-    for i_feat, feat in enumerate(plot_feats):
-        pad = c.cd(i_feat + 1)
-        pad.SetTicks(1, 1)
-        pad.SetBottomMargin(0.15)
-        pad.SetLeftMargin(0.15)
-
-        n, lo, hi = PLOT_OPTS[feat]["binning"]
-        edges = np.linspace(lo, hi, n + 1)
-        col = feat_names.index(feat)
-        x = X[:, col]
-
-        h_sm, _ = np.histogram(x, bins=edges, weights=w0)
-
-        ratios = []
-        for crv in curves:
-            h, _ = np.histogram(x, bins=edges, weights=crv["weight"])
-            crv["hist_" + feat] = h
-            crv["ratio_" + feat] = safe_ratio(h, h_sm)
-            ratios.append(crv["ratio_" + feat])
-
-        vals = np.concatenate(ratios) if ratios else np.array([1.0])
-        vals = vals[np.isfinite(vals)]
-        if len(vals) == 0:
-            y_min, y_max = 0.0, 2.0
-        else:
-            y_min = float(np.min(vals))
-            y_max = float(np.max(vals))
-            if y_max <= y_min:
-                y_max = y_min + 1.0
-
-        pad_frac = 0.20
-        y_low = y_min - pad_frac * (y_max - y_min)
-        y_hi = y_max + pad_frac * (y_max - y_min)
-
-        hframe = ROOT.TH2F(
-            f"hf_{feat}",
-            f";{PLOT_OPTS[feat]['tex']};ratio to SM",
-            n, lo, hi, 100, y_low, y_hi
-        )
-        hframe.GetYaxis().SetTitleOffset(1.3)
-        hframe.Draw()
-        keep.append(hframe)
-
-        # scaled nominal yield, same idea as in the training plot
-        hY = ROOT.TH1F(f"hY_{feat}", "", n, lo, hi)
-        for b in range(1, n + 1):
-            hY.SetBinContent(b, float(h_sm[b - 1]))
-        y_max0 = float(np.max(h_sm) if len(h_sm) else 0.0)
-        if y_max0 > 0:
-            for b in range(1, n + 1):
-                v = hY.GetBinContent(b)
-                scaled = y_low + 0.92 * (y_hi - y_low) * (v / max(1e-12, y_max0))
-                hY.SetBinContent(b, scaled)
-        hY.SetLineColor(ROOT.kGray + 2)
-        hY.SetLineWidth(2)
-        hY.SetMarkerStyle(0)
-        hY.Draw("hist same")
-        keep.append(hY)
-
-        for crv in curves:
-            hR = ROOT.TH1F(f"hR_{feat}_{crv['tag']}", "", n, lo, hi)
-            for b in range(1, n + 1):
-                hR.SetBinContent(b, float(crv["ratio_" + feat][b - 1]))
-            hR.SetLineColor(crv["color"])
-            hR.SetLineStyle(1)
-            hR.SetLineWidth(2)
-            hR.SetMarkerStyle(0)
-            hR.Draw("hist same")
-            keep.append(hR)
-
-    # legend panel
-    pad = c.cd(len(plot_feats) + 1)
+for i_feat, feat in enumerate(plot_feats):
+    pad = c.cd(i_feat + 1)
     pad.SetTicks(1, 1)
     pad.SetBottomMargin(0.15)
     pad.SetLeftMargin(0.15)
 
-    leg = ROOT.TLegend(0.08, 0.08, 0.92, 0.92)
-    leg.SetBorderSize(0)
-    leg.SetFillStyle(0)
-    leg.SetNColumns(1)
+    n, lo, hi = PLOT_OPTS[feat]["binning"]
+    edges = np.linspace(lo, hi, n + 1)
+    col = feat_names.index(feat)
+    x = X[:, col]
+
+    h_sm, _ = np.histogram(x, bins=edges, weights=w0)
+
+    ratios = []
+    for crv in curves:
+        h, _ = np.histogram(x, bins=edges, weights=crv["weight"])
+        crv["hist_" + feat] = h
+        crv["ratio_" + feat] = safe_ratio(h, h_sm)
+        ratios.append(crv["ratio_" + feat])
+
+    vals = np.concatenate(ratios) if ratios else np.array([1.0])
+    vals = vals[np.isfinite(vals)]
+    if len(vals) == 0:
+        y_min, y_max = 0.0, 2.0
+    else:
+        y_min = float(np.min(vals))
+        y_max = float(np.max(vals))
+        if y_max <= y_min:
+            y_max = y_min + 1.0
+
+    pad_frac = 0.20
+    y_low = y_min - pad_frac * (y_max - y_min)
+    y_hi = y_max + pad_frac * (y_max - y_min)
+
+    hframe = ROOT.TH2F(
+        f"hf_{feat}",
+        f";{PLOT_OPTS[feat]['tex']};ratio to SM",
+        n, lo, hi, 100, y_low, y_hi
+    )
+    hframe.GetYaxis().SetTitleOffset(1.3)
+    hframe.Draw()
+    keep.append(hframe)
+
+    # scaled nominal yield, same idea as in the training plot
+    hY = ROOT.TH1F(f"hY_{feat}", "", n, lo, hi)
+    for b in range(1, n + 1):
+        hY.SetBinContent(b, float(h_sm[b - 1]))
+    y_max0 = float(np.max(h_sm) if len(h_sm) else 0.0)
+    if y_max0 > 0:
+        for b in range(1, n + 1):
+            v = hY.GetBinContent(b)
+            scaled = y_low + 0.92 * (y_hi - y_low) * (v / max(1e-12, y_max0))
+            hY.SetBinContent(b, scaled)
+    hY.SetLineColor(ROOT.kGray + 2)
+    hY.SetLineWidth(2)
+    hY.SetMarkerStyle(0)
+    hY.Draw("hist same")
+    keep.append(hY)
 
     for crv in curves:
-        htmp = ROOT.TH1F(f"leg_{crv['tag']}", "", 1, 0, 1)
-        htmp.SetLineColor(crv["color"])
-        htmp.SetLineStyle(1)
-        htmp.SetLineWidth(2)
-        leg.AddEntry(htmp, crv["label"], "l")
-        keep.append(htmp)
+        hR = ROOT.TH1F(f"hR_{feat}_{crv['tag']}", "", n, lo, hi)
+        for b in range(1, n + 1):
+            hR.SetBinContent(b, float(crv["ratio_" + feat][b - 1]))
+        hR.SetLineColor(crv["color"])
+        hR.SetLineStyle(1)
+        hR.SetLineWidth(2)
+        hR.SetMarkerStyle(0)
+        hR.Draw("hist same")
+        keep.append(hR)
 
-    hy = ROOT.TH1F("leg_yield", "", 1, 0, 1)
-    hy.SetLineColor(ROOT.kGray + 2)
-    hy.SetLineWidth(2)
-    leg.AddEntry(hy, "SM yield (scaled)", "l")
-    keep.append(hy)
+# legend panel
+pad = c.cd(len(plot_feats) + 1)
+pad.SetTicks(1, 1)
+pad.SetBottomMargin(0.15)
+pad.SetLeftMargin(0.15)
 
-    leg.Draw()
-    keep.append(leg)
+leg = ROOT.TLegend(0.08, 0.08, 0.92, 0.92)
+leg.SetBorderSize(0)
+leg.SetFillStyle(0)
+leg.SetNColumns(1)
 
-    basename = "truth_" + "__".join(crv["tag"] for crv in curves)
-    if args.postfix:
-        basename+="_"+args.postfix
-    out_png = os.path.join(out_dir, basename + ".png")
-    c.Print(out_png)
-    c.Close()
+for crv in curves:
+    htmp = ROOT.TH1F(f"leg_{crv['tag']}", "", 1, 0, 1)
+    htmp.SetLineColor(crv["color"])
+    htmp.SetLineStyle(1)
+    htmp.SetLineWidth(2)
+    leg.AddEntry(htmp, crv["label"], "l")
+    keep.append(htmp)
 
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        syncer.sync()
-    out = buf.getvalue().strip()
-    if out:
-        print(out)
+hy = ROOT.TH1F("leg_yield", "", 1, 0, 1)
+hy.SetLineColor(ROOT.kGray + 2)
+hy.SetLineWidth(2)
+leg.AddEntry(hy, "SM yield (scaled)", "l")
+keep.append(hy)
 
-    print(f"Wrote {out_png}")
+leg.Draw()
+keep.append(leg)
 
+basename = "truth_" + "__".join(crv["tag"] for crv in curves)
+if args.postfix:
+    basename+="_"+args.postfix
+out_png = os.path.join(out_dir, basename + ".png")
+c.Print(out_png)
+c.Close()
 
-plot_truth_root()
-print("Done.")
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+    syncer.sync()
+out = buf.getvalue().strip()
+if out:
+    print(out)
+
+print(f"Wrote {out_png}")
+
