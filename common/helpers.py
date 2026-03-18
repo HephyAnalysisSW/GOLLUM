@@ -1,6 +1,33 @@
 import   numpy as np
 import   array
 
+class Tee:
+    def __init__(self, *streams, ascii_only=True):
+        self.streams = streams
+        self.ascii_only = ascii_only
+
+    def _sanitize(self, data):
+        if not self.ascii_only:
+            return data
+        repl = {
+            "┌": "+", "┐": "+", "└": "+", "┘": "+",
+            "├": "+", "┤": "+", "┬": "+", "┴": "+", "┼": "+",
+            "─": "-", "│": "|",
+        }
+        for a, b in repl.items():
+            data = data.replace(a, b)
+        return data
+
+    def write(self, data):
+        data = self._sanitize(data)
+        for s in self.streams:
+            s.write(data)
+        return len(data)
+
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 def make_TH1F( h, ignore_binning = False):
     import   ROOT
     # remove infs from thresholds
