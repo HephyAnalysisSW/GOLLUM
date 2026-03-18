@@ -2320,7 +2320,7 @@ if __name__ == "__main__":
                     step=step,
                     print_every=1,
                     do_migrad=True,
-                    do_hesse=not args.minos,
+                    do_hesse=True,
                     do_minos=args.minos,
                     verbosity=args.verbosity,
                 )
