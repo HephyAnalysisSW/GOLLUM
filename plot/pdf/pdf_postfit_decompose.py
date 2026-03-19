@@ -53,7 +53,7 @@ p.add_argument("--seed", type=int, default=42,
 
 args = p.parse_args()
 
-plot_label = "gluonPDF"
+plot_label = "gluonPDF_decompose"
 
 # ---------------- load YAML CFG ----------------
 print(f"[info] Loading config from: {args.config}")
@@ -126,12 +126,23 @@ hyp_rotated = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
 # --- consistency check between likelihood parameters and fit results ---
 like_par_names = [p.name for p in hyp_rotated.parameters]
+poi_name_set   = {p.name for p in hyp_rotated.POIs}
 
 set_like = set(like_par_names)
 set_fit  = set(fit_par_names)
 
 only_in_like = sorted(list(set_like - set_fit))
 only_in_fit  = sorted(list(set_fit  - set_like))
+
+# missing POIs are set to zero and frozen
+handled_missing_pois = []
+for n in only_in_like:
+    if n in poi_name_set:
+        print(f"[warning] POI '{n}' is in the likelihood but missing in the fit result; setting it to zero and freezing it.")
+        getattr(hyp_rotated, n).freeze(value=0.0)
+        handled_missing_pois.append(n)
+
+only_in_like = [n for n in only_in_like if n not in handled_missing_pois]
 
 if only_in_like or only_in_fit:
     print("[error] Inconsistent parameter definitions between likelihood and fit results.")
@@ -145,17 +156,19 @@ if only_in_like or only_in_fit:
             print("   -", n)
     sys.exit(1)
 
-if like_par_names != fit_par_names:
+like_par_names_in_fit = [p.name for p in hyp_rotated.parameters if p.name in set_fit]
+
+if like_par_names_in_fit != fit_par_names:
     print("[warning] Parameter names match as a set, but order differs between likelihood and fit results.")
     print("  Likelihood order:")
-    print("   ", ", ".join(like_par_names))
+    print("   ", ", ".join(like_par_names_in_fit))
     print("  Fit result order:")
     print("   ", ", ".join(fit_par_names))
 else:
-    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names)} parameters).")
+    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names_in_fit)} parameters).")
 
 # ----------------------------------------------------------------------
-# Find first POI-dependent BIT entry in likelihood and corresponding job
+# Find first POI-dependent BIT/ICH entry in likelihood and corresponding job
 # ----------------------------------------------------------------------
 like_params = None
 poi_job_id = None
@@ -221,7 +234,8 @@ pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
 
 # POIs are taken from the (possibly rotated) hypothesis object
-poi_names = [p.name for p in hyp_rotated.POIs]
+# frozen POIs (e.g. missing in fit -> set to zero above) are excluded from sampling
+poi_names = [p.name for p in hyp_rotated.POIs if not p.isFrozen]
 poi_indices = [idx_map[name] for name in poi_names]
 
 # central POI coefficients (MLE) in the *current* POI basis
