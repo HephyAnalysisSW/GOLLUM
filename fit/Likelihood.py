@@ -1844,21 +1844,15 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     x0    = [float(p.val) for p in free]
 
     # step defaults:
-    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
+    #   None  -> plain: all 0.1
     #   float -> uniform
     #   dict  -> per-parameter overrides
     if step is None:
-        if isinstance(hypothesis, Rotated):
-            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
-        else:
-            steps = {p.name: 0.1 for p in free}
+        steps = {p.name: 0.1 for p in free}
     elif isinstance(step, (int, float)):
         steps = {p.name: float(step) for p in free}
     elif isinstance(step, dict):
-        if isinstance(hypothesis, Rotated):
-            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in free}
-        else:
-            steps = {p.name: 0.1 for p in free}
+        steps = {p.name: 0.1 for p in free}
         for k, v in step.items():
             if k in steps:
                 steps[k] = float(v)
@@ -2328,10 +2322,13 @@ if __name__ == "__main__":
                     print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
                     n2ll.setAsimov(asimov_h)
 
+                # currently using default fit step=None
+                # which sets step to 0.1 for all parameters
+                # (see function definition)
+                # step can also be a single value or a dictionary
                 m = run_minuit_fit(
                     n2ll,
                     hyp_for_fit,
-                    step=step,
                     print_every=1,
                     do_migrad=True,
                     do_hesse=True,
