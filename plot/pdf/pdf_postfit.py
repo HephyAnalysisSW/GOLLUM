@@ -87,6 +87,8 @@ like_info = load_likelihood(cfg)
 
 # output directory for PDF plots
 pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, os.path.splitext(os.path.basename(args.config))[0])
+if "nosyst" in args.postfit and ("no_syst" not in pdf_plot_directory):
+    pdf_plot_directory += "_no_syst"
 os.makedirs(pdf_plot_directory, exist_ok=True)
 print(f"[info] {plot_label} plots will be written under: {pdf_plot_directory}")
 
@@ -108,6 +110,7 @@ hyp_rotated = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
 # --- consistency check between likelihood parameters and fit results ---
 like_par_names = [p.name for p in hyp_rotated.parameters]
+poi_name_set   = {p.name for p in hyp_rotated.POIs}
 
 set_like = set(like_par_names)
 set_fit  = set(fit_par_names)
@@ -115,37 +118,74 @@ set_fit  = set(fit_par_names)
 only_in_like = sorted(list(set_like - set_fit))
 only_in_fit  = sorted(list(set_fit  - set_like))
 
+# missing POIs are set to zero and frozen
+handled_missing_pois = []
+for n in only_in_like:
+    if n in poi_name_set:
+        print(f"[warning] POI '{n}' is in the likelihood but missing in the fit result; setting it to zero and freezing it.")
+        getattr(hyp_rotated, n).freeze(value=0.0)
+        handled_missing_pois.append(n)
+
+only_in_like = [n for n in only_in_like if n not in handled_missing_pois]
+
+# allowing plotting from fits ran with --nosyst option
+# avoiding the need to have dedicated configs without systematics
+invalid_fit = True
 if only_in_like or only_in_fit:
     print("[error] Inconsistent parameter definitions between likelihood and fit results.")
     if only_in_like:
         print("  Present in likelihood but missing in fit:")
         for n in only_in_like:
             print("   -", n)
+        
+        if all(["nu" in param for param in only_in_like]) and ("nosyst" in args.postfit):
+            print("Fit result without NPs and fit run with --nosyst. This is ok.")
+            invalid_fit = False
+
     if only_in_fit:
         print("  Present in fit but missing in likelihood:")
         for n in only_in_fit:
             print("   -", n)
-    sys.exit(1)
+        
+        # parameters in fit but not in likelihood indicate inconsistency
+        # between config and fit output - exiting here
+        invalid_fit = True
+    
+    if invalid_fit:
+        raise ValueError
 
-if like_par_names != fit_par_names:
+like_par_names_in_fit = [p.name for p in hyp_rotated.parameters if p.name in set_fit]
+
+if like_par_names_in_fit != fit_par_names:
     print("[warning] Parameter names match as a set, but order differs between likelihood and fit results.")
     print("  Likelihood order:")
-    print("   ", ", ".join(like_par_names))
+    print("   ", ", ".join(like_par_names_in_fit))
     print("  Fit result order:")
     print("   ", ", ".join(fit_par_names))
 else:
-    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names)} parameters).")
+    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names_in_fit)} parameters).")
 
 # ----------------------------------------------------------------------
-# Find first POI-dependent BIT entry in likelihood and corresponding job
+# Find first POI-dependent BIT/ICH entry in likelihood and corresponding job
 # ----------------------------------------------------------------------
 like_params = None
 poi_job_id = None
+region_string = None
 
-for region in like_info.get("regions", []):
+# binned
+if like_info.get("regions", []):
+    region_string = "regions"
+    poi_type = "bit"
+elif like_info.get("binned", []) != []:
+    region_string = "binned"
+    poi_type = "ich"
+else:
+    raise KeyError("Missing definition of regions.")
+
+for region in like_info.get(region_string, []):
     for cls in region.get("classes", []):
         poi = cls.get("POI", None)
-        if poi and poi.get("type") == "bit" and poi.get("parameters"):
+        if poi and poi.get("type") == poi_type and poi.get("parameters"):
             like_params = poi["parameters"]
             poi_job_id = poi["job"]
             break
@@ -153,10 +193,10 @@ for region in like_info.get("regions", []):
         break
 
 if like_params is None or poi_job_id is None:
-    print("[error] Could not find a POI-dependent BIT term in the likelihood.")
+    print("[error] Could not find a POI-dependent term in the likelihood.")
     sys.exit(1)
 
-print(f"[info] Using POI-dependent BIT job '{poi_job_id}' with POIs: {', '.join(like_params)}")
+print(f"[info] Using POI-dependent job '{poi_job_id}' with POIs: {', '.join(like_params)}")
 
 # find corresponding job J in cfg['jobs']
 J = None
@@ -192,21 +232,35 @@ pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
 
 poi_names = [p.name for p in hyp_rotated.POIs]
-try:
-    #poi_indices = [idx_map[name] for name in like_params]
-    poi_indices = [idx_map[name] for name in poi_names] 
-except KeyError as e:
-    print(f"[error] POI '{e.args[0]}' not found in fit result parameter list.")
-    sys.exit(1)
+poi_names_in_fit = [name for name in poi_names if name in idx_map]
+poi_names_missing = [name for name in poi_names if name not in idx_map]
 
-# central POI coefficients (MLE)
+if poi_names_missing:
+    if rotated and all(getattr(hyp_rotated, name).isFrozen for name in poi_names_missing):
+        print("[warning] Frozen rotated POIs missing in fit result; setting them to zero:")
+        for name in poi_names_missing:
+            print(f"  {name:>20s} =  0.00000e+00")
+            getattr(hyp_rotated, name).val = 0.0
+    else:
+        print("[error] These POIs are missing in the fit result parameter list:")
+        for name in poi_names_missing:
+            print("  ", name)
+        sys.exit(1)
+
+poi_indices = [idx_map[name] for name in poi_names_in_fit]
+
+# central POI coefficients (MLE) for the POIs that are actually in the fit
 coeffs_central = params_best[poi_indices]
 print("[info] Central POI coefficients (MLE):")
-for name, val in zip(poi_names, coeffs_central):
+for name in poi_names:
+    if name in idx_map:
+        val = params_best[idx_map[name]]
+    else:
+        val = 0.0
     print(f"  {name:>20s} = {val: .5e}")
 
-# covariance submatrix for POIs
-cov_poi = cov[np.ix_(poi_indices, poi_indices)]
+# covariance submatrix for sampled POIs
+cov_poi = cov[np.ix_(poi_indices, poi_indices)] if poi_indices else np.zeros((0, 0), dtype=float)
 
 # knobs for sampling
 n_toys       = 10000
@@ -217,22 +271,22 @@ if args.freezePOI:
     print("[info] --freezePOI given: not sampling POIs, will only show central PDF.")
     poi_samples = None
 else:
-    print(f"[info] Sampling {len(like_params)} POIs with {n_toys} toys...")
+    print(f"[info] Sampling {len(poi_names_in_fit)} POIs with {n_toys} toys...")
     np.random.seed(fit_rng_seed)
     poi_samples = np.random.multivariate_normal(
         mean=coeffs_central,
         cov=cov_poi,
         size=n_toys
-    )
+    ) if len(poi_names_in_fit) > 0 else np.zeros((n_toys, 0), dtype=float)
 
     # rotate into original coefficients using hyp_rotated
     poi_samples_base = []
     if rotated:
-        print("Un-rotating samples.") 
-        hyp_central = hyp_rotated.cloneModify(**dict(zip(poi_names, coeffs_central)))
-        coeffs_central_base =  np.array( [p.val for p in hyp_central.base().POIs])
+        print("Un-rotating samples.")
+        hyp_central = hyp_rotated.cloneModify(**dict(zip(poi_names_in_fit, coeffs_central)))
+        coeffs_central_base = np.array([p.val for p in hyp_central.base().POIs])
         for sample in poi_samples:
-            hyp_sample = hyp_rotated.cloneModify(**dict(zip(poi_names, sample)))
+            hyp_sample = hyp_rotated.cloneModify(**dict(zip(poi_names_in_fit, sample)))
             poi_samples_base.append([p.val for p in hyp_sample.base().POIs])
         poi_samples_base = np.array(poi_samples_base)
         print("Done.")

@@ -1877,6 +1877,8 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
             if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
                 print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
                 h_eval.print()  # print the actually evaluated point
+        if math.isnan(f):
+            raise RuntimeError("NaN likelihood!")
         return f
 
     # ---- Minuit with positional args and explicit names ----
@@ -1994,12 +1996,15 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     labels = list(names)
 
     for i, name in enumerate(names):
-        v = float(fit_vals[name])
-        e = float(fit_errs.get(name, 0.0))
-        lo = abs(float(fit_errs.get(f"{name}_lo", e)))
-        hi = abs(float(fit_errs.get(f"{name}_hi", e)))
-
-        lab = pretty_par_name(name)
+        if name in fit_vals:
+            v = float(fit_vals[name])
+            e = float(fit_errs.get(name, 0.0))
+            lo = abs(float(fit_errs.get(f"{name}_lo", e)))
+            hi = abs(float(fit_errs.get(f"{name}_hi", e)))
+            lab = pretty_par_name(name)
+        else:
+            v,e,lo,hi = 0,0,0,0
+            lab = pretty_par_name(name)+" (f.)"
 
         if i < n_pois:
             m = max(abs(v), lo, hi)
@@ -2170,7 +2175,6 @@ if __name__ == "__main__":
 
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
-    step = 1.0 if rotated else 0.1
 
     if args.no_syst:
         for p_ in hyp.nuisances + hyp_for_fit.nuisances:
@@ -2201,8 +2205,6 @@ if __name__ == "__main__":
     overwrite_cache = args.overwrite == "all"
 
     fit_log_path = os.path.join(plot_dir, f"fit_log_{version}{suffix}.txt")
-    if hasattr(syncer, "file_sync_storage"):
-        syncer.file_sync_storage.append(fit_log_path)
 
     if args.freezePOI is not None and not rotated:
         raise RuntimeError("--freeze-poi requires --rotate")
@@ -2220,7 +2222,7 @@ if __name__ == "__main__":
     )
 
     fit = None
-
+    fit_loaded = False
     with open(fit_log_path, "w", encoding="utf-8") as _fit_log:
         _tee = helpers.Tee(sys.stdout, _fit_log, ascii_only=True)
         with contextlib.redirect_stdout(_tee), contextlib.redirect_stderr(_tee):
@@ -2280,6 +2282,7 @@ if __name__ == "__main__":
             # -------- load fit if available --------
             if (not overwrite_fit) and os.path.exists(out_path):
                 fit = json.load(open(out_path))
+                fit_loaded = True
                 print(f"[info] Loaded existing fit result from {out_path}")
             else:
                 n2ll = N2LL(
@@ -2405,6 +2408,10 @@ if __name__ == "__main__":
                     n_printed += 1
                     if n_printed >= 6:
                         break
+
+    # store fit log unless we loaded from disk
+    if not fit_loaded:
+        syncer.file_sync_storage.append(fit_log_path)
 
     # -------- plots --------
     names = fit["free_parameter_order"]
