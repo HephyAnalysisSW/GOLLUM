@@ -45,7 +45,7 @@ likelihood:
               systematics:
                 - id: Lumi
                   type: lnN
-                  value: 0.05
+                  value: 0.0073
                   parameters: [nu_lumi]
                 - id: L1Prefire
                   type: pnn
