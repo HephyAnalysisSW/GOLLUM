@@ -57,14 +57,15 @@ colors = [ _colors[i] for i in ["black", "blue", "orange", "bluish_green",  "red
 x_grid = LHAPDF_XGRID[54:] # points that are >= 0.05 <= 0.6
 
 # Set Q scale
-Q = 50
-
-plot_directory = os.path.join( user.plot_directory, f"basis_plots_Q_{Q}")
+Q = 1.65
 
 # How many shapes per plot? 
 n_var_per_plot = 5
-pdf_basis = "250503_pod_basis_40k"
+#pdf_basis = "250503_pod_basis_40k"
+pdf_basis = "gluon_POD_nongluon_PDF4LHC21"
 center_pdf = lhapdf.mkPDF(pdf_basis, 0)
+
+plot_directory = os.path.join( user.plot_directory, f"basis_plots_Q_{Q}_{pdf_basis}")
 
 for n_plot in range(20):
 

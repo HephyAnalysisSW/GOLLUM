@@ -1,0 +1,9 @@
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_1.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_2.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_3.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_4.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_5.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_6.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_7.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_8.yaml
+python plot_binned_inputs.py ../../configs/binned_v5/2016/binned_2016_9.yaml

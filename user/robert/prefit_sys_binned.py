@@ -31,28 +31,40 @@ p.add_argument("--variation", nargs="+", default=None,
                help="Subset of systematics to run (space-separated). 'nominal' is always included. "
                     "Example: --variation alphaS ren jes_abs_16")
 p.add_argument("--eras", nargs="+", default=None,
-               help="Subset of eras to run (space-separated). Example: --eras 2017 2018")
-p.add_argument("--selection", default="tr_isvalid & isOS & offZ",
+               help="Subset of eras to run (space-separated). Example: --eras 2017 2018",
+               choices=["2016", "2016APV", "2017", "2018"])
+p.add_argument("--selection", default=" (lep1_pt>20) & tr_isvalid & isOS & offZ",
                help="String-based selection")
-p.add_argument("--branches_for_selection", nargs="+", default=["tr_isvalid", "isOS", "offZ"],
+p.add_argument("--branches_for_selection", nargs="+", default=["lep1_pt", "tr_isvalid", "isOS", "offZ"],
                help="branches we need to make the selection")
 p.add_argument("--features", nargs="+", default=[],
                help="branches we need to make the selection")
 p.add_argument("--templates", nargs="*", default=None,
                help="Make per-variation template plots for the given process(es). "
                     "If passed without values, defaults to TTLep_pow.")
+p.add_argument("--doAsimov", action="store_true",
+               help="Shows data as sum of total MC.")
+p.add_argument("--processes", nargs="+", help="Processes on which to run. If none given, does all.",
+               choices=["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"])
+
+p.add_argument("--small", action="store_true", help="Run on one shard for debugging.")
 args, _unknown = p.parse_known_args()
 
 # -----------------------------------------------------------------------------
 # User-editable config (in IPython you can override before %run -i)
 # -----------------------------------------------------------------------------
 #base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
+
+# (Ricardo) the .root files from make_ntuple live in
+# /groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_TotalJES_EtaSplit/v2-3-2_nJ2p_nB2p_2l/
+# the files with the variations are symlinked into Robert's base folder
 from data.samples_RunII import BASE_DIRECTORY
 base = str(BASE_DIRECTORY)
 
 eras = ["2016", "2016APV", "2017", "2018"]
-processes = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"]
+processes = ["TTLep_pow"]
 signals = []
+data = [] if args. doAsimov else ["Data"]
 
 # shard splitting (default 10; override per-process if needed)
 N_SPLIT_DEFAULT = 1
@@ -211,7 +223,7 @@ for f in features:
 # Build loaders into variations dict
 # -----------------------------------------------------------------------------
 progress("Instantiating Factory...", force=True)
-factory = Factory(base)
+factory = Factory(BASE_DIRECTORY=base)
 
 progress(
     f"Building loaders for {len(variations)} variations x {len(eras)} eras x {len(processes)} bkg processes (+ nominal signals)...",
@@ -314,6 +326,14 @@ for var_name, variation in variations.items():
                 l.addSelection(args.selection, args.branches_for_selection)
                 variation["loaders"][era][proc]["nominal"] = l
 
+            # unnecessary, but allows us to use the loop for fetching histograms below
+            for proc in data:
+                variation["loaders"][era][proc] = {}
+                l = factory.get(proc, era)
+                l.set_n_split(n_split.get(proc, N_SPLIT_DEFAULT))
+                l.setFeatures(features)
+                l.addSelection(args.selection, args.branches_for_selection)
+                variation["loaders"][era][proc]["nominal"] = l
 
 # -----------------------------------------------------------------------------
 # Build loader_hist in the intended pattern:
@@ -349,8 +369,10 @@ def _materialize_fw_once(loader, shard):
     return X, W
 
 progress("Filling per-(era,proc,var) histograms (shard-major)...", force=True)
+if args.small:
+    progress("Looping only over the first shard.", force=True)
 for era in eras:
-    for proc in (processes + signals):
+    for proc in (processes + signals + data):
         progress(f"[hists] era='{era}' proc='{proc}'", force=True)
 
         l_nom = variations["nominal"]["loaders"][era][proc]["nominal"]
@@ -381,9 +403,18 @@ for era in eras:
         mem_report(f"before shard loop {era}/{proc} (n_shards={n_shards})")
 
         for shard in tqdm(range(n_shards), desc=f"{era}:{proc}", leave=False):
+            
+            if args.small and shard>1:
+                continue
+
+            if args.small and shard>1:
+                continue
 
             # nominal once per shard (this populates base cache for views)
             X_nom, W_nom = _materialize_fw_once(l_nom, shard)
+            
+            if proc == "Data":
+                W_nom = np.ones_like(W_nom)
 
             _fill_from_arrays(nom_sumw, nom_sumw2, X_nom, W_nom)
 
@@ -445,7 +476,10 @@ for era in eras:
 # -----------------------------------------------------------------------------
 # Totals and uncertainties (no data I/O here; only loader_hist lookups)
 # -----------------------------------------------------------------------------
+# total MC: nominal + variations
 tot_hist = {f: {"nominal": None} for f in features}
+# data: nominal-only
+data_hist = {f: {"nominal": None} for f in features}
 for f in features:
     for v in variations.keys():
         if v != "nominal":
@@ -469,6 +503,15 @@ for ifeat, feat in enumerate(features, start=1):
             sw2_nom += sw2
 
     tot_hist[feat]["nominal"] = (y_nom, sw2_nom)
+
+    # data
+    y_nom_data = np.zeros(nb, dtype=np.float64)
+    for era in eras:
+        for proc in data:
+            sw, _ = loader_hist[("nominal", era, proc, "nominal")][feat]
+            y_nom_data += sw
+
+    data_hist[feat]["nominal"] = (y_nom_data, np.zeros(nb, dtype=np.float64))
 
     for vname, vdef in variations.items():
         if vname == "nominal":
@@ -578,6 +621,9 @@ for ifeat, feat in enumerate(features, start=1):
 
     h_total = np_to_th1(f"h_{feat}_total", edges, y_nom, np.zeros_like(y_nom))
 
+    y_nom_data, _ = data_hist[feat]["nominal"]
+    h_data = np_to_th1(f"h_{feat}_data", edges, y_nom_data, np.zeros_like(y_nom_data))
+
     # signals: nominal only (overlay, not in totals)
     h_signals, sig_labels, sig_has_content = [], [], []
     for sproc in signals:
@@ -598,8 +644,9 @@ for ifeat, feat in enumerate(features, start=1):
         h_signals.append(hs_sig)
         sig_labels.append(process_labels.get(sproc, sproc))
 
-    # Asimov data
-    h_data = h_total.Clone(f"h_{feat}_data")
+    # Asimov data or real data
+    if args.doAsimov:
+        h_data = h_total.Clone(f"h_{feat}_data")
     h_data.SetDirectory(0)
     h_data.SetMarkerStyle(20)
     h_data.SetMarkerSize(1.0)
@@ -677,8 +724,11 @@ for ifeat, feat in enumerate(features, start=1):
     leg.SetFillStyle(0)
     leg.SetNColumns(3)
     leg.SetTextSize(0.035)
-
-    leg.AddEntry(h_data, "Data (Asimov)", "lep")
+    # Asimov data or real data
+    if args.doAsimov:
+        leg.AddEntry(h_data, "Data (Asimov)", "lep")
+    else:
+        leg.AddEntry(h_data, "Data", "lep")
 
     for h, lbl, pk in zip(h_procs[::-1], lbls[::-1], proc_keys[::-1]):
         if skip_empty_parton and (not proc_has_content.get(pk, True)):
@@ -697,18 +747,36 @@ for ifeat, feat in enumerate(features, start=1):
     # BOTTOM (ratio band)
     padBottom.cd()
 
-    h_ratio_central = h_total.Clone(f"h_{feat}_ratio_central")
-    h_ratio_central.SetDirectory(0)
-    h_ratio_central.Reset("ICES")
-    for ib in range(1, nb + 1):
-        h_ratio_central.SetBinContent(ib, 1.0)
-        h_ratio_central.SetBinError(ib, 0.0)
+    if args.doAsimov:
+        h_ratio_central = h_total.Clone(f"h_{feat}_ratio_central")
+        h_ratio_central.SetDirectory(0)
+        h_ratio_central.Reset("ICES")
+        for ib in range(1, nb + 1):
+            h_ratio_central.SetBinContent(ib, 1.0)
+            h_ratio_central.SetBinError(ib, 0.0)
+    else:
+        h_ratio_central = h_data.Clone(f"h_{feat}_ratio_central")
+        h_ratio_central.Divide(h_total)
+        h_ratio_central.SetDirectory(0)
+        # uncorrelated Gaussian error propagation
+        # for data/MC plot
+        for ib in range(1, nb + 1):
+            h_data_yield = h_data.GetBinContent(ib)
+            h_data_error = h_data.GetBinError(ib)
+            h_total_yield = h_total.GetBinContent(ib)
+            h_total_error = h_total.GetBinError(ib)
+        
+        h_ratio_central_error = h_data.GetBinError(ib)/h_total_yield if h_total_yield > 0.0 else 0.0
+        h_ratio_central.SetBinError(ib, h_ratio_central_error)        
 
     h_ratio_central.SetLineColor(ROOT.kBlack)
     h_ratio_central.SetLineWidth(2)
     h_ratio_central.SetTitle("")
 
-    h_ratio_central.GetYaxis().SetTitle("var / nominal")
+    if args.doAsimov:
+        h_ratio_central.GetYaxis().SetTitle("var / nominal")
+    else:
+        h_ratio_central.GetYaxis().SetTitle("data / MC")
     h_ratio_central.GetYaxis().SetNdivisions(505)
     h_ratio_central.GetYaxis().SetTitleSize(0.09)
     h_ratio_central.GetYaxis().SetTitleOffset(0.5)
@@ -768,7 +836,7 @@ for ifeat, feat in enumerate(features, start=1):
     h_ratio_central.SetMinimum(r_min)
     h_ratio_central.SetMaximum(r_max)
 
-    h_ratio_central.Draw("HIST")
+    h_ratio_central.Draw("E SAME")
     for b in ratio_boxes:
         b.Draw("SAME")
     h_ratio_line_up.Draw("HIST SAME")
@@ -871,7 +939,7 @@ if args.templates is not None:
         for gname, vlist in syst_groups.items()
     }
 
-    templates_root = os.path.join(user.plot_directory, "sys_templates")
+    templates_root = os.path.join(user.plot_directory, "sys_templates", plot_directory)
     os.makedirs(templates_root, exist_ok=True)
     helpers.copyIndexPHP(templates_root)
 
@@ -895,6 +963,7 @@ if args.templates is not None:
                     if (vname, era, proc, "up") in loader_hist and (vname, era, proc, "down") in loader_hist:
                         active_vars.append(vname)
                 if not active_vars:
+                    progress("NO ACTIVE VARIATIONS", force=True)
                     continue
 
                 base_dir = os.path.join(templates_root, era, group_name, proc)

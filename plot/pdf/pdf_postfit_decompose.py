@@ -53,7 +53,7 @@ p.add_argument("--seed", type=int, default=42,
 
 args = p.parse_args()
 
-plot_label = "gluonPDF"
+plot_label = "gluonPDF_decompose"
 
 # ---------------- load YAML CFG ----------------
 print(f"[info] Loading config from: {args.config}")
@@ -105,6 +105,9 @@ pdf_plot_directory = os.path.join(
     args.subdir,
     os.path.splitext(os.path.basename(args.config))[0]
 )
+if "nosyst" in args.postfit and ("no_syst" not in pdf_plot_directory):
+    pdf_plot_directory += "_no_syst"
+
 os.makedirs(pdf_plot_directory, exist_ok=True)
 print(f"[info] {plot_label} plots will be written under: {pdf_plot_directory}")
 
@@ -126,6 +129,7 @@ hyp_rotated = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
 # --- consistency check between likelihood parameters and fit results ---
 like_par_names = [p.name for p in hyp_rotated.parameters]
+poi_name_set   = {p.name for p in hyp_rotated.POIs}
 
 set_like = set(like_par_names)
 set_fit  = set(fit_par_names)
@@ -133,37 +137,74 @@ set_fit  = set(fit_par_names)
 only_in_like = sorted(list(set_like - set_fit))
 only_in_fit  = sorted(list(set_fit  - set_like))
 
+# missing POIs are set to zero and frozen
+handled_missing_pois = []
+for n in only_in_like:
+    if n in poi_name_set:
+        print(f"[warning] POI '{n}' is in the likelihood but missing in the fit result; setting it to zero and freezing it.")
+        getattr(hyp_rotated, n).freeze(value=0.0)
+        handled_missing_pois.append(n)
+
+only_in_like = [n for n in only_in_like if n not in handled_missing_pois]
+
+# allowing plotting from fits ran with --nosyst option
+# avoiding the need to have dedicated configs without systematics
+invalid_fit = True
 if only_in_like or only_in_fit:
     print("[error] Inconsistent parameter definitions between likelihood and fit results.")
     if only_in_like:
         print("  Present in likelihood but missing in fit:")
         for n in only_in_like:
             print("   -", n)
+        
+        if all(["nu" in param for param in only_in_like]) and ("nosyst" in args.postfit):
+            print("Fit result without NPs and fit run with --nosyst. This is ok.")
+            invalid_fit = False
+
     if only_in_fit:
         print("  Present in fit but missing in likelihood:")
         for n in only_in_fit:
             print("   -", n)
-    sys.exit(1)
+        
+        # parameters in fit but not in likelihood indicate inconsistency
+        # between config and fit output - exiting here
+        invalid_fit = True
+    
+    if invalid_fit:
+        raise ValueError
 
-if like_par_names != fit_par_names:
+like_par_names_in_fit = [p.name for p in hyp_rotated.parameters if p.name in set_fit]
+
+if like_par_names_in_fit != fit_par_names:
     print("[warning] Parameter names match as a set, but order differs between likelihood and fit results.")
     print("  Likelihood order:")
-    print("   ", ", ".join(like_par_names))
+    print("   ", ", ".join(like_par_names_in_fit))
     print("  Fit result order:")
     print("   ", ", ".join(fit_par_names))
 else:
-    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names)} parameters).")
+    print(f"[info] Parameter list consistent between likelihood and fit ({len(like_par_names_in_fit)} parameters).")
 
 # ----------------------------------------------------------------------
-# Find first POI-dependent BIT entry in likelihood and corresponding job
+# Find first POI-dependent BIT/ICH entry in likelihood and corresponding job
 # ----------------------------------------------------------------------
 like_params = None
 poi_job_id = None
+region_string = None
 
-for region in like_info.get("regions", []):
+# binned
+if like_info.get("regions", []):
+    region_string = "regions"
+    poi_type = "bit"
+elif like_info.get("binned", []) != []:
+    region_string = "binned"
+    poi_type = "ich"
+else:
+    raise KeyError("Missing definition of regions.")
+
+for region in like_info.get(region_string, []):
     for cls in region.get("classes", []):
         poi = cls.get("POI", None)
-        if poi and poi.get("type") == "bit" and poi.get("parameters"):
+        if poi and poi.get("type") == poi_type and poi.get("parameters"):
             like_params = poi["parameters"]
             poi_job_id = poi["job"]
             break
@@ -171,10 +212,10 @@ for region in like_info.get("regions", []):
         break
 
 if like_params is None or poi_job_id is None:
-    print("[error] Could not find a POI-dependent BIT term in the likelihood.")
+    print("[error] Could not find a POI-dependent term in the likelihood.")
     sys.exit(1)
 
-print(f"[info] Using POI-dependent BIT job '{poi_job_id}' with POIs: {', '.join(like_params)}")
+print(f"[info] Using POI-dependent job '{poi_job_id}' with POIs: {', '.join(like_params)}")
 
 # find corresponding job J in cfg['jobs']
 J = None
@@ -190,6 +231,7 @@ if J is None:
 pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
+pdf_basis = pdf_cfg.get("pdf_basis", None)
 
 if pdf_n is None or pdf_type is None:
     print(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
@@ -203,13 +245,14 @@ if len(pdf_n) != len(like_params):
     print(f"  len(POIs)    = {len(like_params)}")
 
 # instantiate PDF parametrization
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
 # map parameter names -> indices in fit result
 idx_map = {name: i for i, name in enumerate(fit_par_names)}
 
 # POIs are taken from the (possibly rotated) hypothesis object
-poi_names = [p.name for p in hyp_rotated.POIs]
+# frozen POIs (e.g. missing in fit -> set to zero above) are excluded from sampling
+poi_names = [p.name for p in hyp_rotated.POIs if not p.isFrozen]
 poi_indices = [idx_map[name] for name in poi_names]
 
 # central POI coefficients (MLE) in the *current* POI basis
@@ -332,7 +375,7 @@ def _sample_pdf_band_from_cov_poi(cov_poi_stage):
     Sample POIs from N(coeffs_central, cov_poi_stage), convert to base coeffs, evaluate
     PDF on the full x-grid, and return (q_low, q_high) quantiles.
 
-    Quantiles: [0.32, 0.68].
+    Quantiles: [0.16, 0.84].
     """
     if args.freezePOI:
         return central_pdf.copy(), central_pdf.copy()
@@ -358,8 +401,8 @@ def _sample_pdf_band_from_cov_poi(cov_poi_stage):
             x=x_vals, id=id_arr, Q=Q_arr, coeffs=poi_samples_base[itoy, :]
         )
 
-    q_low  = np.quantile(pdf_samples, 0.32, axis=0)
-    q_high = np.quantile(pdf_samples, 0.68, axis=0)
+    q_low  = np.quantile(pdf_samples, 0.16, axis=0)
+    q_high = np.quantile(pdf_samples, 0.84, axis=0)
     return q_low, q_high
 
 
@@ -391,128 +434,112 @@ central_pdf = np.array(
 #   - build staged bands
 # ----------------------------------------------------------------------
 
-# Discover the systematics era, because we added little years everywhere
-sys_grouping_era = None
-for p in all_nu_names_fit:
-    if "2016" in p:
-        sys_grouping_era = sys_grouping[2016]
-        break
-    if "2017" in p:
-        sys_grouping_era = sys_grouping[2017]
-        break
-    if "2018" in p:
-        sys_grouping_era = sys_grouping[2018]
-        break
-
-group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
-group_names       = [gname for gname, _ in sys_grouping_era]
-
-# enforce that grouping covers *all* nuisances present in the fit
-all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
-assert set(all_nu_names_fit) == set(all_nu_names_grp)
-
 x_ref = float(args.x_ref)
 f_ref, g_ref = _grad_f_wrt_poi_rot_at_xref(x_ref)
 print(f"[info] Ranking grouped nuisances at x_ref = {x_ref:g} (Bjorken-x)")
 print(f"[info] Central f_g(x_ref, Q={Q_val:.2f}) = {f_ref:.6e}")
 
-# ----------------------------------------------------------------------
-# (OLD) Greedy "fix largest" ordering (commented out; keep for easy switch)
-# ----------------------------------------------------------------------
-# fixed_groups = []
-# remaining    = list(group_names)
-# ranked       = []
-#
-# cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)
-# var_curr = float(g_ref.T @ cov_curr @ g_ref)
-#
-# for istep in range(len(group_names)):
-#     best_g   = None
-#     best_red = None
-#     best_var = None
-#
-#     for gname in remaining:
-#         cov_try = _stage_cov_poi(fixed_groups + [gname], group_to_nu_names)
-#         var_try = float(g_ref.T @ cov_try @ g_ref)
-#         red = var_curr - var_try
-#         if (best_red is None) or (red > best_red):
-#             best_red = red
-#             best_g   = gname
-#             best_var = var_try
-#
-#     ranked.append(best_g)
-#     fixed_groups.append(best_g)
-#     remaining.remove(best_g)
-#     var_curr = best_var
-#
-#     print(f"  step {istep+1:2d}: fix {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
-#
-# print("[info] Final ordering (largest incremental impact first):")
-# print("  " + "  >  ".join(ranked))
+if n_nu == 0:
+    q_low, q_high = _sample_pdf_band_from_cov_poi(cov_poi)
+    stage_q_low = [np.array(q_low, dtype=float)]
+    stage_q_high = [np.array(q_high, dtype=float)]
+    stage_labels = ["POI-only (no nuisances)"]
+else:
+    # if n_nu > 0:
+    # Discover the systematics era, because we added little years everywhere
+    group_to_nu_names = {}
+    for p in all_nu_names_fit:
+        sys_grouping_era = sys_grouping[2016] # default
+        if "2016" in p:
+            sys_grouping_era = sys_grouping[2016]
+        elif "2017" in p:
+            sys_grouping_era = sys_grouping[2017]
+        elif "2018" in p:
+            sys_grouping_era = sys_grouping[2018]
+
+        for gname, nu_list in sys_grouping_era:
+            if p in nu_list:
+                if gname not in group_to_nu_names:
+                    group_to_nu_names[gname] = []
+                group_to_nu_names[gname].append(p)
+                break
+
+    group_names       = [gname for gname, _ in sys_grouping_era]
+
+    #group_to_nu_names = {gname: nu_list for gname, nu_list in sys_grouping_era}
+    #group_names       = [gname for gname, _ in sys_grouping_era]
+
+    # enforce that grouping covers *all* nuisances present in the fit
+    #all_nu_names_grp  = [n for _, nu_list in sys_grouping_era for n in nu_list]
+
+    assert set(sum(group_to_nu_names.values(),[])) == set(all_nu_names_fit)
 
 
-# ----------------------------------------------------------------------
-# (NEW) Greedy "add smallest" ordering:
-#   Start at stats-only (all nu fixed), then add back groups with smallest
-#   incremental increase in Var[f(x_ref)] at each step.
-# ----------------------------------------------------------------------
-fixed_groups = list(group_names)   # all fixed -> stats-only
-remaining    = list(group_names)   # candidates to "add back" (unfix)
-ranked_add   = []
 
-cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)  # stats-only cov
-var_curr = float(g_ref.T @ cov_curr @ g_ref)
 
-for istep in range(len(group_names)):
-    print(f"At {istep}/{len(group_names)}")
-    best_g   = None
-    best_inc = None
-    best_var = None
+    # if n_nu > 0:
+    # ----------------------------------------------------------------------
+    # (NEW) Greedy "add smallest" ordering:
+    #   Start at stats-only (all nu fixed), then add back groups with smallest
+    #   incremental increase in Var[f(x_ref)] at each step.
+    # ----------------------------------------------------------------------
+    fixed_groups = list(group_names)   # all fixed -> stats-only
+    remaining    = list(group_names)   # candidates to "add back" (unfix)
+    ranked_add   = []
 
-    for gname in remaining:
-        fixed_try = [g for g in fixed_groups if g != gname]  # unfix gname
-        cov_try = _stage_cov_poi(fixed_try, group_to_nu_names)
-        var_try = float(g_ref.T @ cov_try @ g_ref)
-        inc = var_try - var_curr  # incremental variance increase
+    cov_curr = _stage_cov_poi(fixed_groups, group_to_nu_names)  # stats-only cov
+    var_curr = float(g_ref.T @ cov_curr @ g_ref)
 
-        if (best_inc is None) or (inc < best_inc):
-            best_inc = inc
-            best_g   = gname
-            best_var = var_try
+    for istep in range(len(group_names)):
+        print(f"At {istep}/{len(group_names)}")
+        best_g   = None
+        best_inc = None
+        best_var = None
 
-    ranked_add.append(best_g)
-    fixed_groups.remove(best_g)
-    remaining.remove(best_g)
-    var_curr = best_var
+        for gname in remaining:
+            fixed_try = [g for g in fixed_groups if g != gname]  # unfix gname
+            cov_try = _stage_cov_poi(fixed_try, group_to_nu_names)
+            var_try = float(g_ref.T @ cov_try @ g_ref)
+            inc = var_try - var_curr  # incremental variance increase
 
-    print(f"  step {istep+1:2d}: add {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
+            if (best_inc is None) or (inc < best_inc):
+                best_inc = inc
+                best_g   = gname
+                best_var = var_try
 
-print("[info] Final ordering (smallest incremental impact first):")
-print("  " + "  <  ".join(ranked_add))
+        ranked_add.append(best_g)
+        fixed_groups.remove(best_g)
+        remaining.remove(best_g)
+        var_curr = best_var
 
-# Build staged bands:
-#   stage 0: stats-only          (all nu fixed)
-#   stage k: add ranked_add[:k]  (unfix these k groups)
-#   stage G: all nuisances       (none fixed)
-stage_labels = []
-stage_q_low  = []
-stage_q_high = []
+        print(f"  step {istep+1:2d}: add {best_g:>12s}  ->  Var_ref = {var_curr:.6e}")
 
-for k in range(len(ranked_add) + 1):
-    print(f"At {k}/{len(ranked_add)}")
-    fixed_k = [g for g in group_names if g not in ranked_add[:k]]
-    cov_k   = _stage_cov_poi(fixed_k, group_to_nu_names)
-    ql, qh  = _sample_pdf_band_from_cov_poi(cov_k)
+    print("[info] Final ordering (smallest incremental impact first):")
+    print("  " + "  <  ".join(ranked_add))
 
-    stage_q_low.append(np.array(ql, dtype=float))
-    stage_q_high.append(np.array(qh, dtype=float))
+    # Build staged bands:
+    #   stage 0: stats-only          (all nu fixed)
+    #   stage k: add ranked_add[:k]  (unfix these k groups)
+    #   stage G: all nuisances       (none fixed)
+    stage_labels = []
+    stage_q_low  = []
+    stage_q_high = []
 
-    if k == 0:
-        stage_labels.append("Stats-only (all #nu fixed)")
-    elif k == len(ranked_add):
-        stage_labels.append(f"Add {ranked_add[k-1]} #rightarrow all")
-    else:
-        stage_labels.append(f"Add {ranked_add[k-1]}")
+    for k in range(len(ranked_add) + 1):
+        print(f"At {k}/{len(ranked_add)}")
+        fixed_k = [g for g in group_names if g not in ranked_add[:k]]
+        cov_k   = _stage_cov_poi(fixed_k, group_to_nu_names)
+        ql, qh  = _sample_pdf_band_from_cov_poi(cov_k)
+
+        stage_q_low.append(np.array(ql, dtype=float))
+        stage_q_high.append(np.array(qh, dtype=float))
+
+        if k == 0:
+            stage_labels.append("Stats-only (all #nu fixed)")
+        elif k == len(ranked_add):
+            stage_labels.append(f"Add {ranked_add[k-1]} #rightarrow all")
+        else:
+            stage_labels.append(f"Add {ranked_add[k-1]}")
 
 # --------------- build ratio (PDF / central) for bottom pad ------------
 

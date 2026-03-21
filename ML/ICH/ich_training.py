@@ -36,6 +36,7 @@ p = argparse.ArgumentParser(description="Inclusive Cross Section (Histogram) tra
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="ICH job id to run (omit to list)")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
+p.add_argument("--n_split", default=None, help="Set sample split")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
 args = p.parse_args()
 
@@ -75,6 +76,9 @@ loader_name = J.get("process")
 if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
+
+if args.n_split:
+    L.set_n_split(args.n_split)
 
 # Adding selection
 sel  = J.get("selection", None)
@@ -146,8 +150,10 @@ for name in axis_names:
 
 pdf_cfg = J.get("pdf", {}) or {}
 pdf_n   = pdf_cfg.get("pdf_n", None)
-pdf_type = pdf_cfg.get("pdf_type", "Chebyshev")
-pdf     = PDFParametrization(n=pdf_n, typ=pdf_type)
+pdf_type  = pdf_cfg.get("pdf_type", None)
+pdf_basis = pdf_cfg.get("pdf_basis", None)
+
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
 variables   = list(pdf.variables)     # ['c0', ..., 'cN']
 combinations = list(pdf.combinations) # [(), ('c0',),..., ('ci','cj'),...]
@@ -160,7 +166,7 @@ region = J.get("region", None)
 if region:
     cfg_base = os.path.join(cfg_base, region)
 
-filename = pdf_cfg.get("filename", f"ICH_{loader_name}.pkl")
+filename = pdf_cfg.get("filename", f"ICH_{J.get('id')}.pkl")
 model_dir = os.path.join(user.model_directory, cfg_base, "ICH")
 os.makedirs(model_dir, exist_ok=True)
 out_path = os.path.join(model_dir, filename)

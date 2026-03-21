@@ -9,7 +9,7 @@ sys.path.insert(0, '..'); sys.path.insert(0, '../..')
 
 import common.user as user
 import common.syncer as syncer
-
+from data.UIDSplitter import UIDSplitter
 from ML.PNN.PNN import PNN
 from tqdm import trange, tqdm
 
@@ -64,6 +64,45 @@ bp_specs = J["base_points"]  # list of {coords: [...], loader: "name", optional 
 base_points = [spec["coords"] for spec in bp_specs]
 
 loaders = []
+
+# ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
+UID_CFG = (J.get("splitting") or {})
+uid_enabled   = bool(UID_CFG.get("enabled", False))
+uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+uid_seed      = int(UID_CFG.get("seed", 0))
+uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+uid_scheme    = (UID_CFG.get("scheme") or {})
+
+uid_intervals = None
+uid_splitter = None
+if uid_enabled:
+    uid_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=uid_seed,
+        n_buckets=uid_n_buckets,
+    )
+
+    # build bucket intervals (inline; no extra helper, no extra checks)
+    keys  = list(uid_scheme.keys())
+    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+    sizes[-1] += uid_n_buckets - sum(sizes)
+
+    uid_intervals = {}
+    lo = 0
+    for k, sz in zip(keys, sizes):
+        uid_intervals[k] = (lo, lo + int(sz))
+        lo += int(sz)
+    pnn_train_key = "pnn_train"
+    pnn_val_key = "pnn_val"
+    train_interval = uid_intervals[pnn_train_key]
+    val_interval   = uid_intervals[pnn_val_key]
+
+    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+    print(f"[UID] scheme intervals: {uid_intervals}")
+    print(f"[UID] PNN train split '{pnn_train_key}' -> {train_interval}")
+    print(f"[UID] PNN val   split '{pnn_val_key}' -> {val_interval}")
 
 for i, spec in enumerate(bp_specs):
     nm = spec["loader"]
@@ -267,9 +306,9 @@ combinations    = [tuple(c) for c in J["combinations"]]
 hidden_layers   = J.get("model", {}).get("hidden_layers", [128, 128])
 activation      = J.get("model", {}).get("activation", "relu")
 initialize_zero = bool(J.get("model", {}).get("initialize_zero", False))
-epochs          = int(J.get("optim", {}).get("epochs", 200))
-phaseout        = int(J.get("optim", {}).get("phaseout_epochs", 0))
-lr              = float(J.get("optim", {}).get("learning_rate", 1e-3))
+epochs          = 500
+phaseout        = 500
+lr              = 1.5e-4
 l1              = float(J.get("optim", {}).get("l1", 0))
 l2              = float(J.get("optim", {}).get("l2", 0))
 
@@ -278,10 +317,13 @@ model_dir = os.path.join(user.model_directory, cfg_base+("_for_debug" if args.fo
 plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
+# A small pointer file for BEST (epoch + val_loss)
+best_txt = os.path.join(model_dir, "best_checkpoint.txt")
+
 if not args.overwrite:
     try:
         print(f"Trying to load PNN from {model_dir}")
-        pnn = PNN.load(model_dir)
+        pnn = PNN.load(model_dir, latest_filename="last_checkpoint")
         print("Success!")
     except Exception as e:
         pnn = None
@@ -325,21 +367,84 @@ def lr_schedule(epoch):
     if epoch < epochs - phaseout: return lr
     start = epochs - phaseout
     # linear phaseout down to ~0
-    return lr * (1.0 - (epoch - start + 1) / phaseout)
+    return lr * (1.0 - (epoch - start) / phaseout)
 
-def iterate_epoch(shard_limit=None):
-    # ensure same number of shards
-    shard_counts = [len(getattr(L, "base", L)) for L in loaders]
+def pnn_loss_on_shard(pnn, Xs, Ws, VkA, nom_idx, training: bool):
+    """
+    Compute loss for one shard (Xs, Ws).
+    Xs: list of arrays, one per base point
+    Ws: list of arrays, one per base point
+    """
+    X0, w0 = Xs[nom_idx], Ws[nom_idx]
+    X0n = pnn._normalize(X0)
+
+    DeltaA0 = pnn.deltaA_tf(tf.convert_to_tensor(X0n, dtype=tf.float32), training=training)
+
+    loss = 0.0
+    for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
+        if i_bp == nom_idx:
+            continue
+
+        Xin = pnn._normalize(Xi)
+        DeltaAi = pnn.deltaA_tf(tf.convert_to_tensor(Xin, dtype=tf.float32), training=training)
+        v = tf.convert_to_tensor(VkA[i_bp], dtype=tf.float32)
+
+        term0 = tf.reduce_sum(
+            tf.convert_to_tensor(w0, dtype=tf.float32)
+            * tf.nn.softplus(tf.linalg.matvec(DeltaA0, v))
+        )
+        termi = tf.reduce_sum(
+            tf.convert_to_tensor(wi, dtype=tf.float32)
+            * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v))
+        )
+        const = (np.sum(w0) + np.sum(wi)) * math.log(2.0)
+        loss += term0 + termi - const
+
+    return loss
+
+def iterate_epoch(loaders_list, shard_limit=None):
+    shard_counts = [len(getattr(L, "base", L)) for L in loaders_list]
     n_shards = min(shard_counts)
+
     if shard_limit is not None:
         n_shards = min(n_shards, shard_limit)
+
     for shard in range(n_shards):
-        # materialize for each base point: (X, w)
-        Xs, Ws = [], []
-        for L in loaders:
-            X, w = L.materialize(shard=shard, what="fw")
-            Xs.append(X); Ws.append(w.astype(np.float32, copy=False))
-        yield Xs, Ws
+        Xs_all, Ws_all, Os_all = [], [], []
+
+        # --- materialize ONCE per loader per shard ---
+        for L in loaders_list:
+            # 'fow' -> (features, observers, weights)
+            X, O, w = L.materialize(
+                shard=shard,
+                what="fow",
+            )
+            Xs_all.append(X)
+            Os_all.append(O)
+            Ws_all.append(w.astype(np.float32, copy=False))
+
+        if not uid_enabled:
+            # keep signature uniform: (train_Xs, train_Ws, val_Xs, val_Ws)
+            yield Xs_all, Ws_all, Xs_all, Ws_all
+            continue
+
+        # split in memory using UID masks
+        Xs_tr, Ws_tr, Xs_va, Ws_va = [], [], [], []
+        for L, X, w, O in zip(loaders_list, Xs_all, Ws_all, Os_all):
+            # figure out observer column order for THIS loader/view
+            obs_names = L.observer_names
+            uid_idx = [obs_names.index(f) for f in uid_fields]
+            O_uid = O[:, uid_idx]
+            lo, hi = train_interval
+            m_tr = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+            lo, hi = val_interval
+            m_va = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+            Xs_tr.append(X[m_tr]); Ws_tr.append(w[m_tr])
+            Xs_va.append(X[m_va]); Ws_va.append(w[m_va])
+
+        yield Xs_tr, Ws_tr, Xs_va, Ws_va
 
 # ---- plotting helpers (ROOT) ----
 def init_histograms(plot_features, n_bp, rebin=1):
@@ -384,7 +489,7 @@ def accumulate_histograms(h_true, h_pred, bins, Xs, Ws, pnn, VkA, base_points, n
             hp, _ = np.histogram(X0[:, col], bins=edges, weights=pred_w)
             h_pred[feat][:, i_bp] += hp
 
-def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1):
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_points, nom_idx, rebin=1, fixed_stem=None, prefix=""):
     import ROOT, os, math
     import numpy as np
     try:
@@ -498,19 +603,20 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, base_po
         tex.DrawLatex(0.30, 0.95, f"Epoch = {epoch:04d}")
         keep.append(tex)
 
-        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
+        stem = (fixed_stem if fixed_stem else f"epoch_{epoch:04d}")
+        fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}{prefix}{stem}.png")
         for fmt in ["png"]:
             canvas.SaveAs(fname.replace(".png", f".{fmt}"))
 
 # ---------------- train ----------------
 start_epoch = 0
-if not args.overwrite:
-    latest = tf.train.latest_checkpoint(model_dir)
-    if latest:
-        try:
-            start_epoch = int(os.path.basename(latest)) + 1
-        except Exception:
-            pass
+last_epoch_txt = os.path.join(model_dir, "last_epoch.txt")
+
+if not args.overwrite and os.path.exists(last_epoch_txt):
+    with open(last_epoch_txt, "r") as f:
+        last_epoch = int(f.read().strip())
+    start_epoch = last_epoch + 1
+    print(f"[RESUME] last_epoch={last_epoch} (from {last_epoch_txt}), start_epoch={start_epoch}")
 
 shard_limit = 1 if args.small else None
 rebin       = int(J.get("runtime", {}).get("rebin", 1))
@@ -518,96 +624,215 @@ rebin       = int(J.get("runtime", {}).get("rebin", 1))
 VkA = pnn.VkA
 nom_idx = pnn.nominal_base_point_index
 
+# ---------------- quick check: event counts (nominal bp) ----------------
+n_train_events = 0
+n_val_events   = 0
+for Xs_tr, _Ws_tr, Xs_va, _Ws_va in iterate_epoch(loaders, shard_limit=shard_limit):
+    n_train_events += int(len(Xs_tr[nom_idx]))
+    n_val_events   += int(len(Xs_va[nom_idx]))
+
+print(f"[EVENTS] train (nominal bp): {n_train_events}")
+print(f"[EVENTS] val   (nominal bp): {n_val_events}")
+
+# --- loss log file (append) ---
+loss_txt = os.path.join(model_dir, "loss_curve.txt")
+if start_epoch == 0:
+    with open(loss_txt, "w") as f:
+        f.write("# epoch  lr  train_loss  val_loss\n")
+
+# ---------------- EARLY STOPPING + BEST tracking (YAML-driven) ----------------
+stopping = J.get("early_stopping", None)
+
+if stopping is None:
+    raise RuntimeError("PNN job missing early_stopping config")
+
+es_enabled = stopping.get("enabled", True)
+patience = stopping.get("patience", 20)
+min_delta = stopping.get("min_delta", 0.0)
+mode = stopping.get("mode", "min").lower()
+warmup_epochs = stopping.get("warmup_epochs", 0)
+
+def _is_improved(current: float, best: float) -> bool:
+    # min: want current < best - min_delta
+    # max: want current > best + min_delta
+    if mode == "min":
+        return current < (best - min_delta)
+    else:
+        return current > (best + min_delta)
+best_val = float("inf")
+best_epoch = -1
+bad_epochs = 0
+
+# resume historical BEST if exists, so continuing training keeps the old best
+if os.path.exists(best_txt):
+    try:
+        with open(best_txt, "r") as f:
+            line = f.read().strip()
+        if line:
+            e, v = line.split()[:2]
+            best_epoch = int(e)
+            best_val = float(v)
+            print(f"Found previous BEST: epoch={best_epoch}, val_loss={best_val} (from {best_txt})")
+    except Exception:
+        pass
+print(f"[EarlyStopping] enabled={es_enabled}, mode={mode}, patience={patience}, min_delta={min_delta}, warmup_epochs={warmup_epochs}")
+
 for epoch in trange(start_epoch, epochs, desc="Epoch"):
     # LR
     new_lr = lr_schedule(epoch)
     pnn.optimizer.learning_rate.assign(float(new_lr))
 
-    total_loss = 0.0
-    n_batches = 0
+    train_loss_sum = 0.0
+    val_loss = 0.0
 
-    # gradient accumulation buffers (same shape as model params)
-    grad_sums = [tf.zeros_like(v) for v in pnn.model.trainable_variables]
+    # NEW: gradient accumulator (sum, NOT mean)
+    vars_ = pnn.model.trainable_variables
+    grad_sums = [None] * len(vars_)
 
-    # plotting accumulation
     do_plot = (epoch % args.every == 0)
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if do_plot:
-        true_h, pred_h, bins = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+        true_h_tr, pred_h_tr, bins_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+        true_h_va, pred_h_va, bins_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
 
-    #for Xs, Ws in iterate_epoch(shard_limit=shard_limit):
-    for Xs, Ws in tqdm(  iterate_epoch(shard_limit=shard_limit), desc="Epoch",  unit="batch" ):
-
-        n_batches += 1
-
-        X0, w0 = Xs[nom_idx], Ws[nom_idx]
-        X0n = pnn._normalize(X0)
-
+    # ONE pass over shards: materialize once, then split in memory into train/val
+    for Xs_tr, Ws_tr, Xs_va, Ws_va in tqdm(iterate_epoch(loaders, shard_limit=shard_limit), desc="Shard", unit="shard"):
+        if not uid_enabled:
+            raise RuntimeError("This training loop assumes UID splitting is enabled (uid_enabled=True).")
+        # ---------------- TRAIN ----------------
         with tf.GradientTape() as tape:
-            DeltaA0 = pnn.deltaA_tf(tf.convert_to_tensor(X0n, dtype=tf.float32), training=True)
+            loss_tr = pnn_loss_on_shard(pnn, Xs_tr, Ws_tr, VkA, nom_idx, training=True)
 
-            loss = 0.0
-            for i_bp, (Xi, wi) in enumerate(zip(Xs, Ws)):
-                if i_bp == nom_idx:
-                    continue
+        grads = tape.gradient(loss_tr, vars_)
+        for i, g in enumerate(grads):
+            if g is None:
+                continue
+            grad_sums[i] = g if grad_sums[i] is None else (grad_sums[i] + g)
 
-                Xin = pnn._normalize(Xi)
-                DeltaAi = pnn.deltaA_tf(tf.convert_to_tensor(Xin, dtype=tf.float32), training=True)
+        train_loss_sum += float(loss_tr.numpy())
 
-                v = tf.convert_to_tensor(VkA[i_bp], dtype=tf.float32)  # (C,)
-
-                term0 = tf.reduce_sum(
-                    tf.convert_to_tensor(w0, dtype=tf.float32)
-                    * tf.nn.softplus(tf.linalg.matvec(DeltaA0, v))
-                )
-                termi = tf.reduce_sum(
-                    tf.convert_to_tensor(wi, dtype=tf.float32)
-                    * tf.nn.softplus(-tf.linalg.matvec(DeltaAi, v))
-                )
-
-                const = (np.sum(w0) + np.sum(wi)) * math.log(2.0)
-                loss += term0 + termi - const
-
-        # compute grads for this shard
-        grads = tape.gradient(loss, pnn.model.trainable_variables)
-
-        # accumulate gradients
-        for j, (g, gsum) in enumerate(zip(grads, grad_sums)):
-            if g is not None:
-                grad_sums[j] = gsum + g
-
-        # accumulate scalar loss for logging
-        total_loss += float(loss.numpy())
-
-        # accumulate plots from this shard
-        if do_plot and len(X0) and all(len(Xi) for Xi in Xs):
+        # plots: keep behavior identical (accumulate on TRAIN slice)
+        if do_plot:
             accumulate_histograms(
-                true_h, pred_h, bins, Xs, Ws, pnn, VkA,
+                true_h_tr, pred_h_tr, bins_tr, Xs_tr, Ws_tr, pnn, VkA,
                 base_points, nom_idx, plot_feats, feat2col
             )
+            accumulate_histograms(
+                true_h_va, pred_h_va, bins_va, Xs_va, Ws_va, pnn, VkA,
+                base_points, nom_idx, plot_feats, feat2col
+            )
+ 
+        # ---------------- VALID ----------------
+        loss_v = pnn_loss_on_shard(pnn, Xs_va, Ws_va, VkA, nom_idx, training=False)
+        val_loss += float(loss_v.numpy())
 
-    # ---- apply accumulated gradient once per epoch ----
-    if n_batches > 0:
-        # you can average or just sum; average is more robust w.r.t. batch count
-        avg_grads = [g / float(n_batches) for g in grad_sums]
-        # filter out None, just in case
-        pnn.optimizer.apply_gradients(
-            (g, v) for g, v in zip(avg_grads, pnn.model.trainable_variables) if g is not None
-        )
+    # apply once per epoch (sum over shards, NOT average)
+    pnn.optimizer.apply_gradients(
+        (g, v) for g, v in zip(grad_sums, vars_) if g is not None
+    )
 
-    # total_loss now is the sum over all batches in the epoch
-    # (you can divide by n_batches if you want an average loss)
+    train_loss = train_loss_sum / 5
 
-    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {float(new_lr):.6f} - loss {total_loss:.4f}")
+    # ---------------- LOG + SAVE ----------------
+    tqdm.write(
+        f"Epoch {epoch}/{epochs-1} - LR {float(new_lr):.6f} - "
+        f"train_loss {train_loss:.4f} - val_loss {val_loss:.4f}"
+    )
+
+    with open(loss_txt, "a") as f:
+        f.write(f"{epoch} {float(new_lr):.8g} {train_loss:.8g} {val_loss:.8g}\n")
+
     pnn.save(model_dir, epoch=epoch)
+    with open(last_epoch_txt, "w") as f:
+        f.write(f"{epoch}\n")
+
+    # ---------------- save/update BEST + early stopping ----------------
+    improved = _is_improved(val_loss, best_val)
+    if improved:
+        best_val = val_loss
+        best_epoch = epoch
+        bad_epochs = 0
+
+        # Update BEST pointer (checkpoint) in the SAME model_dir
+        pnn.save(model_dir, epoch=epoch, is_best=True)
+
+        # Write pointer file for humans (epoch + val_loss)
+        with open(best_txt, "w") as f:
+            f.write(f"{best_epoch} {best_val:.12g}\n")
+
+        tqdm.write(f"[BEST] val_loss={best_val:.6g} @ epoch {best_epoch} -> updated checkpoint in {model_dir}")
+    else:   
+        bad_epochs += 1
+        tqdm.write(f"[BEST] no improvement ({bad_epochs}/{patience}), best={best_val:.6g} @ {best_epoch}")
+
+        if es_enabled and epoch >= warmup_epochs and bad_epochs >= patience:
+            tqdm.write(f"[EarlyStopping] stop. best val_loss={best_val:.6g} @ epoch {best_epoch}")
+            if not args.small:
+                syncer.sync()
+            break
 
     if do_plot:
-        plot_convergence_root(true_h, pred_h, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin)
-        #syncer.makeRemoteGif(plot_dir, pattern="epoch_*.png",      name="epoch")
-        #syncer.makeRemoteGif(plot_dir, pattern="norm_epoch_*.png", name="norm_epoch")
+        # ---------------- current epoch: train + valid ----------------
+        plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin, prefix="train_")
+        plot_convergence_root(true_h_va, pred_h_va, epoch, plot_dir, plot_feats, base_points, nom_idx, rebin=rebin, prefix="valid_")
+
+        # ---------------- best / last checkpoints: train + valid ----------------
+        ck_best = os.path.join(model_dir, "checkpoint")
+        ck_last = os.path.join(model_dir, "last_checkpoint")
+
+        if os.path.exists(ck_best):
+            pnn_best = PNN.load(model_dir, latest_filename="checkpoint")
+
+            true_h_b_tr, pred_h_b_tr, bins_b_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+            true_h_b_va, pred_h_b_va, bins_b_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+
+            for Xs_tr2, Ws_tr2, Xs_va2, Ws_va2 in iterate_epoch(loaders, shard_limit=shard_limit):
+                accumulate_histograms(
+                    true_h_b_tr, pred_h_b_tr, bins_b_tr, Xs_tr2, Ws_tr2, pnn_best, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+                accumulate_histograms(
+                    true_h_b_va, pred_h_b_va, bins_b_va, Xs_va2, Ws_va2, pnn_best, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+
+            e_best = (best_epoch if best_epoch >= 0 else epoch)
+            plot_convergence_root(
+                true_h_b_tr, pred_h_b_tr, e_best, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="best_epoch", prefix="train_"
+            )
+            plot_convergence_root(
+                true_h_b_va, pred_h_b_va, e_best, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="best_epoch", prefix="valid_"
+            )
+
+        if os.path.exists(ck_last):
+            pnn_last = PNN.load(model_dir, latest_filename="last_checkpoint")
+
+            true_h_l_tr, pred_h_l_tr, bins_l_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+            true_h_l_va, pred_h_l_va, bins_l_va = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)
+
+            for Xs_tr2, Ws_tr2, Xs_va2, Ws_va2 in iterate_epoch(loaders, shard_limit=shard_limit):
+                accumulate_histograms(
+                    true_h_l_tr, pred_h_l_tr, bins_l_tr, Xs_tr2, Ws_tr2, pnn_last, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+                accumulate_histograms(
+                    true_h_l_va, pred_h_l_va, bins_l_va, Xs_va2, Ws_va2, pnn_last, VkA,
+                    base_points, nom_idx, plot_feats, feat2col
+                )
+
+            plot_convergence_root(
+                true_h_l_tr, pred_h_l_tr, epoch, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="last_epoch", prefix="train_"
+            )
+            plot_convergence_root(
+                true_h_l_va, pred_h_l_va, epoch, plot_dir, plot_feats, base_points, nom_idx,
+                rebin=rebin, fixed_stem="last_epoch", prefix="valid_"
+            )
+
         syncer.sync()
     elif not args.small:
         syncer.sync()
 
 print(f"Done. Model stored in {model_dir}")
-

@@ -2,13 +2,13 @@
 from __future__ import annotations
 import os, sys, json, math, argparse
 import numpy as np
+import importlib
 
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 # Import your likelihood machinery
 sys.path.insert(0, '..')
-sys.path.insert(0, '../..')
 
 from fit.Likelihood import (
     load_likelihood,
@@ -74,14 +74,27 @@ print("\n[free] Parameters to probe:")
 for nm in free_names:
     print("   -", nm)
 
+# Make sample loader factory from default cfg
+samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+from common.yaml_loader import _resolve_features_list
+default_features = cfg["defaults"].get("default_features", None)
+features = _resolve_features_list( default_features ) if default_features else None
+factory     = samples_mod.Factory( 
+    features  = features,
+    selection = cfg["defaults"].get("default_selection", None),
+    selection_features = cfg["defaults"].get("default_selection_features", None),
+    )
+
 # ---- Build caches, prepare runtime ----
 n2ll = N2LLExtensions(
     like_info,
-    cfg['defaults']['module_samples'],
-    os.path.join(
+    # cfg['defaults']['module_samples'],
+    factory = factory,
+    cache_subdir = os.path.join(
         "NN2LCache",
-        os.path.splitext(os.path.basename(args.config))[0],
         str(cfg.get("version", "v0")),
+        os.path.splitext(os.path.basename(args.config))[0],
     ),
     cache_root=args.cache_root,
     overwrite=args.overwrite,
@@ -249,8 +262,8 @@ except Exception:
 os.makedirs(out_dir, exist_ok=True)
 
 base_name = os.path.splitext(os.path.basename(args.config))[0]
-rot_path_json = os.path.join(out_dir, f"orthogonal_basis_{base_name}.json")
-rot_path_npz  = os.path.join(out_dir, f"orthogonal_basis_{base_name}.npz")
+rot_path_json = os.path.join(out_dir, f"orthogonal_basis_{base_name}_{cfg['version']}.json")
+rot_path_npz  = os.path.join(out_dir, f"orthogonal_basis_{base_name}_{cfg['version']}.npz")
 
 payload = {
     "config": os.path.basename(args.config),
@@ -286,7 +299,7 @@ from common import helpers
 import common.user as user
 
 plot_directory = os.path.join(
-    user.plot_directory, args.plot_directory, os.path.splitext(os.path.basename(args.config))[0],
+    user.plot_directory, args.plot_directory, cfg['version'],os.path.splitext(os.path.basename(args.config))[0],
 )
 os.makedirs(plot_directory, exist_ok=True)
 
@@ -325,7 +338,7 @@ for R in n2ll.regions:
     region_feats, region_w0s = [], []
     feature_names_ref = None
     for sname in asimov_list:
-        L = getattr(n2ll.samples_mod, sname)
+        L = n2ll.factory.get(sname)
         feat_names = list(getattr(L, "feature_names", []) or [])
         if feature_names_ref is None: feature_names_ref = feat_names
         elif feat_names != feature_names_ref:

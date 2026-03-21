@@ -1,17 +1,23 @@
 version: Eta_unbinned_2017_v2
+#version: Eta_unbinned_2017_v3
 
 defaults:
   module_samples: "data.samples_RunII"
   default_features:
     - THRESHOLD 
-  default_selection: "tr_ttbar_mass<500"
+  default_selection: "tr_ttbar_mass<500" #this was here for v2
   default_selection_features: ["tr_ttbar_mass"]
   
+  early_stopping:
+    enabled: true
+    patience: 20        # same as current hard-coded
+    min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
+    mode: "min"         # val_loss should decrease
+    warmup_epochs: 0    # optional: do not early-stop before this epoch
 
 likelihood:
     regions:
         - id: SR_2017 
-          classifier:
           classifier:
             type: tfmc
             job: tfmc_EtaSandP_2017
@@ -151,9 +157,16 @@ likelihood:
 
             - id: EtaS_2017
               sample: EtaS_2017
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaS]
 
             - id: EtaP_2017
               sample: EtaP_2017
+              POI:
+                type: rate_shift
+                parameters: [rate_shift_EtaP]
+
 
 jobs:
   # -------------------------------

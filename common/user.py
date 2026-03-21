@@ -20,10 +20,10 @@ if user in ['robert.schoefbeck']:
 
     
 elif user in ['ang.li']:
-    plot_directory         = "/groups/hephy/cms/ang.li/www/HiggsChallenge/"
-    model_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/models/"
-    cache_directory        = "/groups/hephy/cms/ang.li/HiggsChallenge/caches/"
-    output_directory       = "/groups/hephy/cms/ang.li/HiggsChallenge/output/"
+    plot_directory         = "/groups/hephy/cms/ang.li/www/SBIPDF/"
+    model_directory        = "/groups/hephy/cms/ang.li/SBIPDF/models/"
+    cache_directory        = "/groups/hephy/cms/ang.li/SBIPDF/caches/"
+    output_directory       = "/groups/hephy/cms/ang.li/SBIPDF/output/"
 
 elif user in ['lisa.benato']:
     plot_directory         = "/groups/hephy/cms/lisa.benato/www/SBIPDF/"
@@ -60,6 +60,13 @@ elif user in ['alikaan.gueven']:
     model_directory        = "/groups/hephy/cms/alikaan.gueven/SBIPDF/models/"
     cache_directory        = "/groups/hephy/cms/alikaan.gueven/SBIPDF/caches/"
     output_directory       = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/"
+elif user in ['daohan.wang']:
+    plot_directory   = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/plots/"
+    model_directory  = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/models/"
+    cache_directory  = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/caches/"
+    output_directory = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/output/"
+    
+
 
 else:
 

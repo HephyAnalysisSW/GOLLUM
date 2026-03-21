@@ -71,7 +71,9 @@ class PNN:
 
         # model
         self.model = self._build_model()
+        
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.optimizer = tf.keras.optimizers.AdamW(learning_rate=self.learning_rate, weight_decay=1e-4)
 
         # scaler placeholders (optionally set via set_scaler)
         self.feature_means     = None
@@ -167,12 +169,15 @@ class PNN:
         return np.exp(dA @ vk)
 
     # ---------------------- IO ----------------------
-    def save(self, save_dir, epoch: int):
+    def save(self, save_dir, epoch: int, is_best: bool = False):
         os.makedirs(save_dir, exist_ok=True)
         ckpt_path = os.path.join(save_dir, str(epoch))
         self.checkpoint.write(ckpt_path)
-        with open(os.path.join(save_dir, 'checkpoint'), 'w') as f:
+        with open(os.path.join(save_dir, 'last_checkpoint'), 'w') as f:
             f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
+        if is_best:
+            with open(os.path.join(save_dir, "checkpoint"), "w") as f:
+                f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
 
         payload = dict(
             parameters=self.parameters,
@@ -193,7 +198,7 @@ class PNN:
             pickle.dump(payload, f)
 
     @classmethod
-    def load(cls, save_dir):
+    def load(cls, save_dir, latest_filename="checkpoint"):
         cfg_path = os.path.join(save_dir, "config.pkl")
         if not os.path.exists(cfg_path):
             raise FileNotFoundError(f"Missing config.pkl in {save_dir}")
@@ -208,9 +213,9 @@ class PNN:
         if payload.get("feature_means") is not None:
             p.set_scaler(payload["feature_means"], payload["feature_variances"])
 
-        latest = tf.train.latest_checkpoint(save_dir)
+        latest = tf.train.latest_checkpoint(save_dir, latest_filename=latest_filename)
         if not latest:
-            raise FileNotFoundError(f"No checkpoint found in {save_dir}")
+            raise FileNotFoundError(f"No checkpoint found in {save_dir} (latest_filename={latest_filename})")
         p.checkpoint.restore(latest).expect_partial()
 
         icp_bias = payload.get("icp_bias", None)
@@ -218,4 +223,3 @@ class PNN:
             p._icp_bias = tf.constant(icp_bias, dtype=tf.float32)
 
         return p
-

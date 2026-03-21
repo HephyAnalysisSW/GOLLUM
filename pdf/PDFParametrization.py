@@ -4,10 +4,11 @@ from typing import Sequence, Union
 import sys
 sys.path.insert(0, '..')
 from pdf.AnalyticPDFParametrization import AnalyticPDFParametrization 
-from pdf.PODBasis import PODBasis 
+#from pdf.PODBasis import PODBasis 
+from pdf.PODBasis import PODBasis
 logger = logging.getLogger(__name__)
 
-def PDFParametrization(n, typ):
+def PDFParametrization(n, typ, basis=None, active_pids="all"):
     """
     Interface to all PDF parametrizations.
 
@@ -39,6 +40,8 @@ def PDFParametrization(n, typ):
                 f"Chebyshev AnalyticPDFParametrization expects a single n, "
                 f"got multiple values: {n_list}"
             )
+        if active_pids!="all":
+            raise ValueError("Chebyshev does not support active_pids")
         return AnalyticPDFParametrization(n_int, "Chebyshev")
 
     elif typ == "Bernstein":
@@ -47,12 +50,12 @@ def PDFParametrization(n, typ):
                 f"Bernstein AnalyticPDFParametrization expects a single n, "
                 f"got multiple values: {n_list}"
             )
+        if active_pids!="all":
+            raise ValueError("Bernstein does not support active_pids")
         return AnalyticPDFParametrization(n_int, "Bernstein")
 
     elif typ == "PODBasis":
         # PODBasis wants the full list of variations
-        return PODBasis(variations=n_list)
-
+        return PODBasis(variations=n_list, var_set=basis, active_pids=active_pids)
     else:
         raise ValueError(f"Unknown PDF parametrization type: {typ!r}")
-
