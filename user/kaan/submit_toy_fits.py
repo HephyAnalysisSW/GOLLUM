@@ -71,11 +71,12 @@ def load_toys_npz(npz_path: str) -> Dict[int, Dict[str, Tuple[np.ndarray, np.nda
 
 
 
-config = "user/kaan/fit_toys.py configs/unbinned/unbinned_2016APV.yaml"
-toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_shape_2_1.0_N100.npz"
-print_info = "--print-every 1 --minuit-print-level 2 --minuit-strategy 0"
-rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/orthogonal_basis_unbinned_2016APV.json"
-out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/fit_shape_2_1.0_N100/"
+config = "user/kaan/fit_toys.py configs/unbinned_v5/2016/unbinned_2016_6.yaml"
+# toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_nominal_N200.npz"
+toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rotate_N10000.npz"
+print_info = "--print-every 1 --minuit-print-level 2"
+rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/eigen_basis_unbinned_2016_6_unbinned_2016_v5.json"
+out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_nominal_N10000"
 os.makedirs(out_dir, exist_ok=True)
 
 toys = load_toys_npz(toy_file)
@@ -86,9 +87,10 @@ for i in range(len(toys)):
     toy_number = f"--toy-number {i}"
     fit_out = "--out " + os.path.join(out_dir, f"toy_{i}")
     command = ' '.join(["python3", '-u', config, toy_file, toy_number, rotate, print_info, fit_out])
-    result = run(f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"', shell=True, capture_output = True, text = True)
+    full_command = f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"'
+    result = run(full_command, shell=True, capture_output = True, text = True)
     job_id = re.search("\d+", result.stdout).group()    # Get the number with '\d+'
-    info_dict = {'command': f'sbatch {command}',        # Save command [important for resubmitting]
+    info_dict = {'command': full_command,               # Save command [important for resubmitting]
                 'jobid':   job_id}                      # Save job_id  [identify the status with sacct]
     job_dict[f'toy_{i}'] = info_dict                    # Add to dict
     print(result.stdout[:-1])

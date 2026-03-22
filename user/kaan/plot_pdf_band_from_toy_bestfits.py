@@ -10,9 +10,11 @@ import os
 import sys
 import glob
 import argparse
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import lhapdf
 
 import common.yaml_loader as yaml_loader
 from pdf.PDFParametrization import PDFParametrization
@@ -20,6 +22,22 @@ from fit.Modeling import Rotated
 from fit.Likelihood import load_likelihood
 from fit.Likelihood import build_hypothesis_from_likelihood
 
+
+def load_toy_projection_metadata(toys_npz_path):
+    """
+    The v2 toy generator writes a JSON file next to the toy NPZ.
+    We use it here to recover:
+    - the injected base coefficients (approximated target PDF)
+    - the true target LHAPDF set/member
+    """
+    meta_path = os.path.splitext(toys_npz_path)[0] + ".json"
+    if not os.path.exists(meta_path):
+        raise RuntimeError(
+            f"Could not find toy metadata JSON next to {toys_npz_path}.\n"
+            f"Expected: {meta_path}"
+        )
+    with open(meta_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 
@@ -132,15 +150,18 @@ def pdf_band_from_toy_bestfits(config, fit_dir, Q=1.65, pid=21, x_min=0.015, x_m
     """
     Returns:
       x_vals: (Nx,)
-      central: (Nx,)      # PDF at central point (median POIs)
-      p16,p50,p84: (Nx,)  # toy quantiles
-      ratio_p16,p50,p84: (Nx,) w.r.t. central
+      approx_target: (Nx,)  # injected approximated target from the toy metadata
+      true_target: (Nx,)    # true LHAPDF target set/member
+      toy_mean: (Nx,)       # mean toy-fit curve
+      p16,p84: (Nx,)        # 68% toy band
+      ratio_true, ratio_mean, ratio_p16, ratio_p84: (Nx,) w.r.t. approximated target
+      target_label: str     # label for the true target set
     """
 
     # Load toy best fits
     POI_names, toy_ids, chat, n2ll_min, meta = load_fit_results_dir(fit_dir, pattern="*.npz")
     print("[fit metadata]\n", meta)
-    toy_names = [n for n in POI_names]
+    toy_meta = load_toy_projection_metadata(meta["toys_npz"])
 
     # Build hypo.
     cfg = yaml_loader.load_yaml(config)
@@ -194,45 +215,60 @@ def pdf_band_from_toy_bestfits(config, fit_dir, Q=1.65, pid=21, x_min=0.015, x_m
     pdf_cfg   = J.get("pdf", {})
     pdf_n     = pdf_cfg.get("pdf_n", None)
     pdf_type  = pdf_cfg.get("pdf_type", None)
-    pdf = PDFParametrization(n=pdf_n, typ=pdf_type)
+    pdf_basis  = pdf_cfg.get("pdf_basis", None)
+    # pdf_basis  = "PDF4LHC21_mc"
+    pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
 
     # --- x grid ---
     x_vals = np.logspace(np.log10(x_min), np.log10(x_max), n_x)
     id_arr = np.full(n_x, int(pid), dtype=int)
     Q_arr  = np.full(n_x, float(Q), dtype=float)
 
-    # --- evaluate pdf for each toy ---
+    # --- evaluate PDF for each toy fit ---
     n_toys = chat.shape[0]
     pdf_samples = np.zeros((n_toys, n_x), float)
     for itoy in range(n_toys):
         coeffs_base = rot_to_base(chat[itoy])
         pdf_samples[itoy] = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_base)
 
-    # toy quantiles per x
-    p16, p50, p84 = np.percentile(pdf_samples, [16, 50, 84], axis=0)
+    # Toy summaries per x
+    toy_mean = np.mean(pdf_samples, axis=0)
+    p16, p84 = np.percentile(pdf_samples, [16, 84], axis=0)
 
-    # define “central” as the toy median curve
-    central = p50
+    # Approximated target = the projected base coefficients used to generate the toys.
+    base_coeffs_map = toy_meta.get("base_coefficients", None)
+    if base_coeffs_map is None:
+        raise RuntimeError("Toy metadata JSON does not contain 'base_coefficients'.")
 
-    # --- expected curve: rotated basis with shape_2 = 1, others 0 ---
-    poi_exp_rot = np.zeros(len(poi_names), float)
-    poi_exp_rot[poi_names.index("shape_2")] = 1.0
-    expected = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=rot_to_base(poi_exp_rot))
+    approx_coeffs = np.array([float(base_coeffs_map[f"c{i}"]) for i in range(len(pdf_n))], dtype=float)
+    approx_target = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=approx_coeffs)
 
-    # ratio expected / central (toy median)
-    rexp = np.ones_like(central)
-    mask = central != 0
-    rexp[mask] = expected[mask] / central[mask]
+    # True target = direct evaluation of the injected LHAPDF set/member.
+    target_set = toy_meta.get("target_pdf_set", None)
+    target_member = toy_meta.get("target_member", None)
+    if target_set is None or target_member is None:
+        raise RuntimeError("Toy metadata JSON does not contain 'target_pdf_set' and 'target_member'.")
 
+    target_pdf = lhapdf.mkPDF(target_set, int(target_member))
+    true_target = np.array(
+        [target_pdf.xfxQ(int(pid), float(x), float(Q)) for x in x_vals],
+        dtype=float,
+    )
 
-    # ratios
-    mask = central != 0
-    r16 = np.ones_like(central); r50 = np.ones_like(central); r84 = np.ones_like(central)
-    r16[mask] = p16[mask] / central[mask]
-    r50[mask] = p50[mask] / central[mask]
-    r84[mask] = p84[mask] / central[mask]
+    # Ratios are taken with respect to the approximated target, since that is the
+    # actual truth point injected into the detector-level toys.
+    mask = approx_target != 0
+    rtrue = np.ones_like(approx_target)
+    rmean = np.ones_like(approx_target)
+    r16 = np.ones_like(approx_target)
+    r84 = np.ones_like(approx_target)
+    rtrue[mask] = true_target[mask] / approx_target[mask]
+    rmean[mask] = toy_mean[mask] / approx_target[mask]
+    r16[mask] = p16[mask] / approx_target[mask]
+    r84[mask] = p84[mask] / approx_target[mask]
 
-    return x_vals, central, p16, p50, p84, r16, r50, r84, expected, rexp
+    target_label = f"{target_set} member {int(target_member)}"
+    return x_vals, approx_target, true_target, toy_mean, p16, p84, rtrue, rmean, r16, r84, target_label
 
 
 
@@ -255,9 +291,9 @@ plt.rcParams.update({
 
 OUTDIR = "/users/alikaan.gueven/sbi-pdf/GOLLUM/user/kaan/figs"
 
-def plot_pdf_band(x, p16, p50, p84, r16, r50, r84, Q, outname,
+def plot_pdf_band(x, approx_target, true_target, toy_mean, p16, p84, rtrue, rmean, r16, r84, Q, outname,
                   header="B-simov", body=r"Toys median $\pm 1\sigma$",
-                  expected=None, rexp=None):
+                  true_target_label="True target"):
 
     os.makedirs(OUTDIR, exist_ok=True)
     out_pdf = os.path.join(OUTDIR, outname + ".pdf")
@@ -284,22 +320,21 @@ def plot_pdf_band(x, p16, p50, p84, r16, r50, r84, Q, outname,
         a.tick_params(axis="x", which="major", labelsize=11)
 
 
-    ax.fill_between(x, p16, p84, alpha=0.25, label=r"$68\%$ CI")
-    ax.plot(x, p50, color="black", lw=1.8, label="Toy median")
+    ax.fill_between(x, p16, p84, alpha=0.25, label=r"$68\%$ CI toy band")
+    ax.plot(x, toy_mean, color="black", lw=1.8, label="Mean toy curve")
+    ax.plot(x, approx_target, color="#d62728", lw=1.8, ls="--", label="Approximated target PDF")
+    ax.plot(x, true_target, color="#1f77b4", lw=1.8, label=true_target_label)
 
     axr.fill_between(x, r16, r84, alpha=0.25)
     axr.axhline(1.0, color="black", lw=1.2)
-
-    if expected is not None:
-        ax.plot(x, expected, ls="--", lw=1.6, label=r"Expected ($\hat{s}_2=1$)")
-    if rexp is not None:
-        axr.plot(x, rexp, ls="--", lw=1.4)
+    axr.plot(x, rmean, color="black", lw=1.6)
+    axr.plot(x, rtrue, color="#1f77b4", lw=1.4)
 
     ax.set_ylabel(rf"$f(x,Q = {float(Q)})$")
     ax.set_ylim(-0.2, 4.8)
 
     axr.set_xlabel(r"$x$")
-    axr.set_ylabel("variation / central", fontsize=12)
+    axr.set_ylabel("curve / approx", fontsize=12)
     axr.set_ylim(0.80, 1.25)
 
     # more minor ticks on y (no minor labels)
@@ -346,24 +381,33 @@ if __name__ == "__main__":
     if not args.rotate:
         print("No rotation json is passed. Are you sure about this choice?")
 
-    # x_vals, central, p16, p50, p84, r16, r50, r84 = pdf_band_from_toy_bestfits(args.config, args.fit_dir, Q=1.65, pid=21, x_min=0.001, x_max=0.9, n_x=200, rotate_json=args.rotate)
-    x_vals, central, p16, p50, p84, r16, r50, r84, expected, rexp = pdf_band_from_toy_bestfits(args.config, args.fit_dir, Q=args.Q, pid=21, x_min=0.001, x_max=0.9, n_x=200, rotate_json=args.rotate)
+    x_vals, approx_target, true_target, toy_mean, p16, p84, rtrue, rmean, r16, r84, target_label = pdf_band_from_toy_bestfits(
+        args.config,
+        args.fit_dir,
+        Q=args.Q,
+        pid=21,
+        x_min=0.003,
+        x_max=0.6,
+        n_x=200,
+        rotate_json=args.rotate,
+    )
 
 
     plot_pdf_band(
-        x_vals, p16, p50, p84, r16, r50, r84, args.Q,
+        x_vals, approx_target, true_target, toy_mean, p16, p84, rtrue, rmean, r16, r84, args.Q,
         outname="pdf_band_gluon_Q165",
-        body="Toys generated under\n" + r"$\hat{s}_{2}=1$",
-        expected=expected,
-        rexp=rexp
+        body="Toy-fit band and target comparison",
+        true_target_label=target_label,
     )
 
     
     print('x_vals: ', x_vals)
-    print('central: ', central)
+    print('approx_target: ', approx_target)
+    print('true_target: ', true_target)
+    print('toy_mean: ', toy_mean)
     print('p16: ', p16)
-    print('p50: ', p50)
     print('p84: ', p84)
+    print('rtrue: ', rtrue)
+    print('rmean: ', rmean)
     print('r16: ', r16)
-    print('r50: ', r50)
     print('r84: ', r84)

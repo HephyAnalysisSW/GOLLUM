@@ -10,11 +10,13 @@ Usage examples:
     python3 user/kaan/generate_toys.py configs/unbinned/unbinned_2016APV.yaml --n-toys 1000 --shape_2 1.0 --c1 0.5 --c2 1.0 --nu_pu 0.2
 """
 
+import importlib
 import argparse
 import os
 import numpy as np
 
 import common.yaml_loader as yaml_loader
+from common.yaml_loader import _resolve_features_list
 import common.user as user
 
 import fit.Likelihood as Likelihood
@@ -68,7 +70,8 @@ def compute_lambda_unbinned_for_region(n2ll: Likelihood.N2LL, hypothesis, rid: s
 
     for start in range(0, N, chunk):
         stop = min(start + chunk, N)
-        T_chunk = n2ll._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
+        rate_shift = n2ll._assemble_rate_shift_per_class(rid, hypothesis._base)
+        T_chunk = n2ll._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
         w0_chunk = n2ll._h5[(rid, first_cid)]["w0"][start:stop]
         lam[start:stop] = w0_chunk * (1.0 + T_chunk)
 
@@ -141,7 +144,11 @@ def main():
     # Load config + surrogates
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
+    
+    
     yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
+    # if fails here copy /groups/hephy/cms/robert.schoefbeck/SBIPDF/models/<config_name> to your directory.
+
 
     Likelihood.cfg = cfg
     like_info = Likelihood.load_likelihood(cfg)
@@ -178,9 +185,19 @@ def main():
     version = args.version or str(cfg.get("version", "v0"))
     cache_dir = os.path.join("NN2LCache", base, version)
 
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list(default_features) if default_features else None
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+    factory = samples_mod.Factory(
+        features=features,
+        selection=cfg["defaults"].get("default_selection", None),
+        selection_features=cfg["defaults"].get("default_selection_features", None),
+    )
+
     n2ll = Likelihood.N2LL(
         likelihood=like_info,
-        module_samples=cfg["defaults"]["module_samples"],
+        factory=factory,
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=args.overwrite_cache,

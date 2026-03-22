@@ -24,6 +24,7 @@ python3 -u user/kaan/fit_toys.py configs/unbinned/unbinned_2016APV.yaml /scratch
 """
 
 import sys
+import importlib
 from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 if str(PROJECT_DIR) not in sys.path:
@@ -34,6 +35,7 @@ import numpy as np
 from iminuit import Minuit
 
 import common.yaml_loader as yaml_loader
+from common.yaml_loader import _resolve_features_list
 import fit.Likelihood as Likelihood
 from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2LL
 from fit.Modeling import Rotated
@@ -42,40 +44,64 @@ _TOY_IDX_RE = re.compile(r"^toy(\d{4})_(.*)_indices$")
 _TOY_WGT_RE = re.compile(r"^toy(\d{4})_(.*)_weights$")
 
 
-def load_toys_npz(npz_path):
+def list_toy_ids_npz(npz_path):
     """
-    returns toys[itoy][rid] = (idx, w)
-      idx: np.ndarray[int] shape (Ndraw,)
-      w  : np.ndarray[float] shape (Ndraw,)  (must exist)
+    Read only archive metadata and return available toy ids.
     """
-    z = np.load(npz_path, allow_pickle=False)
-    tmp = {}  # tmp[itoy][rid]["idx"/"w"] = array
+    with np.load(npz_path, allow_pickle=False) as z:
+        toy_ids = sorted(
+            {
+                int(m.group(1))
+                for key in z.files
+                for m in [_TOY_IDX_RE.match(key)]
+                if m
+            }
+        )
+    if not toy_ids:
+        raise RuntimeError(f"No toy keys matched {_TOY_IDX_RE.pattern} in {npz_path}")
+    return toy_ids
 
-    for key in z.files:
-        m = _TOY_IDX_RE.match(key)
-        if m:
-            itoy = int(m.group(1)); rid = m.group(2)
-            tmp.setdefault(itoy, {}).setdefault(rid, {})["idx"] = np.asarray(z[key], dtype=np.int64)
 
-    for key in z.files:
-        m = _TOY_WGT_RE.match(key)
-        if m:
-            itoy = int(m.group(1)); rid = m.group(2)
-            tmp.setdefault(itoy, {}).setdefault(rid, {})["w"] = np.asarray(z[key], dtype=np.float64)
+def load_toys_npz(npz_path, toy_number):
+    """
+    Load exactly one toy from the NPZ file.
+
+    Returns:
+      toys[rid] = (idx, w)
+    """
+    if toy_number is None:
+        raise ValueError("load_toys_npz requires a specific toy_number")
+
+    toy_number = int(toy_number)
+    with np.load(npz_path, allow_pickle=False) as z:
+        tmp = {}  # tmp[rid]["idx"/"w"] = array
+
+        for key in z.files:
+            m = _TOY_IDX_RE.match(key)
+            if not m or int(m.group(1)) != toy_number:
+                continue
+            rid = m.group(2)
+            tmp.setdefault(rid, {})["idx"] = np.asarray(z[key], dtype=np.int64)
+
+        for key in z.files:
+            m = _TOY_WGT_RE.match(key)
+            if not m or int(m.group(1)) != toy_number:
+                continue
+            rid = m.group(2)
+            tmp.setdefault(rid, {})["w"] = np.asarray(z[key], dtype=np.float64)
 
     if not tmp:
-        raise RuntimeError(f"No toy keys matched {_TOY_IDX_RE.pattern} in {npz_path}")
+        raise RuntimeError(f"[toys] toy_number={toy_number}: no matching toy found in {npz_path}")
 
-    toys = {}  # toys[itoy][rid] = (idx, w)
-    for itoy, by_rid in tmp.items():
-        toys[itoy] = {}
-        for rid, d in by_rid.items():
-            if "idx" not in d or "w" not in d:
-                raise RuntimeError(f"[toys] itoy={itoy} rid={rid}: both indices and weights must exist in npz")
-            idx = d["idx"]; w = d["w"]
-            if idx.shape[0] != w.shape[0]:
-                raise RuntimeError(f"[toys] itoy={itoy} rid={rid}: len(idx)={idx.size} != len(w)={w.size}")
-            toys[itoy][rid] = (idx, w)
+    toys = {}  # toys[rid] = (idx, w)
+    for rid, d in tmp.items():
+        if "idx" not in d or "w" not in d:
+            raise RuntimeError(f"[toys] toy_number={toy_number} rid={rid}: both indices and weights must exist in npz")
+        idx = d["idx"]
+        w = d["w"]
+        if idx.shape[0] != w.shape[0]:
+            raise RuntimeError(f"[toys] toy_number={toy_number} rid={rid}: len(idx)={idx.size} != len(w)={w.size}")
+        toys[rid] = (idx, w)
 
     return toys
 
@@ -165,6 +191,7 @@ def main():
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
     yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
+    # if fails here copy /groups/hephy/cms/robert.schoefbeck/SBIPDF/models/<config_name> to your directory.
 
     Likelihood.cfg = cfg
     like_info = load_likelihood(cfg)
@@ -186,9 +213,19 @@ def main():
     version = args.version or str(cfg.get("version", "v0"))
     cache_dir = os.path.join("NN2LCache", base, version)
 
-    n2ll = N2LL(
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list(default_features) if default_features else None
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+
+    factory = samples_mod.Factory(
+        features=features,
+        selection=cfg["defaults"].get("default_selection", None),
+        selection_features=cfg["defaults"].get("default_selection_features", None),
+    )
+
+    n2ll = Likelihood.N2LL(
         likelihood=like_info,
-        module_samples=cfg["defaults"]["module_samples"],
+        factory=factory,
         cache_subdir=cache_dir,
         cache_root=None,
         overwrite=args.overwrite_cache,
@@ -199,12 +236,12 @@ def main():
     region_ids = [R["id"] for R in n2ll.regions]
     print("[regions]", region_ids)
 
-    toys = load_toys_npz(args.toys_npz)
-    toy_ids = sorted(toys.keys())
-    if args.max_toys is not None:
-        toy_ids = toy_ids[:args.max_toys]
-    elif args.toy_number is not None:
-        toy_ids = toy_ids[args.toy_number:args.toy_number + 1]
+    if args.toy_number is not None:
+        toy_ids = [int(args.toy_number)]
+    else:
+        toy_ids = list_toy_ids_npz(args.toys_npz)
+        if args.max_toys is not None:
+            toy_ids = toy_ids[:args.max_toys]
     print(f"[toys] file={args.toys_npz}  n={len(toy_ids)}")
 
     # preload H5 arrays into RAM once (this is the whole point)
@@ -216,12 +253,13 @@ def main():
 
     t0 = time.time()
     for k, itoy in enumerate(toy_ids, start=1):
+        toy = load_toys_npz(args.toys_npz, toy_number=itoy)
         toy_idx_by_region = {}
         toy_w_by_region = {}
         n_draws = 0
 
         for rid in region_ids:
-            idx, w = toys[itoy].get(rid, (np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)))
+            idx, w = toy.get(rid, (np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)))
             toy_idx_by_region[rid] = idx
             toy_w_by_region[rid] = w
             n_draws += int(idx.size)
