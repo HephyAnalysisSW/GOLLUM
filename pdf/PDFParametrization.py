@@ -56,6 +56,6 @@ def PDFParametrization(n, typ, basis=None, active_pids="all", rescale_pod_amplit
 
     elif typ == "PODBasis":
         # PODBasis wants the full list of variations
-        return PODBasis(variations=n_list, var_set=basis, active_pids=active_pids, rescale_pod_amplitudes = True)
+        return PODBasis(variations=n_list, var_set=basis, active_pids=active_pids, rescale_pod_amplitudes = rescale_pod_amplitudes)
     else:
         raise ValueError(f"Unknown PDF parametrization type: {typ!r}")

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import os
 from pathlib import Path
 import sys
+import copy
 
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
@@ -109,6 +110,9 @@ tt2l_delphes = RDataLoader(
     weight_rescale = 24.42,# 2016 lumi scale, based on total number of events
 )
 #tt2l_delphes.addSelection( "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
+
+tt2l_delphes_RunII = copy.deepcopy(tt2l_delphes)
+tt2l_delphes_RunII.weight_rescale=24.12*16.81/137. # first scale to 2016 (=16.81/fb), then to RunII
 
 # ----------------------------------------------------------------------
 # Helpers
