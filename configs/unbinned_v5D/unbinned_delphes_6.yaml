@@ -1,4 +1,4 @@
-version: unbinned_2016_v5
+version: unbinned_v5D
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -27,21 +27,21 @@ defaults:
     mode: "min"         # val_loss should decrease
     warmup_epochs: 0    # optional: do not early-stop before this epoch
 
+
 likelihood:
     regions:
-        - id: SR_2016 
+        - id: SR 
           classifier:
             type: null
             id: null    # no classifier needed for a single process
-            asimov: [TTLep_pow_2016]
+            asimov: [tt2l_delphes]
           classes: 
-            - id: TTLep_pow_2016
-              sample: TTLep_pow_2016
+            - id: tt2l_delphes
+              sample: tt2l_delphes
               POI:
-                job: bit_NG_PDF4LHC21_6_TTLep_pow_2016 
+                job: bit_NG_PDF4LHC21_6_tt2l_delphes 
                 type: bit
                 parameters: [c0, c1, c2, c3, c4, c5]
-
               systematics:
                 - id: L1Prefire
                   type: pnn
@@ -136,12 +136,12 @@ likelihood:
                   job: pnn_TTLep_pow_2016_Uncl
                   parameters: [nu_Uncl]
 
-jobs:
 
-  - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016
+jobs:
+  - id: bit_NG_PDF4LHC21_6_tt2l_delphes
     type: bit
-    region: SR_2016
-    process: TTLep_pow_2016
+    region: SR
+    process: tt2l_delphes
     selection: null               # optional extra selection layered on top
     numba: True
     pdf:
@@ -159,43 +159,19 @@ jobs:
     runtime:
       training_plots: true        # keep if you want training plots
     output:
-      filename: "BIT_NG_PDF4LHC21_6_TTLep_pow_2016.pkl"
-
-  - id: bit_NG_PDF4LHC21_unscaled_6_TTLep_pow_2016
-    type: bit
-    region: SR_2016
-    process: TTLep_pow_2016
-    selection: null               # optional extra selection layered on top
-    numba: True
-    pdf:
-      pdf_n: [1,2,3,4,5,6]
-      pdf_type: PODBasis
-      pdf_basis: gluon_POD_nongluon_PDF4LHC21
-      rescale_pod_amplitudes: False 
-    model:
-      n_trees: 200
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "BIT_NG_PDF4LHC21_unscaled_6_TTLep_pow_2016.pkl"
+      filename: "BIT_NG_PDF4LHC21_6_tt2l_delphes.pkl"
 
   - id: scaler_TTLep_pow_2016
     type: scaler
     process: TTLep_pow_2016
-    region: SR_2016
+    region: SR
     selection: null
     output:
       filename: "Scaler_TTLep_pow_2016.pkl"
 
   - id: icp_TTLep_pow_2016_L1Prefire
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     base_points:
@@ -215,7 +191,7 @@ jobs:
       filename: icp_TTLep_pow_2016_L1Prefire.pkl
   - id: pnn_TTLep_pow_2016_L1Prefire
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     base_points:
@@ -249,7 +225,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_PU
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     base_points:
@@ -271,7 +247,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_PU
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     base_points:
@@ -306,7 +282,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_MuSF
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_MuSF]
     combinations: [[nu_MuSF]]
     base_points:
@@ -327,7 +303,7 @@ jobs:
       filename: icp_TTLep_pow_2016_MuSF.pkl
   - id: pnn_TTLep_pow_2016_MuSF
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_MuSF]
     combinations: [[nu_MuSF]]
     base_points:
@@ -361,7 +337,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_MuSF
   - id: icp_TTLep_pow_2016_EleSF
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_EleSF]
     combinations: [[nu_EleSF]]
     base_points:
@@ -381,7 +357,7 @@ jobs:
       filename: icp_TTLep_pow_2016_EleSF.pkl
   - id: pnn_TTLep_pow_2016_EleSF
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_EleSF]
     combinations: [[nu_EleSF]]
     base_points:
@@ -414,7 +390,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_EleSF
   - id: icp_TTLep_pow_2016_BTag_b
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     base_points:
@@ -434,7 +410,7 @@ jobs:
       filename: icp_TTLep_pow_2016_BTag_b.pkl
   - id: pnn_TTLep_pow_2016_BTag_b
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     base_points:
@@ -467,7 +443,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_BTag_b
   - id: icp_TTLep_pow_2016_BTag_l
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     base_points:
@@ -488,7 +464,7 @@ jobs:
       filename: icp_TTLep_pow_2016_BTag_l.pkl
   - id: pnn_TTLep_pow_2016_BTag_l
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     base_points:
@@ -523,7 +499,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_scales
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
           nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
@@ -563,7 +539,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_scales
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
           nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
@@ -616,7 +592,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_showerISR
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
@@ -636,7 +612,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_showerISR
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
@@ -669,7 +645,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_showerFSR
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
@@ -689,7 +665,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_showerFSR
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
@@ -722,7 +698,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_alphaS
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
@@ -742,7 +718,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_alphaS
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
@@ -775,7 +751,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_CMS_res_j_0_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_0]
     combinations: [[nu_CMS_res_j_0]]
     base_points:
@@ -793,7 +769,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_res_j_0_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_0]
     combinations: [[nu_CMS_res_j_0]]
     base_points:
@@ -824,7 +800,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_CMS_res_j_1_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_1]
     combinations: [[nu_CMS_res_j_1]]
     base_points:
@@ -841,7 +817,7 @@ jobs:
       filename: icp_TTLep_pow_2016_CMS_res_j_1_2016.pkl
   - id: pnn_TTLep_pow_2016_CMS_res_j_1_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_1]
     combinations: [[nu_CMS_res_j_1]]
     base_points:
@@ -871,7 +847,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_CMS_res_j_1_2016
   - id: icp_TTLep_pow_2016_CMS_res_j_2_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_2]
     combinations: [[nu_CMS_res_j_2]]
     base_points:
@@ -888,7 +864,7 @@ jobs:
       filename: icp_TTLep_pow_2016_CMS_res_j_2_2016.pkl
   - id: pnn_TTLep_pow_2016_CMS_res_j_2_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_2]
     combinations: [[nu_CMS_res_j_2]]
     base_points:
@@ -918,7 +894,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_CMS_res_j_2_2016
   - id: icp_TTLep_pow_2016_CMS_res_j_3_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_3]
     combinations: [[nu_CMS_res_j_3]]
     base_points:
@@ -935,7 +911,7 @@ jobs:
       filename: icp_TTLep_pow_2016_CMS_res_j_3_2016.pkl
   - id: pnn_TTLep_pow_2016_CMS_res_j_3_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_3]
     combinations: [[nu_CMS_res_j_3]]
     base_points:
@@ -965,7 +941,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_CMS_res_j_3_2016
   - id: icp_TTLep_pow_2016_CMS_res_j_4_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_4]
     combinations: [[nu_CMS_res_j_4]]
     base_points:
@@ -982,7 +958,7 @@ jobs:
       filename: icp_TTLep_pow_2016_CMS_res_j_4_2016.pkl
   - id: pnn_TTLep_pow_2016_CMS_res_j_4_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_4]
     combinations: [[nu_CMS_res_j_4]]
     base_points:
@@ -1012,7 +988,7 @@ jobs:
       use_icp: icp_TTLep_pow_2016_CMS_res_j_4_2016
   - id: icp_TTLep_pow_2016_CMS_res_j_5_2016
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_5]
     combinations: [[nu_CMS_res_j_5]]
     base_points:
@@ -1029,7 +1005,7 @@ jobs:
       filename: icp_TTLep_pow_2016_CMS_res_j_5_2016.pkl
   - id: pnn_TTLep_pow_2016_CMS_res_j_5_2016
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_res_j_5]
     combinations: [[nu_CMS_res_j_5]]
     base_points:
@@ -1061,7 +1037,7 @@ jobs:
   # JES Eta-split bin 0
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin0
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin0]
     combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
     base_points:
@@ -1079,7 +1055,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin0
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin0]
     combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
     base_points:
@@ -1111,7 +1087,7 @@ jobs:
   # JES Eta-split bin 1
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin1
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin1]
     combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
     base_points:
@@ -1129,7 +1105,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin1
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin1]
     combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
     base_points:
@@ -1161,7 +1137,7 @@ jobs:
   # JES Eta-split bin 2
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin2
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin2]
     combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
     base_points:
@@ -1179,7 +1155,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin2
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin2]
     combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
     base_points:
@@ -1211,7 +1187,7 @@ jobs:
   # JES Eta-split bin 3
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin3
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin3]
     combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
     base_points:
@@ -1229,7 +1205,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin3
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin3]
     combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
     base_points:
@@ -1261,7 +1237,7 @@ jobs:
   # JES Eta-split bin 4
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin4
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin4]
     combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
     base_points:
@@ -1279,7 +1255,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin4
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin4]
     combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
     base_points:
@@ -1311,7 +1287,7 @@ jobs:
   # JES Eta-split bin 5
   - id: icp_TTLep_pow_2016_CMS_scale_j_Total_EtaBin5
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin5]
     combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
     base_points:
@@ -1329,7 +1305,7 @@ jobs:
 
   - id: pnn_TTLep_pow_2016_CMS_scale_j_Total_EtaBin5
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_CMS_scale_j_Total_EtaBin5]
     combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
     base_points:
@@ -1360,7 +1336,7 @@ jobs:
 
   - id: icp_TTLep_pow_2016_Uncl
     type: icp
-    region: SR_2016
+    region: SR
     parameters: [nu_Uncl]
     combinations: [[nu_Uncl]]
     base_points:
@@ -1377,7 +1353,7 @@ jobs:
       filename: icp_TTLep_pow_2016_Uncl.pkl
   - id: pnn_TTLep_pow_2016_Uncl
     type: pnn
-    region: SR_2016
+    region: SR
     parameters: [nu_Uncl]
     combinations: [[nu_Uncl]]
     base_points:
@@ -1405,4 +1381,4 @@ jobs:
     extras:
       use_scaler: scaler_TTLep_pow_2016
       use_icp: icp_TTLep_pow_2016_Uncl
-  
+

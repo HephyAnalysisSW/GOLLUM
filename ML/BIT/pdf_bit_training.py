@@ -138,7 +138,8 @@ if uid_enabled:
 pdf_n     = J.get("pdf", {}).get("pdf_n", None)
 pdf_type  = J.get("pdf", {}).get("pdf_type", None)
 pdf_basis = J.get("pdf", {}).get("pdf_basis", None)
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
+pdf_rescale_pod_amplitudes = J.get("pdf", {}).get("rescale_pod_amplitudes", True)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
 
 combos = list(pdf.combinations)  # (), ('c0',), ..., ('ci','cj')
 
