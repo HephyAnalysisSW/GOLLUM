@@ -232,6 +232,7 @@ pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
 pdf_basis = pdf_cfg.get("pdf_basis", None)
+pdf_rescale_pod_amplitudes = pdf_cfg.get("rescale_pod_amplitudes", True)
 
 if pdf_n is None or pdf_type is None:
     print(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
@@ -245,7 +246,7 @@ if len(pdf_n) != len(like_params):
     print(f"  len(POIs)    = {len(like_params)}")
 
 # instantiate PDF parametrization
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
 
 # map parameter names -> indices in fit result
 idx_map = {name: i for i, name in enumerate(fit_par_names)}

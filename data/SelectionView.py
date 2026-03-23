@@ -213,7 +213,11 @@ class SelectionView:
 
         # Use base.observers to get weight columns (scalar-only, as before)
         O = self.base.observers(shard=shard, n=None, observer_names=self._w_override).astype(np.float32, copy=False)
-        return np.prod(O, axis=1)
+        W = np.prod(O, axis=1)
+        # If the base sample was scaled and we override the weight branches, we still want to apply the scale
+        if self.base.weight_rescale is not None:
+            W*=self.base.weight_rescale 
+        return W 
 
     def features(self, shard: int = 0, n: Optional[int] = None) -> np.ndarray:
         names = self.feature_names

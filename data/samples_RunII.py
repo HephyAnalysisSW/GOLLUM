@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import os
 from pathlib import Path
 import sys
+import copy
 
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
@@ -96,6 +97,7 @@ tt2l_delphes = RDataLoader(
     n_split=1,
     splitting_strategy="events",
     strict_branches=True,
+    max_files=20,
     weight_branches=[
         "weight1fb",
     ],
@@ -105,8 +107,12 @@ tt2l_delphes = RDataLoader(
         + observables.ASYMMETRY
     ),
     observer_names=delphes_OBSERVERS,
+    weight_rescale = 24.42,# 2016 lumi scale, based on total number of events
 )
 #tt2l_delphes.addSelection( "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
+
+tt2l_delphes_RunII = copy.deepcopy(tt2l_delphes)
+tt2l_delphes_RunII.weight_rescale=24.12*16.81/137. # first scale to 2016 (=16.81/fb), then to RunII
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -416,6 +422,13 @@ class Factory:
         self.selection_features = selection_features
 
     def get(self, process: str, era: str = None, tag: str = None) -> RDataLoader:
+
+        # Prefer already-defined module globals over lazy parsing
+        if era is None and tag is None:
+            try:
+                return globals()[process]
+            except KeyError:
+                pass
 
         if not era and tag:
             raise RuntimeError(f"When you specify a tag (here: {tag}) you must specify the era." )

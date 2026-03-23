@@ -59,6 +59,7 @@ class RDataLoader:
         observer_names: Optional[Sequence[str]] = None,
         # ---- NEW & SIMPLE: explicit weight branches (product). If None/empty -> weights = 1.
         weight_branches: Optional[Sequence[str]] = None,
+        weight_rescale: float = None,
     ) -> None:
         self.tree_name = tree_name
         self.selection = selection
@@ -71,6 +72,7 @@ class RDataLoader:
         self.feature_names: Optional[List[str]] = list(feature_names) if feature_names else None
         self.observer_names: Optional[List[str]] = list(observer_names) if observer_names else None
         self.weight_branches: List[str] = list(weight_branches) if weight_branches else []
+        self.weight_rescale = weight_rescale
 
         # Resolve file list
         if isinstance(input_paths, (str, os.PathLike)):
@@ -477,6 +479,9 @@ class RDataLoader:
         Wcols = self.scalar_branches(ar, [w for w in self.weight_branches if w not in missing]).astype(np.float32, copy=False)
         w = np.prod(Wcols, axis=1) if Wcols.shape[1] else np.ones(len(ar), dtype=np.float32)
 
+        # rescale the weights
+        if self.weight_rescale is not None:
+            w*=self.weight_rescale
         if n is None and self._cache_shard == shard:
             self._cache_w = w
             self._cache_w_branches = wbs_t
