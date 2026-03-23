@@ -87,6 +87,8 @@ like_info = load_likelihood(cfg)
 
 # output directory for PDF plots
 pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, os.path.splitext(os.path.basename(args.config))[0])
+if "nosyst" in args.postfit and ("no_syst" not in pdf_plot_directory):
+    pdf_plot_directory += "_no_syst"
 os.makedirs(pdf_plot_directory, exist_ok=True)
 print(f"[info] {plot_label} plots will be written under: {pdf_plot_directory}")
 
@@ -126,17 +128,31 @@ for n in only_in_like:
 
 only_in_like = [n for n in only_in_like if n not in handled_missing_pois]
 
+# allowing plotting from fits ran with --nosyst option
+# avoiding the need to have dedicated configs without systematics
+invalid_fit = True
 if only_in_like or only_in_fit:
     print("[error] Inconsistent parameter definitions between likelihood and fit results.")
     if only_in_like:
         print("  Present in likelihood but missing in fit:")
         for n in only_in_like:
             print("   -", n)
+        
+        if all(["nu" in param for param in only_in_like]) and ("nosyst" in args.postfit):
+            print("Fit result without NPs and fit run with --nosyst. This is ok.")
+            invalid_fit = False
+
     if only_in_fit:
         print("  Present in fit but missing in likelihood:")
         for n in only_in_fit:
             print("   -", n)
-    sys.exit(1)
+        
+        # parameters in fit but not in likelihood indicate inconsistency
+        # between config and fit output - exiting here
+        invalid_fit = True
+    
+    if invalid_fit:
+        raise ValueError
 
 like_par_names_in_fit = [p.name for p in hyp_rotated.parameters if p.name in set_fit]
 

@@ -2175,8 +2175,6 @@ if __name__ == "__main__":
 
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
-    #step = 1.0 if rotated else 0.1
-    step = 0.1 if rotated else 0.1
 
     if args.no_syst:
         for p_ in hyp.nuisances + hyp_for_fit.nuisances:
