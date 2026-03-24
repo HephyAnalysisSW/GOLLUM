@@ -349,7 +349,7 @@ else:
     y_max_top = 1.0
 
 # y-range for ratio (bottom pad) fixed to [0, 2]
-r_min, r_max = 0.75, 1.25
+r_min, r_max = 0.85, 1.15
 
 # --------------------------- ROOT plotting -----------------------------
 
