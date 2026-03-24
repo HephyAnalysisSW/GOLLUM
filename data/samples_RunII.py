@@ -112,7 +112,7 @@ tt2l_delphes = RDataLoader(
 #tt2l_delphes.addSelection( "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
 
 tt2l_delphes_RunII = copy.deepcopy(tt2l_delphes)
-tt2l_delphes_RunII.weight_rescale=24.12*16.81/137. # first scale to 2016 (=16.81/fb), then to RunII
+tt2l_delphes_RunII.weight_rescale=24.12*137./16.81 # first scale to 2016 (=16.81/fb), then to RunII
 
 # ----------------------------------------------------------------------
 # Helpers
