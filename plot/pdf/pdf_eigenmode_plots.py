@@ -49,7 +49,7 @@ def evaluate_pdf(pdf_obj: PDFParametrization, x_vals: np.ndarray,
     return np.array(pdf_obj.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs), dtype=float)
 
 linestyles = ["-","--",":","-."]
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = 24
 plt.rcParams['xtick.top'] = True
 plt.rcParams['ytick.right'] = True
 plt.rcParams['xtick.direction'] = 'in'
@@ -67,12 +67,11 @@ def plot_unit_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
     
     ax_top.semilogx(x_vals, pdf_central, 'k-', linewidth=1.5, label=r'$g^{(ref)}$', zorder=10)
 
-    ax_top.text(0.95, 0.55,
+    ax_top.text(0.95, 0.45,
         rf"$Q = {Q_val:.2f}\ \mathrm{{GeV}}$",
         transform=ax_top.transAxes,
         ha="right", va="bottom",
         bbox=dict(facecolor="white", edgecolor="none", pad=2.0),
-        fontsize=18
     )
     
     for idx, mode_idx in enumerate(mode_indices):
@@ -89,14 +88,13 @@ def plot_unit_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         ax_bot.set_ylim(-1.0,4.0)
     
     ax_top.set_ylabel(r'$g$')
-    ax_top.set_title('Eigenmode decomposition')
-    ax_top.legend(loc='best', ncol=2)
+    ax_top.legend(loc='best', ncol=2, fontsize=18)
     ax_top.grid(True, alpha=0.3, which='both')
     
     ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
     ax_bot.set_xlabel(r'$x$')
     ax_bot.set_ylabel(r'$g/g^{(ref)}$')
-    ax_bot.legend(loc='best', ncol=2)
+    ax_bot.legend(loc='best', ncol=2, fontsize=18)
     ax_bot.grid(True, alpha=0.3, which='both')
     
     filename = os.path.join(output_dir, f'eigenmodes_d1_Q{int(Q_val*1000)}.png')
@@ -126,7 +124,6 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         transform=ax_top.transAxes,
         ha="right", va="bottom",
         bbox=dict(facecolor="white", edgecolor="none",pad=2.0),
-        fontsize=18
     )
     
     for idx, mode_idx in enumerate(mode_indices):
@@ -154,14 +151,13 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         ax_bot.set_ylim(0.75,1.25)
     
     ax_top.set_ylabel(r'$g$')
-    ax_top.set_title('Eigenmode decomposition')
-    ax_top.legend(loc='best', ncol=2)
+    ax_top.legend(loc='best', ncol=2, fontsize=18)
     ax_top.grid(True, alpha=0.3, which='both')
     
     ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
     ax_bot.set_xlabel(r'$x$')
     ax_bot.set_ylabel(r'$g/g^{(ref)}$')
-    ax_bot.legend(loc='best', ncol=2)
+    ax_bot.legend(loc='best', ncol=2, fontsize=18)
     ax_bot.grid(True, alpha=0.3, which='both')
     
     filename = os.path.join(output_dir, f'eigenmodes_sigma_d_Q{int(Q_val*1000)}.png')
