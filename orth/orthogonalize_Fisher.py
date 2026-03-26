@@ -39,6 +39,8 @@ p.add_argument("--fi-step-scale", type=float, default=1e-4,
                help="Step scale for Fisher binned/penalty finite differences")
 args = p.parse_args()
 
+n_sigma_plot = 0.2
+
 # ------------------------------------------------------------------
 # Load config and surrogates
 # ------------------------------------------------------------------
@@ -440,7 +442,7 @@ for R in n2ll.regions:
 
         h_dirs = []
         for j in range(n_poi):
-            alpha = sigma_d[j] if np.isfinite(sigma_d[j]) else 0.0
+            alpha = n_sigma_plot*sigma_d[j] if np.isfinite(sigma_d[j]) else 0.0
 
             if alpha == 0.0:
                 w_step = w0.copy()
@@ -471,7 +473,7 @@ for R in n2ll.regions:
 
             for j, hj in enumerate(h_dirs):
                 hj.Draw("histsame")
-                leg.AddEntry(hj, f"{labels_d[j]} (1#sigma)", "l")
+                leg.AddEntry(hj, f"{labels_d[j]} ({n_sigma_plot}#sigma)", "l")
 
             stuff.append(leg)
             leg.Draw()

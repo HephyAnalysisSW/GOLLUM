@@ -589,7 +589,7 @@ class RDataLoader:
             f"  files={len(files)}" + (f", files='{files}'" if files else ""),
             f"  features ({len(feat)}): {feat}",
             f"  observers ({len(obs)}): {obs}",
-            f"  weights (product): {weight_expr}",
+            f"  weights (product): {weight_expr} (rescale: {self.weight_rescale})",
             f"  selections ({len(sels)}): {sels}",
             ")",
         ]
