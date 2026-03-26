@@ -23,7 +23,6 @@ from pdf.PDFParametrization import PDFParametrization
 
 logger = logging.getLogger(__name__)
 
-
 def load_basis_json(filepath: str) -> Dict:
     """Load eigenbasis JSON file."""
     with open(filepath, 'r') as f:
@@ -49,6 +48,12 @@ def evaluate_pdf(pdf_obj: PDFParametrization, x_vals: np.ndarray,
     Q_arr = np.full(len(x_vals), Q_val, dtype=float)
     return np.array(pdf_obj.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs), dtype=float)
 
+linestyles = ["-","--",":","-."]
+plt.rcParams['font.size'] = 12
+plt.rcParams['xtick.top'] = True
+plt.rcParams['ytick.right'] = True
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
 
 def plot_unit_modes(x_vals: np.ndarray, pdf_central: np.ndarray, 
                            pdfs_unit: Dict[str, np.ndarray], 
@@ -56,40 +61,47 @@ def plot_unit_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
                            Q_val: float, output_dir: str) -> None:
     """Plot all d_n=1 variants overlaid on same figure."""
     fig = plt.figure(figsize=(12, 9))
-    gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 0.8], hspace=0.3)
-    
+    gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 0.8],hspace=0.0)
     ax_top = fig.add_subplot(gs[0])
     ax_bot = fig.add_subplot(gs[1])
     
-    colors = plt.cm.tab10(np.linspace(0, 1, len(mode_indices)))
-    
-    ax_top.semilogx(x_vals, pdf_central, 'k-', linewidth=2.5, label='d=0 (central)', zorder=10)
+    ax_top.semilogx(x_vals, pdf_central, 'k-', linewidth=1.5, label=r'$g^{(ref)}$', zorder=10)
+
+    ax_top.text(0.95, 0.55,
+        rf"$Q = {Q_val:.2f}\ \mathrm{{GeV}}$",
+        transform=ax_top.transAxes,
+        ha="right", va="bottom",
+        bbox=dict(facecolor="white", edgecolor="none", pad=2.0),
+        fontsize=18
+    )
     
     for idx, mode_idx in enumerate(mode_indices):
         mode_label = basis_labels[mode_idx]
-        color = colors[idx]
+        color = f"C{mode_idx % 10}"
+        linestyle = linestyles[mode_idx % 4]
         pdf_variant = pdfs_unit[mode_label]
-        ax_top.semilogx(x_vals, pdf_variant, color=color, linewidth=1.5, label=f'd{mode_idx}=1')
+        ax_top.semilogx(x_vals, pdf_variant, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})')
         
         mask = pdf_central > 1e-15
         ratio = np.ones_like(pdf_central)
         ratio[mask] = pdf_variant[mask] / pdf_central[mask]
-        ax_bot.semilogx(x_vals, ratio, color=color, linewidth=1.5, label=f'd{mode_idx}=1')
-        ax_bot.set_ylim(0.75,1.25)
+        ax_bot.semilogx(x_vals, ratio, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})')
+        ax_bot.set_ylim(-1.0,4.0)
     
-    ax_top.set_ylabel('gluon PDF')
-    ax_top.set_title(f'PDF shapes along all eigenmodes at Q={Q_val}')
-    ax_top.legend(loc='best', fontsize=8, ncol=2)
+    ax_top.set_ylabel(r'$g$')
+    ax_top.set_title('Eigenmode decomposition')
+    ax_top.legend(loc='best', ncol=2)
     ax_top.grid(True, alpha=0.3, which='both')
     
     ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
-    ax_bot.set_xlabel('x')
-    ax_bot.set_ylabel('PDF ratio to central')
-    ax_bot.legend(loc='best', fontsize=8, ncol=2)
+    ax_bot.set_xlabel(r'$x$')
+    ax_bot.set_ylabel(r'$g/g^{(ref)}$')
+    ax_bot.legend(loc='best', ncol=2)
     ax_bot.grid(True, alpha=0.3, which='both')
     
-    filename = os.path.join(output_dir, 'eigenmodes_d1.png')
+    filename = os.path.join(output_dir, f'eigenmodes_d1_Q{int(Q_val*1000)}.png')
     plt.savefig(filename, dpi=150, bbox_inches='tight')
+    plt.savefig(filename.replace(".png",".pdf"), dpi=150, bbox_inches='tight')
     plt.close()
     logger.info(f"Saved: {filename}")
 
@@ -102,21 +114,30 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
                               Q_val: float, output_dir: str) -> None:
     """Plot all modes with ±sigma bands."""
     fig = plt.figure(figsize=(12, 9))
-    gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 0.8], hspace=0.3)
+    gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 0.8], hspace=0.0)
     
     ax_top = fig.add_subplot(gs[0])
     ax_bot = fig.add_subplot(gs[1])
+        
+    ax_top.semilogx(x_vals, pdf_central, 'k-', linewidth=1.5, label=r'$g^{(ref)}$', zorder=10)
     
-    colors = plt.cm.tab20(np.linspace(0, 1, len(mode_indices)))
-    
-    ax_top.semilogx(x_vals, pdf_central, 'k-', linewidth=2.5, label='d=0 (central)', zorder=10)
+    ax_top.text(0.95, 0.55,
+        rf"$Q = {Q_val:.2f}\ \mathrm{{GeV}}$",
+        transform=ax_top.transAxes,
+        ha="right", va="bottom",
+        bbox=dict(facecolor="white", edgecolor="none",pad=2.0),
+        fontsize=18
+    )
     
     for idx, mode_idx in enumerate(mode_indices):
         mode_label = basis_labels[mode_idx]
-        color = colors[idx]
-        
+        color = f"C{mode_idx%10}"
+        linestyle = linestyles[mode_idx % 4]
+
         ax_top.fill_between(x_vals, pdfs_minus[mode_label], pdfs_plus[mode_label], 
-                           color=color, alpha=0.15)
+        color=color, alpha=0.08, linewidth=1.5, linestyle=linestyle)
+        ax_top.semilogx(x_vals, pdfs_plus[mode_label], linestyle=linestyle, color=color, linewidth=1.5, label=f'EV({mode_idx+1})', zorder=3)
+        ax_top.semilogx(x_vals, pdfs_minus[mode_label], linestyle=linestyle, color=color, linewidth=1.5, zorder=3)
         
         mask = pdf_central > 1e-15
         ratio_minus = np.ones_like(pdf_central)
@@ -125,23 +146,27 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         ratio_minus[mask] = pdfs_minus[mode_label][mask] / pdf_central[mask]
         ratio_plus[mask] = pdfs_plus[mode_label][mask] / pdf_central[mask]
         
-        ax_bot.fill_between(x_vals, ratio_minus, ratio_plus, color=color, alpha=0.25, label=f"d{mode_idx}=+-{sigma_d[mode_idx]:.3f}")
+        ax_bot.fill_between(x_vals, ratio_minus, ratio_plus, color=color, alpha=0.08)
+        ax_bot.semilogx(x_vals, ratio_plus, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})', zorder=3)
+        ax_bot.semilogx(x_vals, ratio_minus, color=color, linestyle=linestyle, linewidth=1.5, zorder=3)
+
         ax_bot.set_xscale("log")
         ax_bot.set_ylim(0.75,1.25)
     
-    ax_top.set_ylabel('gluon PDF')
-    ax_top.set_title(f'PDF shapes along all eigenmodes at Q={Q_val} (with ±σ bands)')
-    ax_top.legend(loc='best', fontsize=8, ncol=2)
+    ax_top.set_ylabel(r'$g$')
+    ax_top.set_title('Eigenmode decomposition')
+    ax_top.legend(loc='best', ncol=2)
     ax_top.grid(True, alpha=0.3, which='both')
     
-    ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.5)
-    ax_bot.set_xlabel('x')
-    ax_bot.set_ylabel('PDF ratio to central')
-    ax_bot.legend(loc='best', fontsize=8, ncol=2)
+    ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
+    ax_bot.set_xlabel(r'$x$')
+    ax_bot.set_ylabel(r'$g/g^{(ref)}$')
+    ax_bot.legend(loc='best', ncol=2)
     ax_bot.grid(True, alpha=0.3, which='both')
     
-    filename = os.path.join(output_dir, 'eigenmodes_sigma_d.png')
+    filename = os.path.join(output_dir, f'eigenmodes_sigma_d_Q{int(Q_val*1000)}.png')
     plt.savefig(filename, dpi=150, bbox_inches='tight')
+    plt.savefig(filename.replace(".png",".pdf"), dpi=150, bbox_inches='tight')
     plt.close()
     logger.info(f"Saved: {filename}")
 
