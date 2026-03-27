@@ -148,7 +148,7 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         ax_bot.semilogx(x_vals, ratio_minus, color=color, linestyle=linestyle, linewidth=1.5, zorder=3)
 
         ax_bot.set_xscale("log")
-        ax_bot.set_ylim(0.75,1.25)
+        ax_bot.set_ylim(0.9,1.10)
     
     ax_top.set_ylabel(r'$g$')
     ax_top.legend(loc='best', ncol=2, fontsize=18)
