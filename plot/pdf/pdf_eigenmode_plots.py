@@ -174,7 +174,6 @@ def main() -> None:
     parser.add_argument("--basis-json", required=True, help="Path to eigen_basis JSON")
     parser.add_argument("--Q", type=float, default=1.65, help="Scale Q for PDF evaluation")
     parser.add_argument("--modes", default="all", help="Comma-separated mode indices or 'all'")
-    parser.add_argument("--include-sigma", action="store_true", help="Also plot ±sigma variants")
     parser.add_argument("--pdf-basis", default="gluon_POD_nongluon_PDF4LHC21",
                        help="PDF basis identifier")
     
@@ -220,7 +219,7 @@ def main() -> None:
     d_central: np.ndarray = np.zeros(n_modes)
     c_central: np.ndarray = coeffs_from_d(d_central, V_new)
     pdf_central: np.ndarray = evaluate_pdf(pdf, x_vals, args.Q, c_central)
-    logger.info(f"Evaluated central (d=0) at Q={args.Q}")
+    logger.info(f"Evaluated reference (c=d=0) at Q={args.Q}")
     
     pdfs_unit: Dict[str, np.ndarray] = {}
     pdfs_minus: Dict[str, np.ndarray] = {}
