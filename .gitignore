@@ -5,3 +5,9 @@ www
 output
 caches
 models
+*.err
+*.out
+slurm*
+launch*
+.github/
+.vscode/

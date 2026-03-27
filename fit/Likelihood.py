@@ -1909,9 +1909,14 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
             print("\n[HESSE]");  print(m)
     if do_minos:
         minos_parameter_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
+        print("Running MINOS uncertainties for POIs.")
         if minosNP:
-            print(f"Running MINOS uncertainties also for the following NPs: {minosNP}")
-            minos_parameter_list+=minosNP
+            if "all" in minosNP:
+                print("Running MINOS uncertainties for all NPs.")
+                minos_parameter_list = [p.name for p in free]
+            else:
+                print(f"Running MINOS uncertainties also for the following NPs: {minosNP}")
+                minos_parameter_list+=minosNP
         m.minos(*minos_parameter_list)
         if verbosity >=1: 
             print("\n[MINOS]", minos_parameter_list);
@@ -2155,7 +2160,7 @@ if __name__ == "__main__":
     p.add_argument("--verbosity", type=int, default=1, help="Verbosity passed to the fitter")
     p.add_argument("--minos", action="store_true", default=False,
                    help="Whether to use MINOS in the fit (POIs only). If not set, then use HESSE by default.")
-    p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos.")
+    p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos. 'all' runs MINOS for all NPs.")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader

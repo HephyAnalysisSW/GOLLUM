@@ -43,6 +43,10 @@ likelihood:
                 parameters: [c0]
 
               systematics:
+                - id: Lumi
+                  type: lnN
+                  value: 0.0073
+                  parameters: [nu_lumi]
                 - id: L1Prefire
                   type: pnn
                   job: pnn_TTLep_pow_2016_L1Prefire
