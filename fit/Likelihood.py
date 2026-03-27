@@ -1939,6 +1939,7 @@ def serialize_result(m, base, version, args, out_path ):
         "config_basename": base,
         "version": version,
         "no_syst": bool(args.no_syst) if "no_syst" in args else None,
+        "syst_only": bool(args.syst_only) if "syst_only" in args else None,
         "fval": float(m.fval),
         "edm": float(getattr(m, "edm", np.nan)),
         "niter": int(getattr(m, "niter", -1)),
@@ -1978,9 +1979,11 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
     nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
-    names = pois
-    if not args.no_syst:
-        names += nuis 
+    names = pois + nuis
+    if args.no_syst:
+        names = pois
+    elif args.syst_only:
+        names = nuis
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
@@ -2056,21 +2059,20 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
 
     # separator between POIs and nuisances
     ysep = None
-    lines = []
     if n_pois and n_nuis:
-        ysep = n - n_pois + 0.5
-        lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
-        lsep.SetLineStyle(2)
-        lsep.SetLineWidth(2)
-        lsep.Draw("SAME")
-        lines.append(ysep)
+        ysep=n
+        if not args.syst_only:
+            ysep = n - n_pois + 0.5
+            lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
+            lsep.SetLineStyle(2)
+            lsep.SetLineWidth(2)
+            lsep.Draw("SAME")
         # prefit constraint band guides for nuisances: x=±1 from separator down to x-axis
         for xx in (-1.0, +1.0):
             lv = ROOT.TLine(xx, 0.5, xx, ysep)
             lv.SetLineStyle(2)
             lv.SetLineWidth(2)
             lv.Draw("SAME")
-            lines.append(lv)
 
     # run-identifying strings
     t = ROOT.TLatex()
@@ -2154,6 +2156,7 @@ if __name__ == "__main__":
     p.add_argument("--freezePOI", type=float, default=None,
                    help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+    p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"),
                    help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2175,11 +2178,19 @@ if __name__ == "__main__":
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
+    if args.no_syst and args.syst_only:
+        raise ValueError("You cannot ask for a fit with --no_syst and --syst_only.")
+
     if args.no_syst:
         for p_ in hyp.nuisances + hyp_for_fit.nuisances:
             p_.val = 0.0
             p_.isFrozen = True
         print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+    elif args.syst_only:
+        for p_ in hyp.POIs + hyp_for_fit.POIs:
+            # p_.val = 0.0 # do I need this ? I don't think I do.
+            p_.isFrozen = True
+        print("[opts] --syst_only: all POIs frozen.")
 
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
@@ -2188,8 +2199,10 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
-    if args.freezePOI is not None:
+    if args.freezePOI is not None and (args.syst_only == False):
         suffix += f"_freezePOI{args.freezePOI:g}"
+    if args.syst_only:
+        suffix = "_systonly"
     if args.shuffle:
         suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
