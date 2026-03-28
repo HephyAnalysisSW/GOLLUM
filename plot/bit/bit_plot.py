@@ -22,9 +22,9 @@ import common.yaml_loader as yaml_loader
 from pdf.PDFParametrization import PDFParametrization
 from ML.BIT.NumbaBIT import MultiBoostedInformationTree
 from data.UIDSplitter import UIDSplitter
-from data.plot_options import plot_options as PLOT_OPTS
-
-
+from propaganda_plot_options import plot_options as PLOT_OPTS
+import common.syncer as syncer
+import common.helpers as helpers
 # --------------------------------------------------------------------------------
 # hard-coded knobs
 # --------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ from data.plot_options import plot_options as PLOT_OPTS
 # Show all available derivatives by default.
 # To restrict the output, uncomment and edit, e.g.
 # SHOW_ONLY = [("c1",), ("c2",), ("c1", "c1"), ("c1", "c2")]
-SHOW_ONLY = None
+SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
 
 # --small will stop after this many selected events
 SMALL_MAX_EVENTS = 20000
@@ -66,7 +66,7 @@ def derivative_label(der):
     if len(der) == 2 and der[0] == der[1]:
         return f"{der[0]}^{{2}}"
     if len(der) == 2:
-        return f"{der[0]}#times{der[1]}"
+        return f"{der[0]} #times {der[1]}"
     return str(der)
 
 def make_root_hist(name, title, edges, values):
@@ -104,7 +104,7 @@ ROOT.gStyle.SetTitleBorderSize(0)
 ROOT.gStyle.SetPadTickX(1)
 ROOT.gStyle.SetPadTickY(1)
 ROOT.gStyle.SetLegendBorderSize(0)
-
+ROOT.TGaxis.SetMaxDigits(3)
 
 # --------------------------------------------------------------------------------
 # cfg / job selection
@@ -147,6 +147,11 @@ loader_name = J.get("process")
 if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
+
+if args.small:
+    L.set_n_split(100)
+else:
+    L.set_n_split(20)
 
 sel = J.get("selection", None)
 sel_f = J.get("selection_features", [])
@@ -302,7 +307,8 @@ for der in plot_derivatives:
 # output directory
 # --------------------------------------------------------------------------------
 
-out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "coefficients")
+out_dir = os.path.join(user.plot_directory, "BIT-plot", cfg_base, J["id"])
+
 if args.small:
     out_dir = os.path.join(out_dir, "small")
 os.makedirs(out_dir, exist_ok=True)
@@ -479,20 +485,28 @@ for feat in plot_feats:
         right_min -= 0.5 * width
         right_max += 0.5 * width
 
-    right_pad = 0.18 * (right_max - right_min)
-    right_min -= right_pad
-    right_max += right_pad
+    #right_pad = 0.18 * (right_max - right_min)
+    #right_min -= right_pad
+    #right_max += right_pad
+
+    right_pad_lo = 0.18 * (right_max - right_min)
+    right_pad_hi = 0.28 * (right_max - right_min)
+    right_min -= right_pad_lo
+    right_max += right_pad_hi
 
     left_max = float(np.max(nominal)) if len(nominal) else 0.0
     if left_max <= 0.0:
         left_max = 1.0
-    left_max *= 1.25
+
+    #left_max *= 1.25
+    left_max *= 1.35
 
     canvas = ROOT.TCanvas(f"c_{feat}", feat, 900, 700)
     canvas.SetLeftMargin(0.13)
     canvas.SetRightMargin(0.14)
     canvas.SetBottomMargin(0.13)
     canvas.SetTopMargin(0.08)
+    canvas.SetTicks(1, 0)
 
     frame = ROOT.TH1D(f"frame_{feat}", "", n_bins, edges.astype(np.float64))
     frame.SetMinimum(0.0)
@@ -505,6 +519,7 @@ for feat in plot_feats:
     frame.GetYaxis().SetLabelSize(0.042)
     frame.GetYaxis().SetTitleOffset(1.20)
     frame.Draw("axis")
+    frame.GetYaxis().SetTicks("-")
 
     h_nominal = make_root_hist(f"h_nominal_{feat}", "", edges, nominal)
     h_nominal.SetLineColor(ROOT.kGray + 2)
@@ -540,17 +555,14 @@ for feat in plot_feats:
 
     right_axis = ROOT.TGaxis(x_hi, 0.0, x_hi, left_max, right_min, right_max, 510, "+L")
     right_axis.SetTitle("Polynomial coefficient")
-    right_axis.SetLabelSize(0.042)
-    right_axis.SetTitleSize(0.050)
+    right_axis.SetLabelFont(frame.GetYaxis().GetLabelFont())
+    right_axis.SetTitleFont(frame.GetYaxis().GetTitleFont())
+    right_axis.SetLabelSize(frame.GetYaxis().GetLabelSize())
+    right_axis.SetTitleSize(frame.GetYaxis().GetTitleSize())
     right_axis.SetTitleOffset(1.15)
-    right_axis.SetLineWidth(2)
+    right_axis.SetLineWidth(1)
     right_axis.Draw()
 
-    title = ROOT.TLatex()
-    title.SetNDC()
-    title.SetTextSize(0.040)
-    title.DrawLatex(0.13, 0.94, f"{J['id']}   ({selected_events} events{' , small' if args.small else ''})")
-    drawn_objects.append(title)
     drawn_objects.append(right_axis)
 
     canvas.RedrawAxis()
@@ -582,11 +594,6 @@ legend_frame.GetXaxis().SetTickLength(0.0)
 legend_frame.GetYaxis().SetTickLength(0.0)
 legend_frame.Draw("axis")
 
-legend_title = ROOT.TLatex()
-legend_title.SetNDC()
-legend_title.SetTextSize(0.040)
-legend_title.DrawLatex(0.03, 0.95, f"Legend for {J['id']}")
-
 legend_entries = 1 + 2 * len(plot_derivatives)
 if legend_entries > 30:
     n_cols = 4
@@ -603,7 +610,7 @@ legend.SetBorderSize(0)
 legend.SetFillStyle(0)
 legend.SetTextSize(0.030)
 
-legend_objects = [legend_frame, legend_title, legend]
+legend_objects = [legend_frame, legend]
 
 dummy_nominal = ROOT.TH1D("dummy_nominal", "", 1, 0.0, 1.0)
 dummy_nominal.SetLineColor(ROOT.kGray + 2)
@@ -642,4 +649,6 @@ legend_canvas.SaveAs(legend_stub + ".png")
 legend_canvas.SaveAs(legend_stub + ".pdf")
 legend_canvas.Close()
 
+helpers.copyIndexPHP(out_dir)
+syncer.sync()
 print("Done.")
