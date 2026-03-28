@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """
-Plot PDF curves from toy best fits.
+Plot re-centered PDF curves from toy best fits.
+
+This script starts from the POD-fit toy PDFs and displays the re-centered
+quantity
+
+    f_recentered(x, Q) = f_NNPDF3.1(x, Q) * f_toy(x, Q) / f_POD(x, Q)
+
+so that the toy band is shown around the generator PDF NNPDF3.1 rather than
+around the POD reference PDF.
 
 The plot contains:
-- the mean toy-fit curve with its 68% band
-- the PDF from the config
+- the mean re-centered toy-fit curve with its 68% band
+- the POD reference PDF from the config
 - NNPDF31_nnlo_as_0118 member 0
 - PDF4LHC21_mc member 0
 
-The ratio panel always divides by PDF4LHC21_mc member 0.
+The ratio panel divides by NNPDF31_nnlo_as_0118 member 0.
 """
 
 import os
@@ -185,6 +193,16 @@ def pretty_pdf_label(pdf_set, pdf_member):
     return f"{display_name} member {int(pdf_member)}"
 
 
+def safe_ratio(num, den):
+    num_arr, den_arr = np.broadcast_arrays(
+        np.asarray(num, dtype=float),
+        np.asarray(den, dtype=float),
+    )
+    out = np.ones_like(num_arr, dtype=float)
+    np.divide(num_arr, den_arr, out=out, where=den_arr != 0.0)
+    return out
+
+
 def build_pdf_band(config, fit_dir, rotate_json=None, Q=70.0, pid=21):
     fit_poi_names, toy_ids, chat, n2ll_min, fit_meta = load_fit_results_dir(fit_dir)
 
@@ -217,20 +235,20 @@ def build_pdf_band(config, fit_dir, rotate_json=None, Q=70.0, pid=21):
         coeffs_base = rot_to_base(fit_poi_names, chat[i])
         pdf_samples[i] = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_base)
 
-    toy_mean = np.mean(pdf_samples, axis=0)
-    p16, p84 = np.percentile(pdf_samples, [16, 84], axis=0)
+    recentered_samples = (
+        safe_ratio(pdf_samples, config_pdf_curve[np.newaxis, :])
+        * nnpdf31_curve[np.newaxis, :]
+    )
 
-    mask = pdf4lhc21_mc_curve != 0.0
-    r_config_pdf = np.ones_like(pdf4lhc21_mc_curve)
-    r_nnpdf31 = np.ones_like(pdf4lhc21_mc_curve)
-    r_toy_mean = np.ones_like(pdf4lhc21_mc_curve)
-    r16 = np.ones_like(pdf4lhc21_mc_curve)
-    r84 = np.ones_like(pdf4lhc21_mc_curve)
-    r_config_pdf[mask] = config_pdf_curve[mask] / pdf4lhc21_mc_curve[mask]
-    r_nnpdf31[mask] = nnpdf31_curve[mask] / pdf4lhc21_mc_curve[mask]
-    r_toy_mean[mask] = toy_mean[mask] / pdf4lhc21_mc_curve[mask]
-    r16[mask] = p16[mask] / pdf4lhc21_mc_curve[mask]
-    r84[mask] = p84[mask] / pdf4lhc21_mc_curve[mask]
+    toy_mean = np.mean(recentered_samples, axis=0)
+    p16, p84 = np.percentile(recentered_samples, [16, 84], axis=0)
+
+    r_config_pdf = safe_ratio(config_pdf_curve, nnpdf31_curve)
+    r_nnpdf31 = safe_ratio(nnpdf31_curve, nnpdf31_curve)
+    r_pdf4lhc21_mc = safe_ratio(pdf4lhc21_mc_curve, nnpdf31_curve)
+    r_toy_mean = safe_ratio(toy_mean, nnpdf31_curve)
+    r16 = safe_ratio(p16, nnpdf31_curve)
+    r84 = safe_ratio(p84, nnpdf31_curve)
 
     config_pdf_label = pretty_pdf_label(config_pdf_set, 0)
     nnpdf31_label = pretty_pdf_label(NNPDF31_SET, NNPDF31_MEMBER)
@@ -245,6 +263,7 @@ def build_pdf_band(config, fit_dir, rotate_json=None, Q=70.0, pid=21):
         p84,
         r_config_pdf,
         r_nnpdf31,
+        r_pdf4lhc21_mc,
         r_toy_mean,
         r16,
         r84,
@@ -276,9 +295,26 @@ PDF4LHC21_MC_COLOR = "lime"
 PDF_LINESTYLE = "--"
 
 
-def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_mean, p16, p84,
-                  r_config_pdf, r_nnpdf31, r_toy_mean, r16, r84,
-                  Q, outname, config_pdf_label, nnpdf31_label, pdf4lhc21_mc_label):
+def plot_pdf_band(
+    x,
+    config_pdf_curve,
+    nnpdf31_curve,
+    pdf4lhc21_mc_curve,
+    toy_mean,
+    p16,
+    p84,
+    r_config_pdf,
+    r_nnpdf31,
+    r_pdf4lhc21_mc,
+    r_toy_mean,
+    r16,
+    r84,
+    Q,
+    outname,
+    config_pdf_label,
+    nnpdf31_label,
+    pdf4lhc21_mc_label,
+):
     os.makedirs(OUTDIR, exist_ok=True)
     out_pdf = os.path.join(OUTDIR, outname + ".pdf")
     out_png = os.path.join(OUTDIR, outname + ".png")
@@ -297,21 +333,22 @@ def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_me
         axis.xaxis.set_major_locator(locmaj)
         axis.xaxis.set_major_formatter(fmtmaj)
 
-    ax.fill_between(x, p16, p84, alpha=0.25, label=r"$68\%$ CI toy band")
-    ax.plot(x, toy_mean, color="black", lw=1.8, label="Mean toy curve")
+    ax.fill_between(x, p16, p84, alpha=0.25, label=r"$68\%$ CI re-centered toy band")
+    ax.plot(x, toy_mean, color="black", lw=1.8, label="Mean re-centered toy curve")
     ax.plot(x, config_pdf_curve, color=CONFIG_PDF_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=config_pdf_label)
     ax.plot(x, nnpdf31_curve, color=NNPDF31_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=nnpdf31_label)
     ax.plot(x, pdf4lhc21_mc_curve, color=PDF4LHC21_MC_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=pdf4lhc21_mc_label)
 
     axr.fill_between(x, r16, r84, alpha=0.25)
-    axr.axhline(1.0, color=PDF4LHC21_MC_COLOR, lw=1.4, ls=PDF_LINESTYLE)
+    axr.axhline(1.0, color=NNPDF31_COLOR, lw=1.4, ls=PDF_LINESTYLE)
     axr.plot(x, r_toy_mean, color="black", lw=1.6)
     axr.plot(x, r_config_pdf, color=CONFIG_PDF_COLOR, lw=1.6, ls=PDF_LINESTYLE)
     axr.plot(x, r_nnpdf31, color=NNPDF31_COLOR, lw=1.6, ls=PDF_LINESTYLE)
+    axr.plot(x, r_pdf4lhc21_mc, color=PDF4LHC21_MC_COLOR, lw=1.6, ls=PDF_LINESTYLE)
 
     ax.set_ylabel(rf"$f(x,Q = {float(Q)})$")
     axr.set_xlabel(r"$x$")
-    axr.set_ylabel(r"$f/\mathrm{PDF4LHC21\_mc}$", fontsize=12)
+    axr.set_ylabel(r"$f/\mathrm{NNPDF3.1}$", fontsize=12)
     axr.set_ylim(0.80, 1.20)
 
     ax.yaxis.set_minor_locator(mtick.AutoMinorLocator(5))
@@ -334,7 +371,7 @@ def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_me
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot PDF bands from v3 toy best fits.")
+    parser = argparse.ArgumentParser(description="Plot re-centered PDF bands from toy best fits.")
     parser.add_argument("--config", required=True, help="YAML config")
     parser.add_argument("--fit-dir", required=True, help="Directory with fit_toys.py outputs")
     parser.add_argument("--rotate", default=None, help="Optional rotation JSON used in the toy fit")
@@ -353,6 +390,7 @@ def main():
         p84,
         r_config_pdf,
         r_nnpdf31,
+        r_pdf4lhc21_mc,
         r_toy_mean,
         r16,
         r84,
@@ -367,7 +405,7 @@ def main():
         pid=args.pid,
     )
 
-    outname = args.outname or f"pdf_band_v3_pid{args.pid}_Q{args.Q:g}"
+    outname = args.outname or f"pdf_band_v4_recentered_pid{args.pid}_Q{args.Q:g}"
     plot_pdf_band(
         x_vals,
         config_pdf_curve,
@@ -378,6 +416,7 @@ def main():
         p84,
         r_config_pdf,
         r_nnpdf31,
+        r_pdf4lhc21_mc,
         r_toy_mean,
         r16,
         r84,

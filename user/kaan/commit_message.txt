@@ -1,0 +1,8 @@
+feat(user/kaan): add direct PDF-reweighting toy workflow tools
+
+- add toy generation script for direct PDF reweighting to target LHAPDF sets
+- update plotting for PDF bands from toy best-fit results
+- add helper to project target PDFs onto the POD basis
+- update toy-fit submission to use reweighted toy inputs
+- refresh fit-results notebook
+

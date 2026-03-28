@@ -28,6 +28,9 @@ import common.yaml_loader as yaml_loader
 from common.yaml_loader import _resolve_features_list
 
 
+HARDCODED_REFERENCE_PDF_SET = "NNPDF31_nnlo_as_0118"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Generate toys by direct PDF reweighting to a target LHAPDF set."
@@ -63,19 +66,6 @@ def find_pdf_job(cfg):
                     return job
     raise RuntimeError("Could not find a BIT job in the config.")
 
-
-def get_pdf_setup(cfg):
-    from pdf.PDFParametrization import PDFParametrization
-
-    job = find_pdf_job(cfg)
-    pdf_cfg = job.get("pdf", {}) or {}
-    pdf = PDFParametrization(
-        n=list(pdf_cfg.get("pdf_n", []) or []),
-        typ=pdf_cfg.get("pdf_type"),
-        basis=pdf_cfg.get("pdf_basis"),
-        active_pids="all",
-    )
-    return pdf
 
 
 def iter_region_observer_weight_batches(region, factory):
@@ -205,16 +195,13 @@ def main():
 
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    # if fails here copy /groups/hephy/cms/robert.schoefbeck/SBIPDF/models/<config_name> to your directory.
 
-    pdf_model = get_pdf_setup(cfg)
     target_pdf = lhapdf.mkPDF(args.target_pdf_set, args.target_member)
-    reference_pdf = pdf_model.reference_pdf
+    reference_pdf = lhapdf.mkPDF(HARDCODED_REFERENCE_PDF_SET, 0)
 
     print("\n[pdf reweighting]")
     print(f"  target PDF = {args.target_pdf_set}, member {args.target_member}")
-    print(f"  source PDF = {pdf_model.reference_pdf_name}, member 0")
-    print(f"  basis PDF  = {pdf_model.var_set}")
+    print(f"  source PDF = {HARDCODED_REFERENCE_PDF_SET}, member 0")
 
     factory = build_factory(cfg)
     regions = list((cfg.get("likelihood", {}) or {}).get("regions", []) or [])
@@ -255,9 +242,7 @@ def main():
         "toy_generation_mode": "direct_pdf_reweight_eq_3_9",
         "target_pdf_set": args.target_pdf_set,
         "target_member": int(args.target_member),
-        "source_pdf_set": pdf_model.reference_pdf_name,
-        "basis_pdf_set": pdf_model.var_set,
-        "basis_members": list(pdf_model.original_variations),
+        "source_pdf_set": HARDCODED_REFERENCE_PDF_SET,
         "n_toys": int(args.n_toys),
         "seed": int(args.seed),
         "lambda_sums": lambda_sums,
