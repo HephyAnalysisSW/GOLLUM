@@ -28,8 +28,10 @@ import math
 p = argparse.ArgumentParser(description="BIT training (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
+p.add_argument("--postfix", default=None, help="Plot postfix")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 args = p.parse_args()
@@ -66,7 +68,13 @@ samples_mod = importlib.import_module(module_samples)
 loader_name = J.get("process")
 if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
+
 L = getattr(samples_mod, loader_name)
+
+if args.max_n_files is not None:
+    before = len(L._all_files)
+    L.set_max_files( args.max_n_files )
+    print(f"Reduced number of training files from {before} to {len(L._all_files)}")
 
 sel  = J.get("selection", None)
 sel_f= J.get("selection_features", [])
@@ -282,7 +290,14 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
         tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
         return
 
-    out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], "train")
+    if args.max_n_files is not None:
+        train = f"train_maxFiles{args.max_n_files}"
+    else:
+        train = "train" 
+    if args.postfix is not None:
+        train += ("_"+args.postfix) 
+
+    out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], train)
     os.makedirs(out_dir, exist_ok=True)
 
     ROOT.gStyle.SetOptStat(0)
@@ -449,6 +464,8 @@ os.makedirs(model_dir, exist_ok=True)
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
 if args.small:
     model_path = model_path[:-4] + "_small.pkl"
+if args.max_n_files is not None:
+    model_path = model_path[:-4] + f"_maxFiles{args.max_n_files}.pkl"
 
 # weights snapshot stays separate (required to resume boosting correctly)
 weights_path = model_path[:-4] + ".weights.pkl"

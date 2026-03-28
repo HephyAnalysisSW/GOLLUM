@@ -150,6 +150,13 @@ class RDataLoader:
             for it in items:
                 self.addSelection(it)
 
+    def set_max_files( self, max_files ):
+        self._all_files = self._all_files[: int(max_files)]
+        # Split layout
+        if self.splitting_strategy not in ("files", "events"):
+            raise ValueError("splitting_strategy must be 'files' or 'events'")
+        self._file_splits: List[List[str]] = self._make_file_splits(self._all_files, self.n_split)
+
     # ----------------------- selections -----------------------
     def addSelection(
         self,
