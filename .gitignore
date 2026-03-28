@@ -9,3 +9,9 @@ models
 *.png
 *.pdf
 *.log
+*.err
+*.out
+slurm*
+launch*
+.github/
+.vscode/

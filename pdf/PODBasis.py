@@ -231,21 +231,25 @@ class PODBasis:
 
     def __init__( self, variations = hand_picked, active_pids="all", 
             #reference_pdf = None, 
-            x_max = None, #0.6, 
+            x_max = None, #0.6,
+            rescale_pod_amplitudes=True, 
             gen_pdf = "NNPDF31_nnlo_as_0118", var_set = "gluon_POD_nongluon_PDF4LHC21"):
 
         self.original_variations = variations
         self.nvariations= len(self.original_variations)
         self.var_set = var_set
         self.x_max = x_max
+        self.rescale_pod_amplitudes = rescale_pod_amplitudes
         self.var_pdfs   = [ lhapdf.mkPDF(self.var_set, var) for var in self.original_variations ]
-        try:
-            self.scale_c = np.array([1./max_amplitudes[self.var_set][var] for var in self.original_variations])
-            print("Max_amplitudes used.")
-        except KeyError as e:
-            self.scale_c = None
+        self.scale_c = None
+        if rescale_pod_amplitudes: 
+            try:
+                self.scale_c = np.array([1./max_amplitudes[self.var_set][var] for var in self.original_variations])
+                print("Max_amplitudes used.")
+            except KeyError as e:
+                print("Max_amplitudes not used.")
+        else:
             print("Max_amplitudes not used.")
-            #raise e 
 
         #if reference_pdf:
         #    self.reference_pdf_name = reference_pdf

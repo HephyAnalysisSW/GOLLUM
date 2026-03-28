@@ -108,12 +108,12 @@ if missing_gen:
 pdf_n = J.get("pdf", {}).get("pdf_n", None)
 pdf_type = J.get("pdf", {}).get("pdf_type", None)
 pdf_basis = J.get("pdf", {}).get("pdf_basis", None)
-#pdf_basis = "gluon_POD_nongluon_NNPDF31_hessian"
-#pdf_basis = "gluon_POD_nongluon_NNPDF40"
-#pdf_basis = "gluon_POD_nongluon_PDF4LHC21"
+pdf_rescale_pod_amplitudes = J.get("pdf", {}).get("rescale_pod_amplitudes", True)
 
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, active_pids=args.active_pdgids if args.active_pdgids=='all' else list(map(int, args.active_pdgids)))
-pdf.print()
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, 
+     active_pids=args.active_pdgids if args.active_pdgids=='all' else list(map(int, args.active_pdgids)),
+     rescale_pod_amplitudes=pdf_rescale_pod_amplitudes,
+    )
 
 combos = [tuple(sorted(c)) for c in pdf.combinations]
 allowed_pois = set(pdf.variables)

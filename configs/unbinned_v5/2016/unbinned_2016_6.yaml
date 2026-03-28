@@ -43,6 +43,10 @@ likelihood:
                 parameters: [c0, c1, c2, c3, c4, c5]
 
               systematics:
+                - id: Lumi
+                  type: lnN
+                  value: 0.0073
+                  parameters: [nu_lumi]
                 - id: L1Prefire
                   type: pnn
                   job: pnn_TTLep_pow_2016_L1Prefire
@@ -160,6 +164,30 @@ jobs:
       training_plots: true        # keep if you want training plots
     output:
       filename: "BIT_NG_PDF4LHC21_6_TTLep_pow_2016.pkl"
+
+  - id: bit_NG_PDF4LHC21_unscaled_6_TTLep_pow_2016
+    type: bit
+    region: SR_2016
+    process: TTLep_pow_2016
+    selection: null               # optional extra selection layered on top
+    numba: True
+    pdf:
+      pdf_n: [1,2,3,4,5,6]
+      pdf_type: PODBasis
+      pdf_basis: gluon_POD_nongluon_PDF4LHC21
+      rescale_pod_amplitudes: False 
+    model:
+      n_trees: 200
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "BIT_NG_PDF4LHC21_unscaled_6_TTLep_pow_2016.pkl"
 
   - id: scaler_TTLep_pow_2016
     type: scaler

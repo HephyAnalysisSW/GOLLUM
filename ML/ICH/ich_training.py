@@ -152,8 +152,9 @@ pdf_cfg = J.get("pdf", {}) or {}
 pdf_n   = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
 pdf_basis = pdf_cfg.get("pdf_basis", None)
+pdf_rescale_pod_amplitudes = pdf_cfg.get("rescale_pod_amplitudes", True)
 
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
 
 variables   = list(pdf.variables)     # ['c0', ..., 'cN']
 combinations = list(pdf.combinations) # [(), ('c0',),..., ('ci','cj'),...]
