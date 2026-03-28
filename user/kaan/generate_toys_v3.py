@@ -236,7 +236,7 @@ def main():
         print(f"[toys] rid={rid}  N={lam.size}  sum(lam+)={lam_pos.sum():.6g}  sum(lam-)={lam_neg.sum():.6g}")
 
         for itoy in range(args.n_toys):
-            if itoy % 100 == 0: print('itoy: ', itoy)
+            if itoy % 10 == 0: print('itoy: ', itoy)
             idx, w = sample_toy_indices_from_lambda_signed(lam, rng=rng)
             store[f"toy{itoy:04d}_{rid}_indices"] = idx
             store[f"toy{itoy:04d}_{rid}_weights"] = w
