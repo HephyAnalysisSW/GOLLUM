@@ -71,14 +71,18 @@ def load_toys_npz(npz_path: str) -> Dict[int, Dict[str, Tuple[np.ndarray, np.nda
 
 
 
-config = "user/kaan/fit_toys.py configs/unbinned_v5/2016/unbinned_2016_6.yaml"
+# config = "user/kaan/fit_toys.py configs/unbinned_v5/2016/unbinned_2016_6.yaml"
 # toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_nominal_N200.npz"
 # toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rotate_N1000.npz"
 # toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rw_N9900.npz"
-toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/"
+# rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/eigen_basis_unbinned_2016_6_unbinned_2016_v5.json"
+
+
+config = "user/kaan/fit_toys.py configs/unbinned_v5D/unbinned_delphes_6_RunII.yaml"
+toy_file = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rw_N1000.npz"
 print_info = "--print-every 1 --minuit-print-level 2"
-rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/eigen_basis_unbinned_2016_6_unbinned_2016_v5.json"
-out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_nominal_N9900"
+rotate = "--rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/eigen_basis_binned_delphes_6_RunII_binned_delphes_RunII_v5D.json"
+out_dir = "/scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rw_N1000"
 os.makedirs(out_dir, exist_ok=True)
 
 toys = load_toys_npz(toy_file)
@@ -89,7 +93,9 @@ for i in range(len(toys)):
     toy_number = f"--toy-number {i}"
     fit_out = "--out " + os.path.join(out_dir, f"toy_{i}")
     command = ' '.join(["python3", '-u', config, toy_file, toy_number, rotate, print_info, fit_out])
-    full_command = f'sbatch user/kaan/sh/submit_to_cpu_rapid.sh "{command}"'
+    full_command = f'sbatch user/kaan/sh/submit_to_cpu_short.sh "{command}"'
+    # print(full_command)
+    # exit()
     result = run(full_command, shell=True, capture_output = True, text = True)
     job_id = re.search("\d+", result.stdout).group()    # Get the number with '\d+'
     info_dict = {'command': full_command,               # Save command [important for resubmitting]

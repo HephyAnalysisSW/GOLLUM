@@ -39,3 +39,11 @@ Generate toys based on a target PDF:
 
 **Warning: Please modify the paths in this script to submit the fits on the correct toys.**  
 `python3 user/kaan/submit_toy_fits.py`
+
+### Plotting the PDF band
+
+`python3 user/kaan/plot_pdf_band_from_toy_bestfits_final.py    --config configs/unbinned_v5D/unbinned_delphes_6_RunII.yaml   --fit-dir /scratch-cbe/users/alikaan.gueven/SBIPDF/output/toys/toys_PDF4LHC21_mc_m0_rw_N1000   --rotate /scratch-cbe/users/robert.schoefbeck/SBIPDF/output//eigen_basis_binned_delphes_6_RunII_binned_delphes_RunII_v5D.json   --Q 1.65`
+
+### Plotting the toy distributions
+
+`python3 user/kaan/plot_fit_results.py`
