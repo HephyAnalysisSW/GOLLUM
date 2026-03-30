@@ -1626,13 +1626,13 @@ class N2LL:
                     total_unbinned += _weighted_sum_log1p_minus_x(T, W)
 
             # ---------- BINNED (always available if you provided columns for axes) ----------
-            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned", None):
+            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned_counts", None):
                 for rid in self._binned_regions_ids:
-                    if rid not in self._obs_binned:
+                    if rid not in self._obs_binned_counts:
                         continue  # region not histogrammed (e.g. missing axis columns)
                     lam0 = self._binned_lambda0[rid]                    # (Nflat,)
                     lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
-                    Nobs = self._obs_binned[rid]                        # (Nflat,)
+                    Nobs = self._obs_binned_counts[rid]                        # (Nflat,)
 
                     log_ratio = self._safe_log_ratio(lam, lam0)         # stable
                     total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
