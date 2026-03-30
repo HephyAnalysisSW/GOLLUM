@@ -8,8 +8,11 @@ defaults:
         
 likelihood:
     binned:
-        - id: SR_2016 
-          classes: 
+        - id: SR_2016
+          data:
+            id: Data_2016
+            sample: Data_2016
+          classes:
             - id: TTLep_pow_2016 
               sample: TTLep_pow_2016
               POI:

@@ -2157,6 +2157,7 @@ if __name__ == "__main__":
                    help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
+    p.add_argument("--data", action="store_true", help="Fits to data defined in config.")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"),
                    help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2206,6 +2207,9 @@ if __name__ == "__main__":
     if args.shuffle:
         suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
+    if args.data:
+        suffix += "_data"
+        print("Fitting to data!")
 
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
@@ -2308,9 +2312,44 @@ if __name__ == "__main__":
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
-                # ---- optional off-nominal Asimov point ----
-                if args.asimov is None:
+
+
+                # allow unbinned and binned regions simultaneously
+                # they should have different names
+                # e.g. SR_2016 (unbinned) and CR_2016 (binned)
+
+                # unbinned regions
+                unbinned_dataloaders = {}
+                for region in like_info['regions']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        unbinned_dataloaders.update({region_id: loader})
+
+                
+                binned_dataloaders = {}
+                for region in like_info['binned']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        binned_dataloaders.update({region_id: loader})
+                        print(loader)
+
+                # data
+                if args.data:
+                    if unbinned_dataloaders==[] and binned_dataloaders==[]:
+                        raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
+                    n2ll.setObservation(unbinned_dataloaders, binned_dataloaders)
+
+                # ---- on-nominal Asimov point ----
+                elif args.asimov is None:
                     n2ll.setAsimov()
+
+                # ---- optional off-nominal Asimov point ----
                 else:
                     if rotated:
                         raise NotImplementedError
