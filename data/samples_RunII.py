@@ -408,9 +408,9 @@ class Factory:
 
     def __init__( self, 
             BASE_DIRECTORY: str = BASE_DIRECTORY,
-            features: List[str] = None,
-            selection: str = None,
-            selection_features: List[str] = None,
+            features: Optional[List[str]] = None,
+            selection: Optional[str] = None,
+            selection_features: Optional[List[str]] = None,
             ):
         if type(BASE_DIRECTORY) == str:
             self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
@@ -421,7 +421,7 @@ class Factory:
         self.selection = selection
         self.selection_features = selection_features
 
-    def get(self, process: str, era: str = None, tag: str = None) -> RDataLoader:
+    def get(self, process: str, era: Optional[str] = None, tag: Optional[str] = None) -> RDataLoader:
 
         # Prefer already-defined module globals over lazy parsing
         if era is None and tag is None:
@@ -508,8 +508,21 @@ class Factory:
         return loader
 
 if __name__ == "__main__":
-    #print("Base:", _base)
+    print("Base:", _base)
     print("Base:", tt2l_delphes)
     F,O,W = tt2l_delphes.materialize(0,"fow")
     print("Shapes:", F.shape, O.shape, W.shape)
 
+    # showcasing how to access the factory
+    factory = Factory(
+        features=_base.feature_names,
+        selection=_base.selection,
+        selection_features=_base.feature_names,
+    )
+
+    # interface for data is the same as for MC,
+    # but one should just materialize the features
+    # 
+    L_data = factory.get("Data_2016")
+    F_data = L_data.materialize(0,"f")
+    print("2016 data:", F_data)
