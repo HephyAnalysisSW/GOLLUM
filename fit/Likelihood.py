@@ -21,6 +21,8 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
+import pprint
+
 from fit.Modeling import ModelParameter, Hypothesis, Rotated
 import common.helpers as helpers 
  
@@ -1474,16 +1476,93 @@ class N2LL:
                         raise RuntimeError(f"[setObservation:unbinned:{rid}] len(weights) != nEvents ({w.shape[0]} != {X.shape[0]}).")
                     Xs.append(X); Ws.append(w)
 
+                    # checks of the existence of surrogates has been done before setObservation is called
+
                 if Xs:
                     X_all = np.concatenate(Xs, axis=0)
                     w_all = np.concatenate(Ws, axis=0)
-                else:
+                else: # Q: shouldn't this raise an error ? in principle a shard should *always* have evens
                     X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
                     w_all = np.empty((0,), dtype=np.float64)
 
                 self._obs_unbinned[rid] = {'X': X_all, 'w': w_all}
+                
+                # pre-evaluating surrogates on observed events
+                # to avoid evaluating everytime n2ll(hyp) is called
+
+                # NB: in binned, evaluation is done directly in n2ll(hyp),
+                # because ICH and ICPH already give the ratio for nominal vs. alternative
+
+                self._obs_unbinned[rid]['by_class'] = {}
+                
+                # load region info from likelihood object list
+                # does not protect against two regions with
+                # the same name - is this allowed ?
+                # currently, if there's two regions with the same name,
+                # keeps the last one checked
+                region_info = {}
+                for region in self.regions:
+                    if region['id']==rid:
+                        region_info = region
+
+                if region_info == {}:
+                    raise ValueError(f"Did not find information in config corresponding to region {rid}")
+
+                n_classes = len(region_info['classes'])
+                
+                class_predictor = region_info.get('_classifier_predictor', None)
+                
+                n_classifiers = 0
+                if class_predictor is None or n_classes <= 1:
+                    g_obs = np.ones((len(w_all), n_classes), dtype=np.float64)
+                else:
+                    # in the case where class_predictor uses
+                    # subset of the features in dataloader
+                    class_predictor_column_mask = self.make_column_mask(loader.feature_names, class_predictor.feature_names)
+                    
+                    g_obs = _predict_classifier(class_predictor, X[:, class_predictor_column_mask])  # (n_events, n_classes)
+                    if g_obs.shape[1] != n_classes:
+                        raise RuntimeError(f"[N2LL] Classifier outputs {g_obs.shape[1]} != {n_classes} classes in region '{rid}'")
+                    n_classifiers+=1
+
+                n_poi_predictors = 0
+                n_syst_predictors = 0
+                for class_info in region_info['classes']:
+                    cid = class_info['id']
+                    i_class = class_index(region_info['classes'], cid)
+
+                    self._obs_unbinned[rid]['by_class'][cid] = {}
+
+                    # classifier output per classfrom global classifier
+                    self._obs_unbinned[rid]['by_class'][cid]['g'] = g_obs[:,i_class]
+
+                    # POI predictor for each class
+                    poi_predictor = (class_info.get('POI') or {}).get('predictor')
+                    
+                    if poi_predictor is None:
+                        R_A = np.empty((len(w_all), 0), dtype=np.float64)
+                    else:
+                        poi_predictor_column_mask = self.make_column_mask(loader.feature_names, poi_predictor.feature_names)
+                        R_A = predict_bit_ratio(poi_predictor, X_all[:,poi_predictor_column_mask])
+                        n_poi_predictors +=1
+                    
+                    self._obs_unbinned[rid]['by_class'][cid]['R'] = R_A
+                    
+                    # syst predictors for each class
+                    for syst_info in class_info['_pnn_systs']:
+                        
+                        syst_column_mask = self.make_column_mask(loader.feature_names, syst_info['predictor'].feature_names)
+                        pnn = syst_info['predictor']
+                        syst_id = syst_info['id']
+                        dA = predict_pnn_deltaA(pnn, X_all[:, syst_column_mask])  # (N_events, nB)
+                        dset = f'Delta::{syst_id}'           
+
+                        self._obs_unbinned[rid]['by_class'][cid][dset] = dA
+                        n_syst_predictors += 1
+
                 print(f"[setObservation] Unbinned region '{rid}': loaded {X_all.shape[0]:,} events "
                       f"({'unit weights' if ignore_weights else 'with weights'}).")
+                print(f'[setObservation] Evaluated {n_classifiers} classifiers, and individual surrogates for {n_classes} classes. Total: {n_poi_predictors} POI predictors and {n_syst_predictors} systematics predictors.')
 
         # ------------- BINNED OBSERVATION (from unbinned events) -------------
         if binned_loaders:
@@ -1624,6 +1703,8 @@ class N2LL:
                         T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
 
                     total_unbinned += _weighted_sum_log1p_minus_x(T, W)
+                    # needs the first term in Eq. 1.4.1.
+                    # test: fit the MC to itself
 
             # ---------- BINNED (always available if you provided columns for axes) ----------
             if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned_counts", None):
