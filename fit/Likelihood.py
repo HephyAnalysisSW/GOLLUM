@@ -1325,7 +1325,7 @@ class N2LL:
 
             # include per-class lnN bias additively in exponent
             exp_expo = np.exp(expo + ln_bias_map[cid])  # (M,)
-            T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+            T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
 
         return T
 
@@ -1621,7 +1621,7 @@ class N2LL:
                             expo += dA @ nuA
 
                         exp_expo = np.exp(expo + ln_bias[cid])
-                        T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+                        T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
 
                     total_unbinned += _weighted_sum_log1p_minus_x(T, W)
 
