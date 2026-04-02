@@ -325,6 +325,7 @@ if _NUMBA:
             wi = w[i]
             if -1.0 < xi < 1e-4:
                 x2 = xi * xi
+                # Taylor expansion of log1p(x) - x
                 t = 0.5 + xi * (-1.0/3.0 + xi * (1.0/4.0 + xi * (-1.0/5.0 + xi * (1.0/6.0))))
                 y = -x2 * t
             else:
@@ -1441,6 +1442,8 @@ class N2LL:
         self._asimov_hypothesis_set = False
         self._asimov_active = False
         self._asimov_hyp = None
+
+        # hypothesis for non-central Asimov 
         self._asimov_T.clear()
         self._binned_asimov_lambda.clear()
 
@@ -1653,14 +1656,6 @@ class N2LL:
                 nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
                 for rid, block in self._obs_unbinned.items():
-                    # Mode A: direct T
-                    if 'T' in block:
-                        T = np.asarray(block['T'], dtype=np.float64)
-                        W = np.asarray(block['w'], dtype=np.float64)
-                        total_unbinned += _weighted_sum_log1p_minus_x(T, W)
-                        continue
-
-                    # Mode B: by_class arrays -> reconstruct T with current (c,nu)
                     byc = block['by_class']
                     W   = np.asarray(block['w'], dtype=np.float64)
                     N   = len(W)
@@ -1672,10 +1667,32 @@ class N2LL:
                     ln_bias = {
                         cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
                                  for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
-                        for cid in byc.keys()
+                        for cid in self._class_ids_by_region[rid]
                     }
                     rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis._base)
 
+                    # first term in N2LL: weighted sum of T evaluated on Asimov events for each class
+                    chunk = self.eval_chunk_size
+                    class_ids = self._class_ids_by_region[rid]
+                    
+                    # N = 0 case may happen if we have regions with spurious
+                    # data events without events in Asimov.
+                    # in any case, the loop for the calculation 
+                    # of the first term will simply not run
+                    N_asimov =self._N_region.get(rid, 0)
+                    for ichunk, start in enumerate(range(0, N_asimov, chunk)):
+                        stop = min(start + chunk, N_asimov)
+                        T_asimov_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                        W_asimov_chunk = self._h5[(rid, class_ids[0])]['w0'][start:stop]
+                        # IMPORTANT: event weights for all the events in Asimov are stored
+                        # in the cache file for all of the classes
+                        # So doing the below line with class_ids[-1] would also work.                                            
+                        total_unbinned -= np.dot(W_asimov_chunk, T_asimov_chunk)
+
+                    # second term in N2LL: divided into two parts
+                    # 1: get T evaluated on the observed events, summing over predictions of surrogates for each class
+                    # 2: make weighted sum of log1p(T), for observed weights can be one or not
+                    # depends on whether setObservation was called with ignoreWeights=True
                     for cid, comp in byc.items():
                         g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
                         R_slice = np.asarray(comp['R'], dtype=np.float64)     # (N, nA)
@@ -1702,9 +1719,7 @@ class N2LL:
                         exp_expo = np.exp(expo + ln_bias[cid])
                         T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
 
-                    total_unbinned += _weighted_sum_log1p_minus_x(T, W)
-                    # needs the first term in Eq. 1.4.1.
-                    # test: fit the MC to itself
+                    total_unbinned += np.dot(W,np.log1p(T))
 
             # ---------- BINNED (always available if you provided columns for axes) ----------
             if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned_counts", None):
@@ -1754,6 +1769,9 @@ class N2LL:
                 stop = min(start + chunk, N)
                 #T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
                 T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                # IMPORTANT: event weights for all the events in Asimov are stored
+                # in the cache file for all of the classes
+                # So doing the below line with class_ids[-1] would also work.
                 W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
                 total_sum += _weighted_sum_log1p_minus_x(T, W)
 
@@ -2393,13 +2411,11 @@ if __name__ == "__main__":
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
-
-
                 # allow unbinned and binned regions simultaneously
                 # they should have different names
                 # e.g. SR_2016 (unbinned) and CR_2016 (binned)
 
-                # unbinned regions
+                # unbinned region data
                 unbinned_dataloaders = {}
                 for region in like_info['regions']:
                     region_id = region['id']
@@ -2409,7 +2425,7 @@ if __name__ == "__main__":
                         #     loader.addSelection(region['selection'])
                         unbinned_dataloaders.update({region_id: loader})
 
-                
+                # binned region data
                 binned_dataloaders = {}
                 for region in like_info['binned']:
                     region_id = region['id']
