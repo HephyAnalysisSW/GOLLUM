@@ -1327,8 +1327,8 @@ class N2LL:
                 expo += dA @ nuA                        # (M,)
 
             # include per-class lnN bias additively in exponent
-            exp_expo = np.exp(expo + ln_bias_map[cid])  # (M,)
-            T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
+            expo += ln_bias_map[cid] # (M,)
+            T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
         return T
 
@@ -1716,8 +1716,9 @@ class N2LL:
                                 raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
                             expo += dA @ nuA
 
-                        exp_expo = np.exp(expo + ln_bias[cid])
-                        T += g_slice * (c_dot_R * exp_expo + np.expm1(exp_expo))
+                        # include per-class lnN bias additively in exponent
+                        expo += ln_bias[cid] # (M,)
+                        T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
                     total_unbinned += np.dot(W,np.log1p(T))
 
