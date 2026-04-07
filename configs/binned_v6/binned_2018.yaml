@@ -8,7 +8,10 @@ defaults:
 
 likelihood:
     binned:
-        - id: SR_2018 
+        - id: SR_2018
+          data:
+            id: Data_2018
+            sample: Data_2018         
           classes: 
             - id: TTLep_pow_2018 
               sample: TTLep_pow_2018

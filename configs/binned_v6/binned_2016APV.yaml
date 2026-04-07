@@ -8,7 +8,10 @@ defaults:
 
 likelihood:
     binned:
-        - id: SR_2016APV 
+        - id: SR_2016APV
+          data:
+            id: Data_2016APV
+            sample: Data_2016APV
           classes: 
             - id: TTLep_pow_2016APV 
               sample: TTLep_pow_2016APV
