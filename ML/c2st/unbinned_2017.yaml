@@ -631,7 +631,7 @@ jobs:
       test_type: test1
       syst_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: false
     model:
       hidden_layers: [512, 512, 256, 128]
@@ -658,7 +658,7 @@ jobs:
       syst_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_scales
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: true
     model:
       hidden_layers: [512, 512, 256, 128]
@@ -685,7 +685,7 @@ jobs:
       syst_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_scales
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: true
     model:
       hidden_layers: [512, 512, 256, 128]
@@ -918,7 +918,7 @@ jobs:
       test_type: test1
       syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: false
     model:
       hidden_layers: [512, 512, 256, 128]
@@ -945,7 +945,7 @@ jobs:
       syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: true
     model:
       hidden_layers: [512, 512, 256, 128]
@@ -972,7 +972,7 @@ jobs:
       syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
-      n_toys: 1000
+      n_trials: 1000
       use_pnn: true
     model:
       hidden_layers: [512, 512, 256, 128]
