@@ -438,7 +438,7 @@ def build_c2st_arrays(test_id: int, split: str, shard_limit=None):
       test2:
         - same (X,y,w) construction as test3
         - split fixed once (train/val/test fixed)
-        - ONLY y_train is shuffled per toy (n_trials times)
+        - ONLY y_train is shuffled per trial (n_trials times)
         - y_val and y_test remain fixed (never shuffled)
     """
     if test_id in (2, 3):
@@ -672,7 +672,7 @@ epochs = int(optim_cfg.get("epochs", 200))
 lr = float(optim_cfg.get("learning_rate", 1e-3))
 batch_size = int(optim_cfg.get("batch_size", 4096))
 
-# test2 toys
+# test2 trials
 n_trials = int(extras.get("n_trials", 1000))
 # dirs
 base_model_dir = os.path.join(
