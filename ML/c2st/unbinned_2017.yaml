@@ -6,6 +6,15 @@ defaults:
     - TOP_KINEMATICS
     - LEPTON_KINEMATICS
     - ASYMMETRY
+  # C2ST test definitions:
+  # - test1: background/class0 = nominal dataset (X0, w0),
+  #          signal/class1 = systematic varied dataset (Xi, wi)
+  # - test2: same (X, y, w) construction as test3, with fixed train/val/test split;
+  #          only y_train is shuffled for each trial (n_trials times),
+  #          while y_val and y_test remain fixed
+  # - test3: background/class0 = nominal dataset (X0, w0),
+  #          signal/class1 = reweighted systematic varied dataset
+  #          (Xi, wi * exp(-(dAi @ vk)))
 
   splitting:
     enabled: true
