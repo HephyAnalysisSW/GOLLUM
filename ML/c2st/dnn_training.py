@@ -673,7 +673,7 @@ lr = float(optim_cfg.get("learning_rate", 1e-3))
 batch_size = int(optim_cfg.get("batch_size", 4096))
 
 # test2 toys
-n_trials = int(extras.get("n_toys", 1000))
+n_trials = int(extras.get("n_trials", 1000))
 # dirs
 base_model_dir = os.path.join(
     user.model_directory,
