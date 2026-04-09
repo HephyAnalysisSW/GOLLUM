@@ -71,15 +71,8 @@ class DNN:
     # ---------------------- inference helpers ----------------------
     def logits(self, X: np.ndarray) -> np.ndarray:
         Xn = self._normalize(X).astype(np.float32, copy=False)
-        out = self.model(Xn, training=False)   # 直接喂 numpy，TF 会零拷贝/少拷贝处理
+        out = self.model(Xn, training=False)  
         return out.numpy()
-
-    def logits_tf(self, X_tf: tf.Tensor, training: bool) -> tf.Tensor:
-        """
-        TensorFlow forward. Convention matches PNN.deltaA_tf:
-        X_tf must already be normalized if you use a scaler.
-        """
-        return self.model(X_tf, training=training)
 
     # ---------------------- IO ----------------------
     def save(self, save_dir: str, epoch: int):
