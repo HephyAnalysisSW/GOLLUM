@@ -114,19 +114,19 @@ else:
 
 # ---------------- resolve syst reference job (for base_points / shared extras) ----------------
 extras = (J.get("extras") or {})
-syst_id = extras.get("syst_job_id", None)
+pnn_id = extras.get("pnn_job_id", None)
 SJ = None
-if syst_id:
-    SJ = next((jj for jj in (CFG.get("jobs") or []) if jj.get("id") == syst_id), None)
+if pnn_id:
+    SJ = next((jj for jj in (CFG.get("jobs") or []) if jj.get("id") == pnn_id), None)
     if SJ is None:
-        raise RuntimeError(f"syst_job_id '{syst_id}' not found in CFG jobs.")
+        raise RuntimeError(f"pnn_job_id '{pnn_id}' not found in CFG jobs.")
 
-# ---------------- base_points: prefer job-level, else inherit from syst_job_id ----------------
+# ---------------- base_points: prefer job-level, else inherit from pnn_job_id ----------------
 bp_specs = J.get("base_points", None)
 if bp_specs is None and SJ is not None:
     bp_specs = SJ.get("base_points", None)
 if not bp_specs:
-    raise RuntimeError("No base_points in job, and no base_points available via syst_job_id.")
+    raise RuntimeError("No base_points in job, and no base_points available via pnn_job_id.")
 
 base_points = [spec["coords"] for spec in bp_specs]
 
