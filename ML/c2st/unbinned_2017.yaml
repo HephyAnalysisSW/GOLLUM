@@ -629,7 +629,7 @@ jobs:
     region: SR
     extras:
       test_type: test1
-      syst_job_id: pnn_TTLep_pow_2017_scales
+      pnn_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
       n_trials: 1000
       use_pnn: false
@@ -655,7 +655,7 @@ jobs:
     region: SR
     extras:
       test_type: test2
-      syst_job_id: pnn_TTLep_pow_2017_scales
+      pnn_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_scales
       n_trials: 1000
@@ -682,7 +682,7 @@ jobs:
     region: SR
     extras:
       test_type: test3
-      syst_job_id: pnn_TTLep_pow_2017_scales
+      pnn_job_id: pnn_TTLep_pow_2017_scales
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_scales
       n_trials: 1000
@@ -916,7 +916,7 @@ jobs:
     region: SR
     extras:
       test_type: test1
-      syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
+      pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
       n_trials: 1000
       use_pnn: false
@@ -942,7 +942,7 @@ jobs:
     region: SR
     extras:
       test_type: test2
-      syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
+      pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       n_trials: 1000
@@ -969,7 +969,7 @@ jobs:
     region: SR
     extras:
       test_type: test3
-      syst_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
+      pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       use_scaler: scaler_TTLep_pow_2017
       pnn_job_id: pnn_TTLep_pow_2017_CMS_res_j_0_2017
       n_trials: 1000
