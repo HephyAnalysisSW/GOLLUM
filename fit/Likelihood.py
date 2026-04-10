@@ -2166,6 +2166,45 @@ if __name__ == "__main__":
             p_.isFrozen = True
         print("[opts] --syst_only: all POIs frozen.")
 
+    # currently rate parameters are implemented using unpenalized/floating lnN
+    # which is defined as a systematic (fit should be run with --syst_only)
+    # POI field (from ICH) still has to be in config to get nominal yields
+
+    # code below avoids fitting rate and ICH POIs (e.g. forgetting --syst_only option)
+    if not args.syst_only and not args.no_syst:
+        # classes with active ICH POI and floating lnN parameters
+        offenders: list[str] = []
+
+        for section_name in ("regions", "binned"):
+            for region_cfg in like_info[section_name]:
+                region_id = region_cfg["id"]
+
+                for class_cfg in region_cfg["classes"]:
+                    class_id = class_cfg["id"]
+                    poi_cfg = class_cfg.get("POI", {})
+                    poi_type = poi_cfg.get("type")
+                    poi_parameters = poi_cfg.get("parameters", [])
+
+                    has_active_poi = (poi_type is not None) and (len(poi_parameters) > 0)
+
+                    has_floating_lnn = any(
+                        (syst_cfg.get("type") == "lnN") and bool(syst_cfg.get("floating", False))
+                        for syst_cfg in class_cfg.get("systematics", [])
+                    )
+
+                    if has_active_poi and has_floating_lnn:
+                        offenders.append(f"{section_name}:{region_id}/{class_id}")
+
+        if offenders:
+            logger.error(
+                "Refusing non-syst-only fit: class(es) with active POI and floating lnN found: %s",
+                offenders,
+            )
+            raise RuntimeError(
+                "Invalid configuration for non-syst-only fit: active POI with floating lnN in "
+                f"{offenders}. Run with --syst_only or fix the configuration."
+            )
+
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
     import common.user as user
