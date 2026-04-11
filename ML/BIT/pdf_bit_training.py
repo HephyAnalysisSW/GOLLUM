@@ -27,7 +27,6 @@ p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--postfix", default=None, help="Plot postfix")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-p.add_argument("--old", action="store_true", help="No claude improvements.")
 p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
@@ -37,14 +36,9 @@ args = p.parse_args()
 
 # Always NUMBA
 import numba as nb
-if args.old and args.gpu:
-    raise RuntimeError("--old and --gpu are mutually exclusive.")
 if args.gpu:
     from ML.BIT.GpuBIT import MultiBoostedInformationTree
     import ML.BIT.GpuMultiNode as NumbaMultiNode
-elif args.old:
-    from ML.BIT.oldNumbaBIT import MultiBoostedInformationTree
-    import ML.BIT.oldNumbaMultiNode as NumbaMultiNode
 else:
     from ML.BIT.NumbaBIT import MultiBoostedInformationTree
     import ML.BIT.NumbaMultiNode as NumbaMultiNode
