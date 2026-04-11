@@ -296,31 +296,65 @@ if args.small:
         training_weights_valid = {k: v[:n_max_v] for k, v in training_weights_valid.items()}
 
 # ---------------- plotting function ----------------
-def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J):
-    """
-    Plot truth vs prediction ratios after t trees.
-    Syncer output is captured so tqdm bars remain usable.
-    """
+def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J):
     import ROOT, math
     from data.plot_options import plot_options as PLOT_OPTS
 
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if not plot_feats:
-        tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
-        return
+        return None
 
     if args.max_n_files is not None:
         train = f"train_maxFiles{args.max_n_files}"
     else:
-        train = "train" 
+        train = "train"
     if args.postfix is not None:
-        train += ("_"+args.postfix) 
+        train += ("_" + args.postfix)
 
     out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], train)
     os.makedirs(out_dir, exist_ok=True)
 
+    feat_cfgs = []
+    for feat in plot_feats:
+        n, lo, hi = PLOT_OPTS[feat]['binning']
+        feat_cfgs.append({
+            "name": feat,
+            "tex": PLOT_OPTS[feat]['tex'],
+            "n": n,
+            "lo": lo,
+            "hi": hi,
+            "edges": np.linspace(lo, hi, n + 1),
+            "column": feat_names.index(feat),
+        })
+
+    total_pads = len(plot_feats) + 1
+    gx = int(math.ceil(math.sqrt(total_pads)))
+    gy = int(math.ceil(total_pads / gx))
+
     ROOT.gStyle.SetOptStat(0)
     ROOT.gROOT.SetBatch(True)
+
+    return {
+        "out_dir": out_dir,
+        "feat_cfgs": feat_cfgs,
+        "gx": gx,
+        "gy": gy,
+        "w0": training_weights_train[()],
+    }
+
+
+def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J, plot_ctx=None):
+    """
+    Plot truth vs prediction ratios after t trees.
+    Syncer output is captured so tqdm bars remain usable.
+    """
+    import ROOT
+
+    if plot_ctx is None:
+        plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J)
+    if plot_ctx is None:
+        tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
+        return False
 
     ders = bit.derivatives
 
@@ -335,18 +369,15 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
             colors[der] = ROOT.kGreen + i_mix; i_mix += 1
 
     pred = bit.predict(X_train, max_n_tree=t)  # (N, M-1), aligned to ders[1:]
-    w0 = training_weights_train[()]
+    w0 = plot_ctx["w0"]
 
     truth_mat = np.stack([
         training_weights_train.get(der, training_weights_train.get(tuple(reversed(der))))
         for der in ders
     ], axis=1)
 
-    total_pads = len(plot_feats) + 1
-    gx = int(math.ceil(math.sqrt(total_pads)))
-    gy = int(math.ceil(total_pads / gx))
-    c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*gx, 500*gy)
-    c.Divide(gx, gy)
+    c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*plot_ctx["gx"], 500*plot_ctx["gy"])
+    c.Divide(plot_ctx["gx"], plot_ctx["gy"])
     keep = []
 
     leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
@@ -359,15 +390,18 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
         denom2[denom2 == 0] = 1.0
         return numer / denom2
 
-    for i, feat in enumerate(plot_feats):
+    for i, feat_cfg in enumerate(plot_ctx["feat_cfgs"]):
         pad = c.cd(i + 1)
         pad.SetTicks(1, 1)
         pad.SetBottomMargin(0.15)
         pad.SetLeftMargin(0.15)
 
-        n, lo, hi = PLOT_OPTS[feat]['binning']
-        edges = np.linspace(lo, hi, n+1)
-        col = feat_names.index(feat)
+        feat = feat_cfg["name"]
+        n = feat_cfg["n"]
+        lo = feat_cfg["lo"]
+        hi = feat_cfg["hi"]
+        edges = feat_cfg["edges"]
+        col = feat_cfg["column"]
         x = X_train[:, col]
 
         h_w0, _ = np.histogram(x, bins=edges, weights=w0)
@@ -393,7 +427,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
         y_low = y_min - pad_frac * (y_max - y_min)
         y_hi  = y_max + pad_frac * (y_max - y_min)
 
-        hframe = ROOT.TH2F(f"hf_{feat}_{t}", f";{PLOT_OPTS[feat]['tex']};ratio",
+        hframe = ROOT.TH2F(f"hf_{feat}_{t}", f";{feat_cfg['tex']};ratio",
                            n, lo, hi, 100, y_low, y_hi)
         hframe.GetYaxis().SetTitleOffset(1.3)
         hframe.Draw()
@@ -432,7 +466,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
                 h.Draw("hist same")
                 keep.append(h)
 
-    pad = c.cd(len(plot_feats) + 1)
+    pad = c.cd(len(plot_ctx["feat_cfgs"]) + 1)
     pad.SetTicks(1, 1)
     pad.SetBottomMargin(0.15)
     pad.SetLeftMargin(0.15)
@@ -465,15 +499,9 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
     tl.DrawLatex(0.30, 0.95, f"Trees = {t:04d}")
     keep.append(tl)
 
-    c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
+    c.Print(os.path.join(plot_ctx["out_dir"], f"iter_{t:04d}.png"))
     c.Close()
-
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        syncer.sync()
-    out = buf.getvalue().strip()
-    if out:
-        tqdm.write(out)
+    return True
 
 # ---------------- build & train BIT ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
@@ -614,6 +642,8 @@ if boost_weights is None and len(bit.trees) < bit.n_trees:
 # ---------------- external training loop ----------------
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
+plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J) if enable_plots else None
+did_make_plots = False
 
 # ---------------- loss history ----------------
 loss_trees = []
@@ -770,8 +800,16 @@ if len(bit.trees) < bit.n_trees:
         do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
         if do_plot:
             tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
-            plot_bit_training_root(bit, t=n_tree+1, X_train=X_train, training_weights_train=training_weights_train,
-                                   feat_names=feat_names, cfg_base=cfg_base, J=J)
+            did_make_plots = plot_bit_training_root(
+                bit,
+                t=n_tree+1,
+                X_train=X_train,
+                training_weights_train=training_weights_train,
+                feat_names=feat_names,
+                cfg_base=cfg_base,
+                J=J,
+                plot_ctx=plot_ctx,
+            ) or did_make_plots
 
     # ---------------- save loss history ----------------
     loss_txt = os.path.join(model_dir, "loss_history.txt")
