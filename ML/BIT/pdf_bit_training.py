@@ -30,13 +30,19 @@ p.add_argument("--small", action="store_true", help="Only first shard for debugg
 p.add_argument("--old", action="store_true", help="No claude improvements.")
 p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
+p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 args = p.parse_args()
 
 
 # Always NUMBA
 import numba as nb
-if args.old:
+if args.old and args.gpu:
+    raise RuntimeError("--old and --gpu are mutually exclusive.")
+if args.gpu:
+    from ML.BIT.GpuBIT import MultiBoostedInformationTree
+    import ML.BIT.GpuMultiNode as NumbaMultiNode
+elif args.old:
     from ML.BIT.oldNumbaBIT import MultiBoostedInformationTree
     import ML.BIT.oldNumbaMultiNode as NumbaMultiNode
 else:
@@ -93,6 +99,12 @@ print(L)
 
 print("Using NUMBA")
 print("Numba threads:", nb.get_num_threads())
+if args.gpu:
+    import cupy as cp
+    print("Training backend: GPU")
+    print("GPU device:", cp.cuda.runtime.getDeviceProperties(0)["name"].decode())
+else:
+    print("Training backend: CPU")
 
 # features
 L.setFeatures(J["features"])
@@ -536,6 +548,19 @@ def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
 
     return float(np.mean(losses))
 
+
+def _tree_summary(root, feat_names):
+    split_feature = feat_names[root.split_i_feature] if feat_names and root.split_i_feature < len(feat_names) else f"X{root.split_i_feature}"
+    split_gain = getattr(root, "split_gain", float("nan"))
+    left_size = int(getattr(root.left, "size", 0))
+    right_size = int(getattr(root.right, "size", 0))
+    return (
+        f"[TREE] root_feature={split_feature} "
+        f"threshold={root.split_value:.6g} "
+        f"gain={split_gain:.6g} "
+        f"left={left_size} right={right_size}"
+    )
+
 # ---- load / resume from model_path directly ----
 if not args.overwrite and os.path.exists(model_path):
     try:
@@ -612,6 +637,7 @@ if len(bit.trees) < bit.n_trees:
         )
         t2 = time.process_time()
         weak_learner_time += (t2 - t1)
+        tqdm.write(_tree_summary(root, feat_names))
 
         # ---------------- end profiling ----------------
         if args.profile:
