@@ -614,9 +614,6 @@ if boost_weights is None and len(bit.trees) < bit.n_trees:
 # ---------------- external training loop ----------------
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
-checkpoint_every = int(rt.get("checkpoint_every", 1))
-if checkpoint_every < 1:
-    checkpoint_every = 1
 
 # ---------------- loss history ----------------
 loss_trees = []
@@ -756,20 +753,15 @@ if len(bit.trees) < bit.n_trees:
         t2 = time.process_time()
         update_time += (t2 - t1)
 
-        should_checkpoint = (
-            (len(bit.trees) % checkpoint_every) == 0
-            or (len(bit.trees) == bit.n_trees)
-        )
-        if should_checkpoint:
-            # checkpoint to model_path (atomic)
-            tmp_m = model_path + ".tmp"
-            bit.save(tmp_m)
-            os.replace(tmp_m, model_path)
+        # checkpoint to model_path (atomic)
+        tmp_m = model_path + ".tmp"
+        bit.save(tmp_m)
+        os.replace(tmp_m, model_path)
 
-            tmp_w = weights_path + ".tmp"
-            with open(tmp_w, "wb") as f:
-                pickle.dump(boost_weights, f, protocol=pickle.HIGHEST_PROTOCOL)
-            os.replace(tmp_w, weights_path)
+        tmp_w = weights_path + ".tmp"
+        with open(tmp_w, "wb") as f:
+            pickle.dump(boost_weights, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp_w, weights_path)
 
         szm = os.path.getsize(model_path) / (1024.0 * 1024.0)
         szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
