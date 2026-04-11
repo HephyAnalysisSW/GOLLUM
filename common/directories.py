@@ -12,9 +12,9 @@ SAMPLES_RUNII_BASE_DIRECTORY = Path(
     "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3-2_nJ2p_nB2p_2l/"
 )
 
-DELPHES_TT2L_SELECTED_DIRECTORY = Path(
+DELPHES_TT2L_DIRECTORY = Path(
     "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/"
 )
 
 if "hepgpu2" in _HOSTNAME:
-    DELPHES_TT2L_SELECTED_DIRECTORY = Path("/scratch/rschoefbeck/TTLep_pow_selected/")
+    DELPHES_TT2L_DIRECTORY = Path("/scratch/rschoefbeck/TTLep_pow_selected/")
