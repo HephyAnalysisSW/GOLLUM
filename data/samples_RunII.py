@@ -16,11 +16,13 @@ from data.SelectionView import SelectionView
 import observables
 from systematics_RunII import SYSTEMATICS
 import common.user as user
+from common.directories import (
+    DELPHES_TT2L_DIRECTORY,
+    SAMPLES_RUNII_BASE_DIRECTORY,
+)
 
 # Use Path so that BASE_DIRECTORY / "2018" / "file.root" works.
-BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3-2_nJ2p_nB2p_2l/"
-)
+BASE_DIRECTORY = SAMPLES_RUNII_BASE_DIRECTORY
 ERAS = ["2016", "2016APV", "2017", "2018", "RunII"]
 
 GROUPS = {
@@ -91,8 +93,9 @@ def _get_base() -> RDataLoader:
 delphes_OBSERVERS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "tr_isvalid", "run", "luminosityBlock", "event"]
 tt2l_delphes = RDataLoader( 
         input_paths=[ 
+            str(DELPHES_TT2L_DIRECTORY),
             #"/scratch/rschoefbeck/TTLep_pow_selected/",
-            "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_0.root",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_1.root",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_2.root",
