@@ -561,6 +561,24 @@ def _tree_summary(root, feat_names):
         f"left={left_size} right={right_size}"
     )
 
+
+model_cfg = J.get("model", {}) or {}
+global_cuts = None
+bins_train = None
+if model_cfg.get("split_mode") == "binned":
+    cut_sample_rows = int(model_cfg.get("cut_sample_rows", len(X_train)))
+    cut_sample_rows = max(1, min(cut_sample_rows, len(X_train)))
+    global_cuts = NumbaMultiNode._compute_global_quantile_cuts(
+        X_train,
+        int(model_cfg.get("n_bins", 256)),
+        cut_sample_rows=cut_sample_rows,
+    )
+    bins_train = NumbaMultiNode._quantize_feature_matrix(X_train, global_cuts)
+    tqdm.write(
+        f"[BINS] built global cuts once: rows={cut_sample_rows} "
+        f"features={global_cuts.shape[0]} bins={global_cuts.shape[1] + 1}"
+    )
+
 # ---- load / resume from model_path directly ----
 if not args.overwrite and os.path.exists(model_path):
     try:
@@ -586,8 +604,7 @@ if not args.overwrite and os.path.exists(model_path):
 
 # ---- fresh init ----
 if bit is None:
-    mcfg = J.get("model", {}) or {}
-    bit = MultiBoostedInformationTree(**mcfg)
+    bit = MultiBoostedInformationTree(**model_cfg)
     boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
 
 # If training needed but weights missing, start from truth
@@ -609,6 +626,9 @@ best_weights_path = os.path.join(model_dir, "BIT_best.weights.pkl")  # 可选
 
 if len(bit.trees) < bit.n_trees:
 
+    if global_cuts is not None:
+        bit.node_cfg["precomputed_cuts"] = global_cuts
+
     weak_learner_time = 0.0
     update_time = 0.0
 
@@ -629,10 +649,11 @@ if len(bit.trees) < bit.n_trees:
         # fit tree (root needs base_points / feature_names)
         t1 = time.process_time()
         root = NumbaMultiNode.MultiNode(
-            X_train,
+            None if global_cuts is not None else X_train,
             training_weights = boost_weights,
             base_points      = base_points,
             feature_names    = feat_names,
+            binned_features  = bins_train,
             **bit.node_cfg
         )
         t2 = time.process_time()

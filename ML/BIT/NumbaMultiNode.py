@@ -38,6 +38,30 @@ default_cfg = {
 
 }
 
+
+def _compute_global_quantile_cuts(feature_matrix, n_bins, cut_sample_rows=None):
+    if cut_sample_rows is None or cut_sample_rows <= 0 or cut_sample_rows >= feature_matrix.shape[0]:
+        sample = feature_matrix
+    else:
+        sample = feature_matrix[:cut_sample_rows]
+    quantile_levels = np.linspace(0.0, 1.0, int(n_bins) + 1, dtype=np.float64)[1:-1]
+    if quantile_levels.size == 0:
+        return np.zeros((feature_matrix.shape[1], 0), dtype=np.float32)
+    return np.quantile(sample, quantile_levels, axis=0).T.astype(np.float32)
+
+
+def _quantize_feature_matrix(feature_matrix, cuts):
+    bins = np.empty(feature_matrix.shape, dtype=np.uint16 if cuts.shape[1] + 1 > 256 else np.uint8)
+    for feature in range(feature_matrix.shape[1]):
+        bins[:, feature] = np.searchsorted(cuts[feature], feature_matrix[:, feature], side="left")
+    return bins
+
+
+def _child_cfg_without_cached_bins(cfg):
+    child_cfg = dict(cfg)
+    child_cfg.pop("binned_features", None)
+    return child_cfg
+
 # ------------------ Numba kernels for heavy numerics ------------------
 
 @njit(cache=True)
@@ -242,7 +266,17 @@ class MultiNode:
 
         # data set
         self.features           = features
-        self.size               = len(self.features)
+        self.split_bin          = -1
+        self.binned_features    = kwargs.get('binned_features', None)
+        self.precomputed_cuts   = kwargs.get('precomputed_cuts', None)
+        if self.features is not None:
+            self.size = len(self.features)
+            self.n_features = self.features.shape[1]
+        elif self.binned_features is not None:
+            self.size = len(self.binned_features)
+            self.n_features = self.binned_features.shape[1]
+        else:
+            raise RuntimeError("Need either features or binned_features for training.")
 
         if self.cfg['loss'] not in ["MSE", "CrossEntropy"]:
             raise RuntimeError( "Unknown loss. Should be 'MSE' or 'CrossEntropy'." ) 
@@ -289,6 +323,8 @@ class MultiNode:
             self.base_point_const_for_pos   = kwargs['base_point_const_for_pos']
             self.derivatives                = kwargs['derivatives']
             self.feature_names              = kwargs['feature_names']
+
+        self.cfg.pop('binned_features', None)
 
         # keep track of recursion depth
         self._depth             = _depth
@@ -488,40 +524,46 @@ class MultiNode:
         n_bins = int(getattr(self, "n_bins", 256))
         if n_bins < 2:
             mode = "exact"
+        use_precomputed_bins = (
+            mode == "binned"
+            and getattr(self, "binned_features", None) is not None
+            and getattr(self, "precomputed_cuts", None) is not None
+        )
 
         # convenience (used in both modes)
         TW = self.training_weights  # shape (N, D)
 
-        for i_feature in range(len(self.features[0])):
-
-            feature_values = self.features[:, i_feature]
+        for i_feature in range(self.n_features):
 
             # ------------------------ BINNED MODE ------------------------
             if mode == "binned":
-
-                min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
-                if not np.isfinite(min_) or not np.isfinite(max_) or max_ <= min_:
-                    continue
-                # --- choose bin edges ---
-                quant = bool(getattr(self, "quantile_bins", False))
-
-                if quant:
-                    # quantile edges (can contain duplicates -> compress)
-                    qs = np.linspace(0.0, 1.0, n_bins + 1, endpoint=True)
-                    edges = np.quantile(feature_values, qs)
-                    edges = np.unique(edges)
-                    if edges.size < 3:
+                if use_precomputed_bins:
+                    idx = self.binned_features[:, i_feature].astype(np.int64, copy=False)
+                    cuts_i = self.precomputed_cuts[i_feature]
+                    nbin = int(cuts_i.shape[0] + 1)
+                    if nbin < 2:
                         continue
-                    nbin = int(edges.size - 1)
                 else:
-                    # uniform edges
-                    edges = np.linspace(min_, max_, n_bins + 1, endpoint=True)
-                    nbin = int(n_bins)
+                    feature_values = self.features[:, i_feature]
+                    min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
+                    if not np.isfinite(min_) or not np.isfinite(max_) or max_ <= min_:
+                        continue
+                    quant = bool(getattr(self, "quantile_bins", False))
 
-                # bin index in [0, nbin-1]
-                idx = np.searchsorted(edges, feature_values, side="right") - 1
-                idx[idx < 0] = 0
-                idx[idx >= nbin] = nbin - 1
+                    if quant:
+                        qs = np.linspace(0.0, 1.0, n_bins + 1, endpoint=True)
+                        edges = np.quantile(feature_values, qs)
+                        edges = np.unique(edges)
+                        if edges.size < 3:
+                            continue
+                        nbin = int(edges.size - 1)
+                    else:
+                        edges = np.linspace(min_, max_, n_bins + 1, endpoint=True)
+                        nbin = int(n_bins)
+
+                    idx = np.searchsorted(edges, feature_values, side="right") - 1
+                    idx[idx < 0] = 0
+                    idx[idx >= nbin] = nbin - 1
 
                 # per-bin event counts (for min_size constraint)
                 bin_counts = np.bincount(idx, minlength=nbin).astype(np.int64)
@@ -611,17 +653,21 @@ class MultiNode:
                 argmax_fi   = np.argmax(gain_masked)
                 gain        = gain_masked[argmax_fi]
 
-                # split at boundary after bin argmax_fi
-                value = edges[argmax_fi + 1]
+                if use_precomputed_bins:
+                    value = float(cuts_i[argmax_fi])
+                else:
+                    value = edges[argmax_fi + 1]
 
                 if gain > self.split_gain:
                     self.split_i_feature = i_feature
                     self.split_value     = value
                     self.split_gain      = gain
+                    self.split_bin       = int(argmax_fi)
 
                 continue  # next feature
 
             # ------------------------ EXACT MODE (CURRENT) ------------------------
+            feature_values = self.features[:, i_feature]
             feature_sorted_indices = np.argsort(feature_values)
 
             sorted_weight_sums     = np.cumsum(TW[feature_sorted_indices], axis=0)  # (N, D)
@@ -702,10 +748,14 @@ class MultiNode:
                 self.split_i_feature = i_feature
                 self.split_value     = value
                 self.split_gain      = gain
+                self.split_bin       = -1
 
         assert not np.isnan(self.split_value)
 
-        self.split_left_group = self.features[:,self.split_i_feature] <= self.split_value if not np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
+        if use_precomputed_bins and self.split_bin >= 0:
+            self.split_left_group = self.binned_features[:, self.split_i_feature] <= self.split_bin
+        else:
+            self.split_left_group = self.features[:,self.split_i_feature] <= self.split_value if not np.isnan(self.split_value) else np.ones(self.size, dtype='bool')
 
 
     def coefficient_sum( self, group ):
@@ -732,6 +782,7 @@ class MultiNode:
         if self.cfg["_get_only_score"]:
             # store derivatives in the left box and do not split further 
             self.split_i_feature, self.split_value, self.split_left_group = 0, +float('inf'), None
+            self.split_bin    = -1
             self.left        = ResultNode(derivatives=self.derivatives, **self.__store(np.ones(self.size,dtype=bool)))
             self.right       = ResultNode(derivatives=self.derivatives, **self.__store(np.zeros(self.size,dtype=bool)))
             return
@@ -742,6 +793,7 @@ class MultiNode:
         if  self.max_depth <= _depth+1 or (not any(self.split_left_group)) or all(self.split_left_group):
             # stop splitting further. Put everything in the left node
             self.split_value = float('inf')
+            self.split_bin   = -1
             self.left        = ResultNode(derivatives=self.derivatives, **self.__store(np.ones(self.size,dtype=bool)))
             self.right       = ResultNode(derivatives=self.derivatives, **self.__store(np.zeros(self.size,dtype=bool)))
             return
@@ -750,12 +802,26 @@ class MultiNode:
         if np.count_nonzero(self.split_left_group) < 2*self.min_size:
             self.left             = ResultNode(derivatives=self.derivatives, **self.__store(self.split_left_group) )
         else:
-            self.left             = MultiNode(self.features[self.split_left_group], training_weights = self.training_weights[self.split_left_group], _depth=self._depth+1, **self.cfg)
+            child_cfg = _child_cfg_without_cached_bins(self.cfg)
+            self.left             = MultiNode(
+                None if self.features is None else self.features[self.split_left_group],
+                training_weights = self.training_weights[self.split_left_group],
+                binned_features = None if self.binned_features is None else self.binned_features[self.split_left_group],
+                _depth=self._depth+1,
+                **child_cfg,
+            )
         # process right child
         if np.count_nonzero(~self.split_left_group) < 2*self.min_size:
             self.right            = ResultNode(derivatives=self.derivatives, **self.__store(~self.split_left_group) )
         else:
-            self.right            = MultiNode( self.features[~self.split_left_group], training_weights = self.training_weights[~self.split_left_group], _depth=self._depth+1, **self.cfg)
+            child_cfg = _child_cfg_without_cached_bins(self.cfg)
+            self.right            = MultiNode(
+                None if self.features is None else self.features[~self.split_left_group],
+                training_weights = self.training_weights[~self.split_left_group],
+                binned_features = None if self.binned_features is None else self.binned_features[~self.split_left_group],
+                _depth=self._depth+1,
+                **child_cfg,
+            )
 
     # Prediction    
     def predict( self, features):
