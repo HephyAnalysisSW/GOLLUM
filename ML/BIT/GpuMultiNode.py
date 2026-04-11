@@ -158,6 +158,84 @@ def _bin_sums_parallel(idx, TW, nbin):
                 bin_sums[b, d] += local_sums[t, b, d]
     return bin_sums
 
+
+@njit(cache=True)
+def _predict_tree_numba(feature_matrix, split_feature, split_value, left_child, right_child, is_leaf, leaf_value, out):
+    n_rows = feature_matrix.shape[0]
+    pred_dim = leaf_value.shape[1]
+    for i in range(n_rows):
+        node = 0
+        while is_leaf[node] == 0:
+            feature = split_feature[node]
+            if feature_matrix[i, feature] <= split_value[node]:
+                node = left_child[node]
+            else:
+                node = right_child[node]
+        for c in range(pred_dim):
+            out[i, c] = leaf_value[node, c]
+
+
+@njit(cache=True, parallel=True)
+def _predict_tree_numba_parallel(feature_matrix, split_feature, split_value, left_child, right_child, is_leaf, leaf_value, out):
+    n_rows = feature_matrix.shape[0]
+    pred_dim = leaf_value.shape[1]
+    for i in prange(n_rows):
+        node = 0
+        while is_leaf[node] == 0:
+            feature = split_feature[node]
+            if feature_matrix[i, feature] <= split_value[node]:
+                node = left_child[node]
+            else:
+                node = right_child[node]
+        for c in range(pred_dim):
+            out[i, c] = leaf_value[node, c]
+
+
+@njit(cache=True)
+def _predict_forest_ratio_numba(feature_matrix, tree_offsets, split_feature, split_value, left_child, right_child, is_leaf, leaf_value, learning_rates, out):
+    n_rows = feature_matrix.shape[0]
+    n_trees = learning_rates.shape[0]
+    pred_dim = out.shape[1]
+    for i in range(n_rows):
+        for c in range(pred_dim):
+            out[i, c] = 0.0
+        for t in range(n_trees):
+            node = tree_offsets[t]
+            while is_leaf[node] == 0:
+                feature = split_feature[node]
+                if feature_matrix[i, feature] <= split_value[node]:
+                    node = left_child[node]
+                else:
+                    node = right_child[node]
+            denom = leaf_value[node, 0]
+            if denom != 0.0:
+                lr = learning_rates[t]
+                for c in range(pred_dim):
+                    out[i, c] += lr * (leaf_value[node, c + 1] / denom)
+
+
+@njit(cache=True, parallel=True)
+def _predict_forest_ratio_numba_parallel(feature_matrix, tree_offsets, split_feature, split_value, left_child, right_child, is_leaf, leaf_value, learning_rates, out):
+    n_rows = feature_matrix.shape[0]
+    n_trees = learning_rates.shape[0]
+    pred_dim = out.shape[1]
+    for i in prange(n_rows):
+        for c in range(pred_dim):
+            out[i, c] = 0.0
+        for t in range(n_trees):
+            node = tree_offsets[t]
+            while is_leaf[node] == 0:
+                feature = split_feature[node]
+                if feature_matrix[i, feature] <= split_value[node]:
+                    node = left_child[node]
+                else:
+                    node = right_child[node]
+            denom = leaf_value[node, 0]
+            if denom != 0.0:
+                lr = learning_rates[t]
+                for c in range(pred_dim):
+                    out[i, c] += lr * (leaf_value[node, c + 1] / denom)
+
 # -------------------------------------------------------
 
 class MultiNode:
@@ -229,6 +307,45 @@ class MultiNode:
         del self.training_weights
         del self.features 
         del self.split_left_group 
+
+    def _build_prediction_state(self):
+        split_feature = []
+        split_value = []
+        left_child = []
+        right_child = []
+        is_leaf = []
+        leaf_value = []
+
+        def visit(node):
+            node_id = len(split_feature)
+            split_feature.append(-1)
+            split_value.append(0.0)
+            left_child.append(-1)
+            right_child.append(-1)
+            is_leaf.append(0)
+            leaf_value.append(np.zeros(len(self.derivatives), dtype=np.float64))
+
+            if isinstance(node, ResultNode):
+                is_leaf[node_id] = 1
+                leaf_value[node_id] = np.asarray(node.coefficient_sum, dtype=np.float64)
+            else:
+                split_feature[node_id] = int(node.split_i_feature)
+                split_value[node_id] = float(node.split_value)
+                left_child[node_id] = visit(node.left)
+                right_child[node_id] = visit(node.right)
+            return node_id
+
+        visit(self)
+        self._predict_split_feature = np.asarray(split_feature, dtype=np.int32)
+        self._predict_split_value = np.asarray(split_value, dtype=np.float64)
+        self._predict_left_child = np.asarray(left_child, dtype=np.int32)
+        self._predict_right_child = np.asarray(right_child, dtype=np.int32)
+        self._predict_is_leaf = np.asarray(is_leaf, dtype=np.int8)
+        self._predict_leaf_value = np.asarray(leaf_value, dtype=np.float64)
+
+    def _ensure_prediction_state(self):
+        if not hasattr(self, "_predict_split_feature"):
+            self._build_prediction_state()
 
 #    def get_split_vectorized( self ):
 #        ''' determine where to split the features, with numba-accelerated FI maximization
@@ -661,26 +778,41 @@ class MultiNode:
             return node.predict(features)
 
     def vectorized_predict(self, feature_matrix):
-        """Stack-based tree traversal — no eval(), index arrays shrink at each level."""
         N = len(feature_matrix)
         D = len(self.derivatives)
-        predictions = np.zeros((N, D), dtype=np.float64)
+        if N == 0:
+            return np.zeros((0, D), dtype=np.float64)
 
-        # Each stack entry: (node, index_array_of_active_events)
-        stack = [(self, np.arange(N, dtype=np.intp))]
-        while stack:
-            node, indices = stack.pop()
-            if isinstance(node, ResultNode):
-                predictions[indices] = node.coefficient_sum
-            else:
-                go_left = feature_matrix[indices, node.split_i_feature] <= node.split_value
-                left_idx  = indices[ go_left]
-                right_idx = indices[~go_left]
-                if len(right_idx):
-                    stack.append((node.right, right_idx))
-                if len(left_idx):
-                    stack.append((node.left, left_idx))
+        if not NUMBA_AVAILABLE:
+            predictions = np.zeros((N, D), dtype=np.float64)
+            stack = [(self, np.arange(N, dtype=np.intp))]
+            while stack:
+                node, indices = stack.pop()
+                if isinstance(node, ResultNode):
+                    predictions[indices] = node.coefficient_sum
+                else:
+                    go_left = feature_matrix[indices, node.split_i_feature] <= node.split_value
+                    left_idx  = indices[ go_left]
+                    right_idx = indices[~go_left]
+                    if len(right_idx):
+                        stack.append((node.right, right_idx))
+                    if len(left_idx):
+                        stack.append((node.left, left_idx))
+            return predictions
 
+        self._ensure_prediction_state()
+        predictions = np.empty((N, D), dtype=np.float64)
+        kernel = _predict_tree_numba_parallel if N >= 4096 else _predict_tree_numba
+        kernel(
+            np.asarray(feature_matrix),
+            self._predict_split_feature,
+            self._predict_split_value,
+            self._predict_left_child,
+            self._predict_right_child,
+            self._predict_is_leaf,
+            self._predict_leaf_value,
+            predictions,
+        )
         return predictions
 
     # remove the 'inf' splits

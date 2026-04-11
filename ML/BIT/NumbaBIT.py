@@ -106,6 +106,58 @@ class MultiBoostedInformationTree:
         with open(filename, 'wb') as file_:
             pickle.dump(self, file_, protocol=pickle.HIGHEST_PROTOCOL)
 
+    def _build_prediction_cache(self):
+        split_feature_parts = []
+        split_value_parts = []
+        left_child_parts = []
+        right_child_parts = []
+        is_leaf_parts = []
+        leaf_value_parts = []
+        tree_offsets = [0]
+
+        for tree in self.trees:
+            if hasattr(tree, "_ensure_prediction_state"):
+                tree._ensure_prediction_state()
+                split_feature = tree._predict_split_feature
+                split_value = tree._predict_split_value
+                left_child = tree._predict_left_child
+                right_child = tree._predict_right_child
+                is_leaf = tree._predict_is_leaf
+                leaf_value = tree._predict_leaf_value
+            else:
+                tmp = tree.vectorized_predict(np.zeros((1, 1), dtype=np.float64))
+                raise RuntimeError(f"Tree {tree} does not expose prediction state; got tmp shape {tmp.shape}")
+
+            offset = tree_offsets[-1]
+            split_feature_parts.append(split_feature)
+            split_value_parts.append(split_value)
+            left_child_parts.append(np.where(left_child >= 0, left_child + offset, left_child))
+            right_child_parts.append(np.where(right_child >= 0, right_child + offset, right_child))
+            is_leaf_parts.append(is_leaf)
+            leaf_value_parts.append(leaf_value)
+            tree_offsets.append(offset + len(split_feature))
+
+        self._predict_tree_offsets = np.asarray(tree_offsets, dtype=np.int32)
+        if split_feature_parts:
+            self._predict_split_feature = np.concatenate(split_feature_parts).astype(np.int32, copy=False)
+            self._predict_split_value = np.concatenate(split_value_parts).astype(np.float64, copy=False)
+            self._predict_left_child = np.concatenate(left_child_parts).astype(np.int32, copy=False)
+            self._predict_right_child = np.concatenate(right_child_parts).astype(np.int32, copy=False)
+            self._predict_is_leaf = np.concatenate(is_leaf_parts).astype(np.int8, copy=False)
+            self._predict_leaf_value = np.concatenate(leaf_value_parts).astype(np.float64, copy=False)
+        else:
+            self._predict_split_feature = np.zeros(0, dtype=np.int32)
+            self._predict_split_value = np.zeros(0, dtype=np.float64)
+            self._predict_left_child = np.zeros(0, dtype=np.int32)
+            self._predict_right_child = np.zeros(0, dtype=np.int32)
+            self._predict_is_leaf = np.zeros(0, dtype=np.int8)
+            self._predict_leaf_value = np.zeros((0, 0), dtype=np.float64)
+        self._predict_cache_n_trees = len(self.trees)
+
+    def _ensure_prediction_cache(self):
+        if getattr(self, "_predict_cache_n_trees", None) != len(self.trees):
+            self._build_prediction_cache()
+
     def predict(self, feature_array, max_n_tree=None, summed=True, last_tree_counts_full=False):
         """
         Parameters
@@ -142,16 +194,21 @@ class MultiBoostedInformationTree:
         N = feature_array.shape[0]
 
         if summed:
+            self._ensure_prediction_cache()
             acc = np.zeros((N, K), dtype=np.float64)
-            for t in range(T):
-                raw = self.trees[t].vectorized_predict(feature_array)  # (N, 1+K)
-                if raw.dtype != np.float64:
-                    raw = raw.astype(np.float64, copy=False)
-                denom = raw[:, :1]
-                num   = raw[:, 1:]
-                ratio = np.empty_like(num)
-                np.divide(num, denom, out=ratio, where=(denom != 0.0))
-                acc += learning_rates[t] * ratio
+            kernel = MultiNode._predict_forest_ratio_numba_parallel if N >= 4096 else MultiNode._predict_forest_ratio_numba
+            kernel(
+                np.asarray(feature_array),
+                self._predict_tree_offsets[:T],
+                self._predict_split_feature,
+                self._predict_split_value,
+                self._predict_left_child,
+                self._predict_right_child,
+                self._predict_is_leaf,
+                self._predict_leaf_value,
+                learning_rates,
+                acc,
+            )
             return acc
         else:
             out = np.empty((T, N, K), dtype=np.float64)
@@ -194,4 +251,3 @@ class MultiBoostedInformationTree:
 #                                 for der in self.derivatives]).transpose().astype('float')
 #
 #        return -(weight_dict[()][np.newaxis, ..., np.newaxis] * np.dot((predictions - (weight_ratio[np.newaxis, ...])), base_point_const) ** 2).sum(axis=(1, 2))
-
