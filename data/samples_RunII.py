@@ -91,7 +91,8 @@ def _get_base() -> RDataLoader:
 delphes_OBSERVERS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "tr_isvalid", "run", "luminosityBlock", "event"]
 tt2l_delphes = RDataLoader( 
         input_paths=[ 
-            "/scratch/rschoefbeck/TTLep_pow_selected/",
+            #"/scratch/rschoefbeck/TTLep_pow_selected/",
+            "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_0.root",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_1.root",
             #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_2.root",

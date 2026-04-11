@@ -56,7 +56,7 @@ jobs:
       pdf_type: PODBasis
       pdf_basis: gluon_POD_nongluon_PDF4LHC21 
     model:
-      n_trees: 20
+      n_trees: 10
       learning_rate: 0.2
       loss: MSE                   # or "CrossEntropy"
       learn_global_score: true
