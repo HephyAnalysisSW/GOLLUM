@@ -259,7 +259,7 @@ class MultiNode:
     def __init__( self, features, training_weights, _depth=0, **kwargs):
 
         ## basic BDT configuration + kwargs
-        self.cfg = default_cfg
+        self.cfg = dict(default_cfg)
         self.cfg.update( kwargs )
         for attr, val in self.cfg.items():
             setattr( self, attr, val )
@@ -334,8 +334,12 @@ class MultiNode:
 
         # Let's not leak the dataset.
         del self.training_weights
-        del self.features 
-        del self.split_left_group 
+        del self.features
+        del self.split_left_group
+        if hasattr(self, "binned_features"):
+            del self.binned_features
+        if hasattr(self, "precomputed_cuts"):
+            del self.precomputed_cuts
 
     def _build_prediction_state(self):
         split_feature = []
@@ -538,7 +542,7 @@ class MultiNode:
             # ------------------------ BINNED MODE ------------------------
             if mode == "binned":
                 if use_precomputed_bins:
-                    idx = self.binned_features[:, i_feature].astype(np.int64, copy=False)
+                    idx = self.binned_features[:, i_feature]
                     cuts_i = self.precomputed_cuts[i_feature]
                     nbin = int(cuts_i.shape[0] + 1)
                     if nbin < 2:

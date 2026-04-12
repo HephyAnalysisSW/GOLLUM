@@ -350,7 +350,6 @@ def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J
 def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J, plot_ctx=None):
     """
     Plot truth vs prediction ratios after t trees.
-    Syncer output is captured so tqdm bars remain usable.
     """
     import ROOT
 
@@ -803,7 +802,7 @@ if len(bit.trees) < bit.n_trees:
         do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
         if do_plot:
             tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
-            did_make_plots = plot_bit_training_root(
+            plot_bit_training_root(
                 bit,
                 t=n_tree+1,
                 X_train=X_train,
@@ -812,7 +811,7 @@ if len(bit.trees) < bit.n_trees:
                 cfg_base=cfg_base,
                 J=J,
                 plot_ctx=plot_ctx,
-            ) or did_make_plots
+            )
 
     # ---------------- save loss history ----------------
     loss_txt = os.path.join(model_dir, "loss_history.txt")
