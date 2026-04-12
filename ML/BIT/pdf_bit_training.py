@@ -94,9 +94,19 @@ print(L)
 print("Using NUMBA")
 print("Numba threads:", nb.get_num_threads())
 if args.gpu:
-    import cupy as cp
+    try:
+        import cupy as cp
+        device_count = cp.cuda.runtime.getDeviceCount()
+        if device_count < 1:
+            raise RuntimeError("GPU training requested with --gpu, but no CUDA devices are visible.")
+        device_name = cp.cuda.runtime.getDeviceProperties(0)["name"].decode()
+    except Exception as e:
+        raise RuntimeError(
+            "GPU training requested with --gpu, but CuPy/CUDA initialization failed. "
+            "Ensure CuPy is installed and a CUDA device is available and accessible."
+        ) from e
     print("Training backend: GPU")
-    print("GPU device:", cp.cuda.runtime.getDeviceProperties(0)["name"].decode())
+    print("GPU device:", device_name)
 else:
     print("Training backend: CPU")
 
