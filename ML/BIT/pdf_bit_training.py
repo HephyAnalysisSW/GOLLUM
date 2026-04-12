@@ -647,7 +647,6 @@ if boost_weights is None and len(bit.trees) < bit.n_trees:
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
 plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J) if enable_plots else None
-did_make_plots = False
 
 # ---------------- loss history ----------------
 loss_trees = []
