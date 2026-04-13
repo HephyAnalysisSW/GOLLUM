@@ -27,18 +27,18 @@ p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--postfix", default=None, help="Plot postfix")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-p.add_argument("--old", action="store_true", help="No claude improvements.")
 p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
+p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 args = p.parse_args()
 
 
 # Always NUMBA
 import numba as nb
-if args.old:
-    from ML.BIT.oldNumbaBIT import MultiBoostedInformationTree
-    import ML.BIT.oldNumbaMultiNode as NumbaMultiNode
+if args.gpu:
+    from ML.BIT.GpuBIT import MultiBoostedInformationTree
+    import ML.BIT.GpuMultiNode as NumbaMultiNode
 else:
     from ML.BIT.NumbaBIT import MultiBoostedInformationTree
     import ML.BIT.NumbaMultiNode as NumbaMultiNode
@@ -93,6 +93,22 @@ print(L)
 
 print("Using NUMBA")
 print("Numba threads:", nb.get_num_threads())
+if args.gpu:
+    try:
+        import cupy as cp
+        device_count = cp.cuda.runtime.getDeviceCount()
+        if device_count < 1:
+            raise RuntimeError("GPU training requested with --gpu, but no CUDA devices are visible.")
+        device_name = cp.cuda.runtime.getDeviceProperties(0)["name"].decode()
+    except Exception as e:
+        raise RuntimeError(
+            "GPU training requested with --gpu, but CuPy/CUDA initialization failed. "
+            "Ensure CuPy is installed and a CUDA device is available and accessible."
+        ) from e
+    print("Training backend: GPU")
+    print("GPU device:", device_name)
+else:
+    print("Training backend: CPU")
 
 # features
 L.setFeatures(J["features"])
@@ -284,31 +300,64 @@ if args.small:
         training_weights_valid = {k: v[:n_max_v] for k, v in training_weights_valid.items()}
 
 # ---------------- plotting function ----------------
-def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J):
-    """
-    Plot truth vs prediction ratios after t trees.
-    Syncer output is captured so tqdm bars remain usable.
-    """
+def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J):
     import ROOT, math
     from data.plot_options import plot_options as PLOT_OPTS
 
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if not plot_feats:
-        tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
-        return
+        return None
 
     if args.max_n_files is not None:
         train = f"train_maxFiles{args.max_n_files}"
     else:
-        train = "train" 
+        train = "train"
     if args.postfix is not None:
-        train += ("_"+args.postfix) 
+        train += ("_" + args.postfix)
 
     out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], train)
     os.makedirs(out_dir, exist_ok=True)
 
+    feat_cfgs = []
+    for feat in plot_feats:
+        n, lo, hi = PLOT_OPTS[feat]['binning']
+        feat_cfgs.append({
+            "name": feat,
+            "tex": PLOT_OPTS[feat]['tex'],
+            "n": n,
+            "lo": lo,
+            "hi": hi,
+            "edges": np.linspace(lo, hi, n + 1),
+            "column": feat_names.index(feat),
+        })
+
+    total_pads = len(plot_feats) + 1
+    gx = int(math.ceil(math.sqrt(total_pads)))
+    gy = int(math.ceil(total_pads / gx))
+
     ROOT.gStyle.SetOptStat(0)
     ROOT.gROOT.SetBatch(True)
+
+    return {
+        "out_dir": out_dir,
+        "feat_cfgs": feat_cfgs,
+        "gx": gx,
+        "gy": gy,
+        "w0": training_weights_train[()],
+    }
+
+
+def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J, plot_ctx=None):
+    """
+    Plot truth vs prediction ratios after t trees.
+    """
+    import ROOT
+
+    if plot_ctx is None:
+        plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J)
+    if plot_ctx is None:
+        tqdm.write("No plotable features found in PLOT_OPTS; skipping plots.")
+        return False
 
     ders = bit.derivatives
 
@@ -323,18 +372,15 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
             colors[der] = ROOT.kGreen + i_mix; i_mix += 1
 
     pred = bit.predict(X_train, max_n_tree=t)  # (N, M-1), aligned to ders[1:]
-    w0 = training_weights_train[()]
+    w0 = plot_ctx["w0"]
 
     truth_mat = np.stack([
         training_weights_train.get(der, training_weights_train.get(tuple(reversed(der))))
         for der in ders
     ], axis=1)
 
-    total_pads = len(plot_feats) + 1
-    gx = int(math.ceil(math.sqrt(total_pads)))
-    gy = int(math.ceil(total_pads / gx))
-    c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*gx, 500*gy)
-    c.Divide(gx, gy)
+    c = ROOT.TCanvas(f"c_iter_{t}", f"BIT iter {t}", 500*plot_ctx["gx"], 500*plot_ctx["gy"])
+    c.Divide(plot_ctx["gx"], plot_ctx["gy"])
     keep = []
 
     leg = ROOT.TLegend(0.1, 0.1, 0.9, 0.9)
@@ -347,15 +393,18 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
         denom2[denom2 == 0] = 1.0
         return numer / denom2
 
-    for i, feat in enumerate(plot_feats):
+    for i, feat_cfg in enumerate(plot_ctx["feat_cfgs"]):
         pad = c.cd(i + 1)
         pad.SetTicks(1, 1)
         pad.SetBottomMargin(0.15)
         pad.SetLeftMargin(0.15)
 
-        n, lo, hi = PLOT_OPTS[feat]['binning']
-        edges = np.linspace(lo, hi, n+1)
-        col = feat_names.index(feat)
+        feat = feat_cfg["name"]
+        n = feat_cfg["n"]
+        lo = feat_cfg["lo"]
+        hi = feat_cfg["hi"]
+        edges = feat_cfg["edges"]
+        col = feat_cfg["column"]
         x = X_train[:, col]
 
         h_w0, _ = np.histogram(x, bins=edges, weights=w0)
@@ -381,7 +430,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
         y_low = y_min - pad_frac * (y_max - y_min)
         y_hi  = y_max + pad_frac * (y_max - y_min)
 
-        hframe = ROOT.TH2F(f"hf_{feat}_{t}", f";{PLOT_OPTS[feat]['tex']};ratio",
+        hframe = ROOT.TH2F(f"hf_{feat}_{t}", f";{feat_cfg['tex']};ratio",
                            n, lo, hi, 100, y_low, y_hi)
         hframe.GetYaxis().SetTitleOffset(1.3)
         hframe.Draw()
@@ -420,7 +469,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
                 h.Draw("hist same")
                 keep.append(h)
 
-    pad = c.cd(len(plot_feats) + 1)
+    pad = c.cd(len(plot_ctx["feat_cfgs"]) + 1)
     pad.SetTicks(1, 1)
     pad.SetBottomMargin(0.15)
     pad.SetLeftMargin(0.15)
@@ -453,15 +502,9 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
     tl.DrawLatex(0.30, 0.95, f"Trees = {t:04d}")
     keep.append(tl)
 
-    c.Print(os.path.join(out_dir, f"iter_{t:04d}.png"))
+    c.Print(os.path.join(plot_ctx["out_dir"], f"iter_{t:04d}.png"))
     c.Close()
-
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        syncer.sync()
-    out = buf.getvalue().strip()
-    if out:
-        tqdm.write(out)
+    return True
 
 # ---------------- build & train BIT ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
@@ -536,6 +579,37 @@ def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
 
     return float(np.mean(losses))
 
+
+def _tree_summary(root, feat_names):
+    split_feature = feat_names[root.split_i_feature] if feat_names and root.split_i_feature < len(feat_names) else f"X{root.split_i_feature}"
+    split_gain = getattr(root, "split_gain", float("nan"))
+    left_size = int(getattr(root.left, "size", 0))
+    right_size = int(getattr(root.right, "size", 0))
+    return (
+        f"[TREE] root_feature={split_feature} "
+        f"threshold={root.split_value:.6g} "
+        f"gain={split_gain:.6g} "
+        f"left={left_size} right={right_size}"
+    )
+
+
+model_cfg = J.get("model", {}) or {}
+global_cuts = None
+bins_train = None
+if model_cfg.get("split_mode") == "binned":
+    cut_sample_rows = int(model_cfg.get("cut_sample_rows", len(X_train)))
+    cut_sample_rows = max(1, min(cut_sample_rows, len(X_train)))
+    global_cuts = NumbaMultiNode._compute_global_quantile_cuts(
+        X_train,
+        int(model_cfg.get("n_bins", 256)),
+        cut_sample_rows=cut_sample_rows,
+    )
+    bins_train = NumbaMultiNode._quantize_feature_matrix(X_train, global_cuts)
+    tqdm.write(
+        f"[BINS] built global cuts once: rows={cut_sample_rows} "
+        f"features={global_cuts.shape[0]} bins={global_cuts.shape[1] + 1}"
+    )
+
 # ---- load / resume from model_path directly ----
 if not args.overwrite and os.path.exists(model_path):
     try:
@@ -561,8 +635,7 @@ if not args.overwrite and os.path.exists(model_path):
 
 # ---- fresh init ----
 if bit is None:
-    mcfg = J.get("model", {}) or {}
-    bit = MultiBoostedInformationTree(**mcfg)
+    bit = MultiBoostedInformationTree(**model_cfg)
     boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
 
 # If training needed but weights missing, start from truth
@@ -572,6 +645,7 @@ if boost_weights is None and len(bit.trees) < bit.n_trees:
 # ---------------- external training loop ----------------
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
+plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J) if enable_plots else None
 
 # ---------------- loss history ----------------
 loss_trees = []
@@ -583,6 +657,9 @@ best_model_path = os.path.join(model_dir, "BIT_best.pkl")
 best_weights_path = os.path.join(model_dir, "BIT_best.weights.pkl")  # 可选
 
 if len(bit.trees) < bit.n_trees:
+
+    if global_cuts is not None:
+        bit.node_cfg["precomputed_cuts"] = global_cuts
 
     weak_learner_time = 0.0
     update_time = 0.0
@@ -604,14 +681,16 @@ if len(bit.trees) < bit.n_trees:
         # fit tree (root needs base_points / feature_names)
         t1 = time.process_time()
         root = NumbaMultiNode.MultiNode(
-            X_train,
+            None if global_cuts is not None else X_train,
             training_weights = boost_weights,
             base_points      = base_points,
             feature_names    = feat_names,
+            binned_features  = bins_train,
             **bit.node_cfg
         )
         t2 = time.process_time()
         weak_learner_time += (t2 - t1)
+        tqdm.write(_tree_summary(root, feat_names))
 
         # ---------------- end profiling ----------------
         if args.profile:
@@ -723,8 +802,16 @@ if len(bit.trees) < bit.n_trees:
         do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
         if do_plot:
             tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
-            plot_bit_training_root(bit, t=n_tree+1, X_train=X_train, training_weights_train=training_weights_train,
-                                   feat_names=feat_names, cfg_base=cfg_base, J=J)
+            plot_bit_training_root(
+                bit,
+                t=n_tree+1,
+                X_train=X_train,
+                training_weights_train=training_weights_train,
+                feat_names=feat_names,
+                cfg_base=cfg_base,
+                J=J,
+                plot_ctx=plot_ctx,
+            )
 
     # ---------------- save loss history ----------------
     loss_txt = os.path.join(model_dir, "loss_history.txt")

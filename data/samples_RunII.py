@@ -16,11 +16,13 @@ from data.SelectionView import SelectionView
 import observables
 from systematics_RunII import SYSTEMATICS
 import common.user as user
+from common.directories import (
+    DELPHES_TT2L_DIRECTORY,
+    SAMPLES_RUNII_BASE_DIRECTORY,
+)
 
 # Use Path so that BASE_DIRECTORY / "2018" / "file.root" works.
-BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3-2_nJ2p_nB2p_2l/"
-)
+BASE_DIRECTORY = SAMPLES_RUNII_BASE_DIRECTORY
 ERAS = ["2016", "2016APV", "2017", "2018", "RunII"]
 
 GROUPS = {
@@ -42,49 +44,56 @@ process_labels = {
 # -----------------------------
 # Base sample (nominal)
 # -----------------------------
-_base = RDataLoader(
-    input_paths=[
-        str(BASE_DIRECTORY / "2018" / "TTLep_pow_nominal.root"),
-    ],
-    tree_name="Events",
-    branches=(
-        observables.OBSERVERS
-        + observables.TOP_KINEMATICS
-        + observables.LEPTON_KINEMATICS
-        + observables.ASYMMETRY
-    ),
-    selection=None,
-    n_split=1,
-    splitting_strategy="events",
-    strict_branches=False,
-    weight_branches=[
-        "weight",
-        "L1PreFiringWeight_Nom",
-        "JetPUID_SF",
-        "Pileup_SF",
-        "btagSF_fixedWP_SF",
-        "lepEle_SF",
-        "lepMu_SF",
-    ],
-    feature_names=(
-        observables.TOP_KINEMATICS
-        + observables.LEPTON_KINEMATICS
-        + observables.ASYMMETRY
-    ),
-    observer_names=observables.OBSERVERS,
-)
-#FIXME The RDataloader should allow string based selections already in the constructor. Also, & binds stronger than &&!!! So parenthesis are needed.
-_base.addSelection( "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)", required_branches = ["lep1_pt", "isOS", "offZ", "tr_isvalid"]) 
+_base = None
+
+
+def _get_base() -> RDataLoader:
+    global _base
+    if _base is None:
+        _base = RDataLoader(
+            input_paths=[
+                str(BASE_DIRECTORY / "2018" / "TTLep_pow_nominal.root"),
+            ],
+            tree_name="Events",
+            branches=(
+                observables.OBSERVERS
+                + observables.TOP_KINEMATICS
+                + observables.LEPTON_KINEMATICS
+                + observables.ASYMMETRY
+            ),
+            selection=None,
+            n_split=1,
+            splitting_strategy="events",
+            strict_branches=False,
+            weight_branches=[
+                "weight",
+                "L1PreFiringWeight_Nom",
+                "JetPUID_SF",
+                "Pileup_SF",
+                "btagSF_fixedWP_SF",
+                "lepEle_SF",
+                "lepMu_SF",
+            ],
+            feature_names=(
+                observables.TOP_KINEMATICS
+                + observables.LEPTON_KINEMATICS
+                + observables.ASYMMETRY
+            ),
+            observer_names=observables.OBSERVERS,
+        )
+        # FIXME The RDataloader should allow string based selections already in
+        # the constructor. Also, & binds stronger than &&!!! So parenthesis are
+        # needed.
+        _base.addSelection(
+            "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)",
+            required_branches=["lep1_pt", "isOS", "offZ", "tr_isvalid"],
+        )
+    return _base
 
 delphes_OBSERVERS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "tr_isvalid", "run", "luminosityBlock", "event"]
 tt2l_delphes = RDataLoader( 
         input_paths=[ 
-            "/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/",
-            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_0.root",
-            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_1.root",
-            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_2.root",
-            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_3.root",
-            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_4.root",
+            str(DELPHES_TT2L_DIRECTORY),
             ],
     tree_name="Events",
     branches=(
@@ -237,7 +246,7 @@ def _make_variation(process: str, era: str, tag: str, BASE_DIRECTORY: str = BASE
             )
         rootfiles.append(str(rootfile))
 
-    return _base.clone_from_files(rootfiles)
+    return _get_base().clone_from_files(rootfiles)
 
 def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = BASE_DIRECTORY) -> RDataLoader:
     """
@@ -288,7 +297,7 @@ def _make_group_variation(group: str, era: str, tag: str, BASE_DIRECTORY: str = 
             )
 
     # Clone base loader using all member files
-    return _base.clone_from_files(existing)
+    return _get_base().clone_from_files(existing)
 
 # ----------------------------------------------------------------------
 # Module-level __getattr__: lazy instantiation for all samples
@@ -512,4 +521,3 @@ if __name__ == "__main__":
     print("Base:", tt2l_delphes)
     F,O,W = tt2l_delphes.materialize(0,"fow")
     print("Shapes:", F.shape, O.shape, W.shape)
-
