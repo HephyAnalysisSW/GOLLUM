@@ -27,7 +27,6 @@ p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--postfix", default=None, help="Plot postfix")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model file?")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
-p.add_argument("--old", action="store_true", help="No claude improvements.")
 p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
@@ -37,14 +36,9 @@ args = p.parse_args()
 
 # Always NUMBA
 import numba as nb
-if args.old and args.gpu:
-    raise RuntimeError("--old and --gpu are mutually exclusive.")
 if args.gpu:
     from ML.BIT.GpuBIT import MultiBoostedInformationTree
     import ML.BIT.GpuMultiNode as NumbaMultiNode
-elif args.old:
-    from ML.BIT.oldNumbaBIT import MultiBoostedInformationTree
-    import ML.BIT.oldNumbaMultiNode as NumbaMultiNode
 else:
     from ML.BIT.NumbaBIT import MultiBoostedInformationTree
     import ML.BIT.NumbaMultiNode as NumbaMultiNode
@@ -100,9 +94,19 @@ print(L)
 print("Using NUMBA")
 print("Numba threads:", nb.get_num_threads())
 if args.gpu:
-    import cupy as cp
+    try:
+        import cupy as cp
+        device_count = cp.cuda.runtime.getDeviceCount()
+        if device_count < 1:
+            raise RuntimeError("GPU training requested with --gpu, but no CUDA devices are visible.")
+        device_name = cp.cuda.runtime.getDeviceProperties(0)["name"].decode()
+    except Exception as e:
+        raise RuntimeError(
+            "GPU training requested with --gpu, but CuPy/CUDA initialization failed. "
+            "Ensure CuPy is installed and a CUDA device is available and accessible."
+        ) from e
     print("Training backend: GPU")
-    print("GPU device:", cp.cuda.runtime.getDeviceProperties(0)["name"].decode())
+    print("GPU device:", device_name)
 else:
     print("Training backend: CPU")
 
@@ -346,7 +350,6 @@ def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J
 def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, cfg_base, J, plot_ctx=None):
     """
     Plot truth vs prediction ratios after t trees.
-    Syncer output is captured so tqdm bars remain usable.
     """
     import ROOT
 
@@ -643,7 +646,6 @@ if boost_weights is None and len(bit.trees) < bit.n_trees:
 rt = J.get("runtime", {}) or {}
 enable_plots = bool(rt.get("training_plots", False))
 plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J) if enable_plots else None
-did_make_plots = False
 
 # ---------------- loss history ----------------
 loss_trees = []
@@ -800,7 +802,7 @@ if len(bit.trees) < bit.n_trees:
         do_plot = enable_plots and (args.every is not None) and (args.every > 0) and ((n_tree % args.every) == 0)
         if do_plot:
             tqdm.write(f"Plotting at tree {n_tree+1:04d} ...")
-            did_make_plots = plot_bit_training_root(
+            plot_bit_training_root(
                 bit,
                 t=n_tree+1,
                 X_train=X_train,
@@ -809,7 +811,7 @@ if len(bit.trees) < bit.n_trees:
                 cfg_base=cfg_base,
                 J=J,
                 plot_ctx=plot_ctx,
-            ) or did_make_plots
+            )
 
     # ---------------- save loss history ----------------
     loss_txt = os.path.join(model_dir, "loss_history.txt")
