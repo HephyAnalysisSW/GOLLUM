@@ -75,7 +75,7 @@ if not feat_names:
 input_dim = len(feat_names)
 
 # observers: must contain generator columns in this order
-GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2"]
+GEN_OBS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF"]
 obs_names = list(getattr(L, "observer_names", []) or [])
 missing_gen = [n for n in GEN_OBS if n not in obs_names]
 if missing_gen:
