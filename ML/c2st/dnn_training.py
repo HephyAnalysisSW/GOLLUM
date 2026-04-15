@@ -4,6 +4,9 @@ import os, sys, time, argparse, importlib, warnings, pickle, random, yaml, math
 import numpy as np
 import tensorflow as tf
 
+sys.path.insert(0, "..")
+sys.path.insert(0, "../..")
+
 import common.user as user
 import common.syncer as syncer
 
@@ -11,9 +14,6 @@ from tqdm import trange, tqdm
 
 from DNN import DNN
 from ML.PNN.PNN import PNN
-
-sys.path.insert(0, "..")
-sys.path.insert(0, "../..")
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="DNN C2ST training (YAML-driven, TRAIN ONLY)")
