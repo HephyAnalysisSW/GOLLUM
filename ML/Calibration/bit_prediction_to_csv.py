@@ -213,6 +213,17 @@ for X, Q, x1, x2, id1, id2, w, m_tr, m_va in iterate_all():
         targets_va.append(deriv_w[m_va])
 
 # concatenate
+if len(Xs_tr) == 0:
+    raise RuntimeError("No events selected for training set (empty UID train split).")
+
+if len(targets_tr) == 0:
+    raise RuntimeError("No targets selected for training set.")
+
+if len(Xs_va) == 0:
+    raise RuntimeError("No events selected for validation set (empty UID val split).")
+
+if len(targets_va) == 0:
+    raise RuntimeError("No targets selected for validation set.")
 X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
 DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
 
