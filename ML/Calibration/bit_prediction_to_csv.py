@@ -61,7 +61,7 @@ if args.max_files is not None:
     n = int(args.max_files)
     if n <= 0:
         raise RuntimeError("--max-files must be > 0")
-    files = L.files[n:40]
+    files = L.files[:n]
     L = L.clone_from_files(files)
     tqdm.write(f"[DATA] Using only first {n} files (of original {len(getattr(getattr(samples_mod, loader_name), 'files', []))}):")
     tqdm.write(f"[DATA] First file: {files[0]}")
