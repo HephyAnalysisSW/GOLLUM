@@ -433,7 +433,7 @@ def build_c2st_arrays(test_id: int, split: str, shard_limit=None):
 
       test3:
         - background/class0 = nominal dataset (X0, w0)
-        - signal/class1     = REWEIGHTED systematic varied dataset (Xi, wi * exp(dAi @ vk))
+        - signal/class1     = REWEIGHTED systematic varied dataset (Xi, wi * exp(- dAi @ vk))
 
       test2:
         - same (X,y,w) construction as test3
