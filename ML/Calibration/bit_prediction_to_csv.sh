@@ -11,6 +11,6 @@
 
 echo "Job started at: $(date)"
 
-python -u Calibration.py  /users/daohan.wang/gluon-pdf-sbi3x/configs/unbinned_v5D/unbinned_delphes.yaml   --job bit_NG_PDF4LHC21_6_tt2l_delphes --max-files 20   --write_pandas
+python -u Calibration.py  configs/unbinned_v5D/unbinned_delphes.yaml   --job bit_NG_PDF4LHC21_6_tt2l_delphes --max-files 20   --write_pandas
 
 echo "Job finished at: $(date)"
