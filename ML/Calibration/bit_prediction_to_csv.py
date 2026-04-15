@@ -96,6 +96,9 @@ uid_splitter = None
 train_interval = None
 val_interval   = None
 
+if not uid_enabled:
+    raise RuntimeError("Calibration requires splitting.enabled=True.")
+
 if uid_enabled:
     uid_splitter = UIDSplitter(
         uid_fields=tuple(uid_fields),
@@ -117,6 +120,8 @@ if uid_enabled:
         lo += int(sz)
     calibration_train_key = "c2st_train"
     calibration_val_key   = "c2st_val"
+    if calibration_train_key not in uid_intervals or calibration_val_key not in uid_intervals:
+        raise RuntimeError("splitting.scheme must define 'c2st_train' and 'c2st_val'.")
     train_interval = uid_intervals[calibration_train_key]
     val_interval   = uid_intervals[calibration_val_key]
 
