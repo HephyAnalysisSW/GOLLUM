@@ -325,10 +325,11 @@ print(f"Number of derivatives (coefficients): {truth.shape[1]}")
 # ---------------- print first few events ----------------
 n_show = min(5, truth.shape[0])
 print(f"\nFirst {n_show} events (truth vs prediction):")
+print(f"w0 shape: {w0.shape}")
+
 for i in range(n_show):
-    print(w0.shape)
-    print(w0)
     print(f"\nEvent {i}:")
+    print(f"  w0 = {w0[i]}")
     for j, der in enumerate(ders):
         label = format_derivative(der)
         t_val = truth[i, j]
