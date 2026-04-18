@@ -28,6 +28,7 @@ GROUPS = {
     "DrellYan":  ["DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"],
     "EtaS": ["EtaT_scalar_m343_w2p8_ll"],
     "EtaP": ["EtaT_m343_w2p8_ll"],
+    "Background": ["TBar_tch", "TBar_tWch_noFullyHad", "T_tch", "T_tWch_noFullyHad", "DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"]
 }
 
 process_labels = {
