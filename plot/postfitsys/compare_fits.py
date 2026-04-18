@@ -87,17 +87,19 @@ def create_comparison_plot(
     ax.set_xlabel('Parameter value', fontsize=11)
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(axis='x', alpha=0.3)
+    ax.set_xlim(-5.0,5.0)
     ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8, alpha=0.5)
     
-    fig.tight_layout()
+    plt.tight_layout()
     
     os.makedirs(output_dir, exist_ok=True)
     
-    fig.savefig(output_dir + '/fit_comparison.png', dpi=150, bbox_inches='tight')
-    fig.savefig(output_dir + '/fit_comparison.pdf', bbox_inches='tight')
+    plt.savefig(output_dir + '/fit_comparison.png', dpi=150, bbox_inches='tight')
+    plt.savefig(output_dir + '/fit_comparison.pdf', bbox_inches='tight')
     plt.close(fig)
 
-def main():
+if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser(
         description='Compare fit results across multiple JSON files'
     )
@@ -129,6 +131,3 @@ def main():
     
     create_comparison_plot(args.fit_files, output_dir, args.blind)
     print(f"Plots saved to {output_dir}")
-
-if __name__ == '__main__':
-    main()
