@@ -61,11 +61,11 @@ def create_comparison_canvas(
     for axis, image in zip(axes, images):
         fig.colorbar(image, ax=axis, fraction=0.046, pad=0.04)
 
-    fig.tight_layout()
+    plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    fig.savefig(os.path.join(output_dir, "correlation_comparison.png"), dpi=150, bbox_inches="tight")
-    fig.savefig(os.path.join(output_dir, "correlation_comparison.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_comparison.png"), dpi=150, bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_comparison.pdf"), bbox_inches="tight")
     plt.close(fig)
 
 
@@ -91,11 +91,11 @@ def create_difference_heatmap(
     ax.set_yticklabels(order, fontsize=6)
 
     fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
-    fig.tight_layout()
+    plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    fig.savefig(os.path.join(output_dir, "correlation_difference.png"), dpi=150, bbox_inches="tight")
-    fig.savefig(os.path.join(output_dir, "correlation_difference.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_difference.png"), dpi=150, bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_difference.pdf"), bbox_inches="tight")
     plt.close(fig)
 
 
