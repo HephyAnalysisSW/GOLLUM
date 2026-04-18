@@ -2196,10 +2196,6 @@ if __name__ == "__main__":
                         offenders.append(f"{section_name}:{region_id}/{class_id}")
 
         if offenders:
-            logger.error(
-                "Refusing non-syst-only fit: class(es) with active POI and floating lnN found: %s",
-                offenders,
-            )
             raise RuntimeError(
                 "Invalid configuration for non-syst-only fit: active POI with floating lnN in "
                 f"{offenders}. Run with --syst_only or fix the configuration."
