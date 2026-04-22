@@ -7,7 +7,7 @@ import operator
 import functools
 
 sys.path.insert(0, '..'); sys.path.insert(0, '../..')
-import ML.BIT.NumbaMultiNode as MultiNode
+import ML.BIT.GpuMultiNode as MultiNode
 
 default_cfg = {
     "n_trees" : 100,
