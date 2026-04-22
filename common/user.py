@@ -61,6 +61,12 @@ elif user in ['daohan.wang']:
     
 
 
+elif user in ['rschoefbeck']:
+    plot_directory         = "/home/rschoefbeck/HEPHY-Uncertainty/plots/"
+    model_directory        = "/scratch/rschoefbeck/HEPHY-Uncertainty/models/"
+    cache_directory        = "/scratch/rschoefbeck/HEPHY-Uncertainty/caches/"
+    output_directory       = "/scratch/rschoefbeck/HEPHY-Uncertainty/output/"
+
 else:
 
     raise RuntimeError( "HELLO NEW USER! Configure your directories in common/user.py! Look in the file how others did it." )
