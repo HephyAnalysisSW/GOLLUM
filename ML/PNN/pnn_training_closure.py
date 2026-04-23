@@ -212,9 +212,8 @@ model_dir = os.path.join(
 
 plot_dir = os.path.join(
     user.plot_directory,
+    "PNN_training_closure",
     cfg_base + ("_for_debug" if args.for_debug else ""),
-    "training_closure",
-    "PNN",
     J["id"],
 )
 os.makedirs(plot_dir, exist_ok=True)
