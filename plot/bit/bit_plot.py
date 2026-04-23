@@ -107,6 +107,7 @@ p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help=f"Only use the first {SMALL_MAX_EVENTS} selected events")
 p.add_argument("--truth_only", action="store_true", help="Only plot truth prediction")
 p.add_argument("--uncertainty", action="store_true", help=f"Plot uncertainties?")
+p.add_argument("--clip", action="store_true", help="Clip features used for surrogate evaluation to plot range.")
 args = p.parse_args()
 
 
@@ -553,7 +554,8 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
 
             for syst_info in class_info["pnn"]:
                 X_syst = X[:, syst_info["column_mask"]].astype(np.float64, copy=True)
-                np.clip(X_syst, syst_info["clip_low"], syst_info["clip_high"], out=X_syst)
+                if args.clip:
+                    np.clip(X_syst, syst_info["clip_low"], syst_info["clip_high"], out=X_syst)
 
                 dA = predict_pnn_deltaA(
                     syst_info["predictor"],
@@ -620,7 +622,8 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
                     for syst_info in class_info["pnn"]:
                         X_evt_raw = X[i_evt:i_evt+1, syst_info["column_mask"]].astype(np.float64, copy=True)
                         X_evt = X_evt_raw.copy()
-                        np.clip(X_evt, syst_info["clip_low"], syst_info["clip_high"], out=X_evt)
+                        if args.clip:
+                            np.clip(X_evt, syst_info["clip_low"], syst_info["clip_high"], out=X_evt)
 
                         dA_evt = predict_pnn_deltaA(
                             syst_info["predictor"],
