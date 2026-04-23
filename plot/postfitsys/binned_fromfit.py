@@ -186,14 +186,12 @@ else:
     x_title_default = "bin"
     logY_default = False
 
-print(f"{default_binning=}")
-print(f"{var_name=}, {var_edges_default=}")
-
 base = os.path.splitext(os.path.basename(config_path))[0]
+base_fit_result = os.path.splitext(os.path.basename(args.fit_result))[0]
 version = str(cfg.get("version", "v0"))
 suffix = "_rotate" if rotated else ""
 if args.outdir is None:
-    outdir = os.path.join(user.plot_directory, "binned_postfit_fromfit", base, f"{version}{suffix}")
+    outdir = os.path.join(user.plot_directory, "binned_postfit_fromfit", base, f"{version}{suffix}",f"from_{base_fit_result}")
 else:
     outdir = args.outdir
 os.makedirs(outdir, exist_ok=True)
@@ -414,7 +412,6 @@ for region in like_info.get("binned", []) or []:
             )
 
         for ib, value in enumerate(data_unrolled, start=1):
-            print(f"data histogram: {ib=}, {value=}; {h_total.GetBinContent(ib)=}")
             h_data.SetBinContent(ib, float(value))
         
     h_data.SetDirectory(0)
@@ -437,7 +434,7 @@ for region in like_info.get("binned", []) or []:
         ey  = h_data.GetBinError(ib)   # stat-only = sqrt(y) \  
 
         if nom > 0.0:
-            rel = ey/nom
+            rel = max(abs(y+ey-nom), abs(y-ey-nom))/nom
             h_ratio_data.SetBinContent(ib, y / nom)
             h_ratio_data.SetBinError(ib, ey / nom)
             max_dev_data = max(max_dev_data, rel)
@@ -588,9 +585,12 @@ for region in like_info.get("binned", []) or []:
             h_ratio_up.SetBinContent(ib, 1.0)
             h_ratio_down.SetBinContent(ib, 1.0)
 
+    # if all data points fall within MC uncertainty band
+    # range is defined by that
+    # else, range is defined by max deviation of data
+    # so that all data points are visible
     if is_data_fit:
-        max_dev = max_dev_data
-        print(f"{max_dev_data=}")    
+        max_dev = max(max_dev,max_dev_data)
 
     if max_dev <= 0.0:
         r_min, r_max = 0.9, 1.1
