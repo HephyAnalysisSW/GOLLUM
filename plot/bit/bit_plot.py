@@ -91,6 +91,7 @@ p = argparse.ArgumentParser(description="BIT plotting from a trained model (YAML
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help=f"Only use the first {SMALL_MAX_EVENTS} selected events")
+p.add_argument("--truth_only", action="store_true", help="Only plot truth prediction")
 args = p.parse_args()
 
 
@@ -311,6 +312,10 @@ out_dir = os.path.join(user.plot_directory, "BIT-plot", cfg_base, J["id"])
 
 if args.small:
     out_dir = os.path.join(out_dir, "small")
+
+if args.truth_only:
+    out_dir += "_truth_only"
+
 os.makedirs(out_dir, exist_ok=True)
 
 print(f"Output directory: {out_dir}")
@@ -549,7 +554,8 @@ for feat in plot_feats:
         h_pred.SetMarkerStyle(0)
 
         h_truth.Draw("hist same")
-        h_pred.Draw("hist same")
+        if not args.truth_only:
+            h_pred.Draw("hist same")
 
         drawn_objects.extend([h_truth, h_pred])
 
@@ -635,7 +641,8 @@ for der in plot_derivatives:
     dummy_pred.SetLineWidth(3)
 
     legend.AddEntry(dummy_truth, f"truth  {label}", "l")
-    legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
+    if not args.truth_only:
+        legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
 
     legend_objects.extend([dummy_truth, dummy_pred])
 
