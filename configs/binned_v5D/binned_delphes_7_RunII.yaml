@@ -1,4 +1,4 @@
-version: binned_2016_v6
+version: binned_delphes_RunII_v5D
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -8,27 +8,19 @@ defaults:
         
 likelihood:
     binned:
-        - id: SR_2016 
+        - id: SR 
           classes: 
-            - id: TTLep_pow_2016 
-              sample: TTLep_pow_2016
+            - id: tt2l_delphes 
+              sample: tt2l_delphes_RunII
               POI:
-                job: ich_NG_PDF4LHC21_6_TTLep_pow_2016 
+                job: ich_NG_PDF4LHC21_7_tt2l_delphes 
                 type: ich
-                parameters: [c0, c1, c2, c3, c4, c5]
+                parameters: [c0, c1, c2, c3, c4, c5, c6]
               systematics:
-                - id: Lumi_1516
+                - id: lumi 
                   type: lnN
-                  value: 0.0118
-                  parameters: [nu_lumi_1516]
-                - id: Lumi_151617
-                  type: lnN
-                  value: 0.0004
-                  parameters: [nu_lumi_151617]
-                - id: Lumi_15161718
-                  type: lnN
-                  value: 0.0035
-                  parameters: [nu_lumi_15161718]
+                  value: 0.0073
+                  parameters: [nu_lumi]
                 - id: L1Prefire
                   type: icph
                   job: icph_TTLep_pow_2016_L1Prefire
@@ -93,76 +85,44 @@ likelihood:
                   type: icph
                   job: icph_TTLep_pow_2016_CMS_res_j_5_2016
                   parameters: [nu_CMS_res_j_5]
-                - id: CMS_scale_j_FlavorPureBottom
+                - id: CMS_scale_j_Total_EtaBin0
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureBottom
-                  parameters: [nu_CMS_scale_j_FlavorPureBottom]
-                - id: CMS_scale_j_FlavorPureCharm
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin0
+                  parameters: [nu_CMS_scale_j_Total_EtaBin0]
+                - id: CMS_scale_j_Total_EtaBin1
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureCharm
-                  parameters: [nu_CMS_scale_j_FlavorPureCharm]
-                - id: CMS_scale_j_FlavorPureGluon
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin1
+                  parameters: [nu_CMS_scale_j_Total_EtaBin1]
+                - id: CMS_scale_j_Total_EtaBin2
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureGluon
-                  parameters: [nu_CMS_scale_j_FlavorPureGluon]
-                - id: CMS_scale_j_FlavorPureQuark
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin2
+                  parameters: [nu_CMS_scale_j_Total_EtaBin2]
+                - id: CMS_scale_j_Total_EtaBin3
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureQuark
-                  parameters: [nu_CMS_scale_j_FlavorPureQuark]
-                - id: CMS_scale_j_Regrouped_Absolute_2016
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin3
+                  parameters: [nu_CMS_scale_j_Total_EtaBin3]
+                - id: CMS_scale_j_Total_EtaBin4
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-                - id: CMS_scale_j_Regrouped_Absolute
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin4
+                  parameters: [nu_CMS_scale_j_Total_EtaBin4]
+                - id: CMS_scale_j_Total_EtaBin5
                   type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute
-                  parameters: [nu_CMS_scale_j_Regrouped_Absolute]
-                - id: CMS_scale_j_Regrouped_BBEC1_2016
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-                - id: CMS_scale_j_Regrouped_BBEC1
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1
-                  parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
-                - id: CMS_scale_j_Regrouped_EC2_2016
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-                - id: CMS_scale_j_Regrouped_EC2
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2
-                  parameters: [nu_CMS_scale_j_Regrouped_EC2]
-                - id: CMS_scale_j_Regrouped_HF_2016
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-                - id: CMS_scale_j_Regrouped_HF
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF
-                  parameters: [nu_CMS_scale_j_Regrouped_HF]
-                - id: CMS_scale_j_Regrouped_RelativeBal
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal
-                  parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
-                - id: CMS_scale_j_Regrouped_RelativeSample_2016
-                  type: icph
-                  job: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016
-                  parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
+                  job: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin5
+                  parameters: [nu_CMS_scale_j_Total_EtaBin5]
                 - id: Uncl
                   type: icph
                   job: icph_TTLep_pow_2016_Uncl
                   parameters: [nu_Uncl]
 
 jobs:
-  - id: ich_NG_PDF4LHC21_6_TTLep_pow_2016 
+  - id: ich_NG_PDF4LHC21_7_tt2l_delphes 
     type: ich
     region: SR_binned
-    process: TTLep_pow_2016
+    process: tt2l_delphes_RunII
     pdf:
       #pdf_n: [1, 2, 4, 5, 10, 12]
       #pdf_type: PODBasis
-      pdf_n: [1,2,3,4,5,6]
+      pdf_n: [1,2,3,4,5,6,7]
       pdf_type: PODBasis
       pdf_basis: gluon_POD_nongluon_PDF4LHC21 
 
@@ -441,203 +401,95 @@ jobs:
       - coords: [1.0]
         loader: TTLep_pow_2016_CMS_res_j_5_2016_up
 
-  - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureBottom 
+  # JES Eta-split bin 0
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin0
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_FlavorPureBottom]
-    combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin0]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin0]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureBottom_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureBottom_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin0_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin0_up
 
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureCharm 
+  # JES Eta-split bin 1
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin1
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_FlavorPureCharm]
-    combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin1]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin1]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureCharm_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureCharm_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin1_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin1_up
 
-  - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureGluon 
+  # JES Eta-split bin 2
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin2
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_FlavorPureGluon]
-    combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin2]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin2]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureGluon_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureGluon_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin2_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin2_up
 
-  - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureQuark 
+  # JES Eta-split bin 3
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin3
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_FlavorPureQuark]
-    combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin3]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin3]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureQuark_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_FlavorPureQuark_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin3_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin3_up
 
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016 
+  # JES Eta-split bin 4
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin4
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin4]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin4]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin4_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin4_up
 
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute
+  # JES Eta-split bin 5
+  - id: icph_TTLep_pow_2016_CMS_scale_j_Total_EtaBin5
     type: icph
     region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_Absolute]
-    combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
+    parameters: [nu_CMS_scale_j_Total_EtaBin5]
+    combinations: [[nu_CMS_scale_j_Total_EtaBin5]]
     base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_up
-
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016 
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
-    combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016 
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_EC2]
-    combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016 
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_HF]
-    combinations: [[nu_CMS_scale_j_Regrouped_HF]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_HF_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_HF_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal_up
-
-  - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016 
-    type: icph
-    region: SR_binned
-    parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
-    combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016_down 
-      - coords: [0]
-        loader: TTLep_pow_2016
-        nominal: true
-      - coords: [1.0]
-        loader: TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016_up
+    - coords: [-1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin5_down
+    - coords: [0]
+      loader: TTLep_pow_2016
+      nominal: true
+    - coords: [1.0]
+      loader: TTLep_pow_2016_CMS_scale_j_Total_EtaBin5_up
 
   - id: icph_TTLep_pow_2016_Uncl 
     type: icph

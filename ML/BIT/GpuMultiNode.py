@@ -22,6 +22,13 @@ except Exception:
         return deco
     def prange(n): return range(n)
 
+try:
+    import cupy as cp
+    CUPY_AVAILABLE = True
+except Exception:
+    cp = None
+    CUPY_AVAILABLE = False
+
 default_cfg = {
     "max_depth":        4,
     "min_size" :        50,
@@ -536,17 +543,30 @@ class MultiNode:
 
         # convenience (used in both modes)
         TW = self.training_weights  # shape (N, D)
+        TW_gpu = None
+        B_T_gpu = None
+        Mpos_gpu = None
+
+        if mode == "binned":
+            if not CUPY_AVAILABLE:
+                raise RuntimeError("Requested GPU backend but cupy is not available.")
+            TW_gpu = cp.asarray(TW, dtype=cp.float64)
+            B_T_gpu = cp.asarray(B_T, dtype=cp.float64)
+            if self.cfg['positive']:
+                Mpos_gpu = cp.asarray(self.base_point_const_for_pos.transpose(), dtype=cp.float64)
+
+        bins_gpu = cp.asarray(self.binned_features, dtype=cp.int32) if use_precomputed_bins else None
 
         for i_feature in range(self.n_features):
 
             # ------------------------ BINNED MODE ------------------------
             if mode == "binned":
                 if use_precomputed_bins:
-                    idx = self.binned_features[:, i_feature]
                     cuts_i = self.precomputed_cuts[i_feature]
                     nbin = int(cuts_i.shape[0] + 1)
                     if nbin < 2:
                         continue
+                    idx = bins_gpu[:, i_feature]
                 else:
                     feature_values = self.features[:, i_feature]
                     min_, max_ = float(np.min(feature_values)), float(np.max(feature_values))
@@ -565,34 +585,33 @@ class MultiNode:
                         edges = np.linspace(min_, max_, n_bins + 1, endpoint=True)
                         nbin = int(n_bins)
 
-                    idx = np.searchsorted(edges, feature_values, side="right") - 1
-                    idx[idx < 0] = 0
-                    idx[idx >= nbin] = nbin - 1
+                    feature_values_gpu = cp.asarray(feature_values, dtype=cp.float64)
+                    edges_gpu = cp.asarray(edges, dtype=cp.float64)
+                    idx = cp.searchsorted(edges_gpu, feature_values_gpu, side="right") - 1
+                    idx = cp.clip(idx, 0, nbin - 1).astype(cp.int32, copy=False)
 
                 # per-bin event counts (for min_size constraint)
-                bin_counts = np.bincount(idx, minlength=nbin).astype(np.int64)
+                bin_counts = cp.bincount(idx, minlength=nbin).astype(cp.int64, copy=False)
 
-                # accumulate weighted sums per bin without sorting
-                if NUMBA_AVAILABLE:
-                    bin_sums = _bin_sums_parallel(idx.astype(np.int64), TW, nbin)
-                else:
-                    bin_sums = np.zeros((nbin, TW.shape[1]), dtype=np.float64)
-                    for _d in range(TW.shape[1]):
-                        bin_sums[:, _d] = np.bincount(idx, weights=TW[:, _d], minlength=nbin)
+                # accumulate weighted sums per bin on GPU
+                bin_sums = cp.stack(
+                    [cp.bincount(idx, weights=TW_gpu[:, _d], minlength=nbin) for _d in range(TW.shape[1])],
+                    axis=1,
+                ).astype(cp.float64, copy=False)
 
                 # prefix sums over bins -> candidates are boundaries between bins
-                prefix_sums = np.cumsum(bin_sums, axis=0)         # (nbin, D)
+                prefix_sums = cp.cumsum(bin_sums, axis=0)         # (nbin, D)
                 left_sums   = prefix_sums[:-1]                    # (nbin-1, D)
                 total_sum   = prefix_sums[-1]                     # (D,)
                 right_sums  = total_sum - left_sums               # (nbin-1, D)
 
-                prefix_cnt  = np.cumsum(bin_counts)               # (nbin,)
+                prefix_cnt  = cp.cumsum(bin_counts)               # (nbin,)
                 left_cnt    = prefix_cnt[:-1]                     # (nbin-1,)
                 total_cnt   = prefix_cnt[-1]
                 right_cnt   = total_cnt - left_cnt                # (nbin-1,)
 
                 # candidate mask
-                mask = np.ones(nbin - 1, dtype=np.bool_)
+                mask = cp.ones(nbin - 1, dtype=cp.bool_)
 
                 # respect min_size in EVENTS (parity with original)
                 if self.min_size > 1:
@@ -602,28 +621,27 @@ class MultiNode:
                 # optional negative-adjust logic (approximate in binned space)
                 if self.cfg['min_node_size_neg_adjust']:
                     # count positives in column 0 per bin
-                    pos0 = (TW[:, 0] > 0).astype(np.int64)
-                    pos_per_bin = np.bincount(idx, weights=pos0, minlength=nbin).astype(np.float64)
-                    prefix_pos  = np.cumsum(pos_per_bin)[:-1]
+                    pos0 = (TW_gpu[:, 0] > 0).astype(cp.float64)
+                    pos_per_bin = cp.bincount(idx, weights=pos0, minlength=nbin).astype(cp.float64, copy=False)
+                    prefix_pos  = cp.cumsum(pos_per_bin)[:-1]
                     left_pos    = prefix_pos
-                    right_pos   = float(np.sum(pos_per_bin)) - left_pos
+                    right_pos   = cp.sum(pos_per_bin) - left_pos
 
-                    left_neg  = left_cnt.astype(np.float64)  - left_pos
-                    right_neg = right_cnt.astype(np.float64) - right_pos
+                    left_neg  = left_cnt.astype(cp.float64)  - left_pos
+                    right_neg = right_cnt.astype(cp.float64) - right_pos
 
-                    left_pos_safe  = np.maximum(left_pos,  1.0)
-                    right_pos_safe = np.maximum(right_pos, 1.0)
+                    left_pos_safe  = cp.maximum(left_pos,  1.0)
+                    right_pos_safe = cp.maximum(right_pos, 1.0)
                     f      = left_neg  / left_pos_safe
                     f_right= right_neg / right_pos_safe
 
-                    mask &= (left_cnt.astype(np.float64)  > (1+f)/(1-f) * self.min_size)
-                    mask &= (right_cnt.astype(np.float64) > (1+f_right)/(1-f_right) * self.min_size)
+                    mask &= (left_cnt.astype(cp.float64)  > (1+f)/(1-f) * self.min_size)
+                    mask &= (right_cnt.astype(cp.float64) > (1+f_right)/(1-f_right) * self.min_size)
 
                 # positivity constraints (use weighted sums, as in original)
                 if self.cfg['positive']:
-                    Mpos = self.base_point_const_for_pos.transpose()
-                    posL = np.all((left_sums  @ Mpos) >= 0, axis=1)
-                    posR = np.all((right_sums @ Mpos) >= 0, axis=1)
+                    posL = cp.all((left_sums  @ Mpos_gpu) >= 0, axis=1)
+                    posR = cp.all((right_sums @ Mpos_gpu) >= 0, axis=1)
                     mask &= posL
                     mask &= posR
 
@@ -631,32 +649,26 @@ class MultiNode:
                 mask &= (left_sums[:, 0]  > 0)
                 mask &= (right_sums[:, 0] > 0)
 
-                # --------- compute neg_loss_gains (same kernels, now over bins) ----------
+                # --------- compute neg_loss_gains on GPU ----------
                 if loss_mode == 'MSE':
-                    if NUMBA_AVAILABLE:
-                        neg_loss_gains = _mse_neg_loss_gains(left_sums, right_sums, B_T)
-                    else:
-                        L = left_sums @ B_T
-                        R = right_sums @ B_T
-                        neg_loss_gains = (np.sum(L*L, axis=1)/left_sums[:,0]
-                                          + np.sum(R*R, axis=1)/right_sums[:,0])
+                    L = left_sums @ B_T_gpu
+                    R = right_sums @ B_T_gpu
+                    neg_loss_gains = (cp.sum(L*L, axis=1)/left_sums[:,0]
+                                      + cp.sum(R*R, axis=1)/right_sums[:,0])
 
                 elif loss_mode == 'CrossEntropy':
-                    if NUMBA_AVAILABLE:
-                        neg_loss_gains = _crossentropy_neg_loss_gains(left_sums, right_sums, B_T)
-                        neg_loss_gains -= np.nanmin(neg_loss_gains)
-                    else:
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            r       = (left_sums  @ B_T)/left_sums[:,0].reshape(-1,1)
-                            r_right = (right_sums @ B_T)/right_sums[:,0].reshape(-1,1)
-                            neg_loss_gains  = left_sums[:,0]*np.sum( ( 0.5*np.log((1./(1.+r))**2) + r*0.5*np.log((r/(1.+r))**2) ), axis=1)
-                            neg_loss_gains += right_sums[:,0]*np.sum( ( 0.5*np.log((1./(1.+r_right))**2) + r_right*0.5*np.log((r_right/(1.+r_right))**2) ), axis=1)
-                            neg_loss_gains -= np.nanmin(neg_loss_gains)
+                    with cp.errstate(divide='ignore', invalid='ignore'):
+                        r       = (left_sums  @ B_T_gpu)/left_sums[:,0].reshape(-1,1)
+                        r_right = (right_sums @ B_T_gpu)/right_sums[:,0].reshape(-1,1)
+                        neg_loss_gains  = left_sums[:,0]*cp.sum((0.5*cp.log((1./(1.+r))**2) + r*0.5*cp.log((r/(1.+r))**2)), axis=1)
+                        neg_loss_gains += right_sums[:,0]*cp.sum((0.5*cp.log((1./(1.+r_right))**2) + r_right*0.5*cp.log((r_right/(1.+r_right))**2)), axis=1)
+                        neg_loss_gains -= cp.nanmin(neg_loss_gains)
 
-                gain_masked = np.nan_to_num(neg_loss_gains) * mask
-                argmax_fi   = np.argmax(gain_masked)
-                gain        = gain_masked[argmax_fi]
+                gain_masked = cp.nan_to_num(neg_loss_gains) * mask.astype(neg_loss_gains.dtype, copy=False)
+                argmax_fi   = int(cp.asnumpy(cp.argmax(gain_masked)))
+                gain        = float(cp.asnumpy(gain_masked[argmax_fi]))
 
+                # split at boundary after bin argmax_fi
                 if use_precomputed_bins:
                     value = float(cuts_i[argmax_fi])
                 else:
