@@ -238,7 +238,7 @@ nxbins = 10
 bins = np.linspace(xmin,xmax,nxbins+1)
 bin_width = (xmax - xmin) / nxbins
 
-notp = np.logical_not((h_y_abs<1.5) & (h_y_abs>1.0) & (h_pt>100) & (h_pt<120) & (id1==21) & (id2==-2) & (0.00368>x1) & (x1>0.00367) & (0.43416>x2) & (x2>0.43415), dtype=int)
+#notp = np.logical_not((h_y_abs<1.5) & (h_y_abs>1.0) & (h_pt>100) & (h_pt<120) & (id1==21) & (id2==-2) & (0.00368>x1) & (x1>0.00367) & (0.43416>x2) & (x2>0.43415), dtype=int)
 
 xsec_weights = xsec_weights/bin_width
 
@@ -249,7 +249,7 @@ hs = {}
 n_slices = len(y_bins) - 1
 for i in range(n_slices):
     #sel = (h_y_abs >= y_bins[i]) & (h_y_abs < y_bins[i+1]) & (id1==21) & (id2==21)
-    sel = (h_y_abs >= y_bins[i]) & (h_y_abs < y_bins[i+1]) & (np)
+    sel = (h_y_abs >= y_bins[i]) & (h_y_abs < y_bins[i+1])
     hs[f"slice_{i}"] = makehists(h_pt[sel], bins=bins, weights=newpdf_weights_nominal[sel]*xsec_weights*gen_weight[sel],name=f"nom_y{i}")
 
 hs_vars = {}
@@ -257,7 +257,7 @@ for i in range(args.ntoys):
     hs_vars[i] = {}
     for j in range(n_slices):
         #sel = (h_y_abs >= y_bins[j]) & (h_y_abs < y_bins[j+1]) & (id1==21) & (id2==21)
-        sel = (h_y_abs >= y_bins[j]) & (h_y_abs < y_bins[j+1]) & (np)
+        sel = (h_y_abs >= y_bins[j]) & (h_y_abs < y_bins[j+1])
         hs_vars[i][f"slice_{j}"] = makehists(h_pt[sel], bins=bins, weights=newpdf_weights[i][sel]*xsec_weights*gen_weight[sel],name=f"toy_y{j}_var{i}")
 
 if not os.path.exists(args.output):
