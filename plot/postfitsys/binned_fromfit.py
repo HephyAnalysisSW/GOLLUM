@@ -81,13 +81,15 @@ def evaluate_class(cls, h_base):
     return vals
 
 
-p = argparse.ArgumentParser(description="Simple postfit binned template plots from an external fit result")
+p = argparse.ArgumentParser(description="Simple binned template plots from an external fit result.")
 p.add_argument("fit_result", help="Fit JSON file")
 p.add_argument("--config", default=None, help="Config YAML. If omitted, try to read it from the fit JSON.")
 p.add_argument("--rotate", default=None, help="Rotation JSON, same logic as Likelihood.py")
 p.add_argument("--outdir", default=None, help="Output directory")
 p.add_argument("--n-toys", default=1000, type=int, help="Number of covariance toys")
 p.add_argument("--seed", default=42, type=int, help="Random seed")
+p.add_argument("--prefit", action="store_true", help="Creates prefit plots.")
+
 args = p.parse_args()
 
 fit = json.load(open(args.fit_result))
@@ -171,7 +173,10 @@ best_base_hyp = best_fit_hyp._base
 
 np.random.seed(args.seed)
 if len(active_names) > 0 and args.n_toys > 0:
-    theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
+    if args.prefit:
+        theta_samples = np.random.normal(loc=0.0, scale=1.0, size=(args.n_toys, len(active_params)))
+    else:
+        theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
 else:
     theta_samples = np.zeros((0, len(active_names)), dtype=np.float64)
 
@@ -213,6 +218,22 @@ for region in like_info.get("binned", []) or []:
     unroll = N2LL._unroll_bins_from_ich(first_pred)
     shape = tuple(unroll.get("shape", ()))
     n_bins_region = len(unroll["flat_bins"])
+    region_binning = region.get("binning", default_binning)
+
+    first_var_name = None
+    second_var_name = None
+    first_var_edges = None
+    first_var_tex = None
+    second_var_tex = None
+    second_var_edges = None
+    repeated_x_bin_labels = []
+    top_slice_labels = []
+
+    if len(shape) == 2 and region_binning and len(region_binning) >= 2:
+        first_var_name, first_var_edges = region_binning[0]
+        second_var_name, second_var_edges = region_binning[1]
+        first_var_tex = plot_options.get(first_var_name, {}).get("tex", first_var_name)
+        second_var_tex = plot_options.get(second_var_name, {}).get("tex", second_var_name)
 
     use_default_1d_binning = (
         len(shape) == 1
@@ -227,12 +248,28 @@ for region in like_info.get("binned", []) or []:
         separators = []
     else:
         plot_edges = array('d', np.arange(n_bins_region + 1, dtype=np.float64))
-        x_title = "unrolled bin"
+        if len(shape) == 2 and second_var_tex is not None:
+            x_title = second_var_tex
+        else:
+            x_title = "unrolled bin"
         logY = False
         separators = []
         if len(shape) == 2:
             nb1, nb2 = shape
             separators = [i * nb2 for i in range(1, nb1)]
+            if second_var_edges is not None and len(second_var_edges) == (nb2 + 1):
+                for i in range(nb1):
+                    for j in [0, nb2-1]:
+                        edge_idx = nb2 if j == (nb2 - 1) else j
+                        label = f"{float(second_var_edges[edge_idx]):g}"
+                        repeated_x_bin_labels.append((i * nb2 + j + 1, label))
+            if first_var_edges is not None and len(first_var_edges) == (nb1 + 1):
+                for i in range(nb1):
+                    lo = float(first_var_edges[i])
+                    hi = float(first_var_edges[i + 1])
+                    text = f"{lo:g} #leq {first_var_tex} < {hi:g}"
+                    center = (i + 0.5) * nb2
+                    top_slice_labels.append((center, text))
 
     class_infos = []
     total_central = np.zeros(n_bins_region, dtype=np.float64)
@@ -241,7 +278,10 @@ for region in like_info.get("binned", []) or []:
         class_id = cls["id"]
         sample_name = cls.get("sample", class_id)
 
-        vals = evaluate_class(cls, best_base_hyp)
+        if args.prefit:
+            vals = evaluate_class(cls, hyp_for_fit)
+        else:
+            vals = evaluate_class(cls, best_base_hyp)
         if len(vals) != n_bins_region:
             raise RuntimeError(
                 f"Region {region_id}, class {class_id}: got {len(vals)} bins, expected {n_bins_region}"
@@ -348,7 +388,6 @@ for region in like_info.get("binned", []) or []:
             raise ValueError("Fit output from fit to data, but no data sample was defined in config.")
 
         loader = factory.get(region["data"]["sample"])
-        region_binning = region.get("binning", default_binning)
 
         if len(shape) != len(region_binning):
             raise RuntimeError(
@@ -510,6 +549,24 @@ for region in like_info.get("binned", []) or []:
         line.Draw("SAME")
         top_sep_lines.append(line)
 
+    top_slice_text = []
+    if top_slice_labels:
+        x_min = float(plot_edges[0])
+        x_max = float(plot_edges[-1])
+        span = x_max - x_min
+        if span > 0.0:
+            y_ndc = 0.56
+            x_left = padTop.GetLeftMargin()
+            x_span = 1.0 - padTop.GetLeftMargin() - padTop.GetRightMargin()
+            for center, text in top_slice_labels:
+                x_ndc = x_left + x_span * ((center - x_min) / span)
+                txt = ROOT.TLatex()
+                txt.SetNDC(True)
+                txt.SetTextAlign(22)
+                txt.SetTextSize(0.030)
+                txt.DrawLatex(x_ndc, y_ndc, str(text).replace("$", ""))
+                top_slice_text.append(txt)
+
     leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
     leg.SetBorderSize(0)
     leg.SetFillStyle(0)
@@ -547,6 +604,13 @@ for region in like_info.get("binned", []) or []:
     h_ratio.GetXaxis().SetTitle(x_title)
     h_ratio.GetXaxis().SetTitleSize(0.10)
     h_ratio.GetXaxis().SetLabelSize(0.08)
+    if repeated_x_bin_labels:
+        h_ratio.GetXaxis().SetLabelSize(0.06)
+        for ib in range(1, n_bins_region + 1):
+            h_ratio.GetXaxis().SetBinLabel(ib, "")
+        for ib, text in repeated_x_bin_labels:
+            if 1 <= ib <= n_bins_region:
+                h_ratio.GetXaxis().SetBinLabel(ib, text)
 
     ratio_boxes = []
     h_ratio_up = h_ratio.Clone(f"h_postfit_ratio_up_{_safe_name(region_id)}")
@@ -622,17 +686,21 @@ for region in like_info.get("binned", []) or []:
 
     c.cd()
     c.Update()
+    
+    out_name = os.path.join(outdir, f"{_safe_name(region_id)}") 
 
-    out_png = os.path.join(outdir, f"{_safe_name(region_id)}__postfit.png")
-    out_pdf = os.path.join(outdir, f"{_safe_name(region_id)}__postfit.pdf")
-    c.SaveAs(out_png)
-    c.SaveAs(out_pdf)
-    print(f"[info] wrote\n  {out_png}\n  {out_pdf}")
+    if args.prefit:
+        out_name += "__prefit"
+    else:
+        out_name += "__postfit"
+
+    c.SaveAs(f"{out_name}.png")
+    c.SaveAs(f"{out_name}.pdf")
 
     region_canvases[region_id] = c
     _KEEPALIVE.extend(
         [c, padTop, padBottom, hs, h_total, h_unc, h_unc_up, h_unc_down, h_data, h_ratio, h_ratio_data, h_ratio_up, h_ratio_down, leg, label, line1]
-        + class_hists_sorted + ratio_boxes + top_sep_lines + ratio_sep_lines
+        + class_hists_sorted + ratio_boxes + top_sep_lines + ratio_sep_lines + top_slice_text
     )
 
 print(f"[info] done, produced {len(region_canvases)} region plots")
