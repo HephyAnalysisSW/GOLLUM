@@ -26,8 +26,8 @@ likelihood:
                   parameters: [nu_lumi_151617]
                 - id: Lumi_15161718
                   type: lnN
-                  value: 0.0061              
-                  parameters: [nu_lumi_15161718]                  
+                  value: 0.0061
+                  parameters: [nu_lumi_15161718]                   
                 - id: L1Prefire
                   type: icph
                   job: icph_TTLep_pow_2017_L1Prefire
