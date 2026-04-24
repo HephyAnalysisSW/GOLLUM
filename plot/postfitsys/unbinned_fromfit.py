@@ -197,6 +197,7 @@ if __name__ == "__main__":
     p.add_argument("--seed", default=42, type=int, help="Random seed")
     p.add_argument("--min_ratio", type=float, help="Minimum of ratio pad.")
     p.add_argument("--max_ratio", type=float, help="Maximum of ratio pad.")
+    p.add_argument("--prefit", action="store_true", help="Creates prefit plots.")
     args = p.parse_args()
 
     fit: Any = json.load(open(args.fit_result))
@@ -279,7 +280,10 @@ if __name__ == "__main__":
 
     np.random.seed(args.seed)
     if len(active_names) > 0 and args.n_toys > 0:
-        theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
+        if args.prefit:
+            theta_samples = np.random.normal(loc=0.0, scale=1.0, size=(args.n_toys, len(active_params)))
+        else:
+            theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
     else:
         theta_samples = np.zeros((0, len(active_names)), dtype=np.float64)
 
@@ -397,7 +401,10 @@ if __name__ == "__main__":
                 class_hist = np.zeros(n_bins, dtype=np.float64)
 
                 for shard_cache in class_info["shard_caches"]:
-                    event_weights = evaluate_class_cached(shard_cache, best_base_hyp)
+                    if args.prefit:
+                        event_weights = evaluate_class_cached(shard_cache, hyp_for_fit)
+                    else:
+                        event_weights = evaluate_class_cached(shard_cache, best_base_hyp)
                     shard_features = shard_cache["features"]
                     class_hist += _hist_with_flow(shard_features[:, feature_index], event_weights, edges)
 
@@ -691,12 +698,15 @@ if __name__ == "__main__":
             c.cd()
             c.Update()
 
-            out_png = os.path.join(outdir, f"{_safe_name(region_id)}__{_safe_name(feature_name)}__postfit.png")
-            out_pdf = os.path.join(outdir, f"{_safe_name(region_id)}__{_safe_name(feature_name)}__postfit.pdf")
-            c.SaveAs(out_png)
-            c.SaveAs(out_pdf)
-            logger.info("wrote %s", out_png)
-            logger.info("wrote %s", out_pdf)
+            out_name = os.path.join(outdir, f"{_safe_name(region_id)}__{_safe_name(feature_name)}") 
+
+            if args.prefit:
+                out_name += "__prefit"
+            else:
+                out_name += "__postfit"
+
+            c.SaveAs(f"{out_name}.png")
+            c.SaveAs(f"{out_name}.pdf")
 
             region_canvases[f"{region_id}::{feature_name}"] = c
             _KEEPALIVE.extend(
