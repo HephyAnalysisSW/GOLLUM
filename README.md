@@ -8,3 +8,4 @@
 ### Every time (make aliases for these commands)
 `conda activate /groups/hephy/cms/robert.schoefbeck/conda/envs/hephy-ml-gpu-2`
 
+## For the toys use the `toys` directory

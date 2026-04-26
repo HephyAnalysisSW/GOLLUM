@@ -32,14 +32,14 @@ X_MIN = 0.003
 X_MAX = 0.6
 N_X = 200
 
-# Addition after Robert's comments
-import matplotlib as mpl
-mpl.rcParams["pdf.fonttype"] = 42
-mpl.rcParams["ps.fonttype"]  = 42
-mpl.rcParams["svg.fonttype"] = "none"
-
 
 def load_fit_results_dir(fit_dir, pattern="*.npz"):
+    """
+    Load all toy-fit result files from a directory and merge them into one dataset.
+
+    Also validates that shared metadata agrees across files and that each
+    toy id appears only once.
+    """
     paths = sorted(glob.glob(os.path.join(fit_dir, pattern)))
     if not paths:
         raise RuntimeError(f"No files matched {os.path.join(fit_dir, pattern)}")
@@ -68,6 +68,7 @@ def load_fit_results_dir(fit_dir, pattern="*.npz"):
         config = str(np.asarray(z["config"]).reshape(-1)[0])
         toys_npz = str(np.asarray(z["toys_npz"]).reshape(-1)[0])
 
+
         if poi_names_ref is None:
             poi_names_ref = poi_names
             config_ref = config
@@ -93,11 +94,6 @@ def load_fit_results_dir(fit_dir, pattern="*.npz"):
     c_hat = np.concatenate(all_chat, axis=0)
     n2ll_min = np.concatenate(all_n2ll, axis=0)
 
-    order = np.argsort(toy_ids)
-    toy_ids = toy_ids[order]
-    c_hat = c_hat[order]
-    n2ll_min = n2ll_min[order]
-
     meta = {
         "config": config_ref,
         "toys_npz": toys_npz_ref,
@@ -109,6 +105,12 @@ def load_fit_results_dir(fit_dir, pattern="*.npz"):
 
 
 def find_pdf_job_and_pois(cfg):
+    """
+    Find the BIT POI block in the config and return its parameter names and PDF config.
+
+    The script uses this to recover the base POI ordering and the 'PDFParametrization'
+    settings needed to evaluate the toy-fit curves.
+    """
     for region in cfg.get("likelihood", {}).get("regions", []) or []:
         for cls in region.get("classes", []) or []:
             poi = cls.get("POI", {}) or {}
@@ -124,6 +126,13 @@ def find_pdf_job_and_pois(cfg):
 
 
 def build_rot_to_base(rotate_json, base_poi_names):
+    """
+    Build a function that converts fitted coefficients into the base POI basis.
+
+    Without a rotation file, this just reorders coefficients by name. With a
+    rotation file, it reconstructs the base coefficients using the stored
+    rotation matrix and its pseudo-inverse (Moore-Penrose).
+    """
     if rotate_json is None:
         def coeffs_to_base(fit_poi_names, fit_values):
             value_map = {name: float(val) for name, val in zip(fit_poi_names, fit_values)}
@@ -174,6 +183,9 @@ def build_rot_to_base(rotate_json, base_poi_names):
 
 
 def evaluate_external_pdf(pdf_set, pdf_member, x_vals, pid, Q):
+    """
+    Evaluate one LHAPDF member on the requested x grid.
+    """
     target_pdf = lhapdf.mkPDF(pdf_set, int(pdf_member))
     return np.array(
         [target_pdf.xfxQ(int(pid), float(x), float(Q)) for x in x_vals],
@@ -182,6 +194,9 @@ def evaluate_external_pdf(pdf_set, pdf_member, x_vals, pid, Q):
 
 
 def pretty_pdf_label(pdf_set, pdf_member):
+    """
+    Build a shorter legend label for a PDF set and member number.
+    """
     aliases = {
         "gluon_POD_nongluon_PDF4LHC21": "gluon_POD",
         "NNPDF31_nnlo_as_0118": "NNPDF3.1",
@@ -191,8 +206,14 @@ def pretty_pdf_label(pdf_set, pdf_member):
     return f"{display_name} member {int(pdf_member)}"
 
 
-def build_pdf_band(config, fit_dir, rotate_json=None, Q=70.0, pid=21):
-    fit_poi_names, toy_ids, chat, n2ll_min, fit_meta = load_fit_results_dir(fit_dir)
+def build_pdf_band(config, fit_dir, rotate_json=None, Q=1.65, pid=21):
+    """
+    Assemble all curves and ratio bands needed for the final two-panel plot.
+
+    Loads the toy fits, maps the fitted coefficients back to the base PDF basis,
+    evaluates the toy-sample PDFs, and computes the mean and 68% band.
+    """
+    fit_poi_names, _, chat, _, fit_meta = load_fit_results_dir(fit_dir)
 
     print("[fit metadata]\n", fit_meta)
 
@@ -214,18 +235,20 @@ def build_pdf_band(config, fit_dir, rotate_json=None, Q=70.0, pid=21):
     config_pdf_set = getattr(pdf, "reference_pdf_name", None) or pdf_cfg.get("pdf_basis")
     if config_pdf_set is None:
         raise RuntimeError("Could not determine the POD reference PDF set from the config.")
+    
     config_pdf_curve = evaluate_external_pdf(config_pdf_set, 0, x_vals, pid, Q)
     nnpdf31_curve = evaluate_external_pdf(NNPDF31_SET, NNPDF31_MEMBER, x_vals, pid, Q)
     pdf4lhc21_mc_curve = evaluate_external_pdf(PDF4LHC21_MC_SET, PDF4LHC21_MC_MEMBER, x_vals, pid, Q)
 
-    pdf_samples = np.zeros((chat.shape[0], len(x_vals)), dtype=float)
+    pdf_samples_from_toys = np.zeros((chat.shape[0], len(x_vals)), dtype=float)
     for i in range(chat.shape[0]):
         coeffs_base = rot_to_base(fit_poi_names, chat[i])
-        pdf_samples[i] = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_base)
+        pdf_samples_from_toys[i] = pdf.evaluate(x=x_vals, id=id_arr, Q=Q_arr, coeffs=coeffs_base)
 
-    toy_mean = np.mean(pdf_samples, axis=0)
-    p16, p84 = np.percentile(pdf_samples, [16, 84], axis=0)
+    toy_mean = np.mean(pdf_samples_from_toys, axis=0)
+    p16, p84 = np.percentile(pdf_samples_from_toys, [16, 84], axis=0)
 
+    # Avoid division by zero.
     mask = pdf4lhc21_mc_curve != 0.0
     r_config_pdf = np.ones_like(pdf4lhc21_mc_curve)
     r_nnpdf31 = np.ones_like(pdf4lhc21_mc_curve)
@@ -274,7 +297,10 @@ plt.rcParams.update({
     "mathtext.fontset": "cm",
 })
 
-OUTDIR = "/users/alikaan.gueven/sbi-pdf/GOLLUM/user/kaan/figs"
+
+import common.user as common_user
+OUTDIR = os.path.join(common_user.output_directory, 'toy_plots')
+os.makedirs(OUTDIR, exist_ok=True)
 
 CONFIG_PDF_COLOR = "red"
 NNPDF31_COLOR = "indigo"
@@ -285,6 +311,12 @@ PDF_LINESTYLE = "--"
 def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_mean, p16, p84,
                   r_config_pdf, r_nnpdf31, r_toy_mean, r16, r84,
                   Q, outname, config_pdf_label, nnpdf31_label, pdf4lhc21_mc_label):
+    """
+    Draw the main PDF panel and the ratio panel, then save the figure.
+
+    The upper panel shows the toy mean, its 68% band, and the reference PDFs.
+    The lower panel shows the same information divided by PDF4LHC21_mc member 0.
+    """
     os.makedirs(OUTDIR, exist_ok=True)
     out_pdf = os.path.join(OUTDIR, outname + ".pdf")
     out_png = os.path.join(OUTDIR, outname + ".png")
@@ -305,9 +337,9 @@ def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_me
 
     ax.fill_between(x, p16, p84, alpha=0.25, label=r"$68\%$ CI toy band")
     ax.plot(x, toy_mean, color="black", lw=1.8, label="Mean toy curve")
-    ax.plot(x, config_pdf_curve, color=CONFIG_PDF_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=config_pdf_label)
-    ax.plot(x, nnpdf31_curve, color=NNPDF31_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=nnpdf31_label)
-    ax.plot(x, pdf4lhc21_mc_curve, color=PDF4LHC21_MC_COLOR, lw=1.8, ls=PDF_LINESTYLE, label=pdf4lhc21_mc_label)
+    ax.plot(x, config_pdf_curve, color=CONFIG_PDF_COLOR, lw=1.5, ls=PDF_LINESTYLE, label=config_pdf_label)
+    ax.plot(x, nnpdf31_curve, color=NNPDF31_COLOR, lw=1.5, ls=PDF_LINESTYLE, label=nnpdf31_label)
+    ax.plot(x, pdf4lhc21_mc_curve, color=PDF4LHC21_MC_COLOR, lw=1.5, ls=PDF_LINESTYLE, label=pdf4lhc21_mc_label)
 
     axr.fill_between(x, r16, r84, alpha=0.25)
     axr.axhline(1.0, color=PDF4LHC21_MC_COLOR, lw=1.4, ls=PDF_LINESTYLE)
@@ -315,19 +347,23 @@ def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_me
     axr.plot(x, r_config_pdf, color=CONFIG_PDF_COLOR, lw=1.6, ls=PDF_LINESTYLE)
     axr.plot(x, r_nnpdf31, color=NNPDF31_COLOR, lw=1.6, ls=PDF_LINESTYLE)
 
-    ax.set_ylabel(rf"$f(x,Q = {float(Q)})$")
-    axr.set_xlabel(r"$x$")
-    axr.set_ylabel(r"$f/\mathrm{PDF4LHC21\_mc}$", fontsize=12)
+    ax.set_ylabel(rf"$f(x,Q = {float(Q)})$", fontsize=16)
+    axr.set_xlabel(r"$x$", fontsize=16)
+    axr.set_ylabel(r"$f/f_{\mathrm{target}}$", fontsize=16)
     axr.set_ylim(0.80, 1.20)
 
     ax.yaxis.set_minor_locator(mtick.AutoMinorLocator(5))
     axr.yaxis.set_minor_locator(mtick.AutoMinorLocator(5))
     axr.xaxis.set_major_formatter(mtick.FuncFormatter(lambda v, _: f"{v:g}"))
 
-    ax.text(0.0, 1.02, "SBI-PDF", transform=ax.transAxes, fontsize=16, weight="bold",
-            ha="left", va="baseline")
-    ax.text(0.22, 1.02, "Simulation Preliminary", transform=ax.transAxes, fontsize=14,
-            style="italic", ha="left", va="baseline")
+    # ax.text(0.0, 1.02, "SBI-PDF", transform=ax.transAxes, fontsize=16, weight="bold",
+    #         ha="left", va="baseline")
+    # ax.text(0.22, 1.02, "Simulation Preliminary", transform=ax.transAxes, fontsize=14,
+    #         style="italic", ha="left", va="baseline")
+
+    ax.set_xlim(X_MIN, X_MAX)
+    axr.set_xlim(X_MIN, X_MAX)
+
 
     ax.legend(frameon=False, loc="upper right")
     plt.setp(ax.get_xticklabels(), visible=False)
@@ -340,6 +376,9 @@ def plot_pdf_band(x, config_pdf_curve, nnpdf31_curve, pdf4lhc21_mc_curve, toy_me
 
 
 def main():
+    """
+    Parse command-line arguments, build the plot inputs, and write the figure.
+    """
     parser = argparse.ArgumentParser(description="Plot PDF bands from v3 toy best fits.")
     parser.add_argument("--config", required=True, help="YAML config")
     parser.add_argument("--fit-dir", required=True, help="Directory with fit_toys.py outputs")
@@ -373,7 +412,7 @@ def main():
         pid=args.pid,
     )
 
-    outname = args.outname or f"pdf_band_v3_pid{args.pid}_Q{args.Q:g}"
+    outname = args.outname or f"pdf_band_pid{args.pid}_Q{args.Q:g}"
     plot_pdf_band(
         x_vals,
         config_pdf_curve,
