@@ -36,7 +36,7 @@ for Delphes-sim:
 
 **After it starts generating, it goes faster.**
 
-<img src="image.png" alt="matmap2017.png" width="350" height="250" class="jop-noMdConv">
+<img src="image.png" alt="patience young padawan" width="350" height="250" class="jop-noMdConv">
 
 
 for CMS-sim:
