@@ -19,13 +19,16 @@ from ML.PNN.PNN import PNN
 from tqdm import tqdm
 
 # Plot options (binning, labels, optional y_ratio_range)
-from data.plot_options import plot_options as PLOT_OPTS
+
+#from data.plot_options import plot_options as PLOT_OPTS
+from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+p.add_argument("--lumi_scale", type=float, default=None, help="Scale lumi?")
 p.add_argument("--for_debug", action="store_true", help="Use _for_debug directories")
 p.add_argument("--n_split", default=None, help="Set sample split")
 args = p.parse_args()
@@ -160,12 +163,17 @@ for i, spec in enumerate(bp_specs):
 
     loaders.append(eff_loader)
 
-# Reset n_split
-if args.n_split:
-    for l in loaders:
-        if isinstance(l, SelectionView):
+for l in loaders:
+    # Reset n_split
+    if isinstance(l, SelectionView):
+        if args.lumi_scale is not None:
+            l.base.weight_rescale = args.lumi_scale 
+        if args.n_split:
             l.base.split = args.n_split
-        else:
+    else:
+        if args.lumi_scale is not None:
+            l.weight_rescale = args.lumi_scale 
+        if args.n_split:
             l.split = args.n_split
 
 # ---------------- sanity: same features across loaders ----------------
