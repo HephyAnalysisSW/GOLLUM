@@ -23,7 +23,7 @@ likelihood:
                 - id: signal_strength
                   type: lnN
                   value: 0.036 # twice the relative uncertainty on the ATLAS measurement
-                  parameters: [alpha_ttbar]
+                  parameters: [nu_norm_ttbar]
                   floating: true               
                 - id: Lumi_15161718
                   type: lnN
