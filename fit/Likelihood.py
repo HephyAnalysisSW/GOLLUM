@@ -1439,6 +1439,9 @@ class N2LL:
         # We allow switching, but make it explicit and clear.
         if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
             print("[N2LL.setObservation] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
+        
+        if not ignore_weights:
+            print("[N2LL.setObservation] Using weighted sample in setObservation.")
         self._asimov_hypothesis_set = False
         self._asimov_active = False
         self._asimov_hyp = None
@@ -2324,6 +2327,9 @@ if __name__ == "__main__":
                 # they should have different names
                 # e.g. SR_2016 (unbinned) and CR_2016 (binned)
 
+                # default for data, but can be changed below,
+                # if one wants to pass a MC sample/toy as "data sample"
+                ignore_weights = True
                 # unbinned region data
                 unbinned_dataloaders = {}
                 for region in like_info['regions']:
@@ -2333,6 +2339,12 @@ if __name__ == "__main__":
                         # if 'selection' in region:
                         #     loader.addSelection(region['selection'])
                         unbinned_dataloaders.update({region_id: loader})
+                        # if there's at least one region with a weighted sample for "data"
+                        # will use weights. not an issue if mix weighted/unweighted as "data"
+                        # weights are usually ~ 1
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
+                            
 
                 # binned region data
                 binned_dataloaders = {}
@@ -2343,13 +2355,14 @@ if __name__ == "__main__":
                         # if 'selection' in region:
                         #     loader.addSelection(region['selection'])
                         binned_dataloaders.update({region_id: loader})
-                        print(loader)
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
 
                 # data
                 if args.data:
                     if unbinned_dataloaders==[] and binned_dataloaders==[]:
                         raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
-                    n2ll.setObservation(unbinned_dataloaders, binned_dataloaders)
+                    n2ll.setObservation(unbinned_dataloaders, binned_dataloaders, ignore_weights=ignore_weights)
 
                 # ---- on-nominal Asimov point ----
                 elif args.asimov is None:
