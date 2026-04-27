@@ -38,7 +38,7 @@ variations = OrderedDict( {
 
    'jes_b'        : {'sys_up': 'CMS_scale_j_FlavorPureBottom_up',      'sys_down': 'CMS_scale_j_FlavorPureBottom_down'},
    'jes_c'        : {'sys_up': 'CMS_scale_j_FlavorPureCharm_up',       'sys_down': 'CMS_scale_j_FlavorPureCharm_down'},
-   'jeq_g'        : {'sys_up': 'CMS_scale_j_FlavorPureGluon_up',       'sys_down': 'CMS_scale_j_FlavorPureGluon_down'},
+   'jes_g'        : {'sys_up': 'CMS_scale_j_FlavorPureGluon_up',       'sys_down': 'CMS_scale_j_FlavorPureGluon_down'},
    'jes_q'        : {'sys_up': 'CMS_scale_j_FlavorPureQuark_up',       'sys_down': 'CMS_scale_j_FlavorPureQuark_down'},
    'jes_abs'      : {'sys_up': 'CMS_scale_j_Regrouped_Absolute_up',    'sys_down': 'CMS_scale_j_Regrouped_Absolute_down'},
    'jes_BBEC1'    : {'sys_up': 'CMS_scale_j_Regrouped_BBEC1_up',       'sys_down': 'CMS_scale_j_Regrouped_BBEC1_down'},
@@ -91,7 +91,7 @@ syst_groups = {
         'jes_total_EtaBin3', 'jes_total_EtaBin4', 'jes_total_EtaBin5'
     ]
 
-#    'JES1': ['jes_b', 'jes_c', 'jeq_g', 'jes_q', 'jes_abs',
+#    'JES1': ['jes_b', 'jes_c', 'jes_g', 'jes_q', 'jes_abs',
 #    ],
 #    'JES2': [
 #            'jes_BBEC1', 'jes_EC2', 'jes_HF', 'jes_relbal', 'jme_uncl',
