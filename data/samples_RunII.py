@@ -30,6 +30,7 @@ GROUPS = {
     "DrellYan":  ["DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"],
     "EtaS": ["EtaT_scalar_m343_w2p8_ll"],
     "EtaP": ["EtaT_m343_w2p8_ll"],
+    "Background": ["TBar_tch", "TBar_tWch_noFullyHad", "T_tch", "T_tWch_noFullyHad", "DYJetsToLL_M50", "DYJetsToLL_M10to50_LO"]
 }
 
 process_labels = {
@@ -417,9 +418,9 @@ class Factory:
 
     def __init__( self, 
             BASE_DIRECTORY: str = BASE_DIRECTORY,
-            features: List[str] = None,
-            selection: str = None,
-            selection_features: List[str] = None,
+            features: Optional[List[str]] = None,
+            selection: Optional[str] = None,
+            selection_features: Optional[List[str]] = None,
             ):
         if type(BASE_DIRECTORY) == str:
             self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
@@ -430,7 +431,7 @@ class Factory:
         self.selection = selection
         self.selection_features = selection_features
 
-    def get(self, process: str, era: str = None, tag: str = None) -> RDataLoader:
+    def get(self, process: str, era: Optional[str] = None, tag: Optional[str] = None) -> RDataLoader:
 
         # Prefer already-defined module globals over lazy parsing
         if era is None and tag is None:
@@ -517,7 +518,24 @@ class Factory:
         return loader
 
 if __name__ == "__main__":
-    #print("Base:", _base)
+    
+    base_loader = _get_base()
+
+    print("Base:", base_loader)
+    
     print("Base:", tt2l_delphes)
     F,O,W = tt2l_delphes.materialize(0,"fow")
     print("Shapes:", F.shape, O.shape, W.shape)
+
+    # showcasing how to access the factory
+    factory = Factory(
+        features=base_loader.feature_names,
+        selection=base_loader.selection,
+        selection_features=base_loader.feature_names,
+    )
+
+    # interface for data is the same as for MC,
+    # but one should just materialize the features
+    L_data = factory.get("Data_2016")
+    F_data = L_data.materialize(0,"f")
+    print("2016 data:", F_data)

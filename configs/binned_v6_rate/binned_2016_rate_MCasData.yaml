@@ -11,7 +11,8 @@ likelihood:
         - id: SR_2016
           data:
             id: Data_2016
-            sample: Data_2016
+            sample: TTLep_pow_2016
+            ignore_weights: False
           classes:
             - id: TTLep_pow_2016 
               sample: TTLep_pow_2016
@@ -20,6 +21,11 @@ likelihood:
                 type: ich
                 parameters: [c0, c1, c2, c3, c4, c5]
               systematics:
+                - id: signal_strength
+                  type: lnN
+                  value: 0.036 # twice the relative uncertainty on the ATLAS measurement
+                  parameters: [nu_norm_ttbar]
+                  floating: true                  
                 - id: Lumi_1516
                   type: lnN
                   value: 0.0118

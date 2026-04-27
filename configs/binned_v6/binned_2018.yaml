@@ -8,7 +8,10 @@ defaults:
 
 likelihood:
     binned:
-        - id: SR_2018 
+        - id: SR_2018
+          data:
+            id: Data_2018
+            sample: Data_2018         
           classes: 
             - id: TTLep_pow_2018 
               sample: TTLep_pow_2018
@@ -19,8 +22,8 @@ likelihood:
               systematics:
                 - id: Lumi_15161718
                   type: lnN
-                  value: 0.0084
-                  parameters: [nu_lumi_15161718]
+                  value: 0.0084              
+                  parameters: [nu_lumi_15161718]               
                 - id: L1Prefire
                   type: icph
                   job: icph_TTLep_pow_2018_L1Prefire

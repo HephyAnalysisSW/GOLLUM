@@ -11,3 +11,4 @@ slurm*
 launch*
 .github/
 .vscode/
+*.pdf

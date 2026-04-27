@@ -29,7 +29,10 @@ defaults:
 
 likelihood:
     regions:
-        - id: SR_2016 
+        - id: SR_2016
+          data:
+            id: Data_2016
+            sample: Data_2016         
           classifier:
             type: null
             id: null    # no classifier needed for a single process

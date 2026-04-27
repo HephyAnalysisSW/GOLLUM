@@ -30,6 +30,9 @@ defaults:
 likelihood:
     regions:
         - id: SR_2016APV 
+          data:
+            id: Data_2016APV
+            sample: Data_2016APV        
           classifier:
             type: null
             id: null    # no classifier needed for a single process
