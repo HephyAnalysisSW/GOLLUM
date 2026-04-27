@@ -518,16 +518,20 @@ class Factory:
         return loader
 
 if __name__ == "__main__":
-    print("Base:", _base)
+    
+    base_loader = _get_base()
+
+    print("Base:", base_loader)
+    
     print("Base:", tt2l_delphes)
     F,O,W = tt2l_delphes.materialize(0,"fow")
     print("Shapes:", F.shape, O.shape, W.shape)
 
     # showcasing how to access the factory
     factory = Factory(
-        features=_base.feature_names,
-        selection=_base.selection,
-        selection_features=_base.feature_names,
+        features=base_loader.feature_names,
+        selection=base_loader.selection,
+        selection_features=base_loader.feature_names,
     )
 
     # interface for data is the same as for MC,

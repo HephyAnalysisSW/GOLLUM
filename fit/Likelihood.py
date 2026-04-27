@@ -21,8 +21,6 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-import pprint
-
 from fit.Modeling import ModelParameter, Hypothesis, Rotated
 import common.helpers as helpers 
  
@@ -1487,7 +1485,7 @@ class N2LL:
                 if Xs:
                     X_all = np.concatenate(Xs, axis=0)
                     w_all = np.concatenate(Ws, axis=0)
-                else: # Q: shouldn't this raise an error ? in principle a shard should *always* have evens
+                else: # Q: shouldn't this raise an error ? in principle a shard should *always* have events
                     X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
                     w_all = np.empty((0,), dtype=np.float64)
 
@@ -1526,7 +1524,7 @@ class N2LL:
                     # subset of the features in dataloader
                     class_predictor_column_mask = self.make_column_mask(loader.feature_names, class_predictor.feature_names)
                     
-                    g_obs = _predict_classifier(class_predictor, X[:, class_predictor_column_mask])  # (n_events, n_classes)
+                    g_obs = _predict_classifier(class_predictor, X_all[:, class_predictor_column_mask])  # (n_events, n_classes)
                     if g_obs.shape[1] != n_classes:
                         raise RuntimeError(f"[N2LL] Classifier outputs {g_obs.shape[1]} != {n_classes} classes in region '{rid}'")
                     n_classifiers+=1
@@ -1914,8 +1912,8 @@ def serialize_result(m, base, version, args, out_path ):
     result_payload = {
         "config_basename": base,
         "version": version,
-        "no_syst": bool(args.no_syst) if "no_syst" in args else None,
-        "syst_only": bool(args.syst_only) if "syst_only" in args else None,
+        "no_syst": args.no_syst,
+        "syst_only": args.syst_only,
         "fval": float(m.fval),
         "edm": float(getattr(m, "edm", np.nan)),
         "niter": int(getattr(m, "niter", -1)),
@@ -2360,7 +2358,7 @@ if __name__ == "__main__":
 
                 # data
                 if args.data:
-                    if unbinned_dataloaders==[] and binned_dataloaders==[]:
+                    if (not unbinned_dataloaders) and (not binned_dataloaders):
                         raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
                     n2ll.setObservation(unbinned_dataloaders, binned_dataloaders, ignore_weights=ignore_weights)
 
