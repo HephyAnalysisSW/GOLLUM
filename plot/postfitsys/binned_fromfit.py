@@ -88,6 +88,8 @@ p.add_argument("--rotate", default=None, help="Rotation JSON, same logic as Like
 p.add_argument("--outdir", default=None, help="Output directory")
 p.add_argument("--n-toys", default=1000, type=int, help="Number of covariance toys")
 p.add_argument("--seed", default=42, type=int, help="Random seed")
+p.add_argument("--min_ratio", type=float, help="Minimum of ratio pad.")
+p.add_argument("--max_ratio", type=float, help="Maximum of ratio pad.")
 p.add_argument("--prefit", action="store_true", help="Creates prefit plots.")
 
 args = p.parse_args()
@@ -663,8 +665,16 @@ for region in like_info.get("binned", []) or []:
         r_min = 1.0 - half_range
         r_max = 1.0 + half_range
 
-    h_ratio.SetMinimum(r_min)
-    h_ratio.SetMaximum(r_max)
+    if args.min_ratio:
+        h_ratio.SetMinimum(args.min_ratio)
+    else:
+        h_ratio.SetMinimum(r_min)
+
+    if args.max_ratio:
+        h_ratio.SetMaximum(args.max_ratio)
+    else:
+        h_ratio.SetMaximum(r_max)
+
     h_ratio.Draw("HIST")
     for box in ratio_boxes:
         box.Draw("SAME")
