@@ -1871,8 +1871,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         for i, nm in enumerate(names):
             print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
-    m.precision = 0.001
-    print(f"Minuit precision: {m.precision}") 
     if do_migrad:
         m.migrad();
         if verbosity >= 1:
