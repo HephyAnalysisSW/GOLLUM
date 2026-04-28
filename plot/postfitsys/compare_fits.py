@@ -5,9 +5,9 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 import os
 
-import common.syncer as syncer
 import common.user as user
 import common.helpers as helpers
+import common.syncer as syncer
 
 
 def load_fit_results(json_path: str) -> Tuple[str, List[Dict]]:
@@ -74,15 +74,17 @@ def create_comparison_plot(
 
             y_offset = y_positions + (num_fits - 1) * bar_height / 2 - fit_idx * bar_height
 
-            ax.barh(
-                y_offset,
+            ax.errorbar(
                 values,
-                bar_height,
+                y_offset,
                 xerr=errors,
+                fmt='o',
+                markersize=3,
+                linestyle='none',
                 label=version,
                 color=colors[fit_idx],
                 ecolor=colors[fit_idx],
-                alpha=0.8,
+                alpha=0.9,
                 capsize=3
             )
 
@@ -108,7 +110,8 @@ def create_comparison_plot(
     save_plot_for_parameters(cms_param_names, 'fit_comparison_JME_NPs')
     save_plot_for_parameters(other_param_names, 'fit_comparison_rest')
 
-def main():
+if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser(
         description='Compare fit results across multiple JSON files'
     )
@@ -136,11 +139,9 @@ def main():
         output_suffix = "_v_".join(list_fit_names)
         output = f"fit_comparison_{output_suffix}"
 
-    output_dir = os.path.join(user.plot_directory, output)
+    output_dir = os.path.join(user.plot_directory, "fit_comparison",output)
+    os.makedirs(output_dir, exist_ok=True)
     helpers.copyIndexPHP(output_dir)
     
     create_comparison_plot(args.fit_files, output_dir, args.blind)
     print(f"Plots saved to {output_dir}")
-
-if __name__ == '__main__':
-    main()
