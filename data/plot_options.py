@@ -244,3 +244,9 @@ plot_options = {
 
     "x"                           : { 'binning': [20,   0,     1],   'tex': 'x',                           'logY': False },
 }
+
+def get_sample_legend(sample_id: str) -> str:
+    if "TTLep" in sample_id:
+        return "tt(2L)"
+    else:
+        print(f"[get_sample_legend] name for {sample_id=} not yet implemented, returning sample name")

@@ -20,7 +20,7 @@ import common.yaml_loader as yaml_loader
 
 from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2LL
 from fit.Modeling import Rotated
-from data.plot_options import plot_options
+from data.plot_options import plot_options, get_sample_legend
 from data.colors import get_color
 import importlib
 
@@ -338,7 +338,7 @@ for region in like_info.get("binned", []) or []:
         h_cls.SetFillColor(color)
         h_cls.SetLineWidth(1)
         class_hists.append(h_cls)
-        class_labels.append(ci["sample"])
+        class_labels.append(get_sample_legend(ci["sample"]))
 
     h_total = ROOT.TH1F(
         f"h_postfit_total_{_safe_name(region_id)}",
@@ -585,7 +585,17 @@ for region in like_info.get("binned", []) or []:
     label = ROOT.TLatex()
     label.SetNDC(True)
     label.SetTextSize(0.035)
-    label.DrawLatex(0.12, 0.93, region_id)
+
+    label_text = "#it{CMS} "
+    if not is_data_fit:
+        label_text += "Simulation "
+    label_text += "Work In Progress "
+    if args.prefit:
+        label_text += f"- {region_id} - prefit"
+    else:
+        label_text += f"- {region_id} - postfit"
+
+    label.DrawLatex(0.12, 0.93, label_text)
 
     padBottom.cd()
 
