@@ -323,6 +323,7 @@ if _NUMBA:
             wi = w[i]
             if -1.0 < xi < 1e-4:
                 x2 = xi * xi
+                # Taylor expansion of log1p(x) - x
                 t = 0.5 + xi * (-1.0/3.0 + xi * (1.0/4.0 + xi * (-1.0/5.0 + xi * (1.0/6.0))))
                 y = -x2 * t
             else:
@@ -1324,8 +1325,8 @@ class N2LL:
                 expo += dA @ nuA                        # (M,)
 
             # include per-class lnN bias additively in exponent
-            exp_expo = np.exp(expo + ln_bias_map[cid])  # (M,)
-            T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+            expo += ln_bias_map[cid] # (M,)
+            T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
         return T
 
@@ -1436,9 +1437,14 @@ class N2LL:
         # We allow switching, but make it explicit and clear.
         if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
             print("[N2LL.setObservation] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
+        
+        if not ignore_weights:
+            print("[N2LL.setObservation] Using weighted sample in setObservation.")
         self._asimov_hypothesis_set = False
         self._asimov_active = False
         self._asimov_hyp = None
+
+        # hypothesis for non-central Asimov 
         self._asimov_T.clear()
         self._binned_asimov_lambda.clear()
 
@@ -1474,16 +1480,93 @@ class N2LL:
                         raise RuntimeError(f"[setObservation:unbinned:{rid}] len(weights) != nEvents ({w.shape[0]} != {X.shape[0]}).")
                     Xs.append(X); Ws.append(w)
 
+                    # checks of the existence of surrogates has been done before setObservation is called
+
                 if Xs:
                     X_all = np.concatenate(Xs, axis=0)
                     w_all = np.concatenate(Ws, axis=0)
-                else:
+                else: # Q: shouldn't this raise an error ? in principle a shard should *always* have events
                     X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
                     w_all = np.empty((0,), dtype=np.float64)
 
                 self._obs_unbinned[rid] = {'X': X_all, 'w': w_all}
+                
+                # pre-evaluating surrogates on observed events
+                # to avoid evaluating everytime n2ll(hyp) is called
+
+                # NB: in binned, evaluation is done directly in n2ll(hyp),
+                # because ICH and ICPH already give the ratio for nominal vs. alternative
+
+                self._obs_unbinned[rid]['by_class'] = {}
+                
+                # load region info from likelihood object list
+                # does not protect against two regions with
+                # the same name - is this allowed ?
+                # currently, if there's two regions with the same name,
+                # keeps the last one checked
+                region_info = {}
+                for region in self.regions:
+                    if region['id']==rid:
+                        region_info = region
+
+                if region_info == {}:
+                    raise ValueError(f"Did not find information in config corresponding to region {rid}")
+
+                n_classes = len(region_info['classes'])
+                
+                class_predictor = region_info.get('_classifier_predictor', None)
+                
+                n_classifiers = 0
+                if class_predictor is None or n_classes <= 1:
+                    g_obs = np.ones((len(w_all), n_classes), dtype=np.float64)
+                else:
+                    # in the case where class_predictor uses
+                    # subset of the features in dataloader
+                    class_predictor_column_mask = self.make_column_mask(loader.feature_names, class_predictor.feature_names)
+                    
+                    g_obs = _predict_classifier(class_predictor, X_all[:, class_predictor_column_mask])  # (n_events, n_classes)
+                    if g_obs.shape[1] != n_classes:
+                        raise RuntimeError(f"[N2LL] Classifier outputs {g_obs.shape[1]} != {n_classes} classes in region '{rid}'")
+                    n_classifiers+=1
+
+                n_poi_predictors = 0
+                n_syst_predictors = 0
+                for class_info in region_info['classes']:
+                    cid = class_info['id']
+                    i_class = class_index(region_info['classes'], cid)
+
+                    self._obs_unbinned[rid]['by_class'][cid] = {}
+
+                    # classifier output per classfrom global classifier
+                    self._obs_unbinned[rid]['by_class'][cid]['g'] = g_obs[:,i_class]
+
+                    # POI predictor for each class
+                    poi_predictor = (class_info.get('POI') or {}).get('predictor')
+                    
+                    if poi_predictor is None:
+                        R_A = np.empty((len(w_all), 0), dtype=np.float64)
+                    else:
+                        poi_predictor_column_mask = self.make_column_mask(loader.feature_names, poi_predictor.feature_names)
+                        R_A = predict_bit_ratio(poi_predictor, X_all[:,poi_predictor_column_mask])
+                        n_poi_predictors +=1
+                    
+                    self._obs_unbinned[rid]['by_class'][cid]['R'] = R_A
+                    
+                    # syst predictors for each class
+                    for syst_info in class_info['_pnn_systs']:
+                        
+                        syst_column_mask = self.make_column_mask(loader.feature_names, syst_info['predictor'].feature_names)
+                        pnn = syst_info['predictor']
+                        syst_id = syst_info['id']
+                        dA = predict_pnn_deltaA(pnn, X_all[:, syst_column_mask])  # (N_events, nB)
+                        dset = f'Delta::{syst_id}'           
+
+                        self._obs_unbinned[rid]['by_class'][cid][dset] = dA
+                        n_syst_predictors += 1
+
                 print(f"[setObservation] Unbinned region '{rid}': loaded {X_all.shape[0]:,} events "
                       f"({'unit weights' if ignore_weights else 'with weights'}).")
+                print(f'[setObservation] Evaluated {n_classifiers} classifiers, and individual surrogates for {n_classes} classes. Total: {n_poi_predictors} POI predictors and {n_syst_predictors} systematics predictors.')
 
         # ------------- BINNED OBSERVATION (from unbinned events) -------------
         if binned_loaders:
@@ -1574,14 +1657,6 @@ class N2LL:
                 nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
                 for rid, block in self._obs_unbinned.items():
-                    # Mode A: direct T
-                    if 'T' in block:
-                        T = np.asarray(block['T'], dtype=np.float64)
-                        W = np.asarray(block['w'], dtype=np.float64)
-                        total_unbinned += _weighted_sum_log1p_minus_x(T, W)
-                        continue
-
-                    # Mode B: by_class arrays -> reconstruct T with current (c,nu)
                     byc = block['by_class']
                     W   = np.asarray(block['w'], dtype=np.float64)
                     N   = len(W)
@@ -1593,10 +1668,32 @@ class N2LL:
                     ln_bias = {
                         cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
                                  for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
-                        for cid in byc.keys()
+                        for cid in self._class_ids_by_region[rid]
                     }
                     rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis._base)
 
+                    # first term in N2LL: weighted sum of T evaluated on Asimov events for each class
+                    chunk = self.eval_chunk_size
+                    class_ids = self._class_ids_by_region[rid]
+                    
+                    # N = 0 case may happen if we have regions with spurious
+                    # data events without events in Asimov.
+                    # in any case, the loop for the calculation 
+                    # of the first term will simply not run
+                    N_asimov =self._N_region.get(rid, 0)
+                    for ichunk, start in enumerate(range(0, N_asimov, chunk)):
+                        stop = min(start + chunk, N_asimov)
+                        T_asimov_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                        W_asimov_chunk = self._h5[(rid, class_ids[0])]['w0'][start:stop]
+                        # IMPORTANT: event weights for all the events in Asimov are stored
+                        # in the cache file for all of the classes
+                        # So doing the below line with class_ids[-1] would also work.                                            
+                        total_unbinned -= np.dot(W_asimov_chunk, T_asimov_chunk)
+
+                    # second term in N2LL: divided into two parts
+                    # 1: get T evaluated on the observed events, summing over predictions of surrogates for each class
+                    # 2: make weighted sum of log1p(T), for observed weights can be one or not
+                    # depends on whether setObservation was called with ignoreWeights=True
                     for cid, comp in byc.items():
                         g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
                         R_slice = np.asarray(comp['R'], dtype=np.float64)     # (N, nA)
@@ -1620,19 +1717,20 @@ class N2LL:
                                 raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
                             expo += dA @ nuA
 
-                        exp_expo = np.exp(expo + ln_bias[cid])
-                        T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+                        # include per-class lnN bias additively in exponent
+                        expo += ln_bias[cid] # (M,)
+                        T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
-                    total_unbinned += _weighted_sum_log1p_minus_x(T, W)
+                    total_unbinned += np.dot(W,np.log1p(T))
 
             # ---------- BINNED (always available if you provided columns for axes) ----------
-            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned", None):
+            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned_counts", None):
                 for rid in self._binned_regions_ids:
-                    if rid not in self._obs_binned:
+                    if rid not in self._obs_binned_counts:
                         continue  # region not histogrammed (e.g. missing axis columns)
                     lam0 = self._binned_lambda0[rid]                    # (Nflat,)
                     lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
-                    Nobs = self._obs_binned[rid]                        # (Nflat,)
+                    Nobs = self._obs_binned_counts[rid]                        # (Nflat,)
 
                     log_ratio = self._safe_log_ratio(lam, lam0)         # stable
                     total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
@@ -1673,6 +1771,9 @@ class N2LL:
                 stop = min(start + chunk, N)
                 #T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
                 T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                # IMPORTANT: event weights for all the events in Asimov are stored
+                # in the cache file for all of the classes
+                # So doing the below line with class_ids[-1] would also work.
                 W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
                 total_sum += _weighted_sum_log1p_minus_x(T, W)
 
@@ -1695,133 +1796,6 @@ class N2LL:
         n2ll = -2.0 * (total_unbinned + total_binned)
         n2ll += hypothesis._base.penalty()
         return float(n2ll)
-
-## This code 'fixes' frozen POIs in minuit
-#from iminuit import Minuit
-#
-#def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-#                   do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
-#
-#    # -- collect parameters to hand to Minuit --
-#    # ignored -> not passed at all
-#    # frozen  -> passed to Minuit but marked fixed, so they appear in the postfit
-#    if isinstance(hypothesis, Rotated):
-#        kept = [p for p in hypothesis.POIs if not getattr(p, "isIgnored", False)] + [
-#            p for p in hypothesis.nuisances if not getattr(p, "isIgnored", False)
-#        ]
-#        poi_names = {p.name for p in hypothesis.POIs if not getattr(p, "isIgnored", False)}
-#    else:
-#        kept = [p for p in hypothesis.parameters if not getattr(p, "isIgnored", False)]
-#        poi_names = set()
-#
-#    if not kept:
-#        raise RuntimeError("No parameters to pass to Minuit.")
-#
-#    names = [p.name for p in kept]
-#    x0 = [float(p.val) for p in kept]
-#    fixed_names = {p.name for p in kept if p.isFrozen}
-#    float_names = [p.name for p in kept if not p.isFrozen]
-#
-#    if not float_names:
-#        raise RuntimeError("No floating parameters to fit.")
-#
-#    # step defaults:
-#    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
-#    #   float -> uniform
-#    #   dict  -> per-parameter overrides
-#    if step is None:
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#    elif isinstance(step, (int, float)):
-#        steps = {p.name: float(step) for p in kept}
-#    elif isinstance(step, dict):
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#        for k, v in step.items():
-#            if k in steps:
-#                steps[k] = float(v)
-#    else:
-#        raise TypeError("step must be None, float, or dict{name: float}")
-#
-#    eval_count = 0
-#    def fcn(*x):
-#        nonlocal eval_count
-#        pars = {names[i]: float(x[i]) for i in range(len(names))}
-#        h_eval = hypothesis.cloneModify(**pars)
-#        f = float(n2ll(h_eval))
-#        eval_count += 1
-#        if verbosity >= 2:
-#            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
-#                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
-#                h_eval.print()
-#        return f
-#
-#    # ---- Minuit with positional args and explicit names ----
-#    m = Minuit(fcn, *x0, name=names)
-#    m.errordef = 1.0
-#    m.strategy = 2
-#
-#    # set user step and mark fixed params
-#    for i, nm in enumerate(names):
-#        s = steps[nm]
-#        m.errors[i] = s
-#        if hasattr(m, "set_initial_step"):
-#            m.set_initial_step(i, 0.3 * s)
-#        if nm in fixed_names:
-#            m.fixed[nm] = True
-#
-#    # rate_shift nuisances are bound
-#    for name in m.parameters:
-#        if name.startswith("rate_shift"):
-#            m.limits[name] = (-1.0, None)
-#
-#    if verbosity >= 1:
-#        print("\n[make_minuit] Parameters passed to Minuit:")
-#        for i, nm in enumerate(names):
-#            status = "FIXED" if nm in fixed_names else "FLOAT"
-#            print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}  {status}")
-#
-#    m.precision = 0.001
-#    print(f"Minuit precision: {m.precision}")
-#
-#    if do_migrad:
-#        m.migrad()
-#        if verbosity >= 1:
-#            print("\n[MIGRAD]")
-#            print(m)
-#
-#    if do_hesse:
-#        m.hesse()
-#        if verbosity >= 1:
-#            print("\n[HESSE]")
-#            print(m)
-#
-#    if do_minos:
-#        poi_list = [
-#            p.name for p in getattr(hypothesis, "POIs", [])
-#            if p.name in m.parameters and not m.fixed[p.name]
-#        ] or [nm for nm in m.parameters if not m.fixed[nm]]
-#        m.minos(*poi_list)
-#        if verbosity >= 1:
-#            print("\n[MINOS]", poi_list)
-#            print(m)
-#
-#    # write back best fit once
-#    final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
-#    h_final = hypothesis.cloneModify(**final_pars)
-#
-#    for k, v in final_pars.items():
-#        setattr(hypothesis, k, v)
-#
-#    if verbosity >= 1:
-#        print("\n[final] Best-fit hypothesis:")
-#        h_final.print()
-#
-#    return m
 
 from iminuit import Minuit
 def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
@@ -1897,8 +1871,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         for i, nm in enumerate(names):
             print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
-    m.precision = 0.001
-    print(f"Minuit precision: {m.precision}") 
     if do_migrad:
         m.migrad();
         if verbosity >= 1:
@@ -1938,7 +1910,8 @@ def serialize_result(m, base, version, args, out_path ):
     result_payload = {
         "config_basename": base,
         "version": version,
-        "no_syst": bool(args.no_syst) if "no_syst" in args else None,
+        "no_syst": args.no_syst,
+        "syst_only": args.syst_only,
         "fval": float(m.fval),
         "edm": float(getattr(m, "edm", np.nan)),
         "niter": int(getattr(m, "niter", -1)),
@@ -1978,9 +1951,11 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
     nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
-    names = pois
-    if not args.no_syst:
-        names += nuis 
+    names = pois + nuis
+    if args.no_syst:
+        names = pois
+    elif args.syst_only:
+        names = nuis
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
@@ -2056,21 +2031,20 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
 
     # separator between POIs and nuisances
     ysep = None
-    lines = []
     if n_pois and n_nuis:
-        ysep = n - n_pois + 0.5
-        lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
-        lsep.SetLineStyle(2)
-        lsep.SetLineWidth(2)
-        lsep.Draw("SAME")
-        lines.append(ysep)
+        ysep=n
+        if not args.syst_only:
+            ysep = n - n_pois + 0.5
+            lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
+            lsep.SetLineStyle(2)
+            lsep.SetLineWidth(2)
+            lsep.Draw("SAME")
         # prefit constraint band guides for nuisances: x=±1 from separator down to x-axis
         for xx in (-1.0, +1.0):
             lv = ROOT.TLine(xx, 0.5, xx, ysep)
             lv.SetLineStyle(2)
             lv.SetLineWidth(2)
             lv.Draw("SAME")
-            lines.append(lv)
 
     # run-identifying strings
     t = ROOT.TLatex()
@@ -2154,6 +2128,8 @@ if __name__ == "__main__":
     p.add_argument("--freezePOI", type=float, default=None,
                    help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+    p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
+    p.add_argument("--data", action="store_true", help="Fits to data defined in config.")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"),
                    help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2175,11 +2151,54 @@ if __name__ == "__main__":
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
+    if args.no_syst and args.syst_only:
+        raise ValueError("You cannot ask for a fit with --no_syst and --syst_only.")
+
     if args.no_syst:
         for p_ in hyp.nuisances + hyp_for_fit.nuisances:
             p_.val = 0.0
             p_.isFrozen = True
         print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+    elif args.syst_only:
+        for p_ in hyp.POIs + hyp_for_fit.POIs:
+            # p_.val = 0.0 # do I need this ? I don't think I do.
+            p_.isFrozen = True
+        print("[opts] --syst_only: all POIs frozen.")
+
+    # currently rate parameters are implemented using unpenalized/floating lnN
+    # which is defined as a systematic (fit should be run with --syst_only)
+    # POI field (from ICH) still has to be in config to get nominal yields
+
+    # code below avoids fitting rate and ICH POIs (e.g. forgetting --syst_only option)
+    if not args.syst_only and not args.no_syst:
+        # classes with active ICH POI and floating lnN parameters
+        offenders: list[str] = []
+
+        for section_name in ("regions", "binned"):
+            for region_cfg in like_info[section_name]:
+                region_id = region_cfg["id"]
+
+                for class_cfg in region_cfg["classes"]:
+                    class_id = class_cfg["id"]
+                    poi_cfg = class_cfg.get("POI", {})
+                    poi_type = poi_cfg.get("type")
+                    poi_parameters = poi_cfg.get("parameters", [])
+
+                    has_active_poi = (poi_type is not None) and (len(poi_parameters) > 0)
+
+                    has_floating_lnn = any(
+                        (syst_cfg.get("type") == "lnN") and bool(syst_cfg.get("floating", False))
+                        for syst_cfg in class_cfg.get("systematics", [])
+                    )
+
+                    if has_active_poi and has_floating_lnn:
+                        offenders.append(f"{section_name}:{region_id}/{class_id}")
+
+        if offenders:
+            raise RuntimeError(
+                "Invalid configuration for non-syst-only fit: active POI with floating lnN in "
+                f"{offenders}. Run with --syst_only or fix the configuration."
+            )
 
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
@@ -2188,11 +2207,16 @@ if __name__ == "__main__":
     base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
-    if args.freezePOI is not None:
+    if args.freezePOI is not None and (args.syst_only == False):
         suffix += f"_freezePOI{args.freezePOI:g}"
+    if args.syst_only:
+        suffix = "_systonly"
     if args.shuffle:
         suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
+    if args.data:
+        suffix += "_data"
+        print("Fitting to data!")
 
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
@@ -2295,9 +2319,52 @@ if __name__ == "__main__":
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
-                # ---- optional off-nominal Asimov point ----
-                if args.asimov is None:
+                # allow unbinned and binned regions simultaneously
+                # they should have different names
+                # e.g. SR_2016 (unbinned) and CR_2016 (binned)
+
+                # default for data, but can be changed below,
+                # if one wants to pass a MC sample/toy as "data sample"
+                ignore_weights = True
+                # unbinned region data
+                unbinned_dataloaders = {}
+                for region in like_info['regions']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        unbinned_dataloaders.update({region_id: loader})
+                        # if there's at least one region with a weighted sample for "data"
+                        # will use weights. not an issue if mix weighted/unweighted as "data"
+                        # weights are usually ~ 1
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
+                            
+
+                # binned region data
+                binned_dataloaders = {}
+                for region in like_info['binned']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        binned_dataloaders.update({region_id: loader})
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
+
+                # data
+                if args.data:
+                    if (not unbinned_dataloaders) and (not binned_dataloaders):
+                        raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
+                    n2ll.setObservation(unbinned_dataloaders, binned_dataloaders, ignore_weights=ignore_weights)
+
+                # ---- on-nominal Asimov point ----
+                elif args.asimov is None:
                     n2ll.setAsimov()
+
+                # ---- optional off-nominal Asimov point ----
                 else:
                     if rotated:
                         raise NotImplementedError
