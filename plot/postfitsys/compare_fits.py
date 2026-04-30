@@ -3,12 +3,16 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict, Tuple, Optional
-import os
+import os, sys
+import mplhep
+plt.style.use(mplhep.style.CMS)
 
 import common.user as user
 import common.helpers as helpers
 import common.syncer as syncer
+from data.plot_options import get_nice_parameter_name
 
+MAKE_PUBLIC_PLOTS = True
 
 def load_fit_results(json_path: str) -> Tuple[str, List[Dict]]:
     """Load parameter values and errors from fit JSON file."""
@@ -25,8 +29,9 @@ def load_fit_results(json_path: str) -> Tuple[str, List[Dict]]:
 
 def create_comparison_plot(
     fit_files: List[str],
+    labels: Optional[List[str]],
     output_dir: str,
-    blind_params: Optional[List[str]] = None
+    blind_params: Optional[List[str]] = None,
 ) -> None:
     """Create split comparison plots for CMS and non-CMS fit parameters."""
     
@@ -57,6 +62,8 @@ def create_comparison_plot(
         # from https://matplotlib.org/stable/gallery/color/color_sequences.html
         colors = plt.color_sequences['tab10']
 
+        # for smart plot range
+        x_min, x_max = -1.0, 1.0
         for fit_idx, (version, params) in enumerate(fit_data):
             params_by_name = {param['name']: param for param in params}
             values = []
@@ -70,7 +77,15 @@ def create_comparison_plot(
                     errors.append(0)
                 else:
                     values.append(param['value'])
+                    # NB: will crash for asymmetric errors
                     errors.append(param['error'])
+                    lo = param['value']-param['error']
+                    hi = param['value']+param['error']
+
+                    if lo < x_min:
+                        x_min = lo
+                    if hi > x_max:
+                        x_max = hi
 
             y_offset = y_positions + (num_fits - 1) * bar_height / 2 - fit_idx * bar_height
 
@@ -81,7 +96,7 @@ def create_comparison_plot(
                 fmt='o',
                 markersize=3,
                 linestyle='none',
-                label=version,
+                label=version if labels is None else labels[fit_idx],
                 color=colors[fit_idx],
                 ecolor=colors[fit_idx],
                 alpha=0.9,
@@ -93,14 +108,40 @@ def create_comparison_plot(
             ax.axhline(y=i + 0.5, color='gray', linestyle='--', linewidth=0.5, alpha=0.3)
 
         ax.set_yticks(y_positions)
-        ax.set_yticklabels(param_names, fontsize=9)
+        cms_label = "Simulation"
+        if MAKE_PUBLIC_PLOTS:
+            yticklabels = [get_nice_parameter_name(param_name) for param_name in param_names]
+            cms_label += " Preliminary"
+        else:
+            yticklabels = [param_name.removeprefix("nu_") for param_name in param_names]
+            cms_label += " Internal"
+
+        ax.set_yticklabels(yticklabels, fontsize=9)
         ax.set_xlabel('Parameter value', fontsize=11)
-        ax.legend(loc='upper right', fontsize=10)
+        ax.legend(loc='upper right', fontsize=12)
         ax.grid(axis='x', alpha=0.3)
-        ax.set_xlim(-5.0, 5.0)
+        x_range = max(abs(x_min),abs(x_max),1.5)
+        ax.set_xlim(-x_range*1.2, x_range*1.2)
         ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8, alpha=0.5)
 
-        plt.tight_layout()
+        # Single text call with mathtext to combine bold 'CMS' and italic label
+        ax.text(0.0, 1.005, rf"$\bf{{CMS}}\ \mathit{{{cms_label}}}$",
+            transform=ax.transAxes, fontsize=13, va='bottom', ha='left')
+
+        lumi_by_era = {
+            "2016APV": 19.50,
+            "2016": 16.81,
+            "2017": 41.48,
+            "2018": 59.83,
+        }
+
+        lumi = 137.62 # default - Run 2
+        for era, era_lumi in lumi_by_era.items():
+            if era in version:
+                lumi = era_lumi
+                break
+
+        ax.text(1.0, 1.005, f'{lumi:.1f} fb$^{{-1}}$ (13 TeV)', transform=ax.transAxes, fontsize=11, va='bottom', ha='right')
 
         plt.savefig(output_dir + f'/{output_basename}.png', dpi=150, bbox_inches='tight')
         plt.savefig(output_dir + f'/{output_basename}.pdf', bbox_inches='tight')
@@ -120,6 +161,14 @@ if __name__ == '__main__':
         nargs='+',
         help='Path(s) to fit result JSON file(s)'
     )
+
+    parser.add_argument(
+        "-l","--labels",
+        nargs="+",
+        type=str,
+        help="Optional labels for plots. If not given, uses version name."
+    )
+
     parser.add_argument(
         '-o', '--output',
         help='Output directory (relative to user.plot_directory)',
@@ -132,6 +181,11 @@ if __name__ == '__main__':
     )
     
     args = parser.parse_args()
+
+    if args.labels:
+        if len(args.fit_files) != len(args.labels):
+            raise ValueError("If giving labels, number of fit files should be equal to number of labels")
+
     output = args.output
 
     if output is None:
@@ -143,5 +197,5 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
     helpers.copyIndexPHP(output_dir)
     
-    create_comparison_plot(args.fit_files, output_dir, args.blind)
+    create_comparison_plot(args.fit_files, args.labels, output_dir, args.blind)
     print(f"Plots saved to {output_dir}")
