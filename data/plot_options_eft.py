@@ -16,7 +16,7 @@ plot_options = {
     "dilep_pt":         {"binning": [30, 0, 600],     "tex": "p_{T}(ll)",              "logY": True},
     "dilep_mass":       {"binning": [30, 20, 1200],   "tex": "M(ll)",                  "logY": True},
     "dilep_dphi":       {"binning": [24, 0, pi],      "tex": "#Delta#phi(ll)",         "logY": False},
-    "dilep_deta":       {"binning": [24, -5, 5],      "tex": "#Delta#eta(ll)",         "logY": False},
+    "dilep_deta":       {"binning": [24, 0,  5],      "tex": "#Delta#eta(ll)",         "logY": False},
     "j0_pt":            {"binning": [30, 30, 900],    "tex": "p_{T}(j_{0})",           "logY": True},
     "j0_eta":           {"binning": [24, -2.6, 2.6],  "tex": "#eta(j_{0})",            "logY": False},
     "j0_phi":           {"binning": [24, -pi, pi],    "tex": "#phi(j_{0})",            "logY": False},

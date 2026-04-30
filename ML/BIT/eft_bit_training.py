@@ -468,6 +468,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
 
     c.Print(os.path.join(plot_ctx["out_dir"], f"iter_{t:04d}.png"))
     c.Close()
+    syncer.sync()
     return True
 
 # ---------------- build & train BIT ----------------
