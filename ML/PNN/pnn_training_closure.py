@@ -23,6 +23,8 @@ from tqdm import tqdm
 #from data.plot_options import plot_options as PLOT_OPTS
 from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
 
+MAKE_PUBLIC_PLOTS = True
+
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
@@ -272,11 +274,13 @@ def iterate_epoch(shard_limit=None):
         yield Xs, Ws
 
 def nu_tex_from_coords(coords):
-    parts = []
-    for i, v in enumerate(coords):
-        iv = int(np.rint(v))
-        parts.append(f"#nu_{{{i+1}}} = {iv:+d}")
-    return ", ".join(parts)
+    # parts = []
+    # for i, v in enumerate(coords):
+    #     iv = int(np.rint(v))
+    #     parts.append(f"#nu_{{{i+1}}} = {iv:+d}")
+    # return ", ".join(parts)
+    values = [str(int(np.rint(v))) for v in coords]
+    return f"#nu = ({', '.join(values)})"
 
 def strip_wvar_suffix(name: str) -> str:
     if not isinstance(name, str):
@@ -362,7 +366,7 @@ except Exception:
     pass
 
 import cmsstyle
-legend_columns = 4
+legend_columns = 3
 colors = [
 #    ROOT.kRed + 1,
 #    ROOT.kBlue + 1,
@@ -389,11 +393,24 @@ colors[nom_idx] = ROOT.kBlack
 # one-line mapping: first loader only
 lname0 = getattr(loaders[0], "name", None) or bp_specs[0].get("loader", "bp0")
 lname0 = strip_wvar_suffix(str(lname0))
-legend_mapping_line = f"{lname0} {param_map_tex}".strip()
+
+from data.plot_options import get_sample_legend, get_short_parameter_name
+if param_names:
+    
+    label_param_names = [fr"#nu_{{{get_short_parameter_name(param_name)}}}" for param_name in param_names]
+
+    param_info_text = "#nu = ("
+    param_info_text += ",".join(label_param_names)
+    param_info_text += ")"
+
+else:
+    raise ValueError("No parameters defined for this job.")
+
+legend_mapping_line = f"{get_sample_legend(lname0)}, {param_info_text}"
 
 # legend size tuning based on number of rows
-n_entries = 2 * len(base_points)  # truth + pred
-n_cols = max(1, int(legend_columns))
+n_entries = len(base_points)
+n_cols = max(1, min(int(legend_columns), n_entries))
 n_rows = int(math.ceil(n_entries / float(n_cols)))
 
 # legend-pad height in canvas NDC (clamped)
@@ -404,6 +421,8 @@ legend_pad_h = max(0.16, min(0.34, legend_pad_h))
 # legend text size inside pad (clamped)
 legend_text_size = 0.22 / max(1.0, n_rows + 1.0)
 legend_text_size = max(0.03, min(0.07, legend_text_size))
+# boost legend text size for readability
+legend_text_size = min(0.12, legend_text_size * 1.35)
 
 print(f"Writing per-feature closure plots to: {plot_dir}")
 
@@ -454,11 +473,26 @@ for feat in plot_feats:
 
     # legend: place under the mapping line, use most of pad
     # mapping line is at y~0.90, so legend box is below it
-    legend = ROOT.TLegend(0.06, 0.05, 0.98, 0.78)
+    legend = ROOT.TLegend(padLegend.GetLeftMargin(), 0.20, 0.98, 0.98)
     legend.SetBorderSize(0)
     legend.SetFillStyle(0)
-    legend.SetNColumns(legend_columns)
+    legend.SetNColumns(n_cols)
     legend.SetTextSize(legend_text_size)
+    legend.SetHeader(f"{legend_mapping_line}; markers: truth, lines: prediction", "C")
+
+    version_name = os.path.split(cfg_base)[0]
+    lumi_by_era = {
+        "2016APV": 19.50,
+        "2016": 16.81,
+        "2017": 41.48,
+        "2018": 59.83,
+    }
+
+    lumi = 137.62
+    for era, era_lumi in lumi_by_era.items():
+        if era in version_name:
+            lumi = era_lumi
+            break
 
     keep = [padLegend, padTop, padBottom, legend]
 
@@ -501,9 +535,7 @@ for feat in plot_feats:
         h_pred_abs.append(hp)
         keep.extend([ht, hp])
 
-        nu_tex = nu_tex_from_coords(nu)
-        legend.AddEntry(ht, f"{nu_tex} truth", "lep")
-        legend.AddEntry(hp, f"{nu_tex} pred",  "l")
+        legend.AddEntry(ht, nu_tex_from_coords(nu), "lp")
 
     # TOP PAD
     padTop.cd()
@@ -616,12 +648,31 @@ for feat in plot_feats:
     # LEGEND PAD: mapping line on top, legend below it
     padLegend.cd()
 
-    map_tex = ROOT.TLatex()
-    map_tex.SetNDC()
-    map_tex.SetTextAlign(13)  # left, top
-    map_tex.SetTextSize(0.16)  # mapping line only; pad height varies
-    map_tex.DrawLatex(0.04, 0.92, legend_mapping_line)
-    keep.append(map_tex)
+    cms_tex = ROOT.TLatex()
+    # cms_tex.SetNDC()
+    cms_tex.SetTextAlign(13)
+    cms_tex.SetTextSize(0.08)
+    cms_tex_label = r"CMS #bf{#it{"
+    cms_rest = r"Simulation Preliminary" if MAKE_PUBLIC_PLOTS else r"Simulation Internal"
+    cms_tex_label += cms_rest
+    cms_tex_label += r"}}"
+    # bold CMS, rest in italic
+    cms_tex.DrawLatex(padLegend.GetLeftMargin(), 0.1, cms_tex_label)
+
+    lumi_tex = ROOT.TLatex()
+    # lumi_tex.SetNDC()
+    lumi_tex.SetTextAlign(13)
+    lumi_tex.SetTextSize(0.08)
+    lumi_tex.DrawLatex(0.81 - padLegend.GetRightMargin(), 0.1, f"{lumi:.1f} fb^{{-1}} (13 TeV)")
+
+
+    # map_tex = ROOT.TLatex()
+    # map_tex.SetNDC()
+    # map_tex.SetTextAlign(13)  # left, top
+    # map_tex.SetTextSize(0.10)  # mapping lines only; pad height varies
+    # map_tex.DrawLatex(0.04, 0.86, legend_mapping_line)
+    # keep.extend([cms_tex, lumi_tex, map_tex])
+    keep.extend([cms_tex, lumi_tex])
 
     legend.Draw()
 
