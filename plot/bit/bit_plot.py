@@ -43,7 +43,7 @@ from fit.Likelihood import (
 SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
 
 # --small will stop after this many selected events
-SMALL_MAX_EVENTS = 500000
+SMALL_MAX_EVENTS = 5000
 
 # nuisance toy sampling
 NUISANCE_N_TOYS = 1000
@@ -886,11 +886,19 @@ for feat in plot_feats:
 
     drawn_objects.append(right_axis)
 
+    if args.max_n_tree is not None:
+        latex = ROOT.TLatex()
+        latex.SetNDC(True)
+        latex.SetTextAlign(31)
+        latex.SetTextSize(0.040)
+        latex.DrawLatex(1.0 - canvas.GetRightMargin(), 1.0 - 0.65 * canvas.GetTopMargin(), f"B={args.max_n_tree}")
+        drawn_objects.append(latex)
+
     canvas.RedrawAxis()
     canvas.Modified()
     canvas.Update()
 
-    postfix = "" if args.max_n_tree is None else + f"_{args.max_n_tree}"
+    postfix = "" if args.max_n_tree is None else f"_{args.max_n_tree:03d}"
     file_stub = os.path.join(out_dir, feat+postfix)
     canvas.SaveAs(file_stub + ".png")
     canvas.SaveAs(file_stub + ".pdf")

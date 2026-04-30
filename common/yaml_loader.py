@@ -94,25 +94,46 @@ def load_yaml(path: str):
     return cfg
 
 # --- feature resolution (NEW) ---------------------------------------------
-def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
+def _resolve_features_list(tokens: Iterable[str], module_samples: str | None = None) -> List[str]:
     """
     Expand a list like ["TOP_KINEMATICS", "ASYMMETRY", "tr_ttbar_pt"] into a flat
-    unique list of feature column names using data.observables.
+    unique list of feature column names, first using the sample module if provided,
+    then falling back to data.observables.
 
     Rules:
-      - If token names a list defined in data.observables (e.g. TOP_KINEMATICS),
+      - If token names a list defined in module_samples, extend by that list.
+      - Else, if token is in module_samples.ALL_FEATURES, append it as a single feature.
+      - Else, if token names a list defined in data.observables (e.g. TOP_KINEMATICS),
         extend by that list.
       - Else, if token is in data.observables.ALL_FEATURES, append it as a single feature.
       - Else, raise a descriptive error.
     """
     if not tokens:
         return []
+    sample_obs = None
+    if module_samples:
+        try:
+            import importlib
+            sample_obs = importlib.import_module(module_samples)
+        except Exception:
+            sample_obs = None
     from data import observables as obs
     out = []
     seen = set()
     for t in tokens:
         if not isinstance(t, str):
             raise RuntimeError(f"[features] All entries must be strings, got {type(t)} for {t!r}")
+        if sample_obs is not None and hasattr(sample_obs, t):
+            val = getattr(sample_obs, t)
+            if isinstance(val, list) and all(isinstance(x, str) for x in val):
+                for name in val:
+                    if name not in seen:
+                        out.append(name); seen.add(name)
+                continue
+        if sample_obs is not None and hasattr(sample_obs, "ALL_FEATURES") and t in getattr(sample_obs, "ALL_FEATURES"):
+            if t not in seen:
+                out.append(t); seen.add(t)
+            continue
         # try attribute list (e.g. TOP_KINEMATICS)
         if hasattr(obs, t):
             val = getattr(obs, t)
@@ -126,7 +147,9 @@ def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
             if t not in seen:
                 out.append(t); seen.add(t)
             continue
-        raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
+        raise RuntimeError(
+            f"[features] '{t}' is neither a list in module_samples/data.observables nor a known feature in ALL_FEATURES."
+        )
     return out
 
 def _apply_defaults_and_checks(cfg: dict):
@@ -149,8 +172,9 @@ def _apply_defaults_and_checks(cfg: dict):
     defaults = cfg.get("defaults", {}) or {}
 
     # ---------- feature defaults ----------
+    module_samples = defaults.get("module_samples", None)
     default_tokens = (defaults.get("default_features") or [])
-    default_features = _resolve_features_list(default_tokens)
+    default_features = _resolve_features_list(default_tokens, module_samples=module_samples)
     cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
 
     # default binning/splitting/early stopping, if there is one
@@ -268,7 +292,7 @@ def _apply_defaults_and_checks(cfg: dict):
         if feat_tokens is None:
             j["features"] = list(default_features)
         else:
-            j["features"] = _resolve_features_list(feat_tokens)
+            j["features"] = _resolve_features_list(feat_tokens, module_samples=module_samples)
 
     # ---------- scaler-feature consistency for TFMC/PNN that reference a scaler ----------
     id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
@@ -730,4 +754,3 @@ if __name__ == "__main__":
     cfg = load_yaml(root)
     print_summary(cfg, root, _INCLUDE_TRACE)
     load_surrogates(cfg, root, overwrite=False)
-
