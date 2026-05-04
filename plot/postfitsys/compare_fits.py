@@ -4,8 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import os, sys
-import mplhep
-plt.style.use(mplhep.style.CMS)
+import mplhep as hep
+plt.style.use("petroff10")
+# derive color cycle from the selected style (Petroff 10)
+cmap = plt.rcParams['axes.prop_cycle'].by_key()['color']
+hep.style.use("CMS")
 
 import common.user as user
 import common.helpers as helpers
@@ -59,8 +62,11 @@ def create_comparison_plot(
 
         y_positions = np.arange(num_params)
         bar_height = 0.8 / num_fits
-        # from https://matplotlib.org/stable/gallery/color/color_sequences.html
-        colors = plt.color_sequences['tab10']
+        # derive a color list from the current style (Petroff 10)
+        colors = list(cmap)
+        if len(colors) < num_fits:
+            raise ValueError("You're trying to do a comparison of more than 10 fits. Too many values to plot, exiting.")
+            colors = (colors * ((num_fits // len(colors)) + 1))[:num_fits]
 
         # for smart plot range
         x_min, x_max = -1.0, 1.0
@@ -118,30 +124,31 @@ def create_comparison_plot(
 
         ax.set_yticklabels(yticklabels, fontsize=9)
         ax.set_xlabel('Parameter value', fontsize=11)
-        ax.legend(loc='upper right', fontsize=12)
+        ax.legend(loc='upper right', fontsize=14)
         ax.grid(axis='x', alpha=0.3)
         x_range = max(abs(x_min),abs(x_max),1.5)
         ax.set_xlim(-x_range*1.2, x_range*1.2)
         ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8, alpha=0.5)
-
-        # Single text call with mathtext to combine bold 'CMS' and italic label
-        ax.text(0.0, 1.005, rf"$\bf{{CMS}}\ \mathit{{{cms_label}}}$",
-            transform=ax.transAxes, fontsize=13, va='bottom', ha='left')
 
         lumi_by_era = {
             "2016APV": 19.50,
             "2016": 16.81,
             "2017": 41.48,
             "2018": 59.83,
+            "Run 2": 137.62
         }
 
-        lumi = 137.62 # default - Run 2
-        for era, era_lumi in lumi_by_era.items():
+        
+        lumi_era = "Run 2"
+        for era in lumi_by_era:
             if era in version:
-                lumi = era_lumi
+                lumi_era = era
                 break
 
-        ax.text(1.0, 1.005, f'{lumi:.1f} fb$^{{-1}}$ (13 TeV)', transform=ax.transAxes, fontsize=11, va='bottom', ha='right')
+        lumi = lumi_by_era[lumi_era]
+
+        # CMS label using mplhep
+        hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year=lumi_era, ax=ax, loc=0, fontsize=13)
 
         plt.savefig(output_dir + f'/{output_basename}.png', dpi=150, bbox_inches='tight')
         plt.savefig(output_dir + f'/{output_basename}.pdf', bbox_inches='tight')
