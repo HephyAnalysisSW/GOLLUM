@@ -273,7 +273,8 @@ def get_nice_parameter_name(variation: str) -> str:
         "Uncl": "Unclustered MET",
         "btag_l": "Light jet efficiency",
         "btag_b": "b-jet efficiency",
-        "norm_ttbar": "ttbar norm."
+        "norm_ttbar": "ttbar norm.",
+        "scales": "QCD scales"
         }
 
     if name in nice_variation_name_dict:
@@ -313,7 +314,7 @@ def get_short_parameter_name(variation: str) -> str:
         "Uncl": "Uncl. MET",
         "btag_l": "Light jet eff.",
         "btag_b": "b-jet eff",
-        "norm_ttbar": "ttbar norm."
+        "norm_ttbar": "ttbar norm.",
         }
 
     if name in short_variation_name_dict:
