@@ -287,7 +287,7 @@ def get_nice_parameter_name(variation: str) -> str:
 
         name = name.replace("CMS_scale_j","Jet Energy Scale")
 
-        name = name.replace("CMS_res_j", "Jet Energy resolution")
+        name = name.replace("CMS_res_j", "Jet Energy Resolution")
 
         name = name.replace("FlavorPure","Flavor Composition - ")
 
