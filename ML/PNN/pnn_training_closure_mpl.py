@@ -419,9 +419,6 @@ for era in lumi_by_era:
         lumi_era = era
         break
 
-lumi = lumi_by_era[lumi_era]
-
-
 for feat in plot_feats:
     # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
     x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
@@ -489,7 +486,7 @@ for feat in plot_feats:
     ax_top.tick_params(labelbottom=False)
 
     # CMS label area
-    hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = era, ax=ax_top, loc=0, fontsize=14)
+    hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
     # hep.mpl_magic()
 
     # Bottom: ratios to nominal
