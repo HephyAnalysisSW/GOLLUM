@@ -147,6 +147,26 @@ class TFMC:
                                    None if w_eff is None else tf.convert_to_tensor(w_eff))
         return float(loss.numpy())
 
+    # --------------- validation primitives (no weight update) ----------------- #
+    @tf.function
+    def _loss_step_tf(self, X, y_onehot, w):
+        """Compute loss only (no gradients, no updates)."""
+        pred = self.model(X, training=False)  # training=False disables dropout/batch norm
+        loss_per = self.loss_fn(y_onehot, pred)
+        if w is not None:
+            loss = tf.reduce_sum(loss_per * w) / (tf.reduce_sum(w) + 1e-12)
+        else:
+            loss = tf.reduce_mean(loss_per)
+        return loss
+
+    def compute_loss(self, X: np.ndarray, y_onehot: np.ndarray, w: np.ndarray | None) -> float:
+        """Public method for validation/test loss (no weight updates)."""
+        Xn = self._normalize(X).astype(np.float32, copy=False)
+        w_eff = w.astype(np.float32, copy=False) if w is not None else None
+        loss = self._loss_step_tf(tf.convert_to_tensor(Xn), tf.convert_to_tensor(y_onehot, dtype=tf.float32),
+                                None if w_eff is None else tf.convert_to_tensor(w_eff))
+        return float(loss.numpy())        
+
     # ---------------- checkpointing ----------------
     def save(self, save_dir: str, epoch: int | None = None, extra: dict | None = None):
         os.makedirs(save_dir, exist_ok=True)
