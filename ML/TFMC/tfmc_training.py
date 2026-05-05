@@ -15,7 +15,7 @@ from data.plot_options import plot_options
 
 from ML.TFMC.TFMC import TFMC
 from ML.Scaler.Scaler import Scaler
-#from ML.IC.IC import InclusiveCrosssection
+from data.UIDSplitter import UIDSplitter
 
 from tqdm import trange, tqdm
 import math
@@ -31,7 +31,6 @@ p.add_argument("--batch-size", type=int, default=None, help="Override batch size
 # plotting
 p.add_argument("--plot-directory", default="", help="Plot directory")
 p.add_argument("--plot", action="store_true", help="Plot?")
-p.add_argument("--norm-plot", action="store_true", help="Only plot the shapes.")
 p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
@@ -90,8 +89,8 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
 cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
-model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  "TFMC", args.plot_directory, cfg_base, "TFMC", J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base+("_small" if args.small else ""), "TFMC", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_small" if args.small else ""), "TFMC", J["id"])
 
 from common.helpers import copyIndexPHP
 copyIndexPHP( plot_dir )
@@ -129,6 +128,45 @@ for L in loaders[1:]:
         raise RuntimeError("Feature mismatch across class loaders.")
 input_dim = len(feat_names)
 
+# ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
+UID_CFG = (J.get("splitting") or {})
+uid_enabled   = bool(UID_CFG.get("enabled", False))
+uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+uid_seed      = int(UID_CFG.get("seed", 0))
+uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+uid_scheme    = (UID_CFG.get("scheme") or {})
+
+uid_intervals = None
+uid_splitter = None
+if uid_enabled:
+    uid_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=uid_seed,
+        n_buckets=uid_n_buckets,
+    )
+
+    # build bucket intervals (inline; no extra helper, no extra checks)
+    keys  = list(uid_scheme.keys())
+    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+    sizes[-1] += uid_n_buckets - sum(sizes)
+
+    uid_intervals = {}
+    lo = 0
+    for k, sz in zip(keys, sizes):
+        uid_intervals[k] = (lo, lo + int(sz))
+        lo += int(sz)
+    pnn_train_key = "pnn_train"
+    pnn_val_key = "pnn_val"
+    train_interval = uid_intervals[pnn_train_key]
+    val_interval   = uid_intervals[pnn_val_key]
+
+    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+    print(f"[UID] scheme intervals: {uid_intervals}")
+    print(f"[UID] TFMC train split '{pnn_train_key}' -> {train_interval}")
+    print(f"[UID] TFMC val   split '{pnn_val_key}' -> {val_interval}")
+
 # ---------------- data iterator ----------------
 def iterate_epoch(shard_limit: int | None = None):
     """Yield one mixed batch (X, y1hot, w) by concatenating per-class shards."""
@@ -138,22 +176,93 @@ def iterate_epoch(shard_limit: int | None = None):
         n_shards = min(n_shards, shard_limit)
     for shard in range(n_shards):
         Xs, Ys, Ws = [], [], []
+        Xs_tr, Ys_tr, Ws_tr = [], [], []
+        Xs_val, Ys_val, Ws_val = [], [], []
         for ci, (name, L) in enumerate(zip(classes_names, loaders)):
             # Use materialize to fetch features and weights; views apply masks internally.
-            X, w = L.materialize(shard=shard, what="fw", n=None)
+            X, O, w = L.materialize(shard=shard, what="fow", n=None)
             y = np.zeros((len(X), len(classes_names)), dtype=np.float32)
             y[:, ci] = 1.0
-            Xs.append(X); Ys.append(y); Ws.append(w)
-        X = np.concatenate(Xs, axis=0) if Xs else np.empty((0, input_dim))
-        y = np.concatenate(Ys, axis=0) if Ys else np.empty((0, len(classes_names)))
-        w = np.concatenate(Ws, axis=0) if Ws else np.empty((0,))
-        #yield X, y, w
-        #idx = rng.permutation(len(X))
-        #yield X[idx], y[idx], w[idx]
-        idx = np.random.permutation(len(X))
-        yield X[idx], y[idx], w[idx]
+
+            if uid_enabled:
+                # training and validation events from UID-based splitting mask
+                obs_names = L.observer_names
+                uid_idx = [obs_names.index(f) for f in uid_fields]
+                O_uid = O[:, uid_idx]
+                lo, hi = train_interval
+                m_tr = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+                lo, hi = val_interval
+                m_val = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+                Xs_tr.append(X[m_tr]), Ys_tr.append(y[m_tr]), Ws_tr.append(w[m_tr])
+                Xs_val.append(X[m_val]), Ys_val.append(y[m_val]), Ws_val.append(w[m_val])
+            else:
+                Xs.append(X); Ys.append(y); Ws.append(w)
+
+        if uid_enabled:
+            X_tr = np.concatenate(Xs_tr, axis=0) if Xs_tr else np.empty((0, input_dim))
+            y_tr = np.concatenate(Ys_tr, axis=0) if Ys_tr else np.empty((0, len(classes_names)))
+            w_tr = np.concatenate(Ws_tr, axis=0) if Ws_tr else np.empty((0,))
+        
+            X_val = np.concatenate(Xs_val, axis=0) if Xs_val else np.empty((0, input_dim))
+            y_val = np.concatenate(Ys_val, axis=0) if Ys_val else np.empty((0, len(classes_names)))
+            w_val = np.concatenate(Ws_val, axis=0) if Ws_val else np.empty((0,))
+            
+            # shuffling input vectors
+            idx_tr = np.random.permutation(len(X_tr))
+            idx_val = np.random.permutation(len(X_val))
+
+            yield X_tr[idx_tr], y_tr[idx_tr], w_tr[idx_tr], X_val[idx_val], y_val[idx_val], w_val[idx_val]
+        
+        else:
+            X = np.concatenate(Xs, axis=0) if Xs else np.empty((0, input_dim))
+            y = np.concatenate(Ys, axis=0) if Ys else np.empty((0, len(classes_names)))
+            w = np.concatenate(Ws, axis=0) if Ws else np.empty((0,))
+            
+            #yield X, y, w
+            #idx = rng.permutation(len(X))
+            #yield X[idx], y[idx], w[idx]
+            idx = np.random.permutation(len(X))
+            # "equal training and validation"
+            # same output format for both cases
+            yield X[idx], y[idx], w[idx], X[idx], y[idx], w[idx]
 
 # (No explicit observer weight index anymore — weights come from materialize("w"))
+
+# ---------------- per-class counts (unweighted & weighted) ----------------
+n_classes = len(classes_names)
+counts_tr = np.zeros(n_classes, dtype=np.int64)
+counts_val = np.zeros(n_classes, dtype=np.int64)
+wcounts_tr = np.zeros(n_classes, dtype=np.float64)
+wcounts_val = np.zeros(n_classes, dtype=np.float64)
+
+shard_limit = 1 if args.small else None
+for X_tr, y_tr, w_tr, X_val, y_val, w_val in iterate_epoch(shard_limit=shard_limit):
+    if len(y_tr) == 0:
+        continue
+    counts_tr += np.sum(y_tr, axis=0).astype(np.int64)
+    counts_val += np.sum(y_val, axis=0).astype(np.int64)
+
+    if len(w_tr) > 0:
+        w_tr_arr = np.asarray(w_tr).reshape(-1)
+        wcounts_tr += y_tr.T @ w_tr_arr
+    if len(w_val) > 0:
+        w_val_arr = np.asarray(w_val).reshape(-1)
+        wcounts_val += y_val.T @ w_val_arr
+
+# Totals
+total_unweighted_tr = int(counts_tr.sum())
+total_unweighted_val = int(counts_val.sum())
+total_weighted_tr = float(wcounts_tr.sum())
+total_weighted_val = float(wcounts_val.sum())
+
+# Print results
+print("[COUNTS] Per-class (unweighted train / weighted train / unweighted val / weighted val):")
+for i, name in enumerate(classes_names):
+    print(f"  {name}: {counts_tr[i]} / {wcounts_tr[i]:.6g} / {counts_val[i]} / {wcounts_val[i]:.6g}")
+print(f"[COUNTS] Totals - unweighted train: {total_unweighted_tr}, weighted train: {total_weighted_tr:.6g}")
+print(f"[COUNTS] Totals - unweighted val:   {total_unweighted_val}, weighted val:   {total_weighted_val:.6g}")
 
 # ---------------- load Scaler (by job id; set means/variances) ----------------
 scaler_id = J["extras"].get("use_scaler", None)
@@ -174,11 +283,15 @@ else:
 if J["extras"].get("use_ic", True):
     print("Pre-compute inclusive cross sections.")
     ic_sums = np.zeros(len(classes_names), dtype=np.float64)
-    for _, y, w in iterate_epoch(shard_limit=None):
-        if len(w) == 0:
+    for _, y_tr, w_tr, _, _, _ in iterate_epoch(shard_limit=None):
+        if len(w_tr) == 0 :
             continue
-        w1 = np.asarray(w).reshape(-1)
-        ic_sums += y.T @ w1
+        w1 = np.asarray(w_tr).reshape(-1)
+        # getting sums from training data
+        # no need to divide by pnn_train fraction
+        # as it will cancel in the ratio
+        # NB: this may not be the most correct approach
+        ic_sums += y_tr.T @ w1
     ic_weights = {name: float(s) for name, s in zip(classes_names, ic_sums)}
     print(f"Computed IC weights from data (sum of weights per class): {ic_weights}")
 else:
@@ -229,7 +342,7 @@ def accumulate_histograms(h_true, h_pred, bins, X_raw, y_onehot, pred_dcrs, weig
             hp, _ = np.histogram(vals, bins=edges, weights=weights * pred_dcrs[:, c])
             h_pred[feat][:, c] += hp
 
-def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes):
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes, label=None):
     import common.syncer as syncer
     import ROOT, os
     ROOT.gStyle.SetOptStat(0)
@@ -250,10 +363,6 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
         # work on copies to avoid in-place modifications across epochs
         th = {k: v.copy() for k, v in true_h.items()}
         ph = {k: v.copy() for k, v in pred_h.items()}
-        if args.norm_plot:
-            for k,v in th.items():
-                th[k] = th[k]/th[k].sum(axis=0)
-                ph[k] = ph[k]/ph[k].sum(axis=0)
         if normalized:
             for feat in feature_names:
                 tot_t = th[feat].sum(axis=1, keepdims=True)   # per-bin truth total over classes
@@ -312,7 +421,10 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
         tex.DrawLatex(0.3, 0.95, f"Epoch = {epoch:5d}")
 
         fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
+        if label:
+            fname =fname.replace(".png",f"_{label}.png")
         canvas.SaveAs(fname)
+        canvas.SaveAs(fname.replace(".png",".pdf"))
     syncer.sync()
 
 # ---------------- resume if available ----------------
@@ -327,6 +439,11 @@ if not args.overwrite:
     except Exception:
         print("Failed!")
         pass
+
+loss_txt = os.path.join(model_dir,"loss_curve.txt")
+if start_epoch == 0:
+    with open(loss_txt, "w") as f:
+        f.write("# epoch  lr  train_loss  val_loss\n")
 
 # Build fresh model if not resumed
 if 'model' not in locals():
@@ -355,17 +472,22 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     # hist accumulation (only when plotting this epoch)
     do_plot = args.plot and (epoch % args.every == 0)
     if do_plot:
-        true_h, pred_h, bins = init_histograms(plot_feats)
+        true_h_tr, pred_h_tr, bins = init_histograms(plot_feats)
+        true_h_val, pred_h_val, _ = init_histograms(plot_feats)
 
     shard_limit = 1 if args.small else None
     seen = 0
-    losses = []
+    losses_train = []
+    losses_val = []
 
     # iterate shards; for each mixed shard make a per-batch bar
-    for X, y, w in iterate_epoch(shard_limit=shard_limit):
-        N = len(X)
+    for X_tr, y_tr, w_tr, X_val, y_val, w_val in iterate_epoch(shard_limit=shard_limit):
+        N = len(X_tr)
+        N_val = len(X_val)
         if N == 0:
             continue
+        
+        val_tr_size_ratio = len(w_val)/len(w_tr)
 
         eff_bs = N if batch_size == -1 else batch_size
         num_batches = math.ceil(N / eff_bs)
@@ -373,25 +495,50 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         with tqdm(total=num_batches, desc=f"e{epoch} batches", leave=False) as pbar:
             for start in range(0, N, eff_bs):
                 stop = min(start + eff_bs, N)
-                Xb, yb, wb = X[start:stop], y[start:stop], w[start:stop]
-                loss = model.train_on_batch(Xb, yb, wb)
-                losses.append(loss)
+                Xb_tr, yb_tr, wb_tr = X_tr[start:stop], y_tr[start:stop], w_tr[start:stop]
+                
+                start_val, stop_val = math.ceil(start*val_tr_size_ratio), min(math.ceil(stop*val_tr_size_ratio),N_val)
+                Xb_val, yb_val, wb_val = X_val[start_val:stop_val], y_val[start_val:stop_val], w_val[start_val:stop_val]
+                
+                # train_on_batch performs weight updates
+                loss_train = model.train_on_batch(Xb_tr, yb_tr, wb_tr)
+                losses_train.append(loss_train)
+
+                # compute_loss computes loss without gradient updates
+                loss_val = model.compute_loss(Xb_val, yb_val, wb_val)
+                losses_val.append(loss_val)
 
                 if do_plot:
-                    dcrs = model.predict(Xb, probability=False)  # plot WITH IC priors restored
-                    ones = np.ones_like(wb, dtype=np.float32)    # plot unweighted
-                    accumulate_histograms(true_h, pred_h, bins, Xb, yb, dcrs, ones, plot_feats, feat2col)
+                    dcrs_tr = model.predict(Xb_tr, probability=False)  # plot WITH IC priors restored
+                    ones_tr = np.ones_like(wb_tr, dtype=np.float32)    # plot unweighted
 
-                pbar.set_postfix(loss=float(loss))
+                    dcrs_val = model.predict(Xb_val, probability=False)  # plot WITH IC priors restored
+                    ones_val = np.ones_like(wb_val, dtype=np.float32)    # plot unweighted
+
+                    accumulate_histograms(true_h_tr, pred_h_tr, bins, Xb_tr, yb_tr, dcrs_tr, ones_tr, plot_feats, feat2col)
+                    accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, dcrs_val, ones_val, plot_feats, feat2col)
+
+                pbar.set_postfix(loss=float(loss_train))
                 pbar.update(1)
 
         seen += N
 
-    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean loss {np.mean(losses) if losses else float('nan'):.4f}")
+
+    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean train loss {np.mean(losses_train) if losses_train else float('nan'):.4f}, mean validation loss {np.mean(losses_val) if losses_val else float('nan'):.4f}")
+    with open(loss_txt, "a") as f:
+        f.write(f"{epoch} {float(lr_now):.8g} {np.mean(losses_train):.8g} {np.mean(losses_val):.8g}\n")
+
     model.save(model_dir, epoch=epoch)
 
     if do_plot:
-        plot_convergence_root(true_h, pred_h, epoch, plot_dir, list(plot_feats), classes_names)
+        plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, list(plot_feats), classes_names, label="train")
+        plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val")
 
 print(f"Done. Model stored in {model_dir}")
 
+"""
+TODO
+- implement access to last epoch and best epochs (via text files)
+- implement early stopping (will require changing yaml_loader._apply_defaults_and checks such that the default can be used)
+"""
+ 

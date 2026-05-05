@@ -254,7 +254,7 @@ def _apply_defaults_and_checks(cfg: dict):
 
         # splitting default (only pnn for now; keep bit/tfmc as comments)
         # if jtyp in {"pnn", "bit", "tfmc"} and default_splitting is not None:
-        if jtyp in {"pnn", "bit", "dnn_c2st"} and default_splitting is not None:
+        if jtyp in {"pnn", "bit", "dnn_c2st", "classifier"} and default_splitting is not None:
             if "splitting" not in j:
                 j["splitting"] = default_splitting
 
