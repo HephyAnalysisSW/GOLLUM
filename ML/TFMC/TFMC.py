@@ -163,6 +163,13 @@ class TFMC:
         """Public method for validation/test loss (no weight updates)."""
         Xn = self._normalize(X).astype(np.float32, copy=False)
         w_eff = w.astype(np.float32, copy=False) if w is not None else None
+        if w is not None:
+            w = w.astype(np.float32, copy=False)
+            if self.reweighting:
+                # multiply by class factors based on argmax of onehot
+                cls = np.argmax(y_onehot, axis=1)
+                w = w * self.class_weights[cls].astype(np.float32)
+            w_eff = w
         loss = self._loss_step_tf(tf.convert_to_tensor(Xn), tf.convert_to_tensor(y_onehot, dtype=tf.float32),
                                 None if w_eff is None else tf.convert_to_tensor(w_eff))
         return float(loss.numpy())        
