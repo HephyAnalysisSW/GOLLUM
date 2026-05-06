@@ -29,6 +29,7 @@ p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch_size", type=int, default=None, help="Override batch size")
 # plotting
+p.add_argument("--norm_plot", action="store_true", help="Only plot shapes.")
 p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
@@ -94,6 +95,8 @@ copyIndexPHP( plot_dir )
 if args.small:
     model_dir += "_small"
     plot_dir  += "_small"
+if args.norm_plot:
+    plot_dir += "_norm"
 os.makedirs(model_dir, exist_ok=True)
 os.makedirs(plot_dir, exist_ok=True)
 
@@ -335,6 +338,12 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
         # work on copies to avoid in-place modifications across epochs
         th = {k: v.copy() for k, v in true_h.items()}
         ph = {k: v.copy() for k, v in pred_h.items()}
+
+        if args.norm_plot:
+            for k,v in th.items():
+                th[k] = th[k]/th[k].sum(axis=0)
+                ph[k] = ph[k]/ph[k].sum(axis=0)
+
         if normalized:
             for feat in feature_names:
                 tot_t = th[feat].sum(axis=1, keepdims=True)   # per-bin truth total over classes
