@@ -89,8 +89,8 @@ use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 
 cfg_base = os.path.join( cfg.get("version", "default"), J['region'] )
 
-model_dir = os.path.join(user.model_directory, cfg_base+("_small" if args.small else ""), "TFMC", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_small" if args.small else ""), "TFMC", J["id"])
+model_dir = os.path.join(user.model_directory, cfg_base, "TFMC", J["id"])
+plot_dir  = os.path.join(user.plot_directory,  "TFMC", cfg_base, J["id"])
 
 from common.helpers import copyIndexPHP
 copyIndexPHP( plot_dir )
@@ -157,18 +157,21 @@ if uid_enabled:
     for k, sz in zip(keys, sizes):
         uid_intervals[k] = (lo, lo + int(sz))
         lo += int(sz)
-    pnn_train_key = "pnn_train"
-    pnn_val_key = "pnn_val"
-    train_interval = uid_intervals[pnn_train_key]
-    val_interval   = uid_intervals[pnn_val_key]
+    
+    # same intervals as PNN (original use of splitting)
+    # won't change key names for now
+    train_key = "pnn_train"
+    val_key = "pnn_val"
+    train_interval = uid_intervals[train_key]
+    val_interval   = uid_intervals[val_key]
 
     print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
     print(f"[UID] scheme intervals: {uid_intervals}")
-    print(f"[UID] TFMC train split '{pnn_train_key}' -> {train_interval}")
-    print(f"[UID] TFMC val   split '{pnn_val_key}' -> {val_interval}")
+    print(f"[UID] TFMC train split '{train_key}' -> {train_interval}")
+    print(f"[UID] TFMC val   split '{val_key}' -> {val_interval}")
 
 # ---------------- data iterator ----------------
-def iterate_epoch(shard_limit: int | None = None):
+def iterate_epoch(shard_limit: int | None = None, do_train_val_split: bool = True):
     """Yield one mixed batch (X, y1hot, w) by concatenating per-class shards."""
     shard_counts = [len(getattr(L, "base", L)) for L in loaders]
     n_shards = min(shard_counts)
@@ -184,7 +187,7 @@ def iterate_epoch(shard_limit: int | None = None):
             y = np.zeros((len(X), len(classes_names)), dtype=np.float32)
             y[:, ci] = 1.0
 
-            if uid_enabled:
+            if uid_enabled and do_train_val_split:
                 # training and validation events from UID-based splitting mask
                 obs_names = L.observer_names
                 uid_idx = [obs_names.index(f) for f in uid_fields]
@@ -200,7 +203,7 @@ def iterate_epoch(shard_limit: int | None = None):
             else:
                 Xs.append(X); Ys.append(y); Ws.append(w)
 
-        if uid_enabled:
+        if uid_enabled and do_train_val_split:
             X_tr = np.concatenate(Xs_tr, axis=0) if Xs_tr else np.empty((0, input_dim))
             y_tr = np.concatenate(Ys_tr, axis=0) if Ys_tr else np.empty((0, len(classes_names)))
             w_tr = np.concatenate(Ws_tr, axis=0) if Ws_tr else np.empty((0,))
@@ -230,40 +233,6 @@ def iterate_epoch(shard_limit: int | None = None):
 
 # (No explicit observer weight index anymore — weights come from materialize("w"))
 
-# ---------------- per-class counts (unweighted & weighted) ----------------
-n_classes = len(classes_names)
-counts_tr = np.zeros(n_classes, dtype=np.int64)
-counts_val = np.zeros(n_classes, dtype=np.int64)
-wcounts_tr = np.zeros(n_classes, dtype=np.float64)
-wcounts_val = np.zeros(n_classes, dtype=np.float64)
-
-shard_limit = 1 if args.small else None
-for X_tr, y_tr, w_tr, X_val, y_val, w_val in iterate_epoch(shard_limit=shard_limit):
-    if len(y_tr) == 0:
-        continue
-    counts_tr += np.sum(y_tr, axis=0).astype(np.int64)
-    counts_val += np.sum(y_val, axis=0).astype(np.int64)
-
-    if len(w_tr) > 0:
-        w_tr_arr = np.asarray(w_tr).reshape(-1)
-        wcounts_tr += y_tr.T @ w_tr_arr
-    if len(w_val) > 0:
-        w_val_arr = np.asarray(w_val).reshape(-1)
-        wcounts_val += y_val.T @ w_val_arr
-
-# Totals
-total_unweighted_tr = int(counts_tr.sum())
-total_unweighted_val = int(counts_val.sum())
-total_weighted_tr = float(wcounts_tr.sum())
-total_weighted_val = float(wcounts_val.sum())
-
-# Print results
-print("[COUNTS] Per-class (unweighted train / weighted train / unweighted val / weighted val):")
-for i, name in enumerate(classes_names):
-    print(f"  {name}: {counts_tr[i]} / {wcounts_tr[i]:.6g} / {counts_val[i]} / {wcounts_val[i]:.6g}")
-print(f"[COUNTS] Totals - unweighted train: {total_unweighted_tr}, weighted train: {total_weighted_tr:.6g}")
-print(f"[COUNTS] Totals - unweighted val:   {total_unweighted_val}, weighted val:   {total_weighted_val:.6g}")
-
 # ---------------- load Scaler (by job id; set means/variances) ----------------
 scaler_id = J["extras"].get("use_scaler", None)
 if scaler_id:
@@ -282,20 +251,23 @@ else:
 # ---------------- IC: precompute sums from data once ----------------
 if J["extras"].get("use_ic", True):
     print("Pre-compute inclusive cross sections.")
-    ic_sums = np.zeros(len(classes_names), dtype=np.float64)
-    for _, y_tr, w_tr, _, _, _ in iterate_epoch(shard_limit=None):
-        if len(w_tr) == 0 :
+    weight_sums = np.zeros(len(classes_names), dtype=np.float64)
+    # when do_train_val_split == False, loops over the entire sample
+    # and "training" and "validation" partitions are the same
+    # keeping output with 6 members to be able to split training and validation
+    event_sums = np.zeros(len(classes_names), dtype=np.int64)
+    for _, y, w, _, _, _ in iterate_epoch(shard_limit=None, do_train_val_split=False):
+        if len(w) == 0 :
             continue
-        w1 = np.asarray(w_tr).reshape(-1)
-        # getting sums from training data
-        # no need to divide by pnn_train fraction
-        # as it will cancel in the ratio
-        # NB: this may not be the most correct approach
-        ic_sums += y_tr.T @ w1
-    ic_weights = {name: float(s) for name, s in zip(classes_names, ic_sums)}
-    print(f"Computed IC weights from data (sum of weights per class): {ic_weights}")
+        w1 = np.asarray(w).reshape(-1)
+        weight_sums += y.T @ w1
+        event_sums += np.sum(y,axis=0,dtype=np.int64)
+    weight_sum_dict = {name: float(s) for name, s in zip(classes_names, weight_sums)}
+    event_sum_dict = {name: float(s) for name, s in zip(classes_names, event_sums)}
+    print(f"Computed sum of weights per class: {weight_sum_dict}")
+    print(f"Computed unweighted event numbers sum of 1 per class: {event_sum_dict}")
 else:
-    ic_weights = {name: 1.0 for name in classes_names}
+    weight_sum_dict = {name: 1.0 for name in classes_names}
     print("No IC used (all weights = 1.0).")
 
 # ---------------- build model ----------------
@@ -313,7 +285,7 @@ model = TFMC(
     reweighting=True,
 )
 model.set_scaler(feature_means, feature_variances)
-model.set_ic_weights_from_sums(classes_names, ic_weights)
+model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
 
 # ---------------- plotting utils (in training loop only) ----------------
 # Only plot features that are actually in the training feature list.
@@ -462,7 +434,7 @@ if 'model' not in locals():
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:
-        model.set_ic_weights_from_sums(classes_names, ic_weights)
+        model.set_ic_weights_from_sums(classes_names, weight_sums)
 
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
