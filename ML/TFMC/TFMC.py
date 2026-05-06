@@ -86,7 +86,7 @@ class TFMC:
     def set_ic_weights_from_sums(self, class_order: list[str], weight_sums: dict[int | str, float]):
         """
         class_order: list of class names (same as self.classes). weight_sums per class label/order.
-        Will compute scaling factors ~ total / class_sum, like before.
+        Will compute scaling factors mean / class_sum = total / (n_classes * class_sum)
         """
         # Accept dict keyed by class name or by integer index (0..C-1)
         vals = []

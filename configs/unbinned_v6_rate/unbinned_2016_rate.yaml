@@ -250,6 +250,30 @@ jobs:
     output:
       filename: "tfmc_2016.pkl"
 
+  - id: tfmc_2016_no_splitting
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      # classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016, TTSemi_pow_2016]
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 0
+      learning_rate: 0.02
+    runtime:
+      batch_size: 65536
+      num_workers: 1
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016.pkl"
+    splitting:
+      enabled: false      
+
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016
     type: bit
     region: SR_2016

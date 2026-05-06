@@ -137,6 +137,8 @@ uid_scheme    = (UID_CFG.get("scheme") or {})
 
 uid_intervals = None
 uid_splitter = None
+# default for running without training-validation splitting
+val_train_fraction_ratio = 1.0
 if uid_enabled:
     uid_splitter = UIDSplitter(
         uid_fields=tuple(uid_fields),
@@ -371,7 +373,7 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
             x_axis_title = plot_options[feat]["tex"]
             max_y = 0
             max_y = max(max_y, th[feat].max(), ph[feat].max())
-            hframe = ROOT.TH2F(f"hframe_{feat}", f";{x_axis_title};Probability", n_bins, x_min, x_max, 100, 0, 1.2*max_y if max_y>0 else 1.)
+            hframe = ROOT.TH2F(f"hframe_{feat}", f";{x_axis_title};DCR", n_bins, x_min, x_max, 100, 0, 1.2*max_y if max_y>0 else 1.)
             hframe.GetYaxis().SetTitleOffset(1.3)
             hframe.Draw()
             stuff.append(hframe)
