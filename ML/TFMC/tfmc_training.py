@@ -27,10 +27,8 @@ p.add_argument("--job", default=None, help="Classifier job id to run")
 p.add_argument("--overwrite", action="store_true", help="Overwrite model directory?")
 p.add_argument("--small", action="store_true", help="Debug: only first shard")
 p.add_argument("--epochs", type=int, default=None, help="Override epochs")
-p.add_argument("--batch-size", type=int, default=None, help="Override batch size")
+p.add_argument("--batch_size", type=int, default=None, help="Override batch size")
 # plotting
-p.add_argument("--plot-directory", default="", help="Plot directory")
-p.add_argument("--plot", action="store_true", help="Plot?")
 p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
@@ -52,7 +50,6 @@ def list_jobs_and_exit():
     if args.small: flags.append("--small")
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
     if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
-    if args.plot: flags.append("--plot")
     if args.every != 5: flags.append(f"--every {args.every}")
     script = os.path.basename(__file__)
     for j in jobs:
@@ -98,8 +95,7 @@ if args.small:
     model_dir += "_small"
     plot_dir  += "_small"
 os.makedirs(model_dir, exist_ok=True)
-if args.plot:
-    os.makedirs(plot_dir, exist_ok=True)
+os.makedirs(plot_dir, exist_ok=True)
 
 # ---------------- resolve loaders ----------------
 samples_mod = importlib.import_module(module_samples)
@@ -162,6 +158,10 @@ if uid_enabled:
     # won't change key names for now
     train_key = "pnn_train"
     val_key = "pnn_val"
+    
+    # to take into account different batch sizes in training
+    # to rescale training loss to same units as validation loss for plotting
+    val_train_fraction_ratio = float(uid_scheme[val_key]["fraction"])/uid_scheme[train_key]["fraction"]
     train_interval = uid_intervals[train_key]
     val_interval   = uid_intervals[val_key]
 
@@ -415,7 +415,7 @@ if not args.overwrite:
 loss_txt = os.path.join(model_dir,"loss_curve.txt")
 if start_epoch == 0:
     with open(loss_txt, "w") as f:
-        f.write("# epoch  lr  train_loss  val_loss\n")
+        f.write("# epoch  lr  train_loss_rescaled  val_loss\n")
 
 # Build fresh model if not resumed
 if 'model' not in locals():
@@ -442,7 +442,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     model.optimizer.learning_rate.assign(lr_now)
 
     # hist accumulation (only when plotting this epoch)
-    do_plot = args.plot and (epoch % args.every == 0)
+    do_plot = (epoch % args.every == 0)
     if do_plot:
         true_h_tr, pred_h_tr, bins = init_histograms(plot_feats)
         true_h_val, pred_h_val, _ = init_histograms(plot_feats)
@@ -459,8 +459,6 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         if N == 0:
             continue
         
-        val_tr_size_ratio = len(w_val)/len(w_tr)
-
         eff_bs = N if batch_size == -1 else batch_size
         num_batches = math.ceil(N / eff_bs)
 
@@ -469,7 +467,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 stop = min(start + eff_bs, N)
                 Xb_tr, yb_tr, wb_tr = X_tr[start:stop], y_tr[start:stop], w_tr[start:stop]
                 
-                start_val, stop_val = math.ceil(start*val_tr_size_ratio), min(math.ceil(stop*val_tr_size_ratio),N_val)
+                start_val, stop_val = math.ceil(start*val_train_fraction_ratio), min(math.ceil(stop*val_train_fraction_ratio),N_val)
                 Xb_val, yb_val, wb_val = X_val[start_val:stop_val], y_val[start_val:stop_val], w_val[start_val:stop_val]
                 
                 # train_on_batch performs weight updates
@@ -477,6 +475,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 losses_train.append(loss_train)
 
                 # compute_loss computes loss without gradient updates
+                # NB: train loss is obtained before model updates
+                # and validation loss is obtained after model updates
                 loss_val = model.compute_loss(Xb_val, yb_val, wb_val)
                 losses_val.append(loss_val)
 
@@ -496,9 +496,12 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         seen += N
 
 
-    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean train loss {np.mean(losses_train) if losses_train else float('nan'):.4f}, mean validation loss {np.mean(losses_val) if losses_val else float('nan'):.4f}")
+    mean_train_loss = np.mean(losses_train) if losses_train else float('nan')
+    mean_val_loss = np.mean(losses_val) if losses_val else float('nan')
+    tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean train loss {mean_train_loss:.4f}, mean train loss (rescaled) {mean_train_loss * val_train_fraction_ratio:.4f}  mean validation loss {mean_val_loss:.4f}")
     with open(loss_txt, "a") as f:
-        f.write(f"{epoch} {float(lr_now):.8g} {np.mean(losses_train):.8g} {np.mean(losses_val):.8g}\n")
+        # rescaling training loss to similar units as validation loss for plotting
+        f.write(f"{epoch} {float(lr_now):.8g} {mean_train_loss * val_train_fraction_ratio:.8g} {mean_val_loss:.8g}\n")
 
     model.save(model_dir, epoch=epoch)
 
