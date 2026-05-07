@@ -288,6 +288,7 @@ model = TFMC(
     n_epochs=epochs,
     n_epochs_phaseout=phaseout_epochs,
     reweighting=True,
+    use_ic = use_ic, # overloading to initialize prior logits
 )
 model.set_scaler(feature_means, feature_variances)
 model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
@@ -445,7 +446,7 @@ if 'model' not in locals():
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:
-        model.set_ic_weights_from_sums(classes_names, weight_sums)
+        model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
 
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):

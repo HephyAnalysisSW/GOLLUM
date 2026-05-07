@@ -39,6 +39,7 @@ class TFMC:
         n_epochs: int = 1,
         n_epochs_phaseout: int = 0,
         reweighting: bool = True,
+        use_ic: bool = True
     ):
         self.input_dim = int(input_dim)
         self.classes = list(classes)
@@ -52,6 +53,7 @@ class TFMC:
         self.n_epochs = int(n_epochs)
         self.n_epochs_phaseout = int(n_epochs_phaseout)
         self.reweighting = bool(reweighting)
+        self.use_ic = bool(use_ic)
 
         self.feature_means = np.zeros(self.input_dim, dtype=np.float64)
         self.feature_variances = np.ones(self.input_dim, dtype=np.float64)
@@ -66,16 +68,35 @@ class TFMC:
 
     # ---------------- model ----------------
     def _build_model(self) -> tf.keras.Model:
-        from tensorflow.keras import regularizers, layers, Sequential
+        from tensorflow.keras import regularizers, layers, Sequential, initializers
         reg = regularizers.l1_l2(l1=self.l1_reg, l2=self.l2_reg) if (self.l1_reg > 0 or self.l2_reg > 0) else None
         m = Sequential()
         m.add(layers.Input(shape=(self.input_dim,)))
         for units in self.hidden_layers:
-            m.add(layers.Dense(units, activation=None, kernel_regularizer=reg))
-            m.add(layers.Activation(self.activation))
+            m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-        m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
+        # biasing the output to start from the probabilities from the inclusive cross-section ratios
+        # adding logits before softmax, so the network learns only the differences around that
+        
+        # hardcoding the priors for now
+        
+        # RB: idea: do something like materialize and require that if use_ic,
+        # set_ic_weights_from_sums should be called before, such that we can
+        # use the class weights here
+        if self.use_ic:
+            m.add(layers.Dense(self.num_classes, activation=None,                                           
+                               kernel_initializer=tf.keras.initializers.Zeros(),
+                               bias_initializer=tf.keras.initializers.Zeros(),
+                               kernel_regularizer=reg))
+            
+            logit_priors = np.log([0.97,0.02,0.01], dtype=np.float64) # logit priors = log (probability priors) + C (take as 0)
+            assert len(logit_priors) == self.num_classes
+            # not possible to add Layers.Add in a Sequential model
+            m.add(layers.Lambda(lambda x: x + tf.constant(logit_priors, dtype=tf.float32)))
+            m.add(layers.Softmax())
+        else:
+            m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
         return m
 
     # ---------------- scalers / IC ----------------
