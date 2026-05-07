@@ -82,6 +82,15 @@ lr = float(J["optim"].get("learning_rate", 1e-2))
 batch_size = args.batch_size if args.batch_size is not None else int(J.get("runtime", {}).get("batch_size", default_batch))
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
+reweighting=J["reweighting"]
+set_logit_priors = J["set_logit_priors"]
+
+if not use_ic:
+    if set_logit_priors:
+        raise ValueError("Asking to set logit priors without asking to calculate event counts via use_ic. Confirm and run again.")
+    if reweighting:
+        raise ValueError("Asking to set reweight the event losses based on class weights without asking to them via use_ic. Confirm and run again.")
+
 
 # ---------------- dirs ----------------
 
@@ -287,8 +296,8 @@ model = TFMC(
     learning_rate=lr,
     n_epochs=epochs,
     n_epochs_phaseout=phaseout_epochs,
-    reweighting=True,
-    use_ic = use_ic, # overloading to initialize prior logits
+    reweighting=J.get("reweighting", True),
+    set_logit_priors = set_logit_priors, # initializing prior logits
 )
 model.set_scaler(feature_means, feature_variances)
 model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
@@ -442,7 +451,7 @@ if 'model' not in locals():
         learning_rate=lr,
         n_epochs=epochs,
         n_epochs_phaseout=phaseout_epochs,
-        reweighting=True,
+        reweighting=J["extras"].get("reweighting", True),
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:

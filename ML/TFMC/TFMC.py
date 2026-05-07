@@ -39,7 +39,7 @@ class TFMC:
         n_epochs: int = 1,
         n_epochs_phaseout: int = 0,
         reweighting: bool = True,
-        use_ic: bool = True
+        set_logit_priors: bool = True
     ):
         self.input_dim = int(input_dim)
         self.classes = list(classes)
@@ -53,7 +53,7 @@ class TFMC:
         self.n_epochs = int(n_epochs)
         self.n_epochs_phaseout = int(n_epochs_phaseout)
         self.reweighting = bool(reweighting)
-        self.use_ic = bool(use_ic)
+        self.set_logit_priors = bool(set_logit_priors)
 
         self.feature_means = np.zeros(self.input_dim, dtype=np.float64)
         self.feature_variances = np.ones(self.input_dim, dtype=np.float64)
@@ -81,10 +81,10 @@ class TFMC:
         
         # hardcoding the priors for now
         
-        # RB: idea: do something like materialize and require that if use_ic,
-        # set_ic_weights_from_sums should be called before, such that we can
-        # use the class weights here
-        if self.use_ic:
+        # RB: idea: do something like materialize and require that,
+        # if set_logit_priors==True set_ic_weights_from_sums should be called before, 
+        # such that we can use the class weights here
+        if self.set_logit_priors:
             m.add(layers.Dense(self.num_classes, activation=None,                                           
                                kernel_initializer=tf.keras.initializers.Zeros(),
                                bias_initializer=tf.keras.initializers.Zeros(),
