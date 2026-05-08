@@ -227,6 +227,9 @@ likelihood:
                   value: 0.0035              
                   parameters: [nu_lumi_15161718]  
 
+            # TODO: add TTSemi_pow_2016 when implementing
+            # the automated mechanism to set logit priors at TFMC training
+
 jobs:
 
   - id: tfmc_2016 
@@ -243,8 +246,7 @@ jobs:
       phaseout_epochs: 0
       learning_rate: 0.02
     runtime:
-      batch_size: 65536
-      num_workers: 1
+      batch_size: -1 # batch = shard (= 1 by default)
     extras:
       use_scaler: scaler_TTLep_pow_2016 
     output:
@@ -255,7 +257,6 @@ jobs:
     region: SR_2016
     framework: "tfmc"
     data:
-      # classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016, TTSemi_pow_2016]
       classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016]
     model:
       activation: relu
@@ -265,14 +266,36 @@ jobs:
       phaseout_epochs: 0
       learning_rate: 0.02
     runtime:
-      batch_size: 65536
-      num_workers: 1
+      batch_size: -1 # batch = shard (= 1 by default)
     extras:
       use_scaler: scaler_TTLep_pow_2016 
     output:
       filename: "tfmc_2016.pkl"
     splitting:
       enabled: false      
+
+  - id: tfmc_2016_with_logit_priors
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128]
+      dropout_rate: 0.2
+      l2: 
+    optim:
+      epochs: 500
+      phaseout_epochs: 0
+      learning_rate: 0.002
+    runtime:
+      batch_size: -1 # batch = shard (= 1 by default)
+    extras:
+      use_scaler: scaler_TTLep_pow_2016
+    set_logit_priors: true # setting logit priors
+    output:
+      filename: "tfmc_2016.pkl"
 
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016
     type: bit
