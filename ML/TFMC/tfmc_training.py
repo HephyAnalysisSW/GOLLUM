@@ -30,6 +30,7 @@ p.add_argument("--epochs", type=int, default=None, help="Override epochs")
 p.add_argument("--batch_size", type=int, default=None, help="Override batch size")
 # plotting
 p.add_argument("--norm_plot", action="store_true", help="Only plot shapes.")
+p.add_argument("--plot_probability", action="store_true", help="Plot probabilities instead of DCR.")
 p.add_argument("--every", type=int, default=5, help="Plot every N epochs (default 5)")
 args = p.parse_args()
 
@@ -82,8 +83,8 @@ lr = float(J["optim"].get("learning_rate", 1e-2))
 batch_size = args.batch_size if args.batch_size is not None else int(J.get("runtime", {}).get("batch_size", default_batch))
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
-reweighting=J["reweighting"]
-set_logit_priors = J["set_logit_priors"]
+reweighting=bool(J.get(["reweighting"],True))
+set_logit_priors = bool(J.get(["set_logit_priors"],True))
 
 if not use_ic:
     if set_logit_priors:
@@ -329,7 +330,7 @@ def accumulate_histograms(h_true, h_pred, bins, X_raw, y_onehot, pred_dcrs, weig
             hp, _ = np.histogram(vals, bins=edges, weights=weights * pred_dcrs[:, c])
             h_pred[feat][:, c] += hp
 
-def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes, label=None):
+def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes, label=None, probability=False):
     import common.syncer as syncer
     import ROOT, os
     ROOT.gStyle.SetOptStat(0)
@@ -351,11 +352,13 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
         th = {k: v.copy() for k, v in true_h.items()}
         ph = {k: v.copy() for k, v in pred_h.items()}
 
+        # normalizes each class to unit area
         if args.norm_plot:
             for k,v in th.items():
                 th[k] = th[k]/th[k].sum(axis=0)
                 ph[k] = ph[k]/ph[k].sum(axis=0)
 
+        # gives per-class fractions summed to 1
         if normalized:
             for feat in feature_names:
                 tot_t = th[feat].sum(axis=1, keepdims=True)   # per-bin truth total over classes
@@ -377,13 +380,18 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
             pad.SetTicks(1, 1)
             pad.SetBottomMargin(0.15)
             pad.SetLeftMargin(0.15)
-            pad.SetLogy(not normalized and plot_options[feat]['logY'])
 
             n_bins, x_min, x_max = plot_options[feat]["binning"]
             x_axis_title = plot_options[feat]["tex"]
             max_y = 0
             max_y = max(max_y, th[feat].max(), ph[feat].max())
-            hframe = ROOT.TH2F(f"hframe_{feat}", f";{x_axis_title};DCR", n_bins, x_min, x_max, 100, 0, 1.2*max_y if max_y>0 else 1.)
+            min_y = max(0,min(th[feat].min(), ph[feat].min()))
+            pad.SetLogy((not normalized and plot_options[feat]['logY']) or normalized)
+
+            legend_title = "DCR"
+            if probability:
+                legend_title = "Probability"
+            hframe = ROOT.TH2F(f"hframe_{feat}", f";{x_axis_title};{legend_title}", n_bins, x_min, x_max, 100, 0, 1.2*max_y if max_y>0 else 1.)
             hframe.GetYaxis().SetTitleOffset(1.3)
             hframe.Draw()
             stuff.append(hframe)
@@ -415,7 +423,9 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
 
         fname = os.path.join(out_dir, f"{'norm_' if normalized else ''}epoch_{epoch:04d}.png")
         if label:
-            fname =fname.replace(".png",f"_{label}.png")
+            fname = fname.replace(".png",f"_{label}.png")
+        if probability:
+            fname = fname.replace(".png","_prob.png")
         canvas.SaveAs(fname)
         canvas.SaveAs(fname.replace(".png",".pdf"))
     syncer.sync()
@@ -501,15 +511,19 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 loss_val = model.compute_loss(Xb_val, yb_val, wb_val)
                 losses_val.append(loss_val)
 
+                # NB: plots for "epoch 0" done after the first model upgrade
+                # does not match what's on the training loss curves (before update),
+                # but matches what's on the validation loss curves (after update)
                 if do_plot:
-                    dcrs_tr = model.predict(Xb_tr, probability=False)  # plot WITH IC priors restored
+                    
+                    values_tr = model.predict(Xb_tr, probability=args.plot_probability)  # can plot probabilities or DCRs (WITH IC priors restored)
                     ones_tr = np.ones_like(wb_tr, dtype=np.float32)    # plot unweighted
 
-                    dcrs_val = model.predict(Xb_val, probability=False)  # plot WITH IC priors restored
+                    values_val = model.predict(Xb_val, probability=args.plot_probability)  # can plot probabilities or DCRs (WITH IC priors restored)
                     ones_val = np.ones_like(wb_val, dtype=np.float32)    # plot unweighted
 
-                    accumulate_histograms(true_h_tr, pred_h_tr, bins, Xb_tr, yb_tr, dcrs_tr, ones_tr, plot_feats, feat2col)
-                    accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, dcrs_val, ones_val, plot_feats, feat2col)
+                    accumulate_histograms(true_h_tr, pred_h_tr, bins, Xb_tr, yb_tr, values_tr, ones_tr, plot_feats, feat2col)
+                    accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, values_val, ones_val, plot_feats, feat2col)
 
                 pbar.set_postfix(loss=float(loss_train))
                 pbar.update(1)
@@ -527,8 +541,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     model.save(model_dir, epoch=epoch)
 
     if do_plot:
-        plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, list(plot_feats), classes_names, label="train")
-        plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val")
+        plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, list(plot_feats), classes_names, label="train", probability=args.plot_probability)
+        plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val", probability=args.plot_probability)
 
 print(f"Done. Model stored in {model_dir}")
 
