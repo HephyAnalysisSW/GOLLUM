@@ -10,6 +10,7 @@ import common.user as user
 import common.syncer as syncer
 from common.helpers import copyIndexPHP
 
+MAKE_PUBLIC_PLOTS = False
 
 parser = argparse.ArgumentParser(description="Plot the AUC distributions from C2ST.")
 # passing test1 and test3
@@ -66,14 +67,17 @@ ax.axvline(
     linewidth=1.5
 )
 
-ax.set_xlim(0.4972, 0.5086)
+min_x = min(args.test1, args.test3, min(acc_values))*0.999
+max_x = max(args.test1, args.test3, max(acc_values))*1.002
+ax.set_xlim(min_x, max_x)
 
 # 所有 tick 位置：间隔 0.0002
-xticks = np.arange(0.4972, 0.5086, 0.0004)
+xticks = np.arange(min_x, max_x, 0.0004)
 ax.set_xticks(xticks)
 
 # 只显示 0.5, 0.502, 0.504, 0.506, 0.508
-show_x = np.array([0.498, 0.500, 0.502, 0.504, 0.506, 0.508])
+show_x = np.arange(min_x,max_x, 0.002)
+# show_x = np.array([0.498, 0.500, 0.502, 0.504, 0.506, 0.508])
 
 xlabels = []
 for x in xticks:
@@ -141,8 +145,8 @@ handles = [
 
 legend = ax.legend(
     handles=handles,
-    loc="upper center",
-    bbox_to_anchor=(0.56, 0.95),
+    loc="best",
+    # bbox_to_anchor=(0.56, 0.95),
     frameon=False,
     fontsize=20,
     labelspacing=1.2,
@@ -167,7 +171,7 @@ for era in lumi_by_era:
         break
 
 
-hep.cms.label("Preliminary", data=False, ax=ax, year=lumi_era, loc=0, fontsize=14)
+hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, ax=ax, year=lumi_era, loc=0, fontsize=14)
 plt.savefig(os.path.join(output_dir, "C2ST.pdf"), dpi=1000, bbox_inches="tight")
 plt.savefig(os.path.join(output_dir, "C2ST.png"), dpi=1000, bbox_inches="tight")
 
