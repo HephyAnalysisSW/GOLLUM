@@ -321,14 +321,16 @@ os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 best_txt = os.path.join(model_dir, "best_checkpoint.txt")
 
 if not args.overwrite:
-    try:
+
+    if os.path.exists(os.path.join(model_dir,"done")):
+        raise Exception("Training finished properly and rerunning without --overwrite. Will stop here.")
+    else:
         print(f"Trying to load PNN from {model_dir}")
-        pnn = PNN.load(model_dir, latest_filename="last_checkpoint")
-        print("Success!")
-    except Exception as e:
-        pnn = None
-        print("Failed! Gonna train.")
-        #raise e
+        try:
+            pnn = PNN.load(model_dir, latest_filename="last_checkpoint")
+            print("Found model with unfinished training! Will continue training from the last epoch.")
+        except Exception as e:
+            print("Did not find any model! Gonna train from scratch.")
 
 if pnn is None:
     pnn = PNN(parameters=parameters,

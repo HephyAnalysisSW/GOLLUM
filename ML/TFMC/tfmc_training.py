@@ -422,15 +422,15 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
 # ---------------- resume if available ----------------
 model = None
 if not args.overwrite:
-    try:
-            # start_epoch = int(os.path.basename(latest)) + 1
-        print(f"Trying to load PNN from {model_dir}")
-        model = TFMC.load(model_dir, latest_filename="last_checkpoint")
-        print("Success!")
-            # print(f"Resuming from epoch {start_epoch}.")
-    except Exception:
-        print("Failed! Gonna train.")
-        pass
+    if os.path.exists(os.path.join(model_dir,"done")):
+        raise Exception("Training finished properly and rerunning without --overwrite. Will stop here.")
+    else:
+        print(f"Trying to load TFMC from {model_dir}")
+        try:
+            model = TFMC.load(model_dir, latest_filename="last_checkpoint")
+            print("Found model with unfinished training! Will continue training from the latest epoch.")
+        except Exception as e:
+            print("Did not find any model! Gonna train from scratch.")
 
 # Build fresh model if not resumed
 if model is None:
