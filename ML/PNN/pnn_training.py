@@ -836,3 +836,4 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
         syncer.sync()
 
 print(f"Done. Model stored in {model_dir}")
+open(f"{model_dir}/done","w")

@@ -597,3 +597,4 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val", probability=args.plot_probability)
 
 print(f"Done. Model stored in {model_dir}")
+open(f"{model_dir}/done","w")
