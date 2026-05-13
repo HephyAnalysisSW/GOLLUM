@@ -51,7 +51,7 @@ def list_jobs_and_exit():
     if args.overwrite: flags.append("--overwrite")
     if args.small: flags.append("--small")
     if args.epochs is not None: flags.append(f"--epochs {args.epochs}")
-    if args.batch_size is not None: flags.append(f"--batch-size {args.batch_size}")
+    if args.batch_size is not None: flags.append(f"--batch_size {args.batch_size}")
     if args.every != 5: flags.append(f"--every {args.every}")
     script = os.path.basename(__file__)
     for j in jobs:
@@ -88,7 +88,6 @@ reweighting=bool(J.get("reweighting",True))
 if not use_ic:
     if reweighting:
         raise ValueError("Asking to set reweight the event losses based on class weights without asking to them via use_ic. Confirm and run again.")
-
 
 # ---------------- dirs ----------------
 
@@ -468,7 +467,7 @@ best_txt = os.path.join(model_dir, "best_checkpoint.txt")
 stopping = J.get("early_stopping", None)
 
 if stopping is None:
-    raise RuntimeError("PNN job missing early_stopping config")
+    raise RuntimeError(f"TFMC job {J.get('id')} missing early_stopping config")
 
 es_enabled = stopping.get("enabled", True)
 patience = stopping.get("patience", 20)
@@ -488,6 +487,19 @@ def _is_improved(current: float, best: float) -> bool:
 best_val = float("inf")
 best_epoch = -1
 bad_epochs = 0
+
+# resume historical BEST if exists, so continuing training keeps the old best
+if os.path.exists(best_txt):
+    try:
+        with open(best_txt, "r") as f:
+            line = f.read().strip()
+        if line:
+            e, v = line.split()[:2]
+            best_epoch = int(e)
+            best_val = float(v)
+            print(f"Found previous BEST: epoch={best_epoch}, val_loss={best_val} (from {best_txt})")
+    except Exception:
+        pass
 
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):

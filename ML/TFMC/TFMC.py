@@ -74,7 +74,7 @@ class TFMC:
             m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-            m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
+        m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
         return m
 
     # ---------------- scalers / IC ----------------
@@ -198,7 +198,7 @@ class TFMC:
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(meta, f)
         
-        # allow loading best epoch or best epoch
+        # allow loading last epoch or best epoch
         # not the same if Early Stopping is engaged and patience > 0
         with open(os.path.join(save_dir, "last_checkpoint"), "w") as f:
             f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
