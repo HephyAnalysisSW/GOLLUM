@@ -282,13 +282,14 @@ jobs:
       classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016]
     model:
       activation: relu
-      hidden_layers: [128, 128]
-      dropout_rate: 0.2
-      l2: 
+      hidden_layers: [64, 64]
+      dropout_rate: 0.25
+      l2: 0.05
+      l1: 0.1 
     optim:
-      epochs: 500
-      phaseout_epochs: 0
-      learning_rate: 0.002
+      epochs: 1000
+      phaseout_epochs: 200
+      learning_rate: 0.00015
     runtime:
       batch_size: -1 # batch = shard (= 1 by default)
     extras:
