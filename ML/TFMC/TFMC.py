@@ -39,7 +39,7 @@ class TFMC:
         n_epochs: int = 1,
         n_epochs_phaseout: int = 0,
         reweighting: bool = True,
-        set_logit_priors: bool = True
+        set_logit_priors: bool = False
     ):
         self.input_dim = int(input_dim)
         self.classes = list(classes)
