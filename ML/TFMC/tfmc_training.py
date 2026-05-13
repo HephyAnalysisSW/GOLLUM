@@ -83,8 +83,8 @@ lr = float(J["optim"].get("learning_rate", 1e-2))
 batch_size = args.batch_size if args.batch_size is not None else int(J.get("runtime", {}).get("batch_size", default_batch))
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
-reweighting=bool(J.get(["reweighting"],True))
-set_logit_priors = bool(J.get(["set_logit_priors"],True))
+reweighting=bool(J.get("reweighting",True))
+set_logit_priors = bool(J.get("set_logit_priors",True))
 
 if not use_ic:
     if set_logit_priors:
