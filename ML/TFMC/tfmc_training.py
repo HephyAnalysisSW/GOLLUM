@@ -84,7 +84,8 @@ batch_size = args.batch_size if args.batch_size is not None else int(J.get("runt
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 reweighting=bool(J.get("reweighting",True))
-set_logit_priors = bool(J.get("set_logit_priors",True))
+# WARNING: this feature is not finished and will likely be deprecated in the near future, 
+set_logit_priors = bool(J.get("set_logit_priors", False))
 
 if not use_ic:
     if set_logit_priors:
@@ -136,6 +137,12 @@ for L in loaders[1:]:
     if list(getattr(L, "feature_names", [])) != list(feat_names):
         raise RuntimeError("Feature mismatch across class loaders.")
 input_dim = len(feat_names)
+
+# Sample split, useful for training larger samples, e.g. full Run 2
+n_split = int(J.get("runtime", {}).get("n_split", 1))
+if n_split:
+    for loader in loaders:
+        loader.set_n_split(n_split)
 
 # ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
 UID_CFG = (J.get("splitting") or {})
