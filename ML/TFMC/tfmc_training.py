@@ -84,12 +84,8 @@ batch_size = args.batch_size if args.batch_size is not None else int(J.get("runt
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 reweighting=bool(J.get("reweighting",True))
-# WARNING: this feature is not finished and will likely be deprecated in the near future, 
-set_logit_priors = bool(J.get("set_logit_priors", False))
 
 if not use_ic:
-    if set_logit_priors:
-        raise ValueError("Asking to set logit priors without asking to calculate event counts via use_ic. Confirm and run again.")
     if reweighting:
         raise ValueError("Asking to set reweight the event losses based on class weights without asking to them via use_ic. Confirm and run again.")
 
@@ -446,7 +442,6 @@ if model is None:
         n_epochs=epochs,
         n_epochs_phaseout=phaseout_epochs,
         reweighting=J.get("reweighting", True),
-        set_logit_priors=set_logit_priors
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:

@@ -39,7 +39,6 @@ class TFMC:
         n_epochs: int = 1,
         n_epochs_phaseout: int = 0,
         reweighting: bool = True,
-        set_logit_priors: bool = False
     ):
         self.input_dim = int(input_dim)
         self.classes = list(classes)
@@ -53,7 +52,6 @@ class TFMC:
         self.n_epochs = int(n_epochs)
         self.n_epochs_phaseout = int(n_epochs_phaseout)
         self.reweighting = bool(reweighting)
-        self.set_logit_priors = bool(set_logit_priors)
 
         self.feature_means = np.zeros(self.input_dim, dtype=np.float64)
         self.feature_variances = np.ones(self.input_dim, dtype=np.float64)
@@ -76,26 +74,6 @@ class TFMC:
             m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-        # biasing the output to start from the probabilities from the inclusive cross-section ratios
-        # adding logits before softmax, so the network learns only the differences around that
-        
-        # hardcoding the priors for now
-        
-        # RB: idea: do something like materialize and require that,
-        # if set_logit_priors==True set_ic_weights_from_sums should be called before, 
-        # such that we can use the class weights here
-        if self.set_logit_priors:
-            m.add(layers.Dense(self.num_classes, activation=None,                                           
-                               kernel_initializer=tf.keras.initializers.Zeros(),
-                               bias_initializer=tf.keras.initializers.Zeros(),
-                               kernel_regularizer=reg))
-            
-            logit_priors = np.log([0.97,0.02,0.01], dtype=np.float64) # logit priors = log (probability priors) + C (take as 0)
-            assert len(logit_priors) == self.num_classes
-            # not possible to add Layers.Add in a Sequential model
-            m.add(layers.Lambda(lambda x: x + tf.constant(logit_priors, dtype=tf.float32)))
-            m.add(layers.Softmax())
-        else:
             m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
         return m
 
