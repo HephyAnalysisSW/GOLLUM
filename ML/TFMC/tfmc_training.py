@@ -473,6 +473,8 @@ es_enabled = stopping.get("enabled", True)
 patience = stopping.get("patience", 20)
 min_delta = stopping.get("min_delta", 0.0)
 mode = stopping.get("mode", "min").lower()
+if mode not in ("min", "max"):
+    raise ValueError(f"Invalid early_stopping mode: {mode}")
 warmup_epochs = stopping.get("warmup_epochs", 0)
 
 print(f"[EarlyStopping] enabled={es_enabled}, mode={mode}, patience={patience}, min_delta={min_delta}, warmup_epochs={warmup_epochs}")
@@ -484,7 +486,8 @@ def _is_improved(current: float, best: float) -> bool:
         return current < (best - min_delta)
     else:
         return current > (best + min_delta)
-best_val = float("inf")
+    
+best_val = float("inf") if mode == "min" else -float("inf")
 best_epoch = -1
 bad_epochs = 0
 
@@ -493,6 +496,8 @@ if os.path.exists(best_txt):
     try:
         with open(best_txt, "r") as f:
             line = f.read().strip()
+        # TODO: in next round of trainings, implement access bad_epochs in this file
+        # not having it will lead to at max `patience` epochs of unnecessary training
         if line:
             e, v = line.split()[:2]
             best_epoch = int(e)
