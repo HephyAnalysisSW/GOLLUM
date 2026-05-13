@@ -292,24 +292,6 @@ else:
     weight_sum_dict = {name: 1.0 for name in classes_names}
     print("No IC used (all weights = 1.0).")
 
-# ---------------- build model ----------------
-model = TFMC(
-    input_dim=input_dim,
-    classes=classes_names,
-    activation=activation,
-    hidden_layers=hidden_layers,
-    l1_reg=l1,
-    l2_reg=l2,
-    dropout_rate=dropout_rate,
-    learning_rate=lr,
-    n_epochs=epochs,
-    n_epochs_phaseout=phaseout_epochs,
-    reweighting=J.get("reweighting", True),
-    set_logit_priors = set_logit_priors, # initializing prior logits
-)
-model.set_scaler(feature_means, feature_variances)
-model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
-
 # ---------------- plotting utils (in training loop only) ----------------
 # Only plot features that are actually in the training feature list.
 plot_feats = [f for f in feat_names if f in plot_options]
@@ -438,25 +420,20 @@ def plot_convergence_root(true_h, pred_h, epoch, out_dir, feature_names, classes
     syncer.sync()
 
 # ---------------- resume if available ----------------
-start_epoch = 0
+model = None
 if not args.overwrite:
     try:
-        latest = tf.train.latest_checkpoint(model_dir)
-        if latest:
-            start_epoch = int(os.path.basename(latest)) + 1
-            model = TFMC.load(model_dir)
-            print(f"Resuming from epoch {start_epoch}.")
+            # start_epoch = int(os.path.basename(latest)) + 1
+        print(f"Trying to load PNN from {model_dir}")
+        model = TFMC.load(model_dir, latest_filename="last_checkpoint")
+        print("Success!")
+            # print(f"Resuming from epoch {start_epoch}.")
     except Exception:
-        print("Failed!")
+        print("Failed! Gonna train.")
         pass
 
-loss_txt = os.path.join(model_dir,"loss_curve.txt")
-if start_epoch == 0:
-    with open(loss_txt, "w") as f:
-        f.write("# epoch  lr  train_loss_rescaled  val_loss\n")
-
 # Build fresh model if not resumed
-if 'model' not in locals():
+if model is None:
     model = TFMC(
         input_dim=input_dim,
         classes=classes_names,
@@ -468,11 +445,54 @@ if 'model' not in locals():
         learning_rate=lr,
         n_epochs=epochs,
         n_epochs_phaseout=phaseout_epochs,
-        reweighting=J["extras"].get("reweighting", True),
+        reweighting=J.get("reweighting", True),
+        set_logit_priors=set_logit_priors
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:
         model.set_ic_weights_from_sums(classes_names, weight_sum_dict)
+
+start_epoch = 0
+last_epoch_txt = os.path.join(model_dir, "last_epoch.txt")
+
+if not args.overwrite and os.path.exists(last_epoch_txt):
+    with open(last_epoch_txt, "r") as f:
+        last_epoch = int(f.read().strip())
+    start_epoch = last_epoch + 1
+    print(f"[RESUME] last_epoch={last_epoch} (from {last_epoch_txt}), start_epoch={start_epoch}")
+
+loss_txt = os.path.join(model_dir,"loss_curve.txt")
+if start_epoch == 0:
+    with open(loss_txt, "w") as f:
+        f.write("# epoch  lr  train_loss_rescaled  val_loss\n")
+
+# A small pointer file for BEST (epoch + val_loss)
+best_txt = os.path.join(model_dir, "best_checkpoint.txt")
+
+# ---------------- EARLY STOPPING + BEST tracking (YAML-driven) ----------------
+stopping = J.get("early_stopping", None)
+
+if stopping is None:
+    raise RuntimeError("PNN job missing early_stopping config")
+
+es_enabled = stopping.get("enabled", True)
+patience = stopping.get("patience", 20)
+min_delta = stopping.get("min_delta", 0.0)
+mode = stopping.get("mode", "min").lower()
+warmup_epochs = stopping.get("warmup_epochs", 0)
+
+print(f"[EarlyStopping] enabled={es_enabled}, mode={mode}, patience={patience}, min_delta={min_delta}, warmup_epochs={warmup_epochs}")
+
+def _is_improved(current: float, best: float) -> bool:
+    # min: want current < best - min_delta
+    # max: want current > best + min_delta
+    if mode == "min":
+        return current < (best - min_delta)
+    else:
+        return current > (best + min_delta)
+best_val = float("inf")
+best_epoch = -1
+bad_epochs = 0
 
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
@@ -538,24 +558,42 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         seen += N
 
 
-    mean_train_loss = np.mean(losses_train) if losses_train else float('nan')
-    mean_val_loss = np.mean(losses_val) if losses_val else float('nan')
+    mean_train_loss = np.mean(losses_train, dtype=float) if losses_train else float('nan')
+    mean_val_loss = np.mean(losses_val, dtype=float) if losses_val else float('nan')
     tqdm.write(f"Epoch {epoch}/{epochs-1} - LR {lr_now:.6f}. Seen {seen} events, mean train loss {mean_train_loss:.4f}, mean train loss (rescaled) {mean_train_loss * val_train_fraction_ratio:.4f}  mean validation loss {mean_val_loss:.4f}")
     with open(loss_txt, "a") as f:
         # rescaling training loss to similar units as validation loss for plotting
         f.write(f"{epoch} {float(lr_now):.8g} {mean_train_loss * val_train_fraction_ratio:.8g} {mean_val_loss:.8g}\n")
 
     model.save(model_dir, epoch=epoch)
+    with open(last_epoch_txt, "w") as f:
+        f.write(f"{epoch}\n")    
+
+    # ---------------- save/update BEST + early stopping ----------------
+    improved = _is_improved(mean_val_loss, best_val)
+    if improved:
+        best_val = mean_val_loss
+        best_epoch = epoch
+        bad_epochs = 0
+
+        # Update BEST pointer (checkpoint) in the SAME model_dir
+        model.save(model_dir, epoch=epoch, is_best=True)
+
+        # Write pointer file for humans (epoch + val_loss)
+        with open(best_txt, "w") as f:
+            f.write(f"{best_epoch} {best_val:.12g}\n")
+
+        tqdm.write(f"[BEST] val_loss={best_val:.6g} @ epoch {best_epoch} -> updated checkpoint in {model_dir}")
+    else:   
+        bad_epochs += 1
+        tqdm.write(f"[BEST] no improvement ({bad_epochs}/{patience}), best={best_val:.6g} @ {best_epoch}")
+
+        if es_enabled and epoch >= warmup_epochs and bad_epochs >= patience:
+            tqdm.write(f"[EarlyStopping] stop. best val_loss={best_val:.6g} @ epoch {best_epoch}")
+            break
 
     if do_plot:
         plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, list(plot_feats), classes_names, label="train", probability=args.plot_probability)
         plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val", probability=args.plot_probability)
 
 print(f"Done. Model stored in {model_dir}")
-
-"""
-TODO
-- implement access to last epoch and best epochs (via text files)
-- implement early stopping (will require changing yaml_loader._apply_defaults_and checks such that the default can be used)
-"""
- 

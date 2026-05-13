@@ -196,7 +196,7 @@ class TFMC:
         return float(loss.numpy())        
 
     # ---------------- checkpointing ----------------
-    def save(self, save_dir: str, epoch: int | None = None, extra: dict | None = None):
+    def save(self, save_dir: str, epoch: int | None = None, is_best: bool = False):
         os.makedirs(save_dir, exist_ok=True)
         if epoch is None:
             epoch = 0
@@ -217,18 +217,22 @@ class TFMC:
             n_epochs=self.n_epochs,
             n_epochs_phaseout=self.n_epochs_phaseout,
         )
-        if extra:
-            meta.update(extra)
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(meta, f)
-        #print("Written to", os.path.join(save_dir, "config.pkl"))
-        with open(os.path.join(save_dir, "checkpoint"), "w") as f:
+        
+        # allow loading best epoch or best epoch
+        # not the same if Early Stopping is engaged and patience > 0
+        with open(os.path.join(save_dir, "last_checkpoint"), "w") as f:
             f.write(f'model_checkpoint_path: "{ckpt_path}"\n')
+        if is_best:
+            with open(os.path.join(save_dir, "checkpoint"), "w") as f:
+                f.write(f'model_checkpoint_path: "{ckpt_path}"\n')            
         #print("Written to", os.path.join(save_dir, "checkpoint"))
 
     @classmethod
-    def load(cls, save_dir: str) -> "TFMC":
-        latest = tf.train.latest_checkpoint(save_dir)
+    # default will load the model at its best epoch (see above)
+    def load(cls, save_dir: str, latest_filename: str="checkpoint") -> "TFMC":
+        latest = tf.train.latest_checkpoint(save_dir, latest_filename=latest_filename)
         if not latest:
             raise FileNotFoundError(f"No checkpoint found in {save_dir}")
         with open(os.path.join(save_dir, "config.pkl"), "rb") as f:
