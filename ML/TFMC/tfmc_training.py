@@ -525,7 +525,7 @@ best_epoch = -1
 bad_epochs = 0
 
 # resume historical BEST if exists, so continuing training keeps the old best
-if os.path.exists(best_txt):
+if not args.overwrite and os.path.exists(best_txt):
     try:
         with open(best_txt, "r") as f:
             line = f.read().strip()
