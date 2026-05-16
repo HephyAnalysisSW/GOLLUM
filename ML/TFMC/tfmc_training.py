@@ -7,6 +7,8 @@ import os, sys, time, argparse, importlib, yaml, numpy as np, math
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
+from typing import List
+
 import tensorflow as tf
 
 import common.user as user
@@ -81,6 +83,8 @@ epochs = args.epochs if args.epochs is not None else int(J["optim"].get("epochs"
 phaseout_epochs = int(J["optim"].get("phaseout_epochs", 0))
 lr = float(J["optim"].get("learning_rate", 1e-2))
 batch_size = args.batch_size if args.batch_size is not None else int(J.get("runtime", {}).get("batch_size", default_batch))
+# batches with same N for each class, oversampling underrepresented events 
+stratified = bool(J.get("runtime", {}).get("stratified", False))
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 reweighting=bool(J.get("reweighting",True))
@@ -506,6 +510,45 @@ if os.path.exists(best_txt):
     except Exception:
         pass
 
+# ---------------- stratified batch helper ----------------
+def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> List[int]:
+    
+    """
+    Returns a list with index arrays for each batch.
+    Each batch contains `per_class_bs` events from every class,
+    cycling (oversampling) minority classes as needed.
+    Number of batches is set by the largest class so majority data is fully covered.
+    """
+    n_classes = y_onehot.shape[1]
+
+    # ensuring deterministic stratified batch composition
+    rng = np.random.default_rng(int(uid_seed))
+    cls_idx = [rng.permutation(np.where(y_onehot[:, ci] == 1)[0])
+               for ci in range(n_classes)]
+    
+    max_n = max((len(idx) for idx in cls_idx), default=0)
+    if max_n == 0:
+        return []
+    n_batches = math.ceil(max_n / per_class_bs)
+
+    batches = []
+    for b in range(n_batches):
+        parts = []
+        
+        for idx in cls_idx:
+
+            n_c = len(idx)
+            if n_c == 0:
+                continue
+
+            # minority classes are oversampled via 'wrap'
+            tiled_batch = idx.take(np.arange(b*per_class_bs, (b+1)*per_class_bs), mode='wrap')
+            parts.append(tiled_batch)
+        if parts:
+            combined = np.concatenate(parts)
+            batches.append(combined[np.random.permutation(len(combined))])
+    return batches
+
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     lr_now = float(model.lr_schedule(epoch).numpy())
@@ -530,16 +573,33 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
             continue
         
         eff_bs = N if batch_size == -1 else batch_size
-        num_batches = math.ceil(N / eff_bs)
+
+        if stratified and batch_size != -1:
+            per_class_bs = max(1, eff_bs // len(classes_names))
+            batch_list_tr  = _stratified_batches(y_tr,  per_class_bs)
+            batch_list_val = _stratified_batches(y_val, per_class_bs)
+            num_batches     = len(batch_list_tr)
+            num_batches_val = max(1, len(batch_list_val))
+        else:
+            num_batches = math.ceil(N / eff_bs)
 
         with tqdm(total=num_batches, desc=f"e{epoch} batches", leave=False) as pbar:
-            for start in range(0, N, eff_bs):
-                stop = min(start + eff_bs, N)
-                Xb_tr, yb_tr, wb_tr = X_tr[start:stop], y_tr[start:stop], w_tr[start:stop]
-                
-                start_val, stop_val = math.ceil(start*val_train_fraction_ratio), min(math.ceil(stop*val_train_fraction_ratio),N_val)
-                Xb_val, yb_val, wb_val = X_val[start_val:stop_val], y_val[start_val:stop_val], w_val[start_val:stop_val]
-                
+            for b in range(num_batches):
+                if stratified and batch_size != -1:
+                    idx_tr  = batch_list_tr[b]
+                    idx_val = batch_list_val[b % num_batches_val]
+                    Xb_tr,  yb_tr,  wb_tr  = X_tr[idx_tr],  y_tr[idx_tr],  w_tr[idx_tr]
+                    Xb_val, yb_val, wb_val = X_val[idx_val], y_val[idx_val], w_val[idx_val]
+                else:
+                    start = b * eff_bs
+                    stop  = min(start + eff_bs, N)
+                    Xb_tr,  yb_tr,  wb_tr  = X_tr[start:stop],  y_tr[start:stop],  w_tr[start:stop]
+                    start_val = math.ceil(start * val_train_fraction_ratio)
+                    stop_val  = min(math.ceil(stop * val_train_fraction_ratio), N_val)
+                    Xb_val, yb_val, wb_val = X_val[start_val:stop_val], y_val[start_val:stop_val], w_val[start_val:stop_val]
+
+
+
                 # train_on_batch performs weight updates
                 loss_train = model.train_on_batch(Xb_tr, yb_tr, wb_tr)
                 losses_train.append(loss_train)
