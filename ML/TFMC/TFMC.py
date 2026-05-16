@@ -6,6 +6,7 @@ import os
 import pickle
 import numpy as np
 import tensorflow as tf
+from typing import Optional
 
 class PhaseoutScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, initial_lr: float, n_epochs: int, n_epochs_phaseout: int):
@@ -39,6 +40,8 @@ class TFMC:
         n_epochs: int = 1,
         n_epochs_phaseout: int = 0,
         reweighting: bool = True,
+        set_logit_priors: bool = False,
+        g_prior_l2_reg: float = 0.0
     ):
         self.input_dim = int(input_dim)
         self.classes = list(classes)
@@ -52,11 +55,20 @@ class TFMC:
         self.n_epochs = int(n_epochs)
         self.n_epochs_phaseout = int(n_epochs_phaseout)
         self.reweighting = bool(reweighting)
+        self.set_logit_priors = bool(set_logit_priors)
 
         self.feature_means = np.zeros(self.input_dim, dtype=np.float64)
         self.feature_variances = np.ones(self.input_dim, dtype=np.float64)
         # IC class weights: default flat if not provided
         self.class_weights = np.ones(self.num_classes, dtype=np.float64)
+        # inclusive_xs_ratio to be used as prior to stabilize training
+        self.inclusive_xs_ratio = np.ones(self.num_classes)/self.num_classes
+
+        # Tensorflow helper quantities to be used for prior penalty
+        self._class_weights_tf = None
+        self._inclusive_xs_ratio_tf = None
+
+        self.g_prior_l2_reg = float(g_prior_l2_reg)
 
         self.model = self._build_model()
         self.loss_fn = tf.keras.losses.CategoricalCrossentropy(reduction="none")
@@ -74,7 +86,12 @@ class TFMC:
             m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-        m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
+        # biasing the output to start from uniform probabilities such that
+        # the DCR at epoch 0 gives the inclusive cross-section ratios
+        if self.set_logit_priors:
+            m.add(layers.Dense(self.num_classes, kernel_initializer=tf.keras.initializers.Zeros(), bias_initializer=tf.keras.initializers.Zeros(), activation="softmax", kernel_regularizer=reg))
+        else:
+            m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))            
         return m
 
     # ---------------- scalers / IC ----------------
@@ -101,6 +118,15 @@ class TFMC:
 #        self.class_weights = np.where(vals > 0, total / vals, 1.0)
         mean = np.mean(vals)
         self.class_weights = np.where(vals > 0, mean / vals, 1.0)
+        # RB: why did we end up using the mean instead of the total ?
+        # that way one would not need this contrived construction
+        self.inclusive_xs_ratio = np.where(vals > 0, vals/(mean*self.num_classes), 1.0)
+        
+        # caches TF constant tensors to compute penalty terms in loss
+        if self.set_logit_priors:
+            self._class_weights_tf = tf.constant(self.class_weights, dtype=tf.float32)
+            self._inclusive_xs_ratio_tf = tf.constant(self.inclusive_xs_ratio, dtype=tf.float32)
+
     # ---------------- inference ----------------
     def _normalize(self, X: np.ndarray) -> np.ndarray:
         return (X - self.feature_means) / np.sqrt(self.feature_variances)
@@ -120,9 +146,17 @@ class TFMC:
     def _train_step_tf(self, X, y_onehot, w):
         with tf.GradientTape() as tape:
             pred = self.model(X, training=True)
-            #print("hello:lower",pred[X[:,0]<0.5], )
-            #print("hello:higher",pred[X[:,0]>0.5], )
             loss_per = self.loss_fn(y_onehot, pred)  # shape [N]
+            # regularize model around prior DCR
+            if self.set_logit_priors:
+
+                # gives prob*XS * n_classes/sum(XS)
+                pred_dcr = pred / self._class_weights_tf
+                # gives prob*XS/sum(prob*XS) = g, since n_classes/sum(XS) terms cancel in ratio 
+                pred_dcr /= tf.reduce_sum(pred_dcr, axis=1, keepdims=True) + 1e-12
+
+                loss_per += self.g_prior_l2_reg * tf.reduce_mean(tf.square(pred_dcr-self._inclusive_xs_ratio_tf)) 
+                
             if w is not None:
                 loss = tf.reduce_sum(loss_per * w) / (tf.reduce_sum(w) + 1e-12)
             else:
@@ -152,6 +186,16 @@ class TFMC:
         """Compute loss only (no gradients, no updates)."""
         pred = self.model(X, training=False)  # training=False disables dropout/batch norm
         loss_per = self.loss_fn(y_onehot, pred)
+
+        if self.set_logit_priors:
+
+            # gives prob*XS * n_classes/sum(XS)
+            pred_dcr = pred / self._class_weights_tf
+            # gives prob*XS/sum(prob*XS) = g, since n_classes/sum(XS) terms cancel in ratio 
+            pred_dcr /= tf.reduce_sum(pred_dcr, axis=1, keepdims=True) + 1e-12
+
+            loss_per += self.g_prior_l2_reg * tf.reduce_mean(tf.square(pred_dcr-self._inclusive_xs_ratio_tf)) 
+
         if w is not None:
             loss = tf.reduce_sum(loss_per * w) / (tf.reduce_sum(w) + 1e-12)
         else:
@@ -186,6 +230,7 @@ class TFMC:
             feature_means=self.feature_means,
             feature_variances=self.feature_variances,
             class_weights=self.class_weights,
+            inclusive_xs_ratio=self.inclusive_xs_ratio,
             activation=self.activation,
             hidden_layers=self.hidden_layers,
             l1_reg=self.l1_reg,
@@ -194,6 +239,8 @@ class TFMC:
             learning_rate=self.learning_rate,
             n_epochs=self.n_epochs,
             n_epochs_phaseout=self.n_epochs_phaseout,
+            set_logit_priors=self.set_logit_priors,
+            g_prior_l2_reg=self.g_prior_l2_reg
         )
         with open(os.path.join(save_dir, "config.pkl"), "wb") as f:
             pickle.dump(meta, f)
@@ -226,10 +273,16 @@ class TFMC:
             learning_rate=meta["learning_rate"],
             n_epochs=meta["n_epochs"],
             n_epochs_phaseout=meta["n_epochs_phaseout"],
+            set_logit_priors=meta["set_logit_priors"],
+            g_prior_l2_reg = meta["g_prior_l2_reg"]
         )
         inst.feature_means = np.asarray(meta["feature_means"])
         inst.feature_variances = np.asarray(meta["feature_variances"])
         inst.class_weights = np.asarray(meta["class_weights"])
+        inst.inclusive_xs_ratio = np.asarray(meta["inclusive_xs_ratio"])
         inst.checkpoint.restore(latest).expect_partial()
+        if inst.set_logit_priors:
+            inst._class_weights_tf = tf.constant(inst.class_weights, dtype=tf.float32)
+            inst._inclusive_xs_ratio_tf = tf.constant(inst.inclusive_xs_ratio, dtype=tf.float32)
         return inst
 

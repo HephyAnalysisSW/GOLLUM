@@ -88,8 +88,12 @@ stratified = bool(J.get("runtime", {}).get("stratified", False))
 use_ic = bool(J.get("extras", {}).get("use_ic", True))
 use_scaler = bool(J.get("extras", {}).get("use_scaler", True))
 reweighting=bool(J.get("reweighting",True))
+set_logit_priors = bool(J.get("set_logit_priors", False))
+g_prior_l2_reg = float(J["model"].get("g_prior_l2", 0.0)) if set_logit_priors else 0.0
 
 if not use_ic:
+    if set_logit_priors:
+        raise ValueError("Asking to set logit priors without asking to calculate event counts via use_ic. Confirm and run again.")
     if reweighting:
         raise ValueError("Asking to set reweight the event losses based on class weights without asking to them via use_ic. Confirm and run again.")
 
@@ -467,7 +471,9 @@ if model is None:
         learning_rate=lr,
         n_epochs=epochs,
         n_epochs_phaseout=phaseout_epochs,
-        reweighting=J.get("reweighting", True),
+        reweighting=reweighting,
+        set_logit_priors=set_logit_priors,
+        g_prior_l2_reg = g_prior_l2_reg
     )
     model.set_scaler(feature_means, feature_variances)
     if use_ic:
