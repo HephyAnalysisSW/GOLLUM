@@ -77,8 +77,8 @@ classes_names = list(J["data"]["classes"])
 activation = J["model"].get("activation", "relu")
 hidden_layers = J["model"].get("hidden_layers", [64,64,64])
 dropout_rate = float(J["model"].get("dropout_rate", 0.0))
-l1 = float(J["model"].get("regularization", {}).get("l1", 0.0))
-l2 = float(J["model"].get("regularization", {}).get("l2", 0.0))
+l1 = float(J["model"].get("l1", 0.0))
+l2 = float(J["model"].get("l2", 0.0))
 epochs = args.epochs if args.epochs is not None else int(J["optim"].get("epochs", 300))
 phaseout_epochs = int(J["optim"].get("phaseout_epochs", 0))
 lr = float(J["optim"].get("learning_rate", 1e-2))
@@ -624,6 +624,13 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
 
 
                 # train_on_batch performs weight updates
+                # putting this here ensures epoch 0 plot
+                # gives the state of the network at initialization
+                if do_plot:
+                    values_tr  = model.predict(Xb_tr,  probability=args.plot_probability)
+                    ones_tr    = np.ones_like(wb_tr,  dtype=np.float32)
+                    accumulate_histograms(true_h_tr,  pred_h_tr,  bins, Xb_tr,  yb_tr,  values_tr,  ones_tr,  plot_feats, feat2col)
+
                 loss_train = model.train_on_batch(Xb_tr, yb_tr, wb_tr)
                 losses_train.append(loss_train)
 
@@ -637,14 +644,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 # does not match what's on the training loss curves (before update),
                 # but matches what's on the validation loss curves (after update)
                 if do_plot:
-                    
-                    values_tr = model.predict(Xb_tr, probability=args.plot_probability)  # can plot probabilities or DCRs (WITH IC priors restored)
-                    ones_tr = np.ones_like(wb_tr, dtype=np.float32)    # plot unweighted
-
-                    values_val = model.predict(Xb_val, probability=args.plot_probability)  # can plot probabilities or DCRs (WITH IC priors restored)
-                    ones_val = np.ones_like(wb_val, dtype=np.float32)    # plot unweighted
-
-                    accumulate_histograms(true_h_tr, pred_h_tr, bins, Xb_tr, yb_tr, values_tr, ones_tr, plot_feats, feat2col)
+                    values_val = model.predict(Xb_val, probability=args.plot_probability)
+                    ones_val   = np.ones_like(wb_val, dtype=np.float32)
                     accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, values_val, ones_val, plot_feats, feat2col)
 
                 pbar.set_postfix(loss=float(loss_train))
