@@ -305,6 +305,29 @@ def init_histograms(plot_features):
         bins[feat] = np.linspace(lo, hi, n+1)
     return h_true, h_pred, bins
 
+def append_dcr_summary(h_true, h_pred, epoch, out_dir, label=None):
+    """
+    Append per-(feature, class) DCR shape MAD to a running text file.
+    Format: epoch  label  feature  class  mad
+    Directly readable without Python — use tail/Read to monitor convergence.
+    MAD < 0.01 is well-converged; MAD > 0.05 after 50 epochs means shapes not learned.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    summary_path = os.path.join(out_dir, "dcr_summary.txt")
+    write_header = not os.path.exists(summary_path)
+    tag = label if label else "all"
+    with open(summary_path, "a") as f:
+        if write_header:
+            f.write("# epoch  label  feature  class  mad\n")
+        for feat in h_true:
+            true = h_true[feat]  # (n_bins, n_classes)
+            pred = h_pred[feat]
+            tn = true / (true.sum(axis=0, keepdims=True) + 1e-12)
+            pn = pred / (pred.sum(axis=0, keepdims=True) + 1e-12)
+            mad = np.abs(tn - pn).mean(axis=0)  # (n_classes,)
+            for ci, cls in enumerate(classes_names):
+                f.write(f"{epoch}  {tag}  {feat}  {cls}  {mad[ci]:.6f}\n")
+
 def accumulate_histograms(h_true, h_pred, bins, X_raw, y_onehot, pred_dcrs, weights, plot_features, f2c):
     # Use column indices from feat_names
     for feat in plot_features:
@@ -667,6 +690,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
     if do_plot:
         plot_convergence_root(true_h_tr, pred_h_tr, epoch, plot_dir, list(plot_feats), classes_names, label="train", probability=args.plot_probability)
         plot_convergence_root(true_h_val, pred_h_val, epoch, plot_dir, list(plot_feats), classes_names, label="val", probability=args.plot_probability)
+        append_dcr_summary(true_h_tr, pred_h_tr, epoch, plot_dir, label="train")
+        append_dcr_summary(true_h_val, pred_h_val, epoch, plot_dir, label="val")
 
 print(f"Done. Model stored in {model_dir}")
 open(f"{model_dir}/done","w")
