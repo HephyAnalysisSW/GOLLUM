@@ -74,7 +74,18 @@ class TFMC:
             m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-        m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
+        # Start from equal class logits so the initial softmax is flat.
+        # With the existing DCR conversion (divide by class_weights, then renormalize),
+        # this makes the epoch-0 inclusive fractions reflect the class-weight sums.
+        m.add(
+            layers.Dense(
+                self.num_classes,
+                activation="softmax",
+                kernel_regularizer=reg,
+                kernel_initializer=initializers.Zeros(),
+                bias_initializer=initializers.Zeros(),
+            )
+        )
         return m
 
     # ---------------- scalers / IC ----------------
@@ -232,4 +243,3 @@ class TFMC:
         inst.class_weights = np.asarray(meta["class_weights"])
         inst.checkpoint.restore(latest).expect_partial()
         return inst
-

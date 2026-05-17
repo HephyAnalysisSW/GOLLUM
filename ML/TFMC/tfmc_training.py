@@ -518,8 +518,8 @@ best_val = float("inf") if mode == "min" else -float("inf")
 best_epoch = -1
 bad_epochs = 0
 
-# resume historical BEST if exists, so continuing training keeps the old best
-if os.path.exists(best_txt):
+# resume historical BEST only when continuing an existing training
+if not args.overwrite and os.path.exists(best_txt):
     try:
         with open(best_txt, "r") as f:
             line = f.read().strip()
@@ -628,8 +628,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 # gives the state of the network at initialization
                 if do_plot:
                     values_tr  = model.predict(Xb_tr,  probability=args.plot_probability)
-                    ones_tr    = np.ones_like(wb_tr,  dtype=np.float32)
-                    accumulate_histograms(true_h_tr,  pred_h_tr,  bins, Xb_tr,  yb_tr,  values_tr,  ones_tr,  plot_feats, feat2col)
+                    accumulate_histograms(true_h_tr,  pred_h_tr,  bins, Xb_tr,  yb_tr,  values_tr,  wb_tr,  plot_feats, feat2col)
 
                 loss_train = model.train_on_batch(Xb_tr, yb_tr, wb_tr)
                 losses_train.append(loss_train)
@@ -645,8 +644,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 # but matches what's on the validation loss curves (after update)
                 if do_plot:
                     values_val = model.predict(Xb_val, probability=args.plot_probability)
-                    ones_val   = np.ones_like(wb_val, dtype=np.float32)
-                    accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, values_val, ones_val, plot_feats, feat2col)
+                    accumulate_histograms(true_h_val, pred_h_val, bins, Xb_val, yb_val, values_val, wb_val, plot_feats, feat2col)
 
                 pbar.set_postfix(loss=float(loss_train))
                 pbar.update(1)
