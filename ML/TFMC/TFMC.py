@@ -32,6 +32,7 @@ class TFMC:
         classes: list[str],
         activation: str = "relu",
         hidden_layers: list[int] = (64, 64, 64),
+        zero_init: bool = False,
         l1_reg: float = 0.0,
         l2_reg: float = 0.0,
         dropout_rate: float = 0.0,
@@ -45,6 +46,7 @@ class TFMC:
         self.num_classes = len(self.classes)
         self.activation = activation
         self.hidden_layers = list(hidden_layers)
+        self.zero_init = bool(zero_init)
         self.l1_reg = float(l1_reg)
         self.l2_reg = float(l2_reg)
         self.dropout_rate = float(dropout_rate)
@@ -74,18 +76,21 @@ class TFMC:
             m.add(layers.Dense(units, activation=self.activation, kernel_regularizer=reg))
             if self.dropout_rate and self.dropout_rate > 0:
                 m.add(layers.Dropout(self.dropout_rate))
-        # Start from equal class logits so the initial softmax is flat.
-        # With the existing DCR conversion (divide by class_weights, then renormalize),
-        # this makes the epoch-0 inclusive fractions reflect the class-weight sums.
-        m.add(
-            layers.Dense(
-                self.num_classes,
-                activation="softmax",
-                kernel_regularizer=reg,
-                kernel_initializer=initializers.Zeros(),
-                bias_initializer=initializers.Zeros(),
+        if self.zero_init:
+            # Start from equal class logits so the initial softmax is flat.
+            # With the existing DCR conversion (divide by class_weights, then renormalize),
+            # this makes the epoch-0 inclusive fractions reflect the class-weight sums.
+            m.add(
+                layers.Dense(
+                    self.num_classes,
+                    activation="softmax",
+                    kernel_regularizer=reg,
+                    kernel_initializer=initializers.Zeros(),
+                    bias_initializer=initializers.Zeros(),
+                )
             )
-        )
+        else:
+            m.add(layers.Dense(self.num_classes, activation="softmax", kernel_regularizer=reg))
         return m
 
     # ---------------- scalers / IC ----------------

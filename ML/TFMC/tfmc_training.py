@@ -76,6 +76,7 @@ J = job  # shorthand
 classes_names = list(J["data"]["classes"])
 activation = J["model"].get("activation", "relu")
 hidden_layers = J["model"].get("hidden_layers", [64,64,64])
+zero_init = bool(J["model"].get("zero_init", False))
 dropout_rate = float(J["model"].get("dropout_rate", 0.0))
 l1 = float(J["model"].get("l1", 0.0))
 l2 = float(J["model"].get("l2", 0.0))
@@ -461,6 +462,7 @@ if model is None:
         classes=classes_names,
         activation=activation,
         hidden_layers=hidden_layers,
+        zero_init=zero_init,
         l1_reg=l1,
         l2_reg=l2,
         dropout_rate=dropout_rate,
