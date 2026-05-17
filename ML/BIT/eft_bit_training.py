@@ -12,12 +12,10 @@ import common.user as user
 import common.syncer as syncer
 import common.yaml_loader as yaml_loader
 
+from data.RandomSplitter import RandomSplitter
 from eft.EFTWeightInterface import EFTWeightInterface
 
 from tqdm import trange, tqdm
-
-from data.UIDSplitter import UIDSplitter
-import math
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="EFT BIT training (YAML-driven)")
@@ -86,6 +84,16 @@ elif args.small:
     L.set_max_files(3)
     print(f"Reduced number of training files from {before} to {len(L._all_files)} for --small")
 
+runtime_cfg = J.get("runtime", {}) or {}
+materialization_n_split = int(runtime_cfg.get("materialization_n_split", 50))
+if materialization_n_split > 1 and len(L._all_files) > 1:
+    before_split = len(L)
+    L.set_n_split(materialization_n_split)
+    print(
+        f"Using {len(L)} file shards for training-data materialization "
+        f"(was {before_split}, files={len(L._all_files)})"
+    )
+
 sel  = J.get("selection", None)
 sel_f= J.get("selection_features", [])
 if sel:
@@ -111,64 +119,32 @@ if args.gpu:
 else:
     print("Training backend: CPU")
 
-# -------------------------- UID Splitting --------------------------
-UID_CFG = (J.get("splitting") or {})
-uid_enabled   = bool(UID_CFG.get("enabled", False))
-uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
-uid_seed      = int(UID_CFG.get("seed", 0))
-uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
-uid_scheme    = (UID_CFG.get("scheme") or {})
+# ---------------- deterministic random splitting ----------------
+SPLIT_CFG = (J.get("splitting") or {})
+split_enabled  = bool(SPLIT_CFG.get("enabled", False))
+split_type     = SPLIT_CFG.get("type", "random")
+split_seed     = int(SPLIT_CFG.get("seed", 0))
+split_fraction = float(SPLIT_CFG.get("fraction", 0.5))
+splitter = None
 
-uid_intervals = None
-uid_splitter = None
-train_interval = None
-val_interval   = None
-
-if uid_enabled:
-    missing_uid = [f for f in uid_fields if f not in obs_names]
-    if missing_uid:
-        raise RuntimeError(
-            f"UID splitting requested, but observer_names are missing {missing_uid} in loader '{loader_name}'."
-        )
-
-    uid_splitter = UIDSplitter(
-        uid_fields=tuple(uid_fields),
-        seed=uid_seed,
-        n_buckets=uid_n_buckets,
-    )
-
-    keys  = list(uid_scheme.keys())
-    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
-
-    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
-    sizes[-1] += uid_n_buckets - sum(sizes)
-
-    uid_intervals = {}
-    lo = 0
-    for k, sz in zip(keys, sizes):
-        uid_intervals[k] = (lo, lo + int(sz))
-        lo += int(sz)
-    bit_train_key = "pnn_train"
-    bit_val_key   = "pnn_val"
-    train_interval = uid_intervals[bit_train_key]
-    val_interval   = uid_intervals[bit_val_key]
-
-    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
-    print(f"[UID] scheme intervals: {uid_intervals}")
-    print(f"[UID] BIT train split '{bit_train_key}' -> {train_interval}")
-    print(f"[UID] BIT val   split '{bit_val_key}' -> {val_interval}")
+if split_enabled:
+    if split_type != "random":
+        raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' is implemented.")
+    splitter = RandomSplitter(fraction=split_fraction, seed=split_seed)
+    print(f"[SPLIT] enabled=True type={split_type} seed={split_seed} fraction={split_fraction}")
 
 # ---------------- EFT target interface ----------------
 eft = EFTWeightInterface(J.get("eft", {}).get("parameters", []))
 combos = list(eft.combinations)
 base_points = list(eft.base_points)
+combo_to_col = {tuple(sorted(comb)): i for i, comb in enumerate(combos)}
+
+
+def weight_views(weight_matrix):
+    return {tuple(sorted(combos[i])): weight_matrix[:, i] for i in range(len(combos))}
 
 # features / observers
 needed_observers = list(eft.required_observers)
-if uid_enabled:
-    for field in uid_fields:
-        if field not in needed_observers:
-            needed_observers.append(field)
 
 L.setFeatures(J["features"], observer_names=needed_observers)
 feat_names = list(getattr(L, "feature_names", []) or [])
@@ -181,32 +157,23 @@ print(L)
 # ---------------- collect all data (single pass) ----------------
 def iterate_all(shard_limit=None):
     """
-    Yields per-shard arrays PLUS (optionally) UID masks for train/val.
+    Yields per-shard arrays PLUS an optional deterministic keep mask.
     - Always yields X,G,w
-    - If uid_enabled: also yields (m_tr, m_va) boolean masks with same length as X
+    - If split_enabled: also yields m_keep with the same length as X
     """
     n_shards = len(L)
     if args.small: n_shards = 1
     if shard_limit is not None: n_shards = min(n_shards, shard_limit)
 
-    if uid_enabled:
-        on2idx = {n: i for i, n in enumerate(obs_names)}
-        uid_idx = [on2idx[f] for f in uid_fields]
-        lo_tr, hi_tr = train_interval
-        lo_va, hi_va = val_interval
-
     for shard in range(n_shards):
         X, G, w = L.materialize(shard=shard, what="fow")
-        if uid_enabled:
-            O_uid = G[:, uid_idx]
-            m_tr = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo_tr, hi_tr)
-            m_va = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo_va, hi_va)
+        if split_enabled:
+            m_keep = splitter.mask(len(X), shard=shard)
             yield (
                 X.astype(np.float32, copy=False),
                 G.astype(np.float32, copy=False),
                 w.astype(np.float32, copy=False),
-                m_tr,
-                m_va,
+                m_keep,
             )
         else:
             yield (
@@ -217,24 +184,30 @@ def iterate_all(shard_limit=None):
 
 Xs_tr, targets_tr = [], []
 Xs_va, targets_va = [], []
+materialize_pbar = tqdm(
+    iterate_all(),
+    total=len(L),
+    desc="Materialize",
+    unit="shard",
+    dynamic_ncols=True,
+)
 
-if uid_enabled:
-    for X, G, w, m_tr, m_va in iterate_all():
+if split_enabled:
+    for X, G, w, m_keep in materialize_pbar:
         deriv_w = eft.make_weight_matrix(G, obs_names, w)
-        if np.any(m_tr):
-            Xs_tr.append(X[m_tr])
-            targets_tr.append(deriv_w[m_tr])
-        if np.any(m_va):
-            Xs_va.append(X[m_va])
-            targets_va.append(deriv_w[m_va])
+        if np.any(m_keep):
+            Xs_tr.append(X[m_keep])
+            targets_tr.append(deriv_w[m_keep])
+
+    if not Xs_tr:
+        raise RuntimeError("Random splitting removed all training events. Increase splitting.fraction.")
 
     X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
     DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
-    X_valid   = np.concatenate(Xs_va, axis=0) if len(Xs_va) > 1 else Xs_va[0]
-    DER_valid = np.concatenate(targets_va, axis=0) if len(targets_va) > 1 else targets_va[0]
+    X_valid, DER_valid = None, None
 else:
     Xs, targets_acc = [], []
-    for X, G, w in iterate_all():
+    for X, G, w in materialize_pbar:
         deriv_w = eft.make_weight_matrix(G, obs_names, w)
         Xs.append(X)
         targets_acc.append(deriv_w)
@@ -243,23 +216,18 @@ else:
     DER_train = np.concatenate(targets_acc, axis=0) if len(targets_acc) > 1 else targets_acc[0]
     X_valid, DER_valid = None, None
 
-# Truth weights (fixed; used for plotting)
-training_weights_train = {tuple(sorted(combos[i])): DER_train[:, i] for i in range(len(combos))}
-training_weights_valid = None
-if DER_valid is not None:
-    training_weights_valid = {tuple(sorted(combos[i])): DER_valid[:, i] for i in range(len(combos))}
-
 if args.small:
     n_max = len(X_train)//30
     X_train   = X_train[:n_max]
     DER_train = DER_train[:n_max]
-    training_weights_train = {k: v[:n_max] for k, v in training_weights_train.items()}
 
     if X_valid is not None:
         n_max_v = len(X_valid)//30
         X_valid   = X_valid[:n_max_v]
         DER_valid = DER_valid[:n_max_v]
-        training_weights_valid = {k: v[:n_max_v] for k, v in training_weights_valid.items()}
+
+training_weights_train = DER_train
+training_weights_valid = DER_valid
 
 # ---------------- plotting function ----------------
 def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J):
@@ -307,7 +275,7 @@ def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J
         "feat_cfgs": feat_cfgs,
         "gx": gx,
         "gy": gy,
-        "w0": training_weights_train[()],
+        "w0": training_weights_train[:, 0],
     }
 
 
@@ -339,7 +307,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
     w0 = plot_ctx["w0"]
 
     truth_mat = np.stack([
-        training_weights_train.get(der, training_weights_train.get(tuple(reversed(der))))
+        training_weights_train[:, combo_to_col[tuple(sorted(der))]]
         for der in ders
     ], axis=1)
 
@@ -503,9 +471,7 @@ def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
         return float("nan")
 
     # nominal weights
-    if () not in truth_weights:
-        raise RuntimeError("truth_weights must contain key () for nominal weights.")
-    w0 = truth_weights[()]  # (N,)
+    w0 = truth_weights[:, 0]  # (N,)
 
     pred = bit.predict(X, max_n_tree=max_n_tree)  # (N, K)  K = number of non-empty derivatives model predicts
 
@@ -532,9 +498,10 @@ def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
 
     losses = []
     for i, der in enumerate(ders_eval):
-        wt = truth_weights.get(der, truth_weights.get(tuple(reversed(der))))
-        if wt is None:
-            raise RuntimeError(f"Missing truth_weights for derivative {der} (or reversed)")
+        key = tuple(sorted(der))
+        if key not in combo_to_col:
+            raise RuntimeError(f"Missing truth_weights for derivative {der}")
+        wt = truth_weights[:, combo_to_col[key]]
 
         r_true = wt[mask] / w0[mask]
         r_pred = pred[mask, i]
@@ -580,6 +547,14 @@ if not args.overwrite and os.path.exists(model_path):
     try:
         tqdm.write(f"Trying to load BIT from {model_path}")
         bit = MultiBoostedInformationTree.load(model_path)
+        cfg_n_trees = model_cfg.get("n_trees")
+        if cfg_n_trees is not None and int(cfg_n_trees) != int(bit.n_trees):
+            old_n_trees = int(bit.n_trees)
+            bit.n_trees = int(cfg_n_trees)
+            if bit.n_trees > old_n_trees:
+                tqdm.write(f"[RESUME] Extending target tree count from {old_n_trees} to {bit.n_trees}.")
+            else:
+                tqdm.write(f"[RESUME] Config requests fewer trees ({bit.n_trees}) than saved model target ({old_n_trees}); using {bit.n_trees}.")
         start_tree = len(getattr(bit, "trees", []) or [])
         szm = os.path.getsize(model_path) / (1024.0 * 1024.0)
         tqdm.write(f"Loaded: trees={start_tree}/{bit.n_trees} | model size={szm:.1f} MB")
@@ -587,8 +562,25 @@ if not args.overwrite and os.path.exists(model_path):
             if os.path.exists(weights_path):
                 with open(weights_path, "rb") as f:
                     boost_weights = pickle.load(f)
-                szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
-                tqdm.write(f"Loaded boosting weights: {weights_path} ({szz:.1f} MB)")
+                if isinstance(boost_weights, dict):
+                    boost_weights = np.column_stack(
+                        [boost_weights[tuple(sorted(comb))].astype(np.float32, copy=False) for comb in combos]
+                    )
+                else:
+                    boost_weights = np.asarray(boost_weights, dtype=np.float32)
+                expected_shape = (len(X_train), len(combos))
+                if boost_weights.shape != expected_shape:
+                    tqdm.write(
+                        "[RESUME] Weights snapshot shape mismatch: "
+                        f"loaded={boost_weights.shape} expected={expected_shape}. "
+                        "Training data assembly changed; refusing to resume from stale snapshot."
+                    )
+                    bit = None
+                    boost_weights = None
+                    start_tree = 0
+                else:
+                    szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
+                    tqdm.write(f"Loaded boosting weights: {weights_path} ({szz:.1f} MB)")
             else:
                 tqdm.write(f"Missing weights snapshot {weights_path}. Cannot resume safely; training new.")
                 bit = None
@@ -601,11 +593,11 @@ if not args.overwrite and os.path.exists(model_path):
 # ---- fresh init ----
 if bit is None:
     bit = MultiBoostedInformationTree(**model_cfg)
-    boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
+    boost_weights = training_weights_train.copy()
 
 # If training needed but weights missing, start from truth
 if boost_weights is None and len(bit.trees) < bit.n_trees:
-    boost_weights = {k: v.copy() for k, v in training_weights_train.items()}
+    boost_weights = training_weights_train.copy()
 
 # ---------------- external training loop ----------------
 rt = J.get("runtime", {}) or {}
@@ -647,7 +639,7 @@ if len(bit.trees) < bit.n_trees:
         t1 = time.process_time()
         root = NumbaMultiNode.MultiNode(
             None if global_cuts is not None else X_train,
-            training_weights = boost_weights,
+            training_weights = weight_views(boost_weights),
             base_points      = base_points,
             feature_names    = feat_names,
             binned_features  = bins_train,
@@ -691,14 +683,8 @@ if len(bit.trees) < bit.n_trees:
         bit.trees.append(root)
 
         # ---------------- TRAIN LOSS (metric) ----------------
-        # only valid after bit.derivatives is set (i.e. after first tree finished)
-        train_loss = bit_ratio_mse_loss(
-        	bit=bit,
-        	X=X_train,
-        	truth_weights=training_weights_train,
-        	max_n_tree=len(bit.trees),   # == n_tree + 1
-        )
-        tqdm.write(f"[LOSS] tree={len(bit.trees):04d} train_loss={train_loss:.6g}")
+        # Disabled to avoid a full extra predict(X_train) pass every epoch.
+        train_loss = float("nan")
 
         # ---------------- VALID LOSS (metric) ----------------
         if X_valid is not None:
@@ -739,13 +725,17 @@ if len(bit.trees) < bit.n_trees:
         # update weights
         t1 = time.process_time()
         prediction = root.vectorized_predict(X_train)
-        len_ = len(prediction)
-
-        delta_weight = boost_weights[tuple()].reshape(len_, -1) * prediction[:, 1:] / prediction[:, 0].reshape(len_, -1)
         lr_eff = 1.0 if _get_only_score else float(bit.learning_rate)
-
+        denom = prediction[:, 0]
+        w0 = boost_weights[:, 0]
         for i_der, der in enumerate(root.derivatives[1:]):
-            boost_weights[der] += -lr_eff * delta_weight[:, i_der]
+            np.divide(
+                prediction[:, i_der + 1],
+                denom,
+                out=prediction[:, i_der + 1],
+                where=(denom != 0),
+            )
+            boost_weights[:, combo_to_col[tuple(sorted(der))]] += -lr_eff * w0 * prediction[:, i_der + 1]
 
         t2 = time.process_time()
         update_time += (t2 - t1)

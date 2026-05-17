@@ -1,4 +1,17 @@
-python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 1 --job bit_TT01j2l_EFT_2016APV --overwrite
-python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 1 --job bit_TT01j2l_EFT_2016 --overwrite
-python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 1 --job bit_TT01j2l_EFT_2017 --overwrite
-python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 1 --job bit_TT01j2l_EFT_2018 --overwrite
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016APV"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2017"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2018"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016APV_allWC"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016_allWC"
+submit --memory 35 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2017_allWC"
+submit --memory 50 --title bit --walltime 02-00:00:00 --queue medium  "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2018_allWC"
+
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016APV"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2017"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2018"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016APV_allWC"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2016_allWC"
+submit --memory 35 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2017_allWC"
+submit --memory 50 --title bit8h "python eft_bit_training.py ../../configs/eft/unbinned_gen_ND.yaml --every 0 --job bit_TT01j2l_EFT_2018_allWC"

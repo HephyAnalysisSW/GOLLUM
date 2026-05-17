@@ -135,15 +135,46 @@ observers = [
     "nEFTfitCoefficients",
 ] + eft_derivatives
 
+SELECTION = (
+    "(dijet_mass < 1000)"
+    " & (dijet_pt < 700)"
+    " & (dijet_deta < 4)"
+    " & (dilep_mass < 800)"
+    " & (dilep_pt < 400)"
+    " & (dilep_deta < 4)"
+    " & (j0_pt < 800)"
+    " & (j1_pt < 500)"
+    " & (l0_pt < 350)"
+    " & (l1_pt < 350)"
+    " & (max_obj_pair_pt < 800)"
+    " & (nJets <= 5)"
+    " & (pseudo_mtt < 1500)"
+)
+SELECTION_BRANCHES = [
+    "dijet_mass",
+    "dijet_pt",
+    "dijet_deta",
+    "dilep_mass",
+    "dilep_pt",
+    "dilep_deta",
+    "j0_pt",
+    "j1_pt",
+    "l0_pt",
+    "l1_pt",
+    "max_obj_pair_pt",
+    "nJets",
+    "pseudo_mtt",
+]
+
 
 def _eft_loader(*relpaths: str, lumi: float) -> RDataLoader:
-    return RDataLoader(
+    loader = RDataLoader(
         input_paths=[os.path.join(BASE_DIRECTORY, relpath) for relpath in relpaths],
         tree_name="Events",
         branches=observers + kinematics,
         selection=None,
         n_split=1,
-        splitting_strategy="events",
+        splitting_strategy="files",
         strict_branches=False,
         weight_branches=[
             "weight1fb",
@@ -153,6 +184,8 @@ def _eft_loader(*relpaths: str, lumi: float) -> RDataLoader:
         observer_names=observers,
         weight_rescale=lumi,
     )
+    loader.addSelection(SELECTION, required_branches=SELECTION_BRANCHES)
+    return loader
 
 
 TT01j2l_EFT_2016APV_mtt_0to700 = _eft_loader(
