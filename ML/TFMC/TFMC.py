@@ -43,6 +43,12 @@ class TFMC:
         set_logit_priors: bool = False,
         g_prior_l2_reg: float = 0.0
     ):
+        
+        # WARNING: reweighting==False will predict directly the DCR.
+        # the code is designed for a network that always outputs probabilities,
+        # see e.g. the setting of logit priors and the predict method
+        # so for now, we will keep it to True
+
         self.input_dim = int(input_dim)
         self.classes = list(classes)
         self.num_classes = len(self.classes)
@@ -128,6 +134,12 @@ class TFMC:
             self._inclusive_xs_ratio_tf = tf.constant(self.inclusive_xs_ratio, dtype=tf.float32)
 
     # ---------------- inference ----------------
+
+    # WARNING: reweighting==False will predict directly the DCR.
+    # the code is designed for a network that always outputs probabilities,
+    # see e.g. the setting of logit priors and the predict method
+    # so for now, we will keep it to True
+
     def _normalize(self, X: np.ndarray) -> np.ndarray:
         return (X - self.feature_means) / np.sqrt(self.feature_variances)
 
