@@ -244,3 +244,92 @@ plot_options = {
 
     "x"                           : { 'binning': [20,   0,     1],   'tex': 'x',                           'logY': False },
 }
+
+def get_sample_legend(sample_id: str) -> str:
+    if "TTLep" in sample_id:
+        return r"t#bar{t}(2L)"
+    else:
+        print(f"[get_sample_legend] name for {sample_id=} not yet implemented, returning sample name")
+
+
+
+def get_nice_parameter_name(variation: str) -> str:
+
+    # JME variation and lumi variation names can be programmatically transformed
+    # into nice names, for others will use a dict
+
+    name = variation.removeprefix("nu_")
+
+    nice_variation_name_dict = {
+        "showerISR": "ISR scales",
+        "showerFSR": "FSR scales",
+        "pu": "pp inelastic XS",
+        "mu_ren": "Renorm. scale",
+        "mu_fac": "Fact. scale",
+        "alphaS": "alphaS",
+        "l1prefire": "L1 Pre-firing",
+        "MuSF": "Muon ID",
+        "EleSF": "Electron ID",
+        "Uncl": "Unclustered MET",
+        "btag_l": "Light jet efficiency",
+        "btag_b": "b-jet efficiency",
+        "norm_ttbar": "ttbar norm.",
+        "scales": "QCD scales"
+        }
+
+    if name in nice_variation_name_dict:
+        return nice_variation_name_dict[name]
+    
+    else:
+        
+        if "lumi" in name:
+            period = name.split("_")[1]
+            return f"Luminosity 20{period[:2]}-20{period[-2:]}"
+
+        name = name.replace("CMS_scale_j","Jet Energy Scale")
+
+        name = name.replace("CMS_res_j", "Jet Energy Resolution")
+
+        name = name.replace("FlavorPure","Flavor Composition - ")
+
+        return name.replace("_"," ")
+    
+def get_short_parameter_name(variation: str) -> str:
+    
+        # JME variation and lumi variation names can be programmatically transformed
+    # into nice names, for others will use a dict
+
+    name = variation.removeprefix("nu_")
+
+    short_variation_name_dict = {
+        "showerISR": "ISR",
+        "showerFSR": "FSR",
+        "pu": "PU",
+        "mu_ren": r"#mu_{R}",
+        "mu_fac": r"#mu_{F}",
+        "alphaS": r"#alpha_{S}",
+        "l1prefire": "L1Prefire",
+        "MuSF": "Muon ID",
+        "EleSF": "Electron ID",
+        "Uncl": "Uncl. MET",
+        "btag_l": "Light jet eff.",
+        "btag_b": "b-jet eff",
+        "norm_ttbar": "ttbar norm.",
+        }
+
+    if name in short_variation_name_dict:
+        return short_variation_name_dict[name]
+    
+    else:
+        
+        if "lumi" in name:
+            period = name.split("_")[1]
+            return f"Luminosity 20{period[:2]}-20{period[-2:]}"
+
+        name = name.replace("CMS_scale_j","JES")
+
+        name = name.replace("CMS_res_j", "JER")
+
+        name = name.replace("FlavorPure","Flavor Composition - ")
+
+        return name.replace("_"," ")
