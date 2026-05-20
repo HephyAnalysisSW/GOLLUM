@@ -305,7 +305,7 @@ if len(lam_pos) == 0:
 ymin = 0.5 * np.min(lam_pos)
 ymax = 2.0 * np.max(lam_pos)
 log_span = np.log10(ymax / ymin)
-half_bar_decades = 0.025 * log_span
+half_bar_decades = 0.01 * log_span
 
 def yband(yv):
     return yv / (10.0 ** half_bar_decades), yv * (10.0 ** half_bar_decades)

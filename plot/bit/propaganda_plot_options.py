@@ -181,8 +181,8 @@ plot_options = {
     "tr_antinu_phi"               : { 'binning': [26,  -pi,   pi],   'tex': '#phi(#bar{#nu})',             'logY': False },
     "tr_antinu_mass"              : { 'binning': [50,   0,   100],   'tex': 'M(#bar{#nu})',                'logY': True  },
 
-    "tr_ttbar_pt"                 : { 'binning': [30,   0,  600],   'tex': 'p_{T}(t#bar{t})',             'logY': True  },
-    "tr_ttbar_mass"               : { 'binning': [29, 350,  1800],   'tex': 'M(t#bar{t})',                 'logY': True  },
+    "tr_ttbar_pt"                 : { 'binning': [30,   0,  600],    'tex': 'p_{T}(t#bar{t})',             'logY': False  },
+    "tr_ttbar_mass"               : { 'binning': [29, 350,  1800],   'tex': 'M(t#bar{t})',                 'logY': False  },
     "tr_ttbar_eta"                : { 'binning': [26,  -2.6,  2.6],  'tex': '#eta(t#bar{t})',              'logY': False },
     "tr_ttbar_phi"                : { 'binning': [26,  -pi,  pi],    'tex': '#phi(t#bar{t})',              'logY': False },
     "tr_ttbar_y"                  : { 'binning': [22,  -2.2,  2.2],  'tex': 'y(t#bar{t})',                 'logY': False },

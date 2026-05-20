@@ -38,7 +38,7 @@ p.add_argument("--selection", default=" (lep1_pt>20) & tr_isvalid & isOS & offZ"
 p.add_argument("--branches_for_selection", nargs="+", default=["lep1_pt", "tr_isvalid", "isOS", "offZ"],
                help="branches we need to make the selection")
 p.add_argument("--features", nargs="+", default=[],
-               help="branches we need to make the selection")
+               help="branches we want to plot")
 p.add_argument("--templates", nargs="*", default=None,
                help="Make per-variation template plots for the given process(es). "
                     "If passed without values, defaults to TTLep_pow.")
@@ -54,17 +54,17 @@ args, _unknown = p.parse_known_args()
 # User-editable config (in IPython you can override before %run -i)
 # -----------------------------------------------------------------------------
 #base = "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3_nJ2p_nB2p_2l/"
-
-# (Ricardo) the .root files from make_ntuple live in
-# /groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_TotalJES_EtaSplit/v2-3-2_nJ2p_nB2p_2l/
-# the files with the variations are symlinked into Robert's base folder
 from data.samples_RunII import BASE_DIRECTORY
 base = str(BASE_DIRECTORY)
 
 eras = ["2016", "2016APV", "2017", "2018"]
-processes = ["TTLep_pow"]
+processes = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan"]
+
+if args.processes:
+    processes = args.processes
+
 signals = []
-data = [] if args. doAsimov else ["Data"]
+data = [] if args.doAsimov else ["Data"]
 
 # shard splitting (default 10; override per-process if needed)
 N_SPLIT_DEFAULT = 1
