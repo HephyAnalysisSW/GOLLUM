@@ -234,6 +234,59 @@ jobs:
     output:
       filename: "tfmc_2016APV_totalbkg.pkl"
 
+  - id: tfmc_2016APV_DY_LO 
+    type: classifier
+    region: SR_2016APV
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016APV, SingleTop_2016APV, DrellYan_LO_HTbinned_2016APV, TTSemi_pow_2016APV]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100      
+    output:
+      filename: "tfmc_2016APV_DY_LO.pkl"
+
+  - id: tfmc_2016APV_DY_LO_nologitpriors 
+    type: classifier
+    region: SR_2016APV
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016APV, SingleTop_2016APV, DrellYan_LO_HTbinned_2016APV, TTSemi_pow_2016APV]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02      
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100        
+    extras:
+      use_scaler: scaler_TTLep_pow_2016APV 
+    output:
+      filename: "tfmc_2016APV_DY_LO_nologitpriors.pkl"
+
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016APV
     type: bit
     region: SR_2016APV

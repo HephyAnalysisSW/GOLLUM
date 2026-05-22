@@ -22,7 +22,7 @@ defaults:
 
   early_stopping:
     enabled: true
-    patience: 20        # same as current hard-coded
+    patience: 20        
     min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
     mode: "min"         # val_loss should decrease
     warmup_epochs: 0    # optional: do not early-stop before this epoch
@@ -228,8 +228,6 @@ likelihood:
                   value: 0.0035              
                   parameters: [nu_lumi_15161718]  
 
-            # TODO: add TTSemi_pow_2016 when implementing
-            # the automated mechanism to set logit priors at TFMC training
 
 jobs:
 
@@ -252,77 +250,114 @@ jobs:
       use_scaler: scaler_TTLep_pow_2016 
     output:
       filename: "tfmc_2016.pkl"
-      
 
-  # combining backgrounds into total bkg component to assist in training
-  - id: tfmc_2016_totalbkg
+  - id: tfmc_2016_DY_LO 
     type: classifier
     region: SR_2016
     framework: "tfmc"
     data:
-      classes: [TTLep_pow_2016, Background_2016]
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
     model:
       activation: relu
-      hidden_layers: [64, 64]
-      l1: 0.2
-      l2: 0.05
-      dropout_rate: 0.25      
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
     optim:
-      epochs: 1000
-      phaseout_epochs: 0
-      learning_rate: 0.0002
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
     runtime:
-      batch_size: -1 # batch = shard (= 1 by default)
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
     extras:
       use_scaler: scaler_TTLep_pow_2016 
     output:
-      filename: "tfmc_2016_totalbkg.pkl" 
+      filename: "tfmc_2016_DY_LO.pkl"
 
-  - id: tfmc_RunII 
+  - id: tfmc_2016_DY_LO_nologitpriors 
     type: classifier
     region: SR_2016
     framework: "tfmc"
     data:
-      classes: [TTLep_pow_RunII, SingleTop_RunII, DrellYan_RunII, TTSemi_pow_RunII]
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
     model:
       activation: relu
-      hidden_layers: [128, 128]
-      
+      hidden_layers: [128, 128, 128]
     optim:
       epochs: 1000
-      phaseout_epochs: 0
-      learning_rate: 0.002
+      phaseout_epochs: 300
+      learning_rate: 0.02
     runtime:
-      batch_size: -1 # batch = shard (= 1 by default)
-      n_split: 2
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100        
     extras:
-      use_scaler: scaler_TTLep_pow_RunII 
+      use_scaler: scaler_TTLep_pow_2016 
     output:
-      filename: "tfmc_RunII.pkl"
+      filename: "tfmc_2016_DY_LO_nologitpriors.pkl"      
 
-  - id: tfmc_RunII_totalbkg 
+  - id: tfmc_RunII_DY_LO 
     type: classifier
-    region: SR_2016
+    region: SR_RunII
     framework: "tfmc"
     data:
-      classes: [TTLep_pow_RunII, Background_RunII]
+      classes: [TTLep_pow_RunII, SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
     model:
       activation: relu
-      hidden_layers: [128, 128]
-      l1: 0.2
-      l2: 0.05
-      dropout_rate: 0.25
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100        
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII
+    output:
+      filename: "tfmc_RunII_DY_LO.pkl"
+
+  - id: tfmc_RunII_DY_LO_nologitpriors 
+    type: classifier
+    region: SR_RunII
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_RunII, SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
     optim:
       epochs: 1000
-      phaseout_epochs: 0
-      learning_rate: 0.002
+      phaseout_epochs: 300
+      learning_rate: 0.02
     runtime:
-      batch_size: -1 # batch = shard (= 1 by default)
-      n_split: 2
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100        
     extras:
       use_scaler: scaler_TTLep_pow_RunII 
     output:
-      filename: "tfmc_RunII_totalbkg.pkl"
+      filename: "tfmc_RunII_DY_LO_nologitpriors.pkl"
 
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016
     type: bit
