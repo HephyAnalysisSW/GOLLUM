@@ -98,7 +98,7 @@ def _get_base() -> RDataLoader:
         # the constructor. Also, & binds stronger than &&!!! So parenthesis are
         # needed.
         _base.addSelection(
-            "(lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)",
+            "(dilep_mass > 20) & (lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)",
             required_branches=["lep1_pt", "isOS", "offZ", "tr_isvalid"],
         )
     return _base

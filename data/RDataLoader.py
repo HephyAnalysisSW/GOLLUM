@@ -223,6 +223,20 @@ class RDataLoader:
         else:
             self._sel_ak_fns.append(selection)  # type: ignore[arg-type]
         return self
+    
+    def clearSelections(self) -> RDataLoader:
+        """
+        Clear selections. Must be called before any shard has been loaded/materialized.
+        """
+        if self._cache_shard is not None or self._cache_ar is not None:
+            raise RuntimeError("RDataLoader.addSelection: data already materialized; call only right after initialization.")
+
+        self._selection_items.clear()
+        self._sel_exprs.clear()
+        self._sel_ak_fns.clear()
+        self._sel_np_fns.clear()
+
+        return self
 
     def set_n_split(self, n_split: int) -> "RDataLoader":
         if self._cache_shard is not None or self._cache_ar is not None:
