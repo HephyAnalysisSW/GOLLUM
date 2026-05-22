@@ -155,15 +155,13 @@ def make_plot(
 
     fig, ax = plt.subplots(figsize=(8.0, 8.0))
 
-    plt.style.use("petroff10")
-    color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-
+    from data.colors import cmap_petroff10_mpl
     hep.style.use("CMS")
 
     centers = 0.5 * (bins[:-1] + bins[1:])
 
     for class_idx, class_name in enumerate(class_names):
-        color = color_cycle[class_idx % len(color_cycle)]
+        color = cmap_petroff10_mpl[class_idx % len(cmap_petroff10_mpl)]
         ax.errorbar(
             centers,
             values[:, class_idx],
@@ -278,20 +276,21 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
 
     for feature in plot_features:
+        # (Nbins, Nclasses)
         weighted_dcr, weighted_dcr_err = compute_weighted_dcr_and_error(
             counts_weighted[feature],
             counts_sumw2[feature],
         )
         
         LOGGER.info(
-            "%s: weighted_dcr=%s",
+            "%s: average DCR across bins=%s",
             feature,
             np.mean(weighted_dcr, axis=0),
         )
 
         label_tex_mpl = "$" + PLOT_OPTS[feature]["tex"].replace("#", "\\") + "$"
         make_plot(
-            metric_name="weighted_dcr",
+            metric_name="DCR",
             values=weighted_dcr,
             errors=weighted_dcr_err,
             bins=bins[feature],
