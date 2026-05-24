@@ -20,8 +20,9 @@ import common.yaml_loader as yaml_loader
 
 from fit.Likelihood import load_likelihood, build_hypothesis_from_likelihood, N2LL
 from fit.Modeling import Rotated
-from data.plot_options import plot_options
+from data.plot_options import plot_options, get_sample_legend
 from data.colors import get_color
+import importlib
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -80,13 +81,17 @@ def evaluate_class(cls, h_base):
     return vals
 
 
-p = argparse.ArgumentParser(description="Simple postfit binned template plots from an external fit result")
+p = argparse.ArgumentParser(description="Simple binned template plots from an external fit result.")
 p.add_argument("fit_result", help="Fit JSON file")
 p.add_argument("--config", default=None, help="Config YAML. If omitted, try to read it from the fit JSON.")
 p.add_argument("--rotate", default=None, help="Rotation JSON, same logic as Likelihood.py")
 p.add_argument("--outdir", default=None, help="Output directory")
 p.add_argument("--n-toys", default=1000, type=int, help="Number of covariance toys")
 p.add_argument("--seed", default=42, type=int, help="Random seed")
+p.add_argument("--min_ratio", type=float, help="Minimum of ratio pad.")
+p.add_argument("--max_ratio", type=float, help="Maximum of ratio pad.")
+p.add_argument("--prefit", action="store_true", help="Creates prefit plots.")
+
 args = p.parse_args()
 
 fit = json.load(open(args.fit_result))
@@ -110,6 +115,23 @@ yaml_loader.load_surrogates(cfg, config_path, overwrite=False)
 
 like_info = load_likelihood(cfg)
 hyp = build_hypothesis_from_likelihood(like_info, name="SR")
+
+is_data_fit = ("data" in args.fit_result)
+
+# grabbing sample factory to create data histograms downstream
+# may need to move this further down to use pieces of code
+# that get things that I need
+if is_data_fit:
+    from common.yaml_loader import _resolve_features_list
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list(default_features) if default_features else None
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
+    factory = samples_mod.Factory(
+        features=features,
+        selection=cfg["defaults"].get("default_selection", None),
+        selection_features=cfg["defaults"].get("default_selection_features", None),
+    )
+
 rotated = bool(args.rotate)
 hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
@@ -153,7 +175,10 @@ best_base_hyp = best_fit_hyp._base
 
 np.random.seed(args.seed)
 if len(active_names) > 0 and args.n_toys > 0:
-    theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
+    if args.prefit:
+        theta_samples = np.random.normal(loc=0.0, scale=1.0, size=(args.n_toys, len(active_params)))
+    else:
+        theta_samples = np.random.multivariate_normal(mean_active, cov_active, size=args.n_toys)
 else:
     theta_samples = np.zeros((0, len(active_names)), dtype=np.float64)
 
@@ -169,10 +194,11 @@ else:
     logY_default = False
 
 base = os.path.splitext(os.path.basename(config_path))[0]
+base_fit_result = os.path.splitext(os.path.basename(args.fit_result))[0]
 version = str(cfg.get("version", "v0"))
 suffix = "_rotate" if rotated else ""
 if args.outdir is None:
-    outdir = os.path.join(user.plot_directory, "binned_postfit_fromfit", base, f"{version}{suffix}")
+    outdir = os.path.join(user.plot_directory, "binned_postfit_fromfit", base, f"{version}{suffix}",f"from_{base_fit_result}")
 else:
     outdir = args.outdir
 os.makedirs(outdir, exist_ok=True)
@@ -194,6 +220,22 @@ for region in like_info.get("binned", []) or []:
     unroll = N2LL._unroll_bins_from_ich(first_pred)
     shape = tuple(unroll.get("shape", ()))
     n_bins_region = len(unroll["flat_bins"])
+    region_binning = region.get("binning", default_binning)
+
+    first_var_name = None
+    second_var_name = None
+    first_var_edges = None
+    first_var_tex = None
+    second_var_tex = None
+    second_var_edges = None
+    repeated_x_bin_labels = []
+    top_slice_labels = []
+
+    if len(shape) == 2 and region_binning and len(region_binning) >= 2:
+        first_var_name, first_var_edges = region_binning[0]
+        second_var_name, second_var_edges = region_binning[1]
+        first_var_tex = plot_options.get(first_var_name, {}).get("tex", first_var_name)
+        second_var_tex = plot_options.get(second_var_name, {}).get("tex", second_var_name)
 
     use_default_1d_binning = (
         len(shape) == 1
@@ -208,12 +250,28 @@ for region in like_info.get("binned", []) or []:
         separators = []
     else:
         plot_edges = array('d', np.arange(n_bins_region + 1, dtype=np.float64))
-        x_title = "unrolled bin"
+        if len(shape) == 2 and second_var_tex is not None:
+            x_title = second_var_tex
+        else:
+            x_title = "unrolled bin"
         logY = False
         separators = []
         if len(shape) == 2:
             nb1, nb2 = shape
             separators = [i * nb2 for i in range(1, nb1)]
+            if second_var_edges is not None and len(second_var_edges) == (nb2 + 1):
+                for i in range(nb1):
+                    for j in [0, nb2-1]:
+                        edge_idx = nb2 if j == (nb2 - 1) else j
+                        label = f"{float(second_var_edges[edge_idx]):g}"
+                        repeated_x_bin_labels.append((i * nb2 + j + 1, label))
+            if first_var_edges is not None and len(first_var_edges) == (nb1 + 1):
+                for i in range(nb1):
+                    lo = float(first_var_edges[i])
+                    hi = float(first_var_edges[i + 1])
+                    text = f"{lo:g} #leq {first_var_tex} < {hi:g}"
+                    center = (i + 0.5) * nb2
+                    top_slice_labels.append((center, text))
 
     class_infos = []
     total_central = np.zeros(n_bins_region, dtype=np.float64)
@@ -222,7 +280,10 @@ for region in like_info.get("binned", []) or []:
         class_id = cls["id"]
         sample_name = cls.get("sample", class_id)
 
-        vals = evaluate_class(cls, best_base_hyp)
+        if args.prefit:
+            vals = evaluate_class(cls, hyp_for_fit)
+        else:
+            vals = evaluate_class(cls, best_base_hyp)
         if len(vals) != n_bins_region:
             raise RuntimeError(
                 f"Region {region_id}, class {class_id}: got {len(vals)} bins, expected {n_bins_region}"
@@ -277,7 +338,7 @@ for region in like_info.get("binned", []) or []:
         h_cls.SetFillColor(color)
         h_cls.SetLineWidth(1)
         class_hists.append(h_cls)
-        class_labels.append(ci["sample"])
+        class_labels.append(get_sample_legend(ci["sample"]))
 
     h_total = ROOT.TH1F(
         f"h_postfit_total_{_safe_name(region_id)}",
@@ -318,6 +379,82 @@ for region in like_info.get("binned", []) or []:
     h_unc_down.SetFillStyle(0)
 
     h_data = h_total.Clone(f"h_postfit_data_{_safe_name(region_id)}")
+
+    if not is_data_fit:
+        if 'data' in region:
+            print(f"[warning] data sample in region {region_id}, but fit result from MC-only fit. Plotting data as total MC.")
+        h_data = h_total.Clone(f"h_postfit_data_{_safe_name(region_id)}")
+    else:
+
+        if "data" not in region:
+            raise ValueError("Fit output from fit to data, but no data sample was defined in config.")
+
+        loader = factory.get(region["data"]["sample"])
+
+        if len(shape) != len(region_binning):
+            raise RuntimeError(
+                f"Region {region_id}: predictor dimension {len(shape)} does not match binning dimension {len(region_binning)}."
+            )
+
+        first_variable_name, first_variable_edges = region_binning[0]
+        first_variable_edges_array = np.asarray(first_variable_edges, dtype=np.float64)
+
+        if len(shape) == 1:
+            data_counts = np.zeros(len(first_variable_edges_array) - 1, dtype=np.float64)
+
+            # not really necessary to shard data, but I guess
+            # this will also work for larger toys so keeping here
+            for shard_index in range(len(loader)):
+                shard_features = loader.features(
+                    shard=shard_index,
+                    feature_names=[first_variable_name],
+                )
+                if shard_features.size == 0:
+                    continue
+                shard_histogram, _ = np.histogram(
+                    shard_features[:, 0],
+                    bins=first_variable_edges_array,
+                )
+                data_counts += shard_histogram
+
+            data_unrolled = data_counts
+
+        elif len(shape) == 2:
+            second_variable_name, second_variable_edges = region_binning[1]
+            second_variable_edges_array = np.asarray(second_variable_edges, dtype=np.float64)
+
+            data_counts_2d = np.zeros(
+                (len(first_variable_edges_array) - 1, len(second_variable_edges_array) - 1),
+                dtype=np.float64,
+            )
+
+            for shard_index in range(len(loader)):
+                shard_features = loader.features(
+                    shard=shard_index,
+                    feature_names=[first_variable_name, second_variable_name],
+                )
+                if shard_features.size == 0:
+                    continue
+                shard_histogram_2d, _, _ = np.histogram2d(
+                    shard_features[:, 0],
+                    shard_features[:, 1],
+                    bins=(first_variable_edges_array, second_variable_edges_array),
+                )
+                data_counts_2d += shard_histogram_2d
+
+            data_unrolled = data_counts_2d.reshape(-1)
+
+        else:
+            raise RuntimeError(f"Region {region_id}: only 1D/2D binning is supported, got shape={shape}.")
+
+        if len(data_unrolled) != n_bins_region:
+            raise RuntimeError(
+                f"Region {region_id}: data bins ({len(data_unrolled)}) do not match predictor bins ({n_bins_region})."
+            )
+
+        for ib, value in enumerate(data_unrolled, start=1):
+            h_data.SetBinContent(ib, float(value))
+        
     h_data.SetDirectory(0)
     for ib in range(1, n_bins_region + 1):
         y = h_data.GetBinContent(ib)
@@ -329,14 +466,19 @@ for region in like_info.get("binned", []) or []:
 
     h_ratio_data = h_data.Clone(f"h_postfit_ratio_data_{_safe_name(region_id)}")
     h_ratio_data.SetDirectory(0)
+    
+    # in the case of Asimov, this will be equal to max_dev
+    max_dev_data = 0.0
     for ib in range(1, n_bins_region + 1):
         nom = h_total.GetBinContent(ib)
         y   = h_data.GetBinContent(ib)
-        ey  = h_data.GetBinError(ib)   # stat-only = sqrt(y)
+        ey  = h_data.GetBinError(ib)   # stat-only = sqrt(y) \  
 
         if nom > 0.0:
+            rel = max(abs(y+ey-nom), abs(y-ey-nom))/nom
             h_ratio_data.SetBinContent(ib, y / nom)
             h_ratio_data.SetBinError(ib, ey / nom)
+            max_dev_data = max(max_dev_data, rel)
         else:
             h_ratio_data.SetBinContent(ib, 0.0)
             h_ratio_data.SetBinError(ib, 0.0)
@@ -409,11 +551,32 @@ for region in like_info.get("binned", []) or []:
         line.Draw("SAME")
         top_sep_lines.append(line)
 
+    top_slice_text = []
+    if top_slice_labels:
+        x_min = float(plot_edges[0])
+        x_max = float(plot_edges[-1])
+        span = x_max - x_min
+        if span > 0.0:
+            y_ndc = 0.56
+            x_left = padTop.GetLeftMargin()
+            x_span = 1.0 - padTop.GetLeftMargin() - padTop.GetRightMargin()
+            for center, text in top_slice_labels:
+                x_ndc = x_left + x_span * ((center - x_min) / span)
+                txt = ROOT.TLatex()
+                txt.SetNDC(True)
+                txt.SetTextAlign(22)
+                txt.SetTextSize(0.030)
+                txt.DrawLatex(x_ndc, y_ndc, str(text).replace("$", ""))
+                top_slice_text.append(txt)
+
     leg = ROOT.TLegend(0.50, 0.60, 0.88, 0.88)
     leg.SetBorderSize(0)
     leg.SetFillStyle(0)
     leg.SetNColumns(2)
-    leg.AddEntry(h_data, "Data (Asimov)", "lep")
+    if is_data_fit:
+        leg.AddEntry(h_data, "Data", "lep")
+    else:
+        leg.AddEntry(h_data, "Data (Asimov)", "lep")
     for h, lbl in zip(class_hists_sorted, class_labels_sorted):
         leg.AddEntry(h, lbl, "f")
     leg.AddEntry(h_unc, "Uncertainty", "f")
@@ -422,7 +585,17 @@ for region in like_info.get("binned", []) or []:
     label = ROOT.TLatex()
     label.SetNDC(True)
     label.SetTextSize(0.035)
-    label.DrawLatex(0.12, 0.93, region_id)
+
+    label_text = "#it{CMS} "
+    if not is_data_fit:
+        label_text += "Simulation "
+    label_text += "Work In Progress "
+    if args.prefit:
+        label_text += f"- {region_id} - prefit"
+    else:
+        label_text += f"- {region_id} - postfit"
+
+    label.DrawLatex(0.12, 0.93, label_text)
 
     padBottom.cd()
 
@@ -432,7 +605,10 @@ for region in like_info.get("binned", []) or []:
     h_ratio.SetLineColor(ROOT.kBlack)
     h_ratio.SetLineWidth(2)
     h_ratio.SetTitle("")
-    h_ratio.GetYaxis().SetTitle("var / nominal")
+    if is_data_fit:
+        h_ratio.GetYaxis().SetTitle("data / MC")
+    else:
+        h_ratio.GetYaxis().SetTitle("var / nominal")
     h_ratio.GetYaxis().SetNdivisions(505)
     h_ratio.GetYaxis().SetTitleSize(0.09)
     h_ratio.GetYaxis().SetTitleOffset(0.5)
@@ -440,6 +616,13 @@ for region in like_info.get("binned", []) or []:
     h_ratio.GetXaxis().SetTitle(x_title)
     h_ratio.GetXaxis().SetTitleSize(0.10)
     h_ratio.GetXaxis().SetLabelSize(0.08)
+    if repeated_x_bin_labels:
+        h_ratio.GetXaxis().SetLabelSize(0.06)
+        for ib in range(1, n_bins_region + 1):
+            h_ratio.GetXaxis().SetBinLabel(ib, "")
+        for ib, text in repeated_x_bin_labels:
+            if 1 <= ib <= n_bins_region:
+                h_ratio.GetXaxis().SetBinLabel(ib, text)
 
     ratio_boxes = []
     h_ratio_up = h_ratio.Clone(f"h_postfit_ratio_up_{_safe_name(region_id)}")
@@ -478,6 +661,13 @@ for region in like_info.get("binned", []) or []:
             h_ratio_up.SetBinContent(ib, 1.0)
             h_ratio_down.SetBinContent(ib, 1.0)
 
+    # if all data points fall within MC uncertainty band
+    # range is defined by that
+    # else, range is defined by max deviation of data
+    # so that all data points are visible
+    if is_data_fit:
+        max_dev = max(max_dev,max_dev_data)
+
     if max_dev <= 0.0:
         r_min, r_max = 0.9, 1.1
     else:
@@ -485,8 +675,16 @@ for region in like_info.get("binned", []) or []:
         r_min = 1.0 - half_range
         r_max = 1.0 + half_range
 
-    h_ratio.SetMinimum(r_min)
-    h_ratio.SetMaximum(r_max)
+    if args.min_ratio:
+        h_ratio.SetMinimum(args.min_ratio)
+    else:
+        h_ratio.SetMinimum(r_min)
+
+    if args.max_ratio:
+        h_ratio.SetMaximum(args.max_ratio)
+    else:
+        h_ratio.SetMaximum(r_max)
+
     h_ratio.Draw("HIST")
     for box in ratio_boxes:
         box.Draw("SAME")
@@ -508,17 +706,21 @@ for region in like_info.get("binned", []) or []:
 
     c.cd()
     c.Update()
+    
+    out_name = os.path.join(outdir, f"{_safe_name(region_id)}") 
 
-    out_png = os.path.join(outdir, f"{_safe_name(region_id)}__postfit.png")
-    out_pdf = os.path.join(outdir, f"{_safe_name(region_id)}__postfit.pdf")
-    c.SaveAs(out_png)
-    c.SaveAs(out_pdf)
-    print(f"[info] wrote\n  {out_png}\n  {out_pdf}")
+    if args.prefit:
+        out_name += "__prefit"
+    else:
+        out_name += "__postfit"
+
+    c.SaveAs(f"{out_name}.png")
+    c.SaveAs(f"{out_name}.pdf")
 
     region_canvases[region_id] = c
     _KEEPALIVE.extend(
         [c, padTop, padBottom, hs, h_total, h_unc, h_unc_up, h_unc_down, h_data, h_ratio, h_ratio_data, h_ratio_up, h_ratio_down, leg, label, line1]
-        + class_hists_sorted + ratio_boxes + top_sep_lines + ratio_sep_lines
+        + class_hists_sorted + ratio_boxes + top_sep_lines + ratio_sep_lines + top_slice_text
     )
 
 print(f"[info] done, produced {len(region_canvases)} region plots")

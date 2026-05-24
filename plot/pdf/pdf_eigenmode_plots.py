@@ -79,27 +79,27 @@ def plot_unit_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         color = f"C{mode_idx % 10}"
         linestyle = linestyles[mode_idx % 4]
         pdf_variant = pdfs_unit[mode_label]
-        ax_top.semilogx(x_vals, pdf_variant, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})')
+        ax_top.semilogx(x_vals, pdf_variant, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx})')
         
         mask = pdf_central > 1e-15
         ratio = np.ones_like(pdf_central)
         ratio[mask] = pdf_variant[mask] / pdf_central[mask]
-        ax_bot.semilogx(x_vals, ratio, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})')
+        ax_bot.semilogx(x_vals, ratio, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx})')
         ax_bot.set_ylim(-1.0,4.0)
     
-    ax_top.set_ylabel(r'$g$')
-    ax_top.legend(loc='best', ncol=2, fontsize=18)
+    ax_top.set_ylabel(r'$xg$')
+    ax_top.legend(loc='best', ncol=2, fontsize=14)
     ax_top.grid(True, alpha=0.3, which='both')
     
     ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
     ax_bot.set_xlabel(r'$x$')
     ax_bot.set_ylabel(r'$g/g^{(ref)}$')
-    ax_bot.legend(loc='best', ncol=2, fontsize=18)
     ax_bot.grid(True, alpha=0.3, which='both')
     
     filename = os.path.join(output_dir, f'eigenmodes_d1_Q{int(Q_val*1000)}.png')
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     plt.savefig(filename.replace(".png",".pdf"), dpi=150, bbox_inches='tight')
+    plt.savefig(filename.replace(".png",".svg"), dpi=150, bbox_inches='tight')
     plt.close()
     logger.info(f"Saved: {filename}")
 
@@ -133,7 +133,7 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
 
         ax_top.fill_between(x_vals, pdfs_minus[mode_label], pdfs_plus[mode_label], 
         color=color, alpha=0.08, linewidth=1.5, linestyle=linestyle)
-        ax_top.semilogx(x_vals, pdfs_plus[mode_label], linestyle=linestyle, color=color, linewidth=1.5, label=f'EV({mode_idx+1})', zorder=3)
+        ax_top.semilogx(x_vals, pdfs_plus[mode_label], linestyle=linestyle, color=color, linewidth=1.5, label=f'EV({mode_idx})', zorder=3)
         ax_top.semilogx(x_vals, pdfs_minus[mode_label], linestyle=linestyle, color=color, linewidth=1.5, zorder=3)
         
         mask = pdf_central > 1e-15
@@ -144,25 +144,25 @@ def plot_sigma_modes(x_vals: np.ndarray, pdf_central: np.ndarray,
         ratio_plus[mask] = pdfs_plus[mode_label][mask] / pdf_central[mask]
         
         ax_bot.fill_between(x_vals, ratio_minus, ratio_plus, color=color, alpha=0.08)
-        ax_bot.semilogx(x_vals, ratio_plus, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx+1})', zorder=3)
+        ax_bot.semilogx(x_vals, ratio_plus, color=color, linestyle=linestyle, linewidth=1.5, label=f'EV({mode_idx})', zorder=3)
         ax_bot.semilogx(x_vals, ratio_minus, color=color, linestyle=linestyle, linewidth=1.5, zorder=3)
 
         ax_bot.set_xscale("log")
         ax_bot.set_ylim(0.9,1.10)
     
-    ax_top.set_ylabel(r'$g$')
-    ax_top.legend(loc='best', ncol=2, fontsize=18)
+    ax_top.set_ylabel(r'$xg$')
+    ax_top.legend(loc='best', ncol=2, fontsize=14)
     ax_top.grid(True, alpha=0.3, which='both')
     
     ax_bot.axhline(1.0, color='k', linestyle='--', linewidth=1, alpha=0.25)
     ax_bot.set_xlabel(r'$x$')
     ax_bot.set_ylabel(r'$g/g^{(ref)}$')
-    ax_bot.legend(loc='best', ncol=2, fontsize=18)
     ax_bot.grid(True, alpha=0.3, which='both')
     
     filename = os.path.join(output_dir, f'eigenmodes_sigma_d_Q{int(Q_val*1000)}.png')
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     plt.savefig(filename.replace(".png",".pdf"), dpi=150, bbox_inches='tight')
+    plt.savefig(filename.replace(".png",".svg"), dpi=150, bbox_inches='tight')
     plt.close()
     logger.info(f"Saved: {filename}")
 

@@ -274,13 +274,8 @@ def iterate_epoch(shard_limit=None):
         yield Xs, Ws
 
 def nu_tex_from_coords(coords):
-    # parts = []
-    # for i, v in enumerate(coords):
-    #     iv = int(np.rint(v))
-    #     parts.append(f"#nu_{{{i+1}}} = {iv:+d}")
-    # return ", ".join(parts)
     values = [str(int(np.rint(v))) for v in coords]
-    return f"#nu = ({', '.join(values)})"
+    return rf"({', '.join(values)})"
 
 def strip_wvar_suffix(name: str) -> str:
     if not isinstance(name, str):
@@ -355,272 +350,173 @@ for Xs, Ws in tqdm(iterate_epoch(shard_limit=shard_limit), desc="Closure", unit=
             true_h2[feat][:, i_bp] += ht2
             pred_h[feat][:, i_bp]  += hp
 
-# ---------------- plotting (INLINE, per-feature) ----------------
-import ROOT
-ROOT.gStyle.SetOptStat(0)
-try:
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    ROOT.gROOT.LoadMacro(os.path.join(dir_path, "../../common/scripts/tdrstyle.C"))
-    ROOT.setTDRStyle()
-except Exception:
-    pass
-
-import cmsstyle
-legend_columns = 3
-colors = [
-#    ROOT.kRed + 1,
-#    ROOT.kBlue + 1,
-#    ROOT.kGreen + 2,
-#    ROOT.kMagenta + 1,
-#    ROOT.kOrange + 1,
-#    ROOT.kCyan + 1,
-    cmsstyle.p10.kBlue,
-    cmsstyle.p10.kYellow,
-    cmsstyle.p10.kRed,
-    cmsstyle.p10.kAsh,
-    cmsstyle.p10.kViolet,
-    cmsstyle.p10.kBrown,
-    cmsstyle.p10.kOrange,
-    cmsstyle.p10.kGreen,
-    cmsstyle.p10.kGray,
-    cmsstyle.p10.kCyan,
-]
-
-if len(base_points) > len(colors):
-    colors = (colors * (len(base_points) // len(colors) + 1))[:len(base_points)]
-colors[nom_idx] = ROOT.kBlack
-
-# one-line mapping: first loader only
-lname0 = getattr(loaders[0], "name", None) or bp_specs[0].get("loader", "bp0")
-lname0 = strip_wvar_suffix(str(lname0))
-
-from data.plot_options import get_sample_legend, get_short_parameter_name
-if param_names:
-    
-    label_param_names = [fr"#nu_{{{get_short_parameter_name(param_name)}}}" for param_name in param_names]
-
-    param_info_text = "#nu = ("
-    param_info_text += ",".join(label_param_names)
-    param_info_text += ")"
-
-else:
-    raise ValueError("No parameters defined for this job.")
-
-legend_mapping_line = f"{get_sample_legend(lname0)}, {param_info_text}"
-
-# legend size tuning based on number of rows
-n_entries = len(base_points)
-n_cols = max(1, min(int(legend_columns), n_entries))
-n_rows = int(math.ceil(n_entries / float(n_cols)))
-
-# legend-pad height in canvas NDC (clamped)
-# (mapping line + legend; scales smoothly with rows)
-legend_pad_h = 0.15 + 0.04 * n_rows
-legend_pad_h = max(0.16, min(0.34, legend_pad_h))
-
-# legend text size inside pad (clamped)
-legend_text_size = 0.22 / max(1.0, n_rows + 1.0)
-legend_text_size = max(0.03, min(0.07, legend_text_size))
-# boost legend text size for readability
-legend_text_size = min(0.12, legend_text_size * 1.35)
+# ---------------- plotting (matplotlib + mplhep, per-feature) ----------------
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import mplhep as hep
+from matplotlib.gridspec import GridSpec
+from matplotlib.lines import Line2D
 
 print(f"Writing per-feature closure plots to: {plot_dir}")
 
+from data.plot_options import get_sample_legend, get_short_parameter_name
+if param_names:
+    label_param_names_latex = [r"\nu_{"+get_short_parameter_name(param_name)+"}" for param_name in param_names]
+    param_info_text = r"$\nu = (" + ",".join(label_param_names_latex) + ")$"
+else:
+    raise ValueError("No parameters defined for this job.")
+
+sample_legend = "$"+get_sample_legend(strip_wvar_suffix(str(getattr(loaders[0], 'name', bp_specs[0].get('loader', 'bp0')))))+"$"
+
+legend_mapping_line = f"{sample_legend}, {param_info_text}"
+legend_mapping_line = legend_mapping_line.replace("#","\\")
+
+# legend layout
+legend_columns = 3
+n_entries = len(base_points)
+n_cols = 3
+n_rows = int(math.ceil(n_entries / float(n_cols)))
+
+if n_rows <= 1:
+    axes_top = 0.85
+    main_legend_y = 0.93
+    truth_pred_y = 0.905
+elif n_rows == 2:
+    axes_top = 0.80
+    main_legend_y = 0.925
+    truth_pred_y = 0.895
+else:
+    axes_top = 0.75
+    main_legend_y = 0.915
+    truth_pred_y = 0.895
+
+# CAT recommends accessible color scheme from Matthew Petroff
+# CMS style only has the 6-color Petroff scheme
+# implemented a quick workaround to use the 10 color scheme
+
+plt.style.use("petroff10")
+cmap = plt.rcParams['axes.prop_cycle'].by_key()['color']
+hep.style.use("CMS")
+
+colors = [cmap[i] for i in range(n_entries)]
+colors[nom_idx] = "black"
+
 feature_keep = {}
 
+version_name = os.path.split(cfg_base)[0]
+lumi_by_era = {
+    "2016APV": 19.50,
+    "2016": 16.81,
+    "2017": 41.48,
+    "2018": 59.83,
+    "Run 2": 137.62
+}
+
+lumi_era = "Run 2"
+for era in lumi_by_era:
+    if era in version_name:
+        lumi_era = era
+        break
+
 for feat in plot_feats:
-    x_title = PLOT_OPTS.get(feat, {}).get("tex", feat)
+    # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
+    x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
+    x_title = fr"${{{x_title}}}$"
     logY = PLOT_OPTS.get(feat, {}).get("logY", False)
 
     edges = np.asarray(bins[feat], dtype=np.float64)
     n_bins = len(edges) - 1
     x_min, x_max = float(edges[0]), float(edges[-1])
-    bin_edges_root = array("d", edges.tolist())
+    centers = 0.5 * (edges[1:] + edges[:-1])
+    widths = edges[1:] - edges[:-1]
 
-    canvas_name = f"closure_{feat}"
-    c = ROOT.TCanvas(canvas_name, canvas_name, 800, 1200)
+    fig = plt.figure(figsize=(8, 12))
+    gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0.03)
+    ax_top = fig.add_subplot(gs[0])
+    ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+    fig.subplots_adjust(top=axes_top)
 
-    # pads: legend pad sits directly above the top pad
-    y_bottom_top = 0.30
-    y_top_top    = 1.0 - legend_pad_h
+    # Figure-level header above the plot: sample + nuisance parameters.
+    fig.text(
+        0.5,
+        0.965,
+        legend_mapping_line,
+        ha="center",
+        va="top",
+        fontsize=18,
+        weight="bold",
+    )
 
-    padLegend = ROOT.TPad(canvas_name + "_legend", canvas_name + "_legend", 0.0, y_top_top,    1.0, 1.0)
-    padTop    = ROOT.TPad(canvas_name + "_top",    canvas_name + "_top",    0.0, y_bottom_top, 1.0, y_top_top)
-    padBottom = ROOT.TPad(canvas_name + "_bottom", canvas_name + "_bottom", 0.0, 0.0,          1.0, y_bottom_top)
-
-    # legend pad: tighter margins
-    padLegend.SetBottomMargin(0.00)
-    padLegend.SetTopMargin(0.06)
-    padLegend.SetLeftMargin(0.10)
-    padLegend.SetRightMargin(0.10)
-    padLegend.SetFillStyle(0)
-
-    # top pad: maximize plotting area
-    padTop.SetBottomMargin(0.0)
-    padTop.SetTopMargin(0.00)
-    padTop.SetLeftMargin(0.10)
-    padTop.SetRightMargin(0.05)
-
-    # bottom pad: unchanged
-    padBottom.SetTopMargin(0.0)
-    padBottom.SetBottomMargin(0.30)
-    padBottom.SetLeftMargin(0.10)
-    padBottom.SetRightMargin(0.05)
-
-    padLegend.Draw()
-    padTop.Draw()
-    padBottom.Draw()
-
-    # legend: place under the mapping line, use most of pad
-    # mapping line is at y~0.90, so legend box is below it
-    legend = ROOT.TLegend(padLegend.GetLeftMargin(), 0.20, 0.98, 0.98)
-    legend.SetBorderSize(0)
-    legend.SetFillStyle(0)
-    legend.SetNColumns(n_cols)
-    legend.SetTextSize(legend_text_size)
-    legend.SetHeader(f"{legend_mapping_line}; markers: truth, lines: prediction", "C")
-
-    version_name = os.path.split(cfg_base)[0]
-    lumi_by_era = {
-        "2016APV": 19.50,
-        "2016": 16.81,
-        "2017": 41.48,
-        "2018": 59.83,
-    }
-
-    lumi = 137.62
-    for era, era_lumi in lumi_by_era.items():
-        if era in version_name:
-            lumi = era_lumi
-            break
-
-    keep = [padLegend, padTop, padBottom, legend]
-
-    # histos
-    h_true_abs, h_pred_abs = [], []
-
-    for k, nu in enumerate(base_points):
-        ht = ROOT.TH1F(f"h_true_{feat}_{k}", "", n_bins, bin_edges_root)
-        hp = ROOT.TH1F(f"h_pred_{feat}_{k}", "", n_bins, bin_edges_root)
-        ht.SetDirectory(0)
-        hp.SetDirectory(0)
-
-        for ib in range(n_bins):
-            y  = float(true_h[feat][ib, k])
-            e2 = float(true_h2[feat][ib, k])
-            ht.SetBinContent(ib + 1, y)
-            ht.SetBinError(ib + 1, math.sqrt(e2) if e2 > 0.0 else 0.0)
-
-            yp = float(pred_h[feat][ib, k])
-            hp.SetBinContent(ib + 1, yp)
-            hp.SetBinError(ib + 1, 0.0)
-
-        col = colors[k]
-
-        # truth as data with errors
-        ht.SetMarkerStyle(ROOT.kFullCircle)
-        ht.SetMarkerSize(1.0)
-        ht.SetMarkerColor(col)
-        ht.SetLineColor(col)
-        ht.SetLineWidth(1)
-        ht.SetFillStyle(0)
-
-        # pred as solid line, width 2
-        hp.SetLineColor(col)
-        hp.SetLineStyle(ROOT.kSolid)
-        hp.SetLineWidth(2)
-        hp.SetMarkerSize(0)
-
-        h_true_abs.append(ht)
-        h_pred_abs.append(hp)
-        keep.extend([ht, hp])
-
-        legend.AddEntry(ht, nu_tex_from_coords(nu), "lp")
-
-    # TOP PAD
-    padTop.cd()
-    padTop.SetTicks(1, 1)
-    if logY:
-        padTop.SetLogy(True)
-
+    # Top: histograms
     max_y = 0.0
-    for h in h_true_abs + h_pred_abs:
-        max_y = max(max_y, float(h.GetMaximum()))
+    handles = []
+    labels = []
+
+    for k, nu in enumerate(base_points):
+        y = true_h[feat][:, k].astype(np.float64)
+        y2 = true_h2[feat][:, k].astype(np.float64)
+        y_pred = pred_h[feat][:, k].astype(np.float64)
+
+        err = np.sqrt(y2)
+
+        # plot predicted as stepped line
+        # use edges for step plotting
+        step_x = np.concatenate([edges[:-1], edges[-1:]])
+        step_y = np.concatenate([y_pred, y_pred[-1:]])
+        h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+        # plot truth as markers with errorbars at bin centers
+        h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+
+        handles.append(h_line)
+        labels.append(nu_tex_from_coords(nu))
+
+        max_y = max(max_y, np.nanmax(y))
 
     if logY:
-        y_min = 0.3
+        ax_top.set_yscale("log")
+        y_min = max(0.1, 0.3)
         y_max = max(1.0, 1.2 * max_y) if max_y > 0 else 1.0
+        ax_top.set_ylim(y_min, y_max)
     else:
-        y_min = 0.0
-        y_max = 1.2 * max_y if max_y > 0 else 1.0
+        ax_top.set_ylim(0.0, 1.2 * max_y if max_y > 0 else 1.0)
 
-    hframe = ROOT.TH2F(f"hframe_{feat}", "", n_bins, bin_edges_root, 100, y_min, y_max)
-    hframe.SetDirectory(0)
-    hframe.SetTitle("")
-    hframe.GetXaxis().SetTitle(x_title)
-    hframe.GetYaxis().SetTitle("Events")
-    hframe.GetYaxis().SetTitleSize(0.06)
-    hframe.GetYaxis().SetLabelSize(0.045)
-    hframe.GetXaxis().SetLabelSize(0.0)
-    hframe.GetXaxis().SetTitleSize(0.0)
-    hframe.Draw()
-    keep.append(hframe)
+    ax_top.set_ylabel("Events")
+    ax_top.tick_params(labelbottom=False)
 
-    for hp in h_pred_abs:
-        hp.Draw("HIST SAME")
-    for ht in h_true_abs:
-        ht.Draw("E1 SAME")
+    # CMS label area
+    hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
+    # hep.mpl_magic()
 
-    # BOTTOM PAD (ratios to nominal truth)
-    padBottom.cd()
-    padBottom.SetTicks(1, 1)
-
-    h_nom_true = h_true_abs[nom_idx]
-
-    h_true_ratio, h_pred_ratio = [], []
-    for k, nu in enumerate(base_points):
-        rt = h_true_abs[k].Clone(f"h_true_ratio_{feat}_{k}")
-        rt.SetDirectory(0)
-        rt.Divide(h_nom_true)
-        rt.SetMarkerStyle(ROOT.kFullCircle)
-        rt.SetMarkerSize(1.0)
-        rt.SetMarkerColor(colors[k])
-        rt.SetLineColor(colors[k])
-        rt.SetLineWidth(1)
-        rt.SetFillStyle(0)
-
-        rp = h_pred_abs[k].Clone(f"h_pred_ratio_{feat}_{k}")
-        rp.SetDirectory(0)
-        rp.Divide(h_nom_true)
-        for ib in range(1, n_bins + 1):
-            rp.SetBinError(ib, 0.0)
-        rp.SetLineColor(colors[k])
-        rp.SetLineStyle(ROOT.kSolid)
-        rp.SetLineWidth(2)
-        rp.SetMarkerSize(0)
-
-        h_true_ratio.append(rt)
-        h_pred_ratio.append(rp)
-        keep.extend([rt, rp])
-
-    h_ratio_frame = ROOT.TH1F(f"h_ratio_frame_{feat}", "", n_bins, bin_edges_root)
-    h_ratio_frame.SetDirectory(0)
-    h_ratio_frame.SetTitle("")
-    h_ratio_frame.GetYaxis().SetTitle("var / nominal")
-    h_ratio_frame.GetYaxis().SetNdivisions(505)
-    h_ratio_frame.GetYaxis().SetTitleSize(0.09)
-    h_ratio_frame.GetYaxis().SetTitleOffset(0.5)
-    h_ratio_frame.GetYaxis().SetLabelSize(0.08)
-    h_ratio_frame.GetXaxis().SetTitle(x_title)
-    h_ratio_frame.GetXaxis().SetTitleSize(0.10)
-    h_ratio_frame.GetXaxis().SetLabelSize(0.08)
+    # Bottom: ratios to nominal
+    h_nom = true_h[feat][:, nom_idx].astype(np.float64)
+    denom = h_nom.copy()
+    denom[denom == 0] = np.nan
 
     max_dev = 0.0
-    for hr in (h_true_ratio + h_pred_ratio):
-        for ib in range(1, n_bins + 1):
-            val = float(hr.GetBinContent(ib))
-            if val != 0.0 and math.isfinite(val):
-                max_dev = max(max_dev, abs(val - 1.0))
+    for k in range(n_entries):
+        y = true_h[feat][:, k].astype(np.float64)
+        y_pred = pred_h[feat][:, k].astype(np.float64)
+
+        r_true = y / denom
+        r_pred = y_pred / denom
+
+        err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
+        r_err = err / denom
+
+        ax_bot.errorbar(centers, r_true, yerr=r_err, fmt="o", color=colors[k], markersize=4)
+        step_x = np.concatenate([edges[:-1], edges[-1:]])
+        step_y = np.concatenate([r_pred, r_pred[-1:]])
+        ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+        # compute max deviation
+        valid = np.isfinite(r_true)
+        if np.any(valid):
+            max_dev = max(max_dev, np.nanmax(np.abs(r_true[valid] - 1.0)))
+        validp = np.isfinite(r_pred)
+        if np.any(validp):
+            max_dev = max(max_dev, np.nanmax(np.abs(r_pred[validp] - 1.0)))
 
     if max_dev <= 0.0:
         r_min, r_max = 0.9, 1.1
@@ -629,62 +525,49 @@ for feat in plot_feats:
         r_min = 1.0 - half_range
         r_max = 1.0 + half_range
 
-    h_ratio_frame.SetMinimum(r_min)
-    h_ratio_frame.SetMaximum(r_max)
-    h_ratio_frame.Draw("AXIS")
-    keep.append(h_ratio_frame)
+    ax_bot.set_ylim(r_min, r_max)
+    ax_bot.set_ylabel("var / nominal")
+    ax_bot.set_xlabel(x_title)
+    ax_bot.axhline(1.0, color="k", linestyle="--")
 
-    for rp in h_pred_ratio:
-        rp.Draw("HIST SAME")
-    for rt in h_true_ratio:
-        rt.Draw("E1 SAME")
+    # Figure-level legend in the same top area as the mapping line.
+    fig.legend(
+        handles,
+        labels,
+        ncol=n_cols,
+        loc="upper center",
+        bbox_to_anchor=(0.5, main_legend_y),
+        frameon=False,
+        fontsize=18,
+        handlelength=2.0,
+        columnspacing=1.4,
+    )
 
-    line = ROOT.TLine(x_min, 1.0, x_max, 1.0)
-    line.SetLineStyle(ROOT.kDashed)
-    line.SetLineColor(ROOT.kBlack)
-    line.Draw("SAME")
-    keep.append(line)
-
-    # LEGEND PAD: mapping line on top, legend below it
-    padLegend.cd()
-
-    cms_tex = ROOT.TLatex()
-    # cms_tex.SetNDC()
-    cms_tex.SetTextAlign(13)
-    cms_tex.SetTextSize(0.08)
-    cms_tex_label = r"CMS #bf{#it{"
-    cms_rest = r"Simulation Preliminary" if MAKE_PUBLIC_PLOTS else r"Simulation Internal"
-    cms_tex_label += cms_rest
-    cms_tex_label += r"}}"
-    # bold CMS, rest in italic
-    cms_tex.DrawLatex(padLegend.GetLeftMargin(), 0.1, cms_tex_label)
-
-    lumi_tex = ROOT.TLatex()
-    # lumi_tex.SetNDC()
-    lumi_tex.SetTextAlign(13)
-    lumi_tex.SetTextSize(0.08)
-    lumi_tex.DrawLatex(0.81 - padLegend.GetRightMargin(), 0.1, f"{lumi:.1f} fb^{{-1}} (13 TeV)")
-
-
-    # map_tex = ROOT.TLatex()
-    # map_tex.SetNDC()
-    # map_tex.SetTextAlign(13)  # left, top
-    # map_tex.SetTextSize(0.10)  # mapping lines only; pad height varies
-    # map_tex.DrawLatex(0.04, 0.86, legend_mapping_line)
-    # keep.extend([cms_tex, lumi_tex, map_tex])
-    keep.extend([cms_tex, lumi_tex])
-
-    legend.Draw()
-
-    c.cd()
-    c.Update()
+    # Marker/line meaning centered below the basis-point legend.
+    truth_pred_handles = [
+        Line2D([], [], color="black", marker="o", linestyle="None", markersize=8, label="truth"),
+        Line2D([], [], color="black", linestyle="-", linewidth=2, label="prediction"),
+    ]
+    
+    fig.legend(
+        truth_pred_handles,
+        ["truth", "prediction"],
+        ncol=2,
+        loc="lower center",
+        bbox_to_anchor=(0.5, truth_pred_y),
+        frameon=False,
+        fontsize=14,
+        handlelength=2.0,
+        columnspacing=1.8,
+    )
 
     out_png = os.path.join(plot_dir, f"{feat}.png")
     out_pdf = os.path.join(plot_dir, f"{feat}.pdf")
-    c.SaveAs(out_png)
-    c.SaveAs(out_pdf)
+    plt.savefig(out_png, bbox_inches="tight")
+    plt.savefig(out_pdf, bbox_inches="tight")
+    plt.close(fig)
 
-    feature_keep[feat] = keep
+    feature_keep[feat] = True
 
 syncer.sync()
 print("Done.")

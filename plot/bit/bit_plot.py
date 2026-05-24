@@ -43,7 +43,8 @@ from fit.Likelihood import (
 SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
 
 # --small will stop after this many selected events
-SMALL_MAX_EVENTS = 5000
+
+SMALL_MAX_EVENTS = 500000
 
 # nuisance toy sampling
 NUISANCE_N_TOYS = 1000
@@ -106,6 +107,7 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--max_n_tree", default=None, type=int, help="Up to which tree?")
 p.add_argument("--small", action="store_true", help=f"Only use the first {SMALL_MAX_EVENTS} selected events")
+p.add_argument("--truth_only", action="store_true", help="Only plot truth prediction")
 p.add_argument("--uncertainty", action="store_true", help=f"Plot uncertainties?")
 args = p.parse_args()
 
@@ -346,6 +348,10 @@ out_dir = os.path.join(user.plot_directory, "BIT-plot"+("_unc" if args.uncertain
 
 if args.small:
     out_dir = os.path.join(out_dir, "small")
+
+if args.truth_only:
+    out_dir += "_truth_only"
+
 os.makedirs(out_dir, exist_ok=True)
 
 print(f"Output directory: {out_dir}")
@@ -870,7 +876,8 @@ for feat in plot_feats:
         h_pred.SetMarkerStyle(0)
 
         h_truth.Draw("hist same")
-        h_pred.Draw("hist same")
+        if not args.truth_only:
+            h_pred.Draw("hist same")
 
         drawn_objects.extend([h_truth, h_pred])
 
@@ -984,7 +991,8 @@ for der in plot_derivatives:
     dummy_pred.SetLineWidth(3)
 
     legend.AddEntry(dummy_truth, f"truth  {label}", "l")
-    legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
+    if not args.truth_only:
+        legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
 
     legend_objects.extend([dummy_truth, dummy_pred])
 

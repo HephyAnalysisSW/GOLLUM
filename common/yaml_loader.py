@@ -273,19 +273,23 @@ def _apply_defaults_and_checks(cfg: dict):
 
         if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
             continue
+        
+        # removing this will allow e.g. classifiers with BDT
         if jtyp == "classifier" and j.get("framework") != "tfmc":
             continue
 
-        # splitting default (only pnn for now; keep bit/tfmc as comments)
-        # if jtyp in {"pnn", "bit", "tfmc"} and default_splitting is not None:
-        if jtyp in {"pnn", "bit", "dnn_c2st"} and default_splitting is not None:
+        # splitting default
+        if jtyp in {"pnn", "bit", "dnn_c2st", "classifier"} and default_splitting is not None:
             if "splitting" not in j:
                 j["splitting"] = default_splitting
 
         # early stopping default
-        # if jtyp in {"pnn", "bit", "tfmc"} and default_early_stopping is not None:
-        if jtyp in {"pnn"} and default_early_stopping is not None:
-            if "early_stopping" not in j:
+        if jtyp in {"pnn", "classifier"} and default_early_stopping is not None:
+            
+            # classifiers with BDT will be regularized with other mechanisms
+            if jtyp == "classifier" and j.get("framework") != "tfmc":
+                pass
+            elif "early_stopping" not in j:
                 j["early_stopping"] = default_early_stopping
 
         feat_tokens = j.get("features", None)
