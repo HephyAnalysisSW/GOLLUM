@@ -25,6 +25,14 @@ from data.UIDSplitter import UIDSplitter
 from propaganda_plot_options import plot_options as PLOT_OPTS
 import common.syncer as syncer
 import common.helpers as helpers
+
+from fit.Likelihood import (
+    load_likelihood,
+    build_hypothesis_from_likelihood,
+    _predict_classifier,
+    predict_pnn_deltaA,
+)
+
 # --------------------------------------------------------------------------------
 # hard-coded knobs
 # --------------------------------------------------------------------------------
@@ -35,7 +43,14 @@ import common.helpers as helpers
 SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
 
 # --small will stop after this many selected events
-SMALL_MAX_EVENTS = 20000
+
+SMALL_MAX_EVENTS = 500000
+
+# nuisance toy sampling
+NUISANCE_N_TOYS = 1000
+NUISANCE_TOY_RNG_SEED = 42
+NUISANCE_TOY_MEAN = 0.0
+NUISANCE_TOY_SIGMA = 1.0
 
 # More discernible hard-coded colors (Wong/Okabe-Ito style + a few extras)
 COLOR_HEX = [
@@ -92,6 +107,8 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
 p.add_argument("--max_n_tree", default=None, type=int, help="Up to which tree?")
 p.add_argument("--small", action="store_true", help=f"Only use the first {SMALL_MAX_EVENTS} selected events")
+p.add_argument("--truth_only", action="store_true", help="Only plot truth prediction")
+p.add_argument("--uncertainty", action="store_true", help=f"Plot uncertainties?")
 args = p.parse_args()
 
 
@@ -149,10 +166,7 @@ if not hasattr(samples_mod, loader_name):
     raise RuntimeError(f"Loader/view '{loader_name}' not found in module {module_samples}.")
 L = getattr(samples_mod, loader_name)
 
-if args.small:
-    L.set_n_split(100)
-else:
-    L.set_n_split(20)
+L.set_n_split(100)
 
 sel = J.get("selection", None)
 sel_f = J.get("selection_features", [])
@@ -179,6 +193,28 @@ if not plot_feats:
 
 print(f"Plottable features: {plot_feats}")
 
+# --------------------------------------------------------------------------------
+# Uncertainty helpers 
+# --------------------------------------------------------------------------------
+if args.uncertainty:
+    def make_column_mask(all_features, wanted_features):
+        pos = {f: i for i, f in enumerate(all_features)}
+        mask = np.zeros(len(all_features), dtype=bool)
+        for f in wanted_features:
+            mask[pos[f]] = True
+        return mask
+
+    def nuis_to_A_matrix(combinations, nuisance_toys, nuisance_name_to_idx):
+        if not combinations:
+            return np.zeros((nuisance_toys.shape[0], 0), dtype=np.float64)
+
+        out = np.empty((nuisance_toys.shape[0], len(combinations)), dtype=np.float64)
+        for i_comb, comb in enumerate(combinations):
+            v = np.ones(nuisance_toys.shape[0], dtype=np.float64)
+            for p in comb:
+                v *= nuisance_toys[:, nuisance_name_to_idx[p]]
+            out[:, i_comb] = v
+        return out
 
 # --------------------------------------------------------------------------------
 # UID split config
@@ -308,13 +344,125 @@ for der in plot_derivatives:
 # output directory
 # --------------------------------------------------------------------------------
 
-out_dir = os.path.join(user.plot_directory, "BIT-plot", cfg_base, J["id"])
+out_dir = os.path.join(user.plot_directory, "BIT-plot"+("_unc" if args.uncertainty else ""), cfg_base, J["id"])
 
 if args.small:
     out_dir = os.path.join(out_dir, "small")
+
+if args.truth_only:
+    out_dir += "_truth_only"
+
 os.makedirs(out_dir, exist_ok=True)
 
 print(f"Output directory: {out_dir}")
+
+# --------------------------------------------------------------------------------
+# uncertainty setup
+# --------------------------------------------------------------------------------
+
+if args.uncertainty:
+    yaml_loader.load_surrogates(CFG, cfg_path, overwrite=False)
+    uncertainty_like_info = load_likelihood(CFG)
+    uncertainty_hyp = build_hypothesis_from_likelihood(uncertainty_like_info, name=J["region"])
+
+    uncertainty_region = next(r for r in uncertainty_like_info["regions"] if r["id"] == J["region"])
+    uncertainty_classes = list(uncertainty_region.get("classes", []) or [])
+    uncertainty_classifier = (uncertainty_region.get("classifier") or {}).get("predictor", None)
+
+    uncertainty_nuisances = [par for par in uncertainty_hyp.nuisances if not par.isFrozen]
+    uncertainty_nuisance_names = [par.name for par in uncertainty_nuisances]
+    uncertainty_nuisance_name_to_idx = {name: i for i, name in enumerate(uncertainty_nuisance_names)}
+    uncertainty_n_nuisances = len(uncertainty_nuisance_names)
+
+    uncertainty_mean = np.full(uncertainty_n_nuisances, NUISANCE_TOY_MEAN, dtype=np.float64)
+    uncertainty_cov = np.eye(uncertainty_n_nuisances, dtype=np.float64) * (NUISANCE_TOY_SIGMA ** 2)
+
+    np.random.seed(NUISANCE_TOY_RNG_SEED)
+    uncertainty_toys = np.random.multivariate_normal(
+        mean=uncertainty_mean,
+        cov=uncertainty_cov,
+        size=NUISANCE_N_TOYS,
+    )
+
+    if uncertainty_classifier is not None:
+        uncertainty_classifier_column_mask = make_column_mask(feat_names, uncertainty_classifier.feature_names)
+    else:
+        uncertainty_classifier_column_mask = None
+
+    uncertainty_class_infos = []
+    for i_class, C in enumerate(uncertainty_classes):
+        class_info = {
+            "id": C["id"],
+            "index": i_class,
+            "pnn": [],
+            "lnN": [],
+        }
+
+        for S in (C.get("systematics") or []):
+#            if S.get("type") == "pnn":
+#                column_mask = make_column_mask(feat_names, S["predictor"].feature_names)
+#                nuA_toys = nuis_to_A_matrix(
+#                    [tuple(c) for c in (S.get("combinations") or [])],
+#                    uncertainty_toys,
+#                    uncertainty_nuisance_name_to_idx,
+#                )
+#                class_info["pnn"].append({
+#                    "id": S["id"],
+#                    "predictor": S["predictor"],
+#                    "column_mask": column_mask,
+#                    "nuA_toys": nuA_toys,
+#                })
+            # clipping for uncertainty evaluation
+            if S.get("type") == "pnn":
+                pnn_feature_names = list(S["predictor"].feature_names)
+                column_mask = make_column_mask(feat_names, pnn_feature_names)
+
+                clip_low = np.array(
+                    [PLOT_OPTS[name]["binning"][1] for name in pnn_feature_names],
+                    dtype=np.float64,
+                )
+                clip_high = np.array(
+                    [PLOT_OPTS[name]["binning"][2] for name in pnn_feature_names],
+                    dtype=np.float64,
+                )
+
+                nuA_toys = nuis_to_A_matrix(
+                    [tuple(c) for c in (S.get("combinations") or [])],
+                    uncertainty_toys,
+                    uncertainty_nuisance_name_to_idx,
+                )
+
+                class_info["pnn"].append({
+                    "id": S["id"],
+                    "predictor": S["predictor"],
+                    "column_mask": column_mask,
+                    "clip_low": clip_low,
+                    "clip_high": clip_high,
+                    "nuA_toys": nuA_toys,
+                })
+            elif S.get("type") == "lnN":
+                class_info["lnN"].append(
+                    (S["parameters"][0], math.log1p(float(S.get("value", 0.0))))
+                )
+
+        uncertainty_class_infos.append(class_info)
+
+    uncertainty_n_toys = uncertainty_toys.shape[0]
+    print("sampling done")
+
+else:
+    uncertainty_like_info = None
+    uncertainty_hyp = None
+    uncertainty_region = None
+    uncertainty_classes = []
+    uncertainty_classifier = None
+    uncertainty_classifier_column_mask = None
+    uncertainty_nuisances = []
+    uncertainty_nuisance_names = []
+    uncertainty_nuisance_name_to_idx = {}
+    uncertainty_toys = np.empty((0, 0), dtype=np.float64)
+    uncertainty_class_infos = []
+    uncertainty_n_toys = 0
 
 
 # --------------------------------------------------------------------------------
@@ -324,6 +472,7 @@ print(f"Output directory: {out_dir}")
 feature_columns = {f: feat_names.index(f) for f in plot_feats}
 feature_edges = {}
 nominal_hists = {}
+nominal_toy_hists = {}
 truth_num_hists = {}
 pred_num_hists = {}
 
@@ -332,6 +481,7 @@ for feat in plot_feats:
     edges = np.linspace(x_lo, x_hi, n_bins + 1, dtype=np.float64)
     feature_edges[feat] = edges
     nominal_hists[feat] = np.zeros(n_bins, dtype=np.float64)
+    nominal_toy_hists[feat] = np.zeros((n_bins, uncertainty_n_toys), dtype=np.float64)
     truth_num_hists[feat] = {der: np.zeros(n_bins, dtype=np.float64) for der in plot_derivatives}
     pred_num_hists[feat] = {der: np.zeros(n_bins, dtype=np.float64) for der in plot_derivatives}
 
@@ -390,6 +540,43 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
     if len(X) == 0:
         continue
 
+    if args.uncertainty:
+        if uncertainty_classifier is None or len(uncertainty_class_infos) <= 1:
+            uncertainty_g = np.ones((len(X), len(uncertainty_class_infos)), dtype=np.float64)
+        else:
+            uncertainty_g = _predict_classifier(
+                uncertainty_classifier,
+                X[:, uncertainty_classifier_column_mask],
+            )
+
+        uncertainty_T = np.zeros((len(X), uncertainty_n_toys), dtype=np.float64)
+
+        for class_info in uncertainty_class_infos:
+            g_cls = uncertainty_g[:, class_info["index"]].astype(np.float64, copy=False)
+            expo = np.zeros((len(X), uncertainty_n_toys), dtype=np.float64)
+
+            for syst_info in class_info["pnn"]:
+                X_syst = X[:, syst_info["column_mask"]].astype(np.float64, copy=True)
+                np.clip(X_syst, syst_info["clip_low"], syst_info["clip_high"], out=X_syst)
+
+                dA = predict_pnn_deltaA(
+                    syst_info["predictor"],
+                    X_syst,
+                )
+                expo += dA @ syst_info["nuA_toys"].T
+
+            ln_bias = np.zeros(uncertainty_n_toys, dtype=np.float64)
+            for pname, log1p_alpha in class_info["lnN"]:
+                ln_bias += log1p_alpha * uncertainty_toys[:, uncertainty_nuisance_name_to_idx[pname]]
+
+            exp_expo = np.exp(expo + ln_bias.reshape(1, -1))
+            uncertainty_T += g_cls.reshape(-1, 1) * (exp_expo - 1.0)
+
+        uncertainty_R = 1.0 + uncertainty_T
+
+    else:
+        uncertainty_R = np.empty((len(X), 0), dtype=np.float64)
+
     Q = G[:, i_Q].astype(np.float32, copy=False)
     x1 = G[:, i_x1].astype(np.float32, copy=False)
     x2 = G[:, i_x2].astype(np.float32, copy=False)
@@ -401,6 +588,92 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
 
     nominal_w = deriv_w[:, nominal_idx]
 
+    if uncertainty_R.shape[1] > 0:
+        toy_weights = nominal_w.reshape(-1, 1) * uncertainty_R
+
+        bad_mask = (~np.isfinite(toy_weights)) | (np.abs(toy_weights) > 1e4)
+        if np.any(bad_mask):
+            bad_idx = np.argwhere(bad_mask)
+            print("outlier toy weights:")
+            for i_evt, i_toy in bad_idx[:10]:
+                feat_str = ", ".join(
+                    f"{name}={X[i_evt, i_feat]:.6e}"
+                    for i_feat, name in enumerate(feat_names)
+                )
+
+                print(
+                    f"  shard={shard} evt={i_evt} toy={i_toy} "
+                    f"w0={nominal_w[i_evt]:.6e} "
+                    f"R={uncertainty_R[i_evt, i_toy]:.6e} "
+                    f"w={toy_weights[i_evt, i_toy]:.6e}"
+                )
+                print(f"    features: {feat_str}")
+
+                for class_info in uncertainty_class_infos:
+                    g_val = uncertainty_g[i_evt, class_info["index"]]
+
+                    ln_bias_terms = []
+                    ln_bias_val = 0.0
+                    for pname, log1p_alpha in class_info["lnN"]:
+                        term = log1p_alpha * uncertainty_toys[i_toy, uncertainty_nuisance_name_to_idx[pname]]
+                        ln_bias_terms.append((pname, term))
+                        ln_bias_val += term
+
+                    syst_terms = []
+                    expo_val = 0.0
+                    for syst_info in class_info["pnn"]:
+                        X_evt_raw = X[i_evt:i_evt+1, syst_info["column_mask"]].astype(np.float64, copy=True)
+                        X_evt = X_evt_raw.copy()
+                        np.clip(X_evt, syst_info["clip_low"], syst_info["clip_high"], out=X_evt)
+
+                        dA_evt = predict_pnn_deltaA(
+                            syst_info["predictor"],
+                            X_evt,
+                        )[0]
+                        nuA_toy = syst_info["nuA_toys"][i_toy]
+                        term = float(np.dot(dA_evt, nuA_toy))
+                        syst_terms.append((syst_info["id"], term))
+                        expo_val += term
+
+                        if np.any(X_evt != X_evt_raw):
+                            used_names = list(syst_info["predictor"].feature_names)
+                            raw_str = ", ".join(
+                                f"{name}={X_evt_raw[0, j]:.6e}"
+                                for j, name in enumerate(used_names)
+                            )
+                            clip_str = ", ".join(
+                                f"{name}={X_evt[0, j]:.6e}"
+                                for j, name in enumerate(used_names)
+                            )
+                            print(f"      syst {syst_info['id']} input clipped")
+                            print(f"        raw : {raw_str}")
+                            print(f"        clip: {clip_str}")
+
+                    arg_val = expo_val + ln_bias_val
+                    exp_val = np.exp(arg_val) if np.isfinite(arg_val) else np.nan
+                    class_contribution = g_val * (exp_val - 1.0) if np.isfinite(exp_val) else np.nan
+
+                    print(
+                        f"    class={class_info['id']} "
+                        f"g={g_val:.6e} "
+                        f"expo={expo_val:.6e} "
+                        f"ln_bias={ln_bias_val:.6e} "
+                        f"arg={arg_val:.6e} "
+                        f"exp(arg)={exp_val:.6e} "
+                        f"class_term={class_contribution:.6e}"
+                    )
+
+                    syst_terms = sorted(syst_terms, key=lambda x: abs(x[1]), reverse=True)
+                    for sid, term in syst_terms[:5]:
+                        print(f"      syst {sid}: {term:.6e}")
+
+                    ln_bias_terms = sorted(ln_bias_terms, key=lambda x: abs(x[1]), reverse=True)
+                    for pname, term in ln_bias_terms[:5]:
+                        print(f"      lnN  {pname}: {term:.6e}")
+    else:
+        toy_weights = np.empty((len(X), 0), dtype=np.float64)
+
+    pred = np.asarray(bit.predict(X, max_n_tree=n_loaded_trees))
     if args.max_n_tree is not None:
         max_n_tree = args.max_n_tree
     else:
@@ -415,6 +688,14 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
         edges = feature_edges[feat]
 
         nominal_hists[feat] += np.histogram(xvals, bins=edges, weights=nominal_w)[0]
+
+        if toy_weights.shape[1] > 0:
+            for i_toy in range(uncertainty_n_toys):
+                nominal_toy_hists[feat][:, i_toy] += np.histogram(
+                    xvals,
+                    bins=edges,
+                    weights=toy_weights[:, i_toy],
+                )[0]
 
         for der in plot_derivatives:
             truth_col = combo_to_idx[der]
@@ -445,6 +726,10 @@ print(f"Processed {selected_events} selected events")
 # plots: one feature per canvas
 # --------------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------------
+# plots: one feature per canvas
+# --------------------------------------------------------------------------------
+
 for feat in plot_feats:
     edges = feature_edges[feat]
     n_bins = len(edges) - 1
@@ -453,6 +738,15 @@ for feat in plot_feats:
     x_title = PLOT_OPTS[feat]["tex"]
 
     nominal = nominal_hists[feat]
+    nominal_toys = nominal_toy_hists[feat]
+    have_uncertainty = nominal_toys.shape[1] > 0
+
+    if have_uncertainty:
+        nominal_q_low = np.quantile(nominal_toys, 0.16, axis=1)
+        nominal_q_high = np.quantile(nominal_toys, 0.84, axis=1)
+    else:
+        nominal_q_low = None
+        nominal_q_high = None
 
     coeff_truth = {}
     coeff_pred = {}
@@ -491,10 +785,6 @@ for feat in plot_feats:
         right_min -= 0.5 * width
         right_max += 0.5 * width
 
-    #right_pad = 0.18 * (right_max - right_min)
-    #right_min -= right_pad
-    #right_max += right_pad
-
     right_pad_lo = 0.18 * (right_max - right_min)
     right_pad_hi = 0.28 * (right_max - right_min)
     right_min -= right_pad_lo
@@ -503,9 +793,14 @@ for feat in plot_feats:
     left_max = float(np.max(nominal)) if len(nominal) else 0.0
     if left_max <= 0.0:
         left_max = 1.0
-
-    #left_max *= 1.25
     left_max *= 1.35
+
+    #left_max = float(np.max(nominal)) if len(nominal) else 0.0
+    #if have_uncertainty:
+    #    left_max = max(left_max, float(np.max(nominal_q_high)))
+    #if left_max <= 0.0:
+    #    left_max = 1.0
+    #left_max *= 1.35
 
     canvas = ROOT.TCanvas(f"c_{feat}", feat, 900, 700)
     canvas.SetLeftMargin(0.13)
@@ -527,13 +822,39 @@ for feat in plot_feats:
     frame.Draw("axis")
     frame.GetYaxis().SetTicks("-")
 
+    drawn_objects = [frame]
+
+    if have_uncertainty:
+        uncertainty_boxes = []
+        for i_bin in range(n_bins):
+            box = ROOT.TBox(
+                float(edges[i_bin]),
+                float(nominal_q_low[i_bin]),
+                float(edges[i_bin + 1]),
+                float(nominal_q_high[i_bin]),
+            )
+            box.SetLineWidth(0)
+            box.SetLineColor(0)
+            box.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
+            uncertainty_boxes.append(box)
+
+        for box in uncertainty_boxes:
+            box.Draw("same")
+
+        drawn_objects.extend(uncertainty_boxes)
+
     h_nominal = make_root_hist(f"h_nominal_{feat}", "", edges, nominal)
     h_nominal.SetLineColor(ROOT.kGray + 2)
     h_nominal.SetLineWidth(2)
-    h_nominal.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
-    h_nominal.Draw("hist same")
 
-    drawn_objects = [frame, h_nominal]
+    if have_uncertainty:
+        h_nominal.SetFillStyle(0)
+        h_nominal.SetFillColor(0)
+    else:
+        h_nominal.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
+
+    h_nominal.Draw("hist same")
+    drawn_objects.append(h_nominal)
 
     for der in plot_derivatives:
         y_truth_left = map_right_to_left(coeff_truth[der], right_min, right_max, left_max)
@@ -555,7 +876,8 @@ for feat in plot_feats:
         h_pred.SetMarkerStyle(0)
 
         h_truth.Draw("hist same")
-        h_pred.Draw("hist same")
+        if not args.truth_only:
+            h_pred.Draw("hist same")
 
         drawn_objects.extend([h_truth, h_pred])
 
@@ -571,11 +893,19 @@ for feat in plot_feats:
 
     drawn_objects.append(right_axis)
 
+    if args.max_n_tree is not None:
+        latex = ROOT.TLatex()
+        latex.SetNDC(True)
+        latex.SetTextAlign(31)
+        latex.SetTextSize(0.040)
+        latex.DrawLatex(1.0 - canvas.GetRightMargin(), 1.0 - 0.65 * canvas.GetTopMargin(), f"B={args.max_n_tree}")
+        drawn_objects.append(latex)
+
     canvas.RedrawAxis()
     canvas.Modified()
     canvas.Update()
 
-    postfix = "" if args.max_n_tree is None else + f"_{args.max_n_tree}"
+    postfix = "" if args.max_n_tree is None else f"_{args.max_n_tree:03d}"
     file_stub = os.path.join(out_dir, feat+postfix)
     canvas.SaveAs(file_stub + ".png")
     canvas.SaveAs(file_stub + ".pdf")
@@ -601,7 +931,12 @@ legend_frame.GetXaxis().SetTickLength(0.0)
 legend_frame.GetYaxis().SetTickLength(0.0)
 legend_frame.Draw("axis")
 
-legend_entries = 1 + 2 * len(plot_derivatives)
+legend_entries = 2 * len(plot_derivatives)
+if uncertainty_n_toys > 0:
+    legend_entries += 2
+else:
+    legend_entries += 1
+
 if legend_entries > 30:
     n_cols = 4
 elif legend_entries > 18:
@@ -622,9 +957,23 @@ legend_objects = [legend_frame, legend]
 dummy_nominal = ROOT.TH1D("dummy_nominal", "", 1, 0.0, 1.0)
 dummy_nominal.SetLineColor(ROOT.kGray + 2)
 dummy_nominal.SetLineWidth(2)
-dummy_nominal.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
-legend.AddEntry(dummy_nominal, "SM distribution", "lf")
-legend_objects.append(dummy_nominal)
+
+if uncertainty_n_toys > 0:
+    dummy_nominal.SetFillStyle(0)
+    dummy_nominal.SetFillColor(0)
+    legend.AddEntry(dummy_nominal, "SM nominal", "l")
+
+    dummy_unc = ROOT.TH1D("dummy_unc", "", 1, 0.0, 1.0)
+    dummy_unc.SetLineWidth(0)
+    dummy_unc.SetLineColor(0)
+    dummy_unc.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
+    legend.AddEntry(dummy_unc, "68% nuisance interval", "f")
+    legend_objects.extend([dummy_nominal, dummy_unc])
+
+else:
+    dummy_nominal.SetFillColorAlpha(ROOT.kGray + 1, 0.35)
+    legend.AddEntry(dummy_nominal, "SM distribution", "lf")
+    legend_objects.append(dummy_nominal)
 
 for der in plot_derivatives:
     label = derivative_label(der)
@@ -642,7 +991,8 @@ for der in plot_derivatives:
     dummy_pred.SetLineWidth(3)
 
     legend.AddEntry(dummy_truth, f"truth  {label}", "l")
-    legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
+    if not args.truth_only:
+        legend.AddEntry(dummy_pred,  f"BIT  {label}",   "l")
 
     legend_objects.extend([dummy_truth, dummy_pred])
 
