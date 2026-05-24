@@ -43,6 +43,7 @@ from fit.Likelihood import (
 SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
 
 # --small will stop after this many selected events
+
 SMALL_MAX_EVENTS = 500000
 
 # nuisance toy sampling
@@ -104,6 +105,7 @@ def map_right_to_left(values, right_min, right_max, left_max):
 p = argparse.ArgumentParser(description="BIT plotting from a trained model (YAML-driven)")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
+p.add_argument("--max_n_tree", default=None, type=int, help="Up to which tree?")
 p.add_argument("--small", action="store_true", help=f"Only use the first {SMALL_MAX_EVENTS} selected events")
 p.add_argument("--truth_only", action="store_true", help="Only plot truth prediction")
 p.add_argument("--uncertainty", action="store_true", help=f"Plot uncertainties?")
@@ -672,6 +674,12 @@ for shard in tqdm(range(n_shards), desc="Shards", unit="shard"):
         toy_weights = np.empty((len(X), 0), dtype=np.float64)
 
     pred = np.asarray(bit.predict(X, max_n_tree=n_loaded_trees))
+    if args.max_n_tree is not None:
+        max_n_tree = args.max_n_tree
+    else:
+        max_n_tree = n_loaded_trees
+
+    pred = np.asarray(bit.predict(X, max_n_tree=max_n_tree))
     if pred.ndim == 1:
         pred = pred.reshape(-1, 1)
 
@@ -885,11 +893,20 @@ for feat in plot_feats:
 
     drawn_objects.append(right_axis)
 
+    if args.max_n_tree is not None:
+        latex = ROOT.TLatex()
+        latex.SetNDC(True)
+        latex.SetTextAlign(31)
+        latex.SetTextSize(0.040)
+        latex.DrawLatex(1.0 - canvas.GetRightMargin(), 1.0 - 0.65 * canvas.GetTopMargin(), f"B={args.max_n_tree}")
+        drawn_objects.append(latex)
+
     canvas.RedrawAxis()
     canvas.Modified()
     canvas.Update()
 
-    file_stub = os.path.join(out_dir, feat)
+    postfix = "" if args.max_n_tree is None else f"_{args.max_n_tree:03d}"
+    file_stub = os.path.join(out_dir, feat+postfix)
     canvas.SaveAs(file_stub + ".png")
     canvas.SaveAs(file_stub + ".pdf")
     canvas.Close()

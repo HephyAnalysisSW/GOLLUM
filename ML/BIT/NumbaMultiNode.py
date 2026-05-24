@@ -296,7 +296,10 @@ class MultiNode:
 
             # precoumputed base_point_const
             self.base_points      = kwargs['base_points']
-            self.base_point_const = np.array([[ functools.reduce(operator.mul, [point[coeff] if (coeff in point) else 0 for coeff in der ], 1) for der in self.derivatives] for point in self.base_points]).astype('float')
+            self.base_point_const = np.array(
+                [[functools.reduce(operator.mul, [point[coeff] if (coeff in point) else 0 for coeff in der], 1) for der in self.derivatives] for point in self.base_points],
+                dtype=np.float32,
+            )
             for i_der, der in enumerate(self.derivatives):
                 if not (len(der)==2 and der[0]==der[1]): continue
                 for i_point in range(len(self.base_points)):
@@ -306,7 +309,7 @@ class MultiNode:
                    "Base points not linearly independent! Found rank %i for %i base_points" %( np.linalg.matrix_rank(self.base_point_const), self.base_point_const.shape[0])
 
             # make another version of base_point_const that contains the [1,0,0,...] vector -> used for testing positivity of the zeroth coefficient
-            const = np.zeros((1,len(self.derivatives)))
+            const = np.zeros((1, len(self.derivatives)), dtype=np.float32)
             const[0,0]=1
             self.base_point_const_for_pos = np.concatenate((const, self.base_point_const))
 
@@ -315,7 +318,7 @@ class MultiNode:
             self.cfg['derivatives'] = self.derivatives 
             self.cfg['feature_names'] = None if not ('feature_names' in kwargs) else kwargs['feature_names'] 
             self.feature_names      = self.cfg['feature_names']
-            self.training_weights   = np.array([training_weights[der] for der in self.derivatives]).transpose().astype('float')
+            self.training_weights   = np.array([training_weights[der] for der in self.derivatives], dtype=np.float32).transpose()
         # inside tree -> we need not re-compute the base-point consts, we copy them
         else:
             self.training_weights           = training_weights
@@ -356,11 +359,11 @@ class MultiNode:
             left_child.append(-1)
             right_child.append(-1)
             is_leaf.append(0)
-            leaf_value.append(np.zeros(len(self.derivatives), dtype=np.float64))
+            leaf_value.append(np.zeros(len(self.derivatives), dtype=np.float32))
 
             if isinstance(node, ResultNode):
                 is_leaf[node_id] = 1
-                leaf_value[node_id] = np.asarray(node.coefficient_sum, dtype=np.float64)
+                leaf_value[node_id] = np.asarray(node.coefficient_sum, dtype=np.float32)
             else:
                 split_feature[node_id] = int(node.split_i_feature)
                 split_value[node_id] = float(node.split_value)
@@ -370,11 +373,11 @@ class MultiNode:
 
         visit(self)
         self._predict_split_feature = np.asarray(split_feature, dtype=np.int32)
-        self._predict_split_value = np.asarray(split_value, dtype=np.float64)
+        self._predict_split_value = np.asarray(split_value, dtype=np.float32)
         self._predict_left_child = np.asarray(left_child, dtype=np.int32)
         self._predict_right_child = np.asarray(right_child, dtype=np.int32)
         self._predict_is_leaf = np.asarray(is_leaf, dtype=np.int8)
-        self._predict_leaf_value = np.asarray(leaf_value, dtype=np.float64)
+        self._predict_leaf_value = np.asarray(leaf_value, dtype=np.float32)
 
     def _ensure_prediction_state(self):
         if not hasattr(self, "_predict_split_feature"):
@@ -841,10 +844,10 @@ class MultiNode:
         N = len(feature_matrix)
         D = len(self.derivatives)
         if N == 0:
-            return np.zeros((0, D), dtype=np.float64)
+            return np.zeros((0, D), dtype=np.float32)
 
         if not NUMBA_AVAILABLE:
-            predictions = np.zeros((N, D), dtype=np.float64)
+            predictions = np.zeros((N, D), dtype=np.float32)
             stack = [(self, np.arange(N, dtype=np.intp))]
             while stack:
                 node, indices = stack.pop()
@@ -861,7 +864,7 @@ class MultiNode:
             return predictions
 
         self._ensure_prediction_state()
-        predictions = np.empty((N, D), dtype=np.float64)
+        predictions = np.empty((N, D), dtype=np.float32)
         kernel = _predict_tree_numba_parallel if N >= 4096 else _predict_tree_numba
         kernel(
             np.asarray(feature_matrix),
