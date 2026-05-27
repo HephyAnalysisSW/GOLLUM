@@ -731,4 +731,16 @@ subprocess.run(
     check=False,
 )
 
+# this will redo the dataloader materializing, which in theory is unnecessary to have in this script
+# given that it is not so heavy, we keep it here for now
+subprocess.run(
+    ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"]],
+    cwd="/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM",
+    check=False,
+)
 
+subprocess.run(
+    ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"], "--norm_plot"],
+    cwd="/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM",
+    check=False,
+)
