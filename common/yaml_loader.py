@@ -93,6 +93,85 @@ def load_yaml(path: str):
     _apply_defaults_and_checks(cfg)   # <<< NEW
     return cfg
 
+"""
+takes in list of loaded configurations and combines them, performing some sanity checks before
+NB: this function can be called before or after load_surrogates
+"""
+
+def combine_configs(list_configs: List[str]):
+
+    combined_cfg = {}
+    for i_cfg, cfg in enumerate(list_configs):
+
+        if i_cfg == 0:
+            combined_cfg = cfg
+        else:
+
+            if cfg["version"] != combined_cfg['version']:
+                """
+                    This is done such that load_surrogates does not need to be changed.
+
+                    In any case, the config version should not need to define the era,
+                    as the models are already stored via region, which does have the era.
+
+                    Currently (28/5) simlinking the region folders inside a single version folder.
+                
+                """
+                raise ValueError("Version of all the configs should be the same.")
+            
+            if cfg["defaults"] != combined_cfg['defaults']:
+                """
+                    Same as above but for defaults, such that the code in Likelihood.py that depends
+                    on the defaults field is consistent.
+                """
+                raise ValueError("Defaults of all the configs should be the same.")
+            
+            # failing on duplicate regions
+            if "regions" in cfg["likelihood"]:
+                if "regions" in combined_cfg["likelihood"]: 
+                    
+                    current_unbinned_rids = set(region["id"] for region in combined_cfg["likelihood"]["regions"])
+                    new_unbinned_rids = set(region["id"] for region in cfg["likelihood"].get("regions",{}))
+                    duplicate_unbinned_rids = current_unbinned_rids & new_unbinned_rids
+                
+                    if duplicate_unbinned_rids != set():
+                        raise ValueError(f"Unbinned regions {duplicate_unbinned_rids} are duplicated !")
+                    
+                    combined_cfg["likelihood"]["regions"].extend(cfg["likelihood"]["regions"])
+                
+                else:
+                    combine_configs["likelihood"]["regions"] = cfg["likelihood"]["regions"]
+
+            if "binned" in cfg["likelihood"]:
+                if "binned" in combined_cfg["likelihood"]: 
+
+                    current_binned_rids = set(region["id"] for region in combined_cfg["likelihood"]["binned"])
+                    new_binned_rids = set(region["id"] for region in cfg["likelihood"]["binned"])
+                    duplicate_binned_rids = current_binned_rids & new_binned_rids
+                    
+                    if duplicate_binned_rids != set():
+                        raise ValueError(f"Binned regions {duplicate_binned_rids} are duplicated !")
+            
+                    combined_cfg["likelihood"]["binned"].extend(cfg["likelihood"]["binned"])
+                
+                else:
+
+                    combined_cfg["likelihood"]["binned"] = cfg["likelihood"]["binned"]
+
+            # will always assume all configs have jobs, as the exception is extremely rare
+            # e.g. a config where the regions just have normalization uncertainties
+
+            current_job_ids = set(job["id"] for job in combined_cfg["jobs"])
+            new_job_ids = set(job["id"] for job in cfg["jobs"])
+            duplicate_job_ids = current_job_ids & new_job_ids
+            if duplicate_job_ids != set():
+                raise ValueError(f"Job IDs {duplicate_job_ids} are duplicated.")
+            
+            combined_cfg["jobs"].extend(cfg["jobs"])
+
+    return combined_cfg   
+
+
 # --- feature resolution (NEW) ---------------------------------------------
 def _resolve_features_list(tokens: Iterable[str], module_samples: str | None = None) -> List[str]:
     """
@@ -753,8 +832,27 @@ def load_surrogates(cfg, config_path, overwrite=False):
 
 # --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
-    import sys
-    root = sys.argv[1]
-    cfg = load_yaml(root)
-    print_summary(cfg, root, _INCLUDE_TRACE)
-    load_surrogates(cfg, root, overwrite=False)
+
+    import argparse
+    p = argparse.ArgumentParser(description="YAML config loader files. Runs simple set of tests for testing.")
+    p.add_argument("configs", nargs="+",help="Path to one or more global YAML configs")
+
+    args = p.parse_args()
+
+    from pprint import pprint
+
+    list_configs = []
+
+    print(f"[yaml_loader: test] {len(args.configs)=}")
+    for config_path in args.configs:
+        aux_cfg = load_yaml(config_path)
+        print_summary(aux_cfg, config_path, _INCLUDE_TRACE)
+        load_surrogates(aux_cfg, config_path, overwrite=False)
+        pprint(f"individual config from path {config_path}: {aux_cfg}")
+
+        list_configs.append(aux_cfg)
+    
+    cfg = combine_configs(list_configs)
+
+    pprint(f"combined config: {cfg}")
+

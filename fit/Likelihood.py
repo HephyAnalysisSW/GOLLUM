@@ -52,6 +52,7 @@ def load_likelihood(cfg):
         'binned':    [... enriched binned regions ...],     # may be empty
         'pois':      sorted list of POI names,
         'nuisances': sorted list of nuisance names
+        'floating': sorted list of floating nuisance parameter names
       }
 
     The function mutates the region dictionaries to include predictor hooks:
@@ -75,7 +76,7 @@ def load_likelihood(cfg):
 
     all_pois = set()
     all_nuis = set()
-    floating = []
+    floating = set()
     # convenience cache of jobs by id
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
 
@@ -157,19 +158,19 @@ def load_likelihood(cfg):
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
                 else:
                     # future unbinned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
     # -----------------------
     # Binned regions (ICH/ICPH)
@@ -224,19 +225,19 @@ def load_likelihood(cfg):
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
                 else:
                     # future binned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
     # Binning consistency check across regions:
     for R in binned:
@@ -278,9 +279,10 @@ def load_likelihood(cfg):
     # Keep deterministic order
     pois_list = sorted(all_pois)
     nuis_list = sorted(all_nuis)
+    floating_list = sorted(floating)
 
     # Return both sections enriched
-    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list, 'floating':floating}
+    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list, 'floating': floating_list}
 
 def build_hypothesis_from_likelihood(like_info, *, name=None,
                                      poi_init=0.0, nuis_init=0.0,
@@ -294,6 +296,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     """
     pois = like_info.get('pois', []) or []
     nuis = like_info.get('nuisances', []) or []
+    floating = like_info.get('floating', []) or []
 
     params = []
     for nm in pois:
@@ -302,7 +305,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     for nm in nuis:
         params.append(ModelParameter(
             name=nm, val=nuis_init, isPOI=False,
-            isPenalized=bool(nm not in like_info["floating"])
+            isPenalized=bool(nm not in floating)
         ))
     return Hypothesis(parameters=params, name=name or "from_yaml")
 
@@ -1942,13 +1945,12 @@ def pretty_par_name(name: str) -> str:
     # replacements
     return name.replace("res_j", "JER").replace("scale_j_Regrouped", "JES")
 
-def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, suffix=""):
+def plot_fit_summary_root(out_dir, base, rotated, hyp, fit_vals, fit_errs, suffix=""):
     import ROOT
 
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptStat(0)
 
-    base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
     nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
     names = pois + nuis
@@ -2060,7 +2062,7 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_fit_summary.png"))
     c.Close()
 
-def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
+def plot_correlation_root(out_dir, base, rotated, names, corr, suffix=""):
     import ROOT
 
     ROOT.gROOT.SetBatch(True)
@@ -2070,7 +2072,6 @@ def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
     except Exception:
         pass
 
-    base = os.path.splitext(os.path.basename(cfg_path))[0]
     n = len(names)
     if n == 0:
         return
@@ -2121,7 +2122,8 @@ if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="Likelihood fit")
-    p.add_argument("config", help="Path to global YAML config")
+    p.add_argument("configs", nargs="+",help="Path to one or more global YAML configs")
+    p.add_argument("--base", help="Base name for fit result and cache directories")
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
                    help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
@@ -2141,9 +2143,17 @@ if __name__ == "__main__":
 
     import common.yaml_loader as yaml_loader
 
-    cfg = yaml_loader.load_yaml(args.config)
-    yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
+    # doing it this way, since print_summary and load_surrogates
+    # use the path of the configs to give info to the user
+    list_configs = []
+    for config_path in args.configs:
+        aux_cfg = yaml_loader.load_yaml(config_path)
+        yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+        yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
+
+        list_configs.append(aux_cfg)
+    
+    cfg = yaml_loader.combine_configs(list_configs)
 
     like_info = load_likelihood(cfg)
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
@@ -2203,8 +2213,17 @@ if __name__ == "__main__":
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
     import common.user as user
+    
+    # base from mangling together configs or given my user
+    base_list = []
+    for config_path in args.configs:
+        base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+    
+    base = "_".join(base_list) 
+    
+    if args.base:
+        base = args.base
 
-    base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
     if args.freezePOI is not None and (args.syst_only == False):
@@ -2493,7 +2512,7 @@ if __name__ == "__main__":
 
     plot_fit_summary_root(
         plot_dir,
-        args.config,
+        base,
         rotated=rotated,
         hyp=hyp_for_fit,
         fit_vals=fit_vals,
@@ -2503,7 +2522,7 @@ if __name__ == "__main__":
 
     plot_correlation_root(
         plot_dir,
-        args.config,
+        base,
         rotated=rotated,
         names=names,
         corr=fit["correlation"]["matrix"],
