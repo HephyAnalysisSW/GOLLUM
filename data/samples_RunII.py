@@ -107,6 +107,13 @@ delphes_OBSERVERS = ["Generator_x1", "Generator_x2", "Generator_id1", "Generator
 tt2l_delphes = RDataLoader( 
         input_paths=[ 
             str(DELPHES_TT2L_DIRECTORY),
+            #"/scratch/rschoefbeck/TTLep_pow_selected/",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_0.root",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_1.root",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_2.root",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_3.root",
+            #"/scratch-cbe/users/robert.schoefbeck/TT2lUnbinned/nanoTuples/delphes/v1/TTLep_pow_selected/TTLep_pow_4.root",
             ],
     tree_name="Events",
     branches=(

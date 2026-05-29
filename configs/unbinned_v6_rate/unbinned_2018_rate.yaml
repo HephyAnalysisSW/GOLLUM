@@ -879,13 +879,13 @@ jobs:
     base_points:
       - coords: [-1.0]
         loader: TTLep_pow_2018
-        addweights: ["shower_isr0p5_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr0p5"]
       - coords: [0]
         loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
         loader: TTLep_pow_2018
-        addweights: ["shower_isr2p0_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr2p0"]
  
     train_ratio: true
     output:
@@ -899,13 +899,13 @@ jobs:
     base_points:
       - coords: [-1.0]
         loader: TTLep_pow_2018
-        addweights: ["shower_isr0p5_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr0p5"]
       - coords: [0]
         loader: TTLep_pow_2018
         nominal: true
       - coords: [1.0]
         loader: TTLep_pow_2018
-        addweights: ["shower_isr2p0_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr2p0"]
  
     model:
       hidden_layers:
