@@ -28,6 +28,8 @@ DY_GEN_FEATURES = [
     "cs_born_phi",
     "truth_quark_direction",
     "truth_flavour_label",
+    "gen_id1",
+    "gen_id2",
     "gen_x1",
     "gen_x2",
     "gen_scalePDF",
