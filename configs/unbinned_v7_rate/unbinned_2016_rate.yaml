@@ -36,8 +36,8 @@ likelihood:
           classifier:
             # does this make sense as "type"? shouldn't it be "framework" to match what's in the job ?
             type: tfmc
-            job: tfmc_2016
-            asimov: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016]
+            job: tfmc_2016_DY_LO
+            asimov: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
           classes: 
             - id: TTLep_pow_2016
               sample: TTLep_pow_2016
@@ -194,7 +194,7 @@ likelihood:
               systematics:
                 - id: nu_norm_SingleTop
                   type: lnN
-                  value: 0.05
+                  value: 0.08
                   parameters: [nu_norm_SingleTop]
                 - id: Lumi_1516
                   type: lnN
@@ -207,13 +207,14 @@ likelihood:
                 - id: Lumi_15161718
                   type: lnN
                   value: 0.0035              
-                  parameters: [nu_lumi_15161718]                                                
-            - id: DrellYan_2016
-              sample: DrellYan_2016
+                  parameters: [nu_lumi_15161718]
+
+            - id: DrellYan_LO_HTbinned_2016
+              sample: DrellYan_LO_HTbinned_2016
               systematics:
                 - id: nu_norm_DrellYan
                   type: lnN
-                  value: 0.05
+                  value: 0.06 
                   parameters: [nu_norm_DrellYan]
                 - id: Lumi_1516
                   type: lnN
@@ -226,8 +227,27 @@ likelihood:
                 - id: Lumi_15161718
                   type: lnN
                   value: 0.0035              
-                  parameters: [nu_lumi_15161718]  
+                  parameters: [nu_lumi_15161718]
 
+            - id: TTSemi_pow_2016
+              sample: TTSemi_pow_2016
+              systematics:
+                - id: nu_norm_TTSemi
+                  type: lnN
+                  value: 0.13 
+                  parameters: [nu_norm_TTSemi]
+                - id: Lumi_1516
+                  type: lnN
+                  value: 0.0118
+                  parameters: [nu_lumi_1516]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718] 
 
 jobs:
 
@@ -2224,3 +2244,122 @@ jobs:
       use_scaler: scaler_TTLep_pow_2016
       use_icp: icp_TTLep_pow_2016_Uncl
   
+  - id: icp_SingleTop_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_SingleTop_2016_scales.pkl
+
+  - id: icp_DY_LO_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_DY_LO_2016_scales.pkl
+
+  - id: icp_TTSemi_pow_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_TTSemi_pow_2016_scales.pkl

@@ -34,9 +34,9 @@ likelihood:
             id: Data_2017
             sample: Data_2017         
           classifier:
-            type: null
-            id: null    # no classifier needed for a single process
-            asimov: [TTLep_pow_2017]
+            type: tfmc
+            job: tfmc_2017_DY_LO
+            asimov: [TTLep_pow_2017, SingleTop_2017, DrellYan_LO_HTbinned_2017, TTSemi_pow_2017]
           classes: 
             - id: TTLep_pow_2017
               sample: TTLep_pow_2017
@@ -183,6 +183,54 @@ likelihood:
                   type: pnn
                   job: pnn_TTLep_pow_2017_Uncl
                   parameters: [nu_Uncl]
+
+            - id: SingleTop_2017
+              sample: SingleTop_2017
+              systematics:
+                - id: nu_norm_SingleTop
+                  type: lnN
+                  value: 0.08
+                  parameters: [nu_norm_SingleTop]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718]
+
+            - id: DrellYan_LO_HTbinned_2017
+              sample: DrellYan_LO_HTbinned_2017
+              systematics:
+                - id: nu_norm_DrellYan
+                  type: lnN
+                  value: 0.06 
+                  parameters: [nu_norm_DrellYan]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718]
+
+            - id: TTSemi_pow_2017
+              sample: TTSemi_pow_2017
+              systematics:
+                - id: nu_norm_TTSemi
+                  type: lnN
+                  value: 0.13 
+                  parameters: [nu_norm_TTSemi]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718]
 
 jobs:
 
@@ -2004,3 +2052,122 @@ jobs:
       use_scaler: scaler_TTLep_pow_2017
       use_icp: icp_TTLep_pow_2017_Uncl
   
+  - id: icp_SingleTop_2017_scales
+    type: icp
+    region: SR_2017
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: SingleTop_2017
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_SingleTop_2017_scales.pkl
+
+  - id: icp_DY_LO_2017_scales
+    type: icp
+    region: SR_2017
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2017
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_DY_LO_2017_scales.pkl
+
+  - id: icp_TTSemi_pow_2017_scales
+    type: icp
+    region: SR_2017
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: TTSemi_pow_2017
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_TTSemi_pow_2017_scales.pkl

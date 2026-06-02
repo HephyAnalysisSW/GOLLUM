@@ -271,3 +271,7 @@ if icp is None or args.overwrite:
 
 print(icp)
 
+for bp in base_points:
+    print(f"{bp=}, rel_deviation (%): {1-icp.predict(bp):.3f}" )
+
+
