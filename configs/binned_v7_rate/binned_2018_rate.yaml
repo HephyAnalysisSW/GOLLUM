@@ -164,14 +164,6 @@ likelihood:
                   type: lnN
                   value: 0.08
                   parameters: [nu_norm_SingleTop]
-                - id: Lumi_1516
-                  type: lnN
-                  value: 0.0118
-                  parameters: [nu_lumi_1516]
-                - id: Lumi_151617
-                  type: lnN
-                  value: 0.0004
-                  parameters: [nu_lumi_151617]
                 - id: Lumi_15161718
                   type: lnN
                   value: 0.0035              
@@ -187,14 +179,6 @@ likelihood:
                   type: lnN
                   value: 0.06 
                   parameters: [nu_norm_DrellYan]
-                - id: Lumi_1516
-                  type: lnN
-                  value: 0.0118
-                  parameters: [nu_lumi_1516]
-                - id: Lumi_151617
-                  type: lnN
-                  value: 0.0004
-                  parameters: [nu_lumi_151617]
                 - id: Lumi_15161718
                   type: lnN
                   value: 0.0035              
@@ -210,14 +194,6 @@ likelihood:
                   type: lnN
                   value: 0.13 
                   parameters: [nu_norm_TTSemi]
-                - id: Lumi_1516
-                  type: lnN
-                  value: 0.0118
-                  parameters: [nu_lumi_1516]
-                - id: Lumi_151617
-                  type: lnN
-                  value: 0.0004
-                  parameters: [nu_lumi_151617]
                 - id: Lumi_15161718
                   type: lnN
                   value: 0.0035              
@@ -226,7 +202,7 @@ likelihood:
 jobs:
   - id: ich_NG_PDF4LHC21_6_TTLep_pow_2018
     type: ich
-    region: SR_binned
+    region: SR_2018
     process: TTLep_pow_2018
     pdf:
       #pdf_n: [1, 2, 4, 5, 10, 12]
@@ -237,7 +213,7 @@ jobs:
    
   - id: icph_TTLep_pow_2018_L1Prefire
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     base_points:
@@ -255,7 +231,7 @@ jobs:
   
   - id: icph_TTLep_pow_2018_PU
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     base_points:
@@ -273,7 +249,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_MuSF 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_MuSF]
     combinations: [[nu_MuSF]]
     base_points:
@@ -291,7 +267,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_EleSF 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_EleSF]
     combinations: [[nu_EleSF]]
     base_points:
@@ -309,7 +285,7 @@ jobs:
   
   - id: icph_TTLep_pow_2018_BTag_b
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     base_points:
@@ -327,7 +303,7 @@ jobs:
   
   - id: icph_TTLep_pow_2018_BTag_l
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     base_points:
@@ -345,7 +321,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_scales
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     base_points:
@@ -380,7 +356,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_showerISR
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
@@ -396,7 +372,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_showerFSR
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
@@ -412,7 +388,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_alphaS
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
@@ -428,7 +404,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_0_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_0]
     combinations: [[nu_CMS_res_j_0]]
     base_points:
@@ -442,7 +418,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_1_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_1]
     combinations: [[nu_CMS_res_j_1]]
     base_points:
@@ -456,7 +432,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_2_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_2]
     combinations: [[nu_CMS_res_j_2]]
     base_points:
@@ -470,7 +446,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_3_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_3]
     combinations: [[nu_CMS_res_j_3]]
     base_points:
@@ -484,7 +460,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_4_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_4]
     combinations: [[nu_CMS_res_j_4]]
     base_points:
@@ -498,7 +474,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_res_j_5_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_res_j_5]
     combinations: [[nu_CMS_res_j_5]]
     base_points:
@@ -512,7 +488,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_FlavorPureBottom 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_FlavorPureBottom]
     combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
     base_points:
@@ -527,7 +503,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_FlavorPureCharm 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_FlavorPureCharm]
     combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
     base_points:
@@ -541,7 +517,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_FlavorPureGluon 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_FlavorPureGluon]
     combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
     base_points:
@@ -555,7 +531,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_FlavorPureQuark 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_FlavorPureQuark]
     combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
     base_points:
@@ -569,7 +545,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_Absolute_2018]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2018]]
     base_points:
@@ -583,7 +559,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_Absolute
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_Absolute]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
     base_points:
@@ -598,7 +574,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2018]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2018]]
     base_points:
@@ -612,7 +588,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_BBEC1
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
     base_points:
@@ -626,7 +602,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_EC2_2018]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2_2018]]
     base_points:
@@ -640,7 +616,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_EC2
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_EC2]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
     base_points:
@@ -654,7 +630,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_HF_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_HF_2018]
     combinations: [[nu_CMS_scale_j_Regrouped_HF_2018]]
     base_points:
@@ -668,7 +644,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_HF
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_HF]
     combinations: [[nu_CMS_scale_j_Regrouped_HF]]
     base_points:
@@ -682,7 +658,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeBal
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
     base_points:
@@ -696,7 +672,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_CMS_scale_j_Regrouped_RelativeSample_2018 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2018]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2018]]
     base_points:
@@ -710,7 +686,7 @@ jobs:
 
   - id: icph_TTLep_pow_2018_Uncl 
     type: icph
-    region: SR_binned
+    region: SR_2018
     parameters: [nu_Uncl]
     combinations: [[nu_Uncl]]
     base_points:
@@ -724,15 +700,15 @@ jobs:
 
   - id: ich_nominal_SingleTop_2018 
     type: ich
-    region: SR_binned
+    region: SR_2018
     process: SingleTop_2018
 
   - id: ich_nominal_DrellYan_LO_HTbinned_2018
     type: ich
-    region: SR_binned
+    region: SR_2018
     process: DrellYan_LO_HTbinned_2018
 
   - id: ich_nominal_TTSemi_pow_2018
     type: ich
-    region: SR_binned
+    region: SR_2018
     process: TTSemi_pow_2018

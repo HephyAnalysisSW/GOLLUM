@@ -234,7 +234,7 @@ likelihood:
 jobs:
   - id: ich_NG_PDF4LHC21_6_TTLep_pow_2016 
     type: ich
-    region: SR_binned
+    region: SR_2016
     process: TTLep_pow_2016
     pdf:
       #pdf_n: [1, 2, 4, 5, 10, 12]
@@ -245,7 +245,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_L1Prefire
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_l1prefire]
     combinations: [[nu_l1prefire]]
     base_points:
@@ -263,7 +263,7 @@ jobs:
   
   - id: icph_TTLep_pow_2016_PU
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_pu]
     combinations: [[nu_pu]]
     base_points:
@@ -281,7 +281,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_MuSF 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_MuSF]
     combinations: [[nu_MuSF]]
     base_points:
@@ -299,7 +299,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_EleSF 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_EleSF]
     combinations: [[nu_EleSF]]
     base_points:
@@ -317,7 +317,7 @@ jobs:
   
   - id: icph_TTLep_pow_2016_BTag_b
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_btag_b]
     combinations: [[nu_btag_b]]
     base_points:
@@ -335,7 +335,7 @@ jobs:
   
   - id: icph_TTLep_pow_2016_BTag_l
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_btag_l]
     combinations: [[nu_btag_l]]
     base_points:
@@ -353,7 +353,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_scales
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_mu_ren, nu_mu_fac]
     combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
     base_points:
@@ -388,7 +388,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_showerISR
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_showerISR]
     combinations: [[nu_showerISR]]
     base_points:
@@ -404,7 +404,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_showerFSR
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_showerFSR]
     combinations: [[nu_showerFSR]]
     base_points:
@@ -420,7 +420,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_alphaS
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_alphaS]
     combinations: [[nu_alphaS]]
     base_points:
@@ -436,7 +436,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_0_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_0]
     combinations: [[nu_CMS_res_j_0]]
     base_points:
@@ -450,7 +450,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_1_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_1]
     combinations: [[nu_CMS_res_j_1]]
     base_points:
@@ -464,7 +464,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_2_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_2]
     combinations: [[nu_CMS_res_j_2]]
     base_points:
@@ -478,7 +478,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_3_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_3]
     combinations: [[nu_CMS_res_j_3]]
     base_points:
@@ -492,7 +492,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_4_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_4]
     combinations: [[nu_CMS_res_j_4]]
     base_points:
@@ -506,7 +506,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_res_j_5_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_res_j_5]
     combinations: [[nu_CMS_res_j_5]]
     base_points:
@@ -520,7 +520,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureBottom 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_FlavorPureBottom]
     combinations: [[nu_CMS_scale_j_FlavorPureBottom]]
     base_points:
@@ -535,7 +535,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureCharm 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_FlavorPureCharm]
     combinations: [[nu_CMS_scale_j_FlavorPureCharm]]
     base_points:
@@ -549,7 +549,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureGluon 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_FlavorPureGluon]
     combinations: [[nu_CMS_scale_j_FlavorPureGluon]]
     base_points:
@@ -563,7 +563,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_FlavorPureQuark 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_FlavorPureQuark]
     combinations: [[nu_CMS_scale_j_FlavorPureQuark]]
     base_points:
@@ -577,7 +577,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_Absolute_2016]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute_2016]]
     base_points:
@@ -591,7 +591,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_Absolute
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_Absolute]
     combinations: [[nu_CMS_scale_j_Regrouped_Absolute]]
     base_points:
@@ -606,7 +606,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1_2016]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1_2016]]
     base_points:
@@ -620,7 +620,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_BBEC1
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_BBEC1]
     combinations: [[nu_CMS_scale_j_Regrouped_BBEC1]]
     base_points:
@@ -634,7 +634,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_EC2_2016]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2_2016]]
     base_points:
@@ -648,7 +648,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_EC2
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_EC2]
     combinations: [[nu_CMS_scale_j_Regrouped_EC2]]
     base_points:
@@ -662,7 +662,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_HF_2016]
     combinations: [[nu_CMS_scale_j_Regrouped_HF_2016]]
     base_points:
@@ -676,7 +676,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_HF
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_HF]
     combinations: [[nu_CMS_scale_j_Regrouped_HF]]
     base_points:
@@ -690,7 +690,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeBal
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_RelativeBal]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeBal]]
     base_points:
@@ -704,7 +704,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_CMS_scale_j_Regrouped_RelativeSample_2016 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_CMS_scale_j_Regrouped_RelativeSample_2016]
     combinations: [[nu_CMS_scale_j_Regrouped_RelativeSample_2016]]
     base_points:
@@ -718,7 +718,7 @@ jobs:
 
   - id: icph_TTLep_pow_2016_Uncl 
     type: icph
-    region: SR_binned
+    region: SR_2016
     parameters: [nu_Uncl]
     combinations: [[nu_Uncl]]
     base_points:
@@ -732,15 +732,15 @@ jobs:
 
   - id: ich_nominal_SingleTop_2016 
     type: ich
-    region: SR_binned
+    region: SR_2016
     process: SingleTop_2016
 
   - id: ich_nominal_DrellYan_LO_HTbinned_2016
     type: ich
-    region: SR_binned
+    region: SR_2016
     process: DrellYan_LO_HTbinned_2016
 
   - id: ich_nominal_TTSemi_pow_2016
     type: ich
-    region: SR_binned
+    region: SR_2016
     process: TTSemi_pow_2016            
