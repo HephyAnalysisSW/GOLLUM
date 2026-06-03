@@ -22,6 +22,19 @@ colors = {
  'EtaP':        ROOT.kRed,
 }
 
+# sams as cmsstyle.p10 colors in the order above
+# but with hex codes
+cmap_petroff10_mpl = ['#3f90da',
+                      '#ffa90e',
+                      '#bd1f01',
+                      '#94a4a2',
+                      '#832db6',
+                      '#a96b59',
+                      '#e76300',
+                      '#b9ac70',
+                      '#717581',
+                      '#92dadd']
+
 def get_color( sample_name ):
     for k, c in colors.items():
         if sample_name.startswith( k ):

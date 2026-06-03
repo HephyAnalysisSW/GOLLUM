@@ -2,12 +2,9 @@ import json
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Sequence
 import os, sys
 import mplhep as hep
-plt.style.use("petroff10")
-# derive color cycle from the selected style (Petroff 10)
-cmap = plt.rcParams['axes.prop_cycle'].by_key()['color']
 hep.style.use("CMS")
 
 import common.user as user
@@ -15,7 +12,7 @@ import common.helpers as helpers
 import common.syncer as syncer
 from data.plot_options import get_nice_parameter_name
 
-MAKE_PUBLIC_PLOTS = True
+MAKE_PUBLIC_PLOTS = False
 
 def load_fit_results(json_path: str) -> Tuple[str, List[Dict]]:
     """Load parameter values and errors from fit JSON file."""
@@ -48,11 +45,19 @@ def create_comparison_plot(
     os.makedirs(output_dir, exist_ok=True)
 
     num_fits = len(fit_data)
-    all_param_names = [p['name'] for p in fit_data[0][1]]
+    
+    all_param_names = set()
+    # getting the largest set of fit parameters
+    for fit_info in fit_data:
+        all_param_names.update(p['name'] for p in fit_info[1])
+    all_param_names = sorted(all_param_names)
+
+    # print(all_param_names)
+
     cms_param_names = [param_name for param_name in all_param_names if 'CMS' in param_name]
     other_param_names = [param_name for param_name in all_param_names if 'CMS' not in param_name]
 
-    def save_plot_for_parameters(param_names: List[str], output_basename: str) -> None:
+    def save_plot_for_parameters(param_names: Sequence[str], output_basename: str) -> None:
         """Create and save a comparison plot for a specific parameter subset."""
         if not param_names:
             return
@@ -62,8 +67,8 @@ def create_comparison_plot(
 
         y_positions = np.arange(num_params)
         bar_height = 0.8 / num_fits
-        # derive a color list from the current style (Petroff 10)
-        colors = list(cmap)
+        from data.colors import cmap_petroff10_mpl
+        colors = list(cmap_petroff10_mpl)
         if len(colors) < num_fits:
             raise ValueError("You're trying to do a comparison of more than 10 fits. Too many values to plot, exiting.")
             colors = (colors * ((num_fits // len(colors)) + 1))[:num_fits]
@@ -76,6 +81,13 @@ def create_comparison_plot(
             errors = []
 
             for param_name in param_names:
+
+                # add parameters which may be in other fits
+                if param_name not in params_by_name:
+                    values.append(0)
+                    errors.append(0)
+                    continue
+
                 param = params_by_name[param_name]
 
                 if param_name in blind_params:
