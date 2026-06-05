@@ -1818,134 +1818,6 @@ class N2LL:
         return n2ll
 
 from iminuit import Minuit
-def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
-## This code 'fixes' frozen POIs in minuit
-#from iminuit import Minuit
-#
-#def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-#                   do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
-#
-#    # -- collect parameters to hand to Minuit --
-#    # ignored -> not passed at all
-#    # frozen  -> passed to Minuit but marked fixed, so they appear in the postfit
-#    if isinstance(hypothesis, Rotated):
-#        kept = [p for p in hypothesis.POIs if not getattr(p, "isIgnored", False)] + [
-#            p for p in hypothesis.nuisances if not getattr(p, "isIgnored", False)
-#        ]
-#        poi_names = {p.name for p in hypothesis.POIs if not getattr(p, "isIgnored", False)}
-#    else:
-#        kept = [p for p in hypothesis.parameters if not getattr(p, "isIgnored", False)]
-#        poi_names = set()
-#
-#    if not kept:
-#        raise RuntimeError("No parameters to pass to Minuit.")
-#
-#    names = [p.name for p in kept]
-#    x0 = [float(p.val) for p in kept]
-#    fixed_names = {p.name for p in kept if p.isFrozen}
-#    float_names = [p.name for p in kept if not p.isFrozen]
-#
-#    if not float_names:
-#        raise RuntimeError("No floating parameters to fit.")
-#
-#    # step defaults:
-#    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
-#    #   float -> uniform
-#    #   dict  -> per-parameter overrides
-#    if step is None:
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#    elif isinstance(step, (int, float)):
-#        steps = {p.name: float(step) for p in kept}
-#    elif isinstance(step, dict):
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#        for k, v in step.items():
-#            if k in steps:
-#                steps[k] = float(v)
-#    else:
-#        raise TypeError("step must be None, float, or dict{name: float}")
-#
-#    eval_count = 0
-#    def fcn(*x):
-#        nonlocal eval_count
-#        pars = {names[i]: float(x[i]) for i in range(len(names))}
-#        h_eval = hypothesis.cloneModify(**pars)
-#        f = float(n2ll(h_eval))
-#        eval_count += 1
-#        if verbosity >= 2:
-#            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
-#                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
-#                h_eval.print()
-#        return f
-#
-#    # ---- Minuit with positional args and explicit names ----
-#    m = Minuit(fcn, *x0, name=names)
-#    m.errordef = 1.0
-#    m.strategy = 2
-#
-#    # set user step and mark fixed params
-#    for i, nm in enumerate(names):
-#        s = steps[nm]
-#        m.errors[i] = s
-#        if hasattr(m, "set_initial_step"):
-#            m.set_initial_step(i, 0.3 * s)
-#        if nm in fixed_names:
-#            m.fixed[nm] = True
-#
-#    # rate_shift nuisances are bound
-#    for name in m.parameters:
-#        if name.startswith("rate_shift"):
-#            m.limits[name] = (-1.0, None)
-#
-#    if verbosity >= 1:
-#        print("\n[make_minuit] Parameters passed to Minuit:")
-#        for i, nm in enumerate(names):
-#            status = "FIXED" if nm in fixed_names else "FLOAT"
-#            print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}  {status}")
-#
-#    m.precision = 0.001
-#    print(f"Minuit precision: {m.precision}")
-#
-#    if do_migrad:
-#        m.migrad()
-#        if verbosity >= 1:
-#            print("\n[MIGRAD]")
-#            print(m)
-#
-#    if do_hesse:
-#        m.hesse()
-#        if verbosity >= 1:
-#            print("\n[HESSE]")
-#            print(m)
-#
-#    if do_minos:
-#        poi_list = [
-#            p.name for p in getattr(hypothesis, "POIs", [])
-#            if p.name in m.parameters and not m.fixed[p.name]
-#        ] or [nm for nm in m.parameters if not m.fixed[nm]]
-#        m.minos(*poi_list)
-#        if verbosity >= 1:
-#            print("\n[MINOS]", poi_list)
-#            print(m)
-#
-#    # write back best fit once
-#    final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
-#    h_final = hypothesis.cloneModify(**final_pars)
-#
-#    for k, v in final_pars.items():
-#        setattr(hypothesis, k, v)
-#
-#    if verbosity >= 1:
-#        print("\n[final] Best-fit hypothesis:")
-#        h_final.print()
-#
-#    return m
 
 class _CovarianceMatrix:
     def __init__(self, matrix, parameter_names):
@@ -1989,26 +1861,90 @@ def _scalar_value(value):
         return float(value)
 
 
+from iminuit import Minuit
 def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-                    do_migrad=True, do_hesse=True, do_minos=False, minosNP=None, verbosity=1):
-    """Original iminuit-based fitter (MIGRAD + HESSE/MINOS).  Kept for comparison
-    alongside the autograd-based run_minuit_fit."""
-    from iminuit import Minuit as _Minuit
-    m.precision = 0.001
-    print(f"Minuit precision: {m.precision}")
+                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
+
+    # -- collect free parameters (works for rotated or plain) --
+    if isinstance(hypothesis, Rotated):
+        free = [p for p in hypothesis.POIs if not p.isFrozen] + [p for p in hypothesis.nuisances
+                                  if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = {p.name for p in hypothesis.POIs if not p.isFrozen}
+    else:
+        free = [p for p in hypothesis.parameters
+                if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = set()
+
+    if not free:
+        raise RuntimeError("No free parameters to fit.")
+
+    names = [p.name for p in free]
+    x0    = [float(p.val) for p in free]
+
+    # step defaults:
+    #   None  -> plain: all 0.1
+    #   float -> uniform
+    #   dict  -> per-parameter overrides
+    if step is None:
+        steps = {p.name: 0.1 for p in free}
+    elif isinstance(step, (int, float)):
+        steps = {p.name: float(step) for p in free}
+    elif isinstance(step, dict):
+        steps = {p.name: 0.1 for p in free}
+        for k, v in step.items():
+            if k in steps:
+                steps[k] = float(v)
+    else:
+        raise TypeError("step must be None, float, or dict{name: float}")
+
+    eval_count = 0
+    def fcn(*x):
+        nonlocal eval_count
+        # one-shot parameter map (avoid sequential setattr on Rotated)
+        pars = {names[i]: float(x[i]) for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
+        f = float(n2ll(h_eval))
+        eval_count += 1
+        if verbosity >= 2:
+            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
+                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
+                h_eval.print()  # print the actually evaluated point
+        if math.isnan(f):
+            raise RuntimeError("NaN likelihood!")
+        return f
+
+    # ---- Minuit with positional args and explicit names ----
+    m = Minuit(fcn, *x0, name=names)
+    m.errordef = 1.0
+    m.strategy = 2
+
+    # set user step and (if available) explicit FD step
+    for i, nm in enumerate(names):
+        s = steps[nm]
+        m.errors[i] = s
+        if hasattr(m, "set_initial_step"):
+            m.set_initial_step(i, 0.3 * s)
+
+    # rate_shift nuisances are bound 
+    for name in m.parameters:
+        if name.startswith("rate_shift"):
+            m.limits[name] = (-1.0, None)
+
+    if verbosity >= 1:
+        print("\n[make_minuit] Floating parameters:")
+        for i, nm in enumerate(names):
+            print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
     if do_migrad:
-        m.migrad()
+        m.migrad();
         if verbosity >= 1:
-            print("\n[MIGRAD]"); print(m)
+            print("\n[MIGRAD]");  print(m)
     if do_hesse:
-        m.hesse()
+        m.hesse();
         if verbosity >= 1:
-            print("\n[HESSE]"); print(m)
+            print("\n[HESSE]");  print(m)
     if do_minos:
-        minos_parameter_list = [
-            p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters
-        ] or list(m.parameters)
+        minos_parameter_list = [p.name for p in getattr(hypothesis, "POIs", []) if p.name in m.parameters] or list(m.parameters)
         print("Running MINOS uncertainties for POIs.")
         if minosNP:
             if "all" in minosNP:
@@ -2016,20 +1952,22 @@ def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                 minos_parameter_list = [p.name for p in free]
             else:
                 print(f"Running MINOS uncertainties also for the following NPs: {minosNP}")
-                minos_parameter_list += minosNP
+                minos_parameter_list+=minosNP
         m.minos(*minos_parameter_list)
-        if verbosity >= 1:
-            print("\n[MINOS]", minos_parameter_list); print(m)
+        if verbosity >=1: 
+            print("\n[MINOS]", minos_parameter_list);
+            print(m)
 
+    # write back best fit once (avoid repeated __setattr__ compounding)
     final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
     h_final = hypothesis.cloneModify(**final_pars)
+    # copy final values onto the original object (single pass)
     for k, v in final_pars.items():
         setattr(hypothesis, k, v)
     if verbosity >= 1:
         print("\n[final] Best-fit hypothesis:")
         h_final.print()
     return m
-
 
 def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                    do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
@@ -2770,5 +2708,13 @@ if __name__ == "__main__":
         corr=fit["correlation"]["matrix"],
         suffix=f"_{version}{suffix}",
     )
-    syncer.sync()
+    try:
+        syncer.sync()
+    except Exception as e:
+        print(f"[sync] Warning: failed to sync outputs ({e}).")
+        # Prevent duplicate failing retries from the atexit sync hook.
+        try:
+            syncer.file_sync_storage = []
+        except Exception:
+            pass
 
