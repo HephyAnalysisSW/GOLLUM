@@ -1069,7 +1069,6 @@ class N2LL:
             for C in classes:
                 cid = C['id']
                 h5_path, meta_path = self._paths_for(rid, cid)
-                print(h5_path)
 
                 if not (os.path.exists(h5_path) and os.path.exists(meta_path)):
                     raise RuntimeError(f"[N2LL] Missing cache artifacts for ({rid},{cid}). Build them first.")
@@ -1080,7 +1079,6 @@ class N2LL:
                     meta = json.load(mf)
 
                 # length consistency within region
-
                 N = f['w0'].shape[0]
                 if N_region is None:
                     N_region = N
@@ -1382,7 +1380,7 @@ class N2LL:
             class_ids = self._class_ids_by_region.get(rid, [])
             if not class_ids:
                 continue
-            N = int(self._N_region.get(rid, 0)/100)
+            N = self._N_region.get(rid, 0)
             if N == 0:
                 continue
 
