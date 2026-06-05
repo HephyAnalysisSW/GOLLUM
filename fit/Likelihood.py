@@ -1383,8 +1383,6 @@ class N2LL:
             if not class_ids:
                 continue
             N = int(self._N_region.get(rid, 0)/100)
-            print(N)
-            print(kk)
             if N == 0:
                 continue
 
