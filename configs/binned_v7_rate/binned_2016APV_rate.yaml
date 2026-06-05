@@ -260,24 +260,6 @@ jobs:
         loader: TTLep_pow_2016APV
         removeweights: ["L1PreFiringWeight_Nom"]
         addweights: ["L1PreFiringWeight_Up"] 
- 
-  - id: icph_TTLep_pow_2016APV_L1Prefire
-    type: icph
-    region: SR_2016APV
-    parameters: [nu_l1prefire]
-    combinations: [[nu_l1prefire]]
-    base_points:
-      - coords: [-1.0]
-        loader: TTLep_pow_2016APV
-        removeweights: ["L1PreFiringWeight_Nom"] 
-        addweights: ["L1PreFiringWeight_Dn"] 
-      - coords: [ 0.0]
-        loader: TTLep_pow_2016APV
-        nominal: true
-      - coords: [ 1.0]
-        loader: TTLep_pow_2016APV
-        removeweights: ["L1PreFiringWeight_Nom"] 
-        addweights: ["L1PreFiringWeight_Up"] 
   
   - id: icph_TTLep_pow_2016APV_PU
     type: icph

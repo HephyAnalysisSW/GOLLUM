@@ -22,7 +22,7 @@ colors = {
  'EtaP':        ROOT.kRed,
 }
 
-# sams as cmsstyle.p10 colors in the order above
+# same as cmsstyle.p10 colors in the order above
 # but with hex codes
 cmap_petroff10_mpl = ['#3f90da',
                       '#ffa90e',

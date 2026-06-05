@@ -71,7 +71,6 @@ def create_comparison_plot(
         colors = list(cmap_petroff10_mpl)
         if len(colors) < num_fits:
             raise ValueError("You're trying to do a comparison of more than 10 fits. Too many values to plot, exiting.")
-            colors = (colors * ((num_fits // len(colors)) + 1))[:num_fits]
 
         # for smart plot range
         x_min, x_max = -1.0, 1.0
@@ -84,8 +83,8 @@ def create_comparison_plot(
 
                 # add parameters which may be in other fits
                 if param_name not in params_by_name:
-                    values.append(0)
-                    errors.append(0)
+                    values.append(np.nan)
+                    errors.append(np.nan)
                     continue
 
                 param = params_by_name[param_name]

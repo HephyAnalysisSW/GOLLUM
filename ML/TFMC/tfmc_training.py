@@ -540,7 +540,7 @@ if not args.overwrite and os.path.exists(best_txt):
         pass
 
 # ---------------- stratified batch helper ----------------
-def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> Tuple[List[int], List[int]]:
+def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     
     """
     Returns a list with index arrays for each batch.
@@ -725,9 +725,11 @@ open(f"{model_dir}/done","w")
 # Still updated consistently in the text file,
 # in case one wants to monitor loss during the training
 import subprocess
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
 subprocess.run(
     ["python", "ML/TFMC/plot_loss_curve.py", "-i", loss_txt],
-    cwd="/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM",
+    cwd=repo_root,
     check=False,
 )
 
@@ -735,12 +737,12 @@ subprocess.run(
 # given that it is not so heavy, we keep it here for now
 subprocess.run(
     ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"]],
-    cwd="/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM",
+    cwd=repo_root,
     check=False,
 )
 
 subprocess.run(
     ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"], "--norm_plot"],
-    cwd="/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM",
+    cwd=repo_root,
     check=False,
 )
