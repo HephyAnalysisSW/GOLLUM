@@ -1,4 +1,4 @@
-version: unbinned_2017_v7
+version: unbinned_v7
 
 defaults:
   module_samples: "data.samples_RunII"
