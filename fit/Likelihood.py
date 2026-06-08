@@ -2214,7 +2214,7 @@ if __name__ == "__main__":
     from common.user import plot_directory
     import common.user as user
     
-    # base from mangling together configs or given my user
+    # base from mangling together configs or given by user
     base_list = []
     for config_path in args.configs:
         base_list.append(os.path.splitext(os.path.basename(config_path))[0])
