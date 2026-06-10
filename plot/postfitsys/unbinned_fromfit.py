@@ -26,7 +26,7 @@ import common.yaml_loader as yaml_loader
 
 from common.yaml_loader import _resolve_features_list
 from data.colors import get_color
-from data.plot_options import plot_options
+from data.plot_options import plot_options, get_sample_legend
 from fit.Likelihood import build_hypothesis_from_likelihood, expand_pois_linear_quadratic, load_likelihood, nuis_to_A_vector
 from fit.Modeling import Rotated
 
@@ -190,7 +190,8 @@ def evaluate_class_cached(shard_cache: dict[str, Any], h_base: Any) -> np.ndarra
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Simple postfit unbinned template plots from an external fit result")
     p.add_argument("fit_result", help="Fit JSON file")
-    p.add_argument("--config", default=None, help="Config YAML. If omitted, try to read it from the fit JSON.")
+    p.add_argument("--configs", nargs="+",default=None, help="Path to one or more configs.", required=True)
+    p.add_argument("--base", help="Base name for output directories")
     p.add_argument("--rotate", default=None, help="Rotation JSON, same logic as Likelihood.py")
     p.add_argument("--outdir", default=None, help="Output directory")
     p.add_argument("--n-toys", default=1000, type=int, help="Number of covariance toys")
@@ -202,19 +203,22 @@ if __name__ == "__main__":
 
     fit: Any = json.load(open(args.fit_result))
 
-    config_path = args.config
-    if config_path is None:
-        config_path = fit.get("args", {}).get("config", None) or fit.get("config", None)
-    if config_path is None:
-        raise RuntimeError("Need --config, because no config path was found inside the fit JSON.")
 
     logger.info("fit_result : %s", args.fit_result)
-    logger.info("config     : %s", config_path)
+    logger.info("config     : %s", args.configs)
     logger.info("rotate     : %s", args.rotate)
 
-    cfg: Any = yaml_loader.load_yaml(config_path)
-    yaml_loader.print_summary(cfg, config_path, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, config_path, overwrite=False)
+    # doing it this way, since print_summary and load_surrogates
+    # use the path of the configs to give info to the user
+    list_configs = []
+    for config_path in args.configs:
+        aux_cfg = yaml_loader.load_yaml(config_path)
+        yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+        yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
+
+        list_configs.append(aux_cfg)
+
+    cfg = yaml_loader.combine_configs(list_configs)
 
     like_info: Any = load_likelihood(cfg)
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
@@ -287,7 +291,16 @@ if __name__ == "__main__":
     else:
         theta_samples = np.zeros((0, len(active_names)), dtype=np.float64)
 
-    base = os.path.splitext(os.path.basename(config_path))[0]
+    # base from mangling together configs or given by user
+    base_list = []
+    for config_path in args.configs:
+        base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+
+    base = "_".join(base_list) 
+
+    if args.base:
+        base = args.base
+
     base_fit_result = os.path.splitext(os.path.basename(args.fit_result))[0]
     version = str(cfg.get("version", "v0"))
     suffix = "_rotate" if rotated else ""
@@ -296,7 +309,6 @@ if __name__ == "__main__":
     else:
         outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
-    helpers.copyIndexPHP(outdir)
 
     logger.info("output dir : %s", outdir)
     logger.info("n_toys     : %d", args.n_toys)
@@ -410,7 +422,7 @@ if __name__ == "__main__":
 
                 total_central += class_hist
                 class_central_hists.append(class_hist)
-                class_labels.append(class_info["sample"])
+                class_labels.append(get_sample_legend(class_info["sample"]))
 
             logging.info(f"building histograms for sampled toy points, {len(theta_samples)=}")
             if len(theta_samples) > 0:
@@ -698,12 +710,13 @@ if __name__ == "__main__":
             c.cd()
             c.Update()
 
-            out_name = os.path.join(outdir, f"{_safe_name(region_id)}__{_safe_name(feature_name)}") 
+            out_name = os.path.join(outdir, f"{_safe_name(region_id)}")
+            helpers.copyIndexPHP(out_name) 
 
             if args.prefit:
-                out_name += "__prefit"
+                out_name += f"{_safe_name(feature_name)}__prefit"
             else:
-                out_name += "__postfit"
+                out_name += f"{_safe_name(feature_name)}__postfit"
 
             c.SaveAs(f"{out_name}.png")
             c.SaveAs(f"{out_name}.pdf")
@@ -732,5 +745,5 @@ if __name__ == "__main__":
                 + ratio_boxes
             )
 
+        syncer.sync()
     logger.info("done, produced %d plots", len(region_canvases))
-    syncer.sync()

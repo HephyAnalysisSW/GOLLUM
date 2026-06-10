@@ -1,4 +1,4 @@
-version: binned_2018_v7
+version: binned_v7
 
 defaults:
   module_samples: "data.samples_RunII"
