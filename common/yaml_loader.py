@@ -98,7 +98,7 @@ takes in list of loaded configurations and combines them, performing some sanity
 NB: this function can be called before or after load_surrogates
 """
 
-def combine_configs(list_configs: List[str]):
+def combine_configs(list_configs: List[dict]):
 
     combined_cfg = {}
     for i_cfg, cfg in enumerate(list_configs):
@@ -140,7 +140,7 @@ def combine_configs(list_configs: List[str]):
                     combined_cfg["likelihood"]["regions"].extend(cfg["likelihood"]["regions"])
                 
                 else:
-                    combine_configs["likelihood"]["regions"] = cfg["likelihood"]["regions"]
+                    combined_cfg["likelihood"]["regions"] = cfg["likelihood"]["regions"]
 
             if "binned" in cfg["likelihood"]:
                 if "binned" in combined_cfg["likelihood"]: 
