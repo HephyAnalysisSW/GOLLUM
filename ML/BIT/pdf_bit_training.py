@@ -165,8 +165,9 @@ if uid_enabled:
 pdf_n     = J.get("pdf", {}).get("pdf_n", None)
 pdf_type  = J.get("pdf", {}).get("pdf_type", None)
 pdf_basis = J.get("pdf", {}).get("pdf_basis", None)
+pdf_active_pids = J.get("pdf", {}).get("pdf_active_pids", "all")
 pdf_rescale_pod_amplitudes = J.get("pdf", {}).get("rescale_pod_amplitudes", True)
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
+pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes,  active_pids=pdf_active_pids)
 
 combos = list(pdf.combinations)  # (), ('c0',), ..., ('ci','cj')
 
@@ -810,6 +811,7 @@ if len(bit.trees) < bit.n_trees:
                 J=J,
                 plot_ctx=plot_ctx,
             ) or did_make_plots
+            syncer.sync()
 
     # ---------------- save loss history ----------------
     loss_txt = os.path.join(model_dir, "loss_history.txt")

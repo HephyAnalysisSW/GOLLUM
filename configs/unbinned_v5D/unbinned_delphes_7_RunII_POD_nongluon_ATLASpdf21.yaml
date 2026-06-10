@@ -152,6 +152,7 @@ jobs:
       pdf_n: [1,2,3,4,5,6,7]
       pdf_type: PODBasis
       pdf_basis: gluon_POD_nongluon_ATLASpdf21 
+      pdf_active_pids: [21]
     model:
       n_trees: 200
       learning_rate: 0.2
