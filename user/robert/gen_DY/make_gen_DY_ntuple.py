@@ -107,6 +107,7 @@ VECTOR_BRANCH_TYPES = {
     "lhe_pdf_weights": "var * float32",
     "lhe_scale_weights": "var * float32",
     "lhe_reweighting_weights": "var * float32",
+    "LHEReweightingWeight": "var * float32",
     "ps_weights": "var * float32",
 }
 
@@ -328,6 +329,8 @@ def is_xrootd_url(path):
 def make_xrootd_url(redirector, lfn):
     if is_xrootd_url(lfn):
         return lfn
+    if lfn.startswith("/") and not lfn.startswith("/store/"):
+        return lfn
     if not lfn.startswith("/"):
         raise ValueError(f"LFN must start with '/': got {lfn}")
     if not redirector.endswith("/"):
@@ -364,11 +367,22 @@ def sample_id_from_store_path(infile):
     return _sanitize("unknownSample")
 
 
-def output_path_for_input(infile):
+def output_path_for_input(infile, sample_name=None):
     sid = sample_id_from_store_path(infile)
+    if sid == "unknownSample" and sample_name:
+        sid = _sanitize(sample_name)
     outdir = os.path.join(output_directory, "DY-gen-ntuples", sid)
     os.makedirs(outdir, exist_ok=True)
     return os.path.join(outdir, os.path.basename(infile))
+
+
+def mll_window_from_sample_name(sample_name):
+    match = re.search(r"mll([0-9]+)_([0-9]+|inf)", sample_name)
+    if not match:
+        return None, None
+    min_mll = float(match.group(1))
+    max_mll = None if match.group(2) == "inf" else float(match.group(2))
+    return min_mll, max_mll
 
 
 def output_has_events(path):
@@ -432,11 +446,15 @@ def sum_gen_event_sumw(infile):
 
 
 def combined_sumw(files, redirector):
-    total = 0.0
-    for i, lfn in enumerate(files, start=1):
-        infile = normalize_input_path(lfn, redirector)
-        total += sum_gen_event_sumw(infile)
-        print(f"[make_gen_DY_ntuple] sumw {i}/{len(files)}: {total:.12g}", file=sys.stderr)
+    chain = ROOT.TChain("Runs")
+    for lfn in files:
+        chain.Add(normalize_input_path(lfn, redirector))
+
+    if chain.GetEntries() <= 0:
+        raise RuntimeError("No Runs entries found while computing merged genEventSumw.")
+
+    total = float(ROOT.RDataFrame(chain).Sum("genEventSumw").GetValue())
+    print(f"[make_gen_DY_ntuple] sumw Runs entries {chain.GetEntries()}: {total:.12g}", file=sys.stderr)
     return total
 
 
@@ -979,7 +997,22 @@ def build_w(rec, arrays, i, sqrts):
         rec["w_x2_mT"] = (wmt / sqrts) * math.exp(-wy)
 
 
-def build_chunk(arrays, n, xsec, sumw, sqrts):
+def pass_mll_cut(rec, min_mll, max_mll):
+    if min_mll is None and max_mll is None:
+        return True
+    mll = rec["dy_born_mll"]
+    if mll == FLOAT_DEFAULT:
+        mll = rec["lhe_mll"]
+    if mll == FLOAT_DEFAULT:
+        return False
+    if min_mll is not None and mll < min_mll:
+        return False
+    if max_mll is not None and mll >= max_mll:
+        return False
+    return True
+
+
+def build_chunk(arrays, n, xsec, sumw, sqrts, min_mll=None, max_mll=None):
     records = []
     vectors = {name: [] for name in VECTOR_BRANCH_TYPES}
     summary = {"dy": 0, "born": 0, "w": 0, "cs": 0, "max_cs_diff": 0.0}
@@ -1017,10 +1050,6 @@ def build_chunk(arrays, n, xsec, sumw, sqrts):
         scale_weights = jagged_list(arrays, "LHEScaleWeight", i)
         reweighting_weights = jagged_list(arrays, "LHEReweightingWeight", i)
         ps_weights = jagged_list(arrays, "PSWeight", i)
-        vectors["lhe_pdf_weights"].append(pdf_weights)
-        vectors["lhe_scale_weights"].append(scale_weights)
-        vectors["lhe_reweighting_weights"].append(reweighting_weights)
-        vectors["ps_weights"].append(ps_weights)
         rec["has_lhe_pdf_weights"] = int(len(pdf_weights) > 0)
         rec["has_lhe_scale_weights"] = int(len(scale_weights) > 0)
         rec["has_lhe_reweighting_weights"] = int(len(reweighting_weights) > 0)
@@ -1032,18 +1061,29 @@ def build_chunk(arrays, n, xsec, sumw, sqrts):
         build_w(rec, arrays, i, sqrts)
 
         if dressed is not None:
-            summary["dy"] += 1
             fill_cs_and_angles(rec, dressed[0], dressed[1], sqrts, "cs")
+        if born is not None:
+            fill_cs_and_angles(rec, born[0], born[1], sqrts, "cs_born")
+
+        if not pass_mll_cut(rec, min_mll, max_mll):
+            continue
+
+        if dressed is not None:
+            summary["dy"] += 1
             if rec["cs_costheta"] != FLOAT_DEFAULT:
                 summary["cs"] += 1
                 if rec["cs_costheta_diff"] != FLOAT_DEFAULT:
                     summary["max_cs_diff"] = max(summary["max_cs_diff"], abs(rec["cs_costheta_diff"]))
         if born is not None:
             summary["born"] += 1
-            fill_cs_and_angles(rec, born[0], born[1], sqrts, "cs_born")
         if rec["w_has_candidate"]:
             summary["w"] += 1
 
+        vectors["lhe_pdf_weights"].append(pdf_weights)
+        vectors["lhe_scale_weights"].append(scale_weights)
+        vectors["lhe_reweighting_weights"].append(reweighting_weights)
+        vectors["LHEReweightingWeight"].append(reweighting_weights)
+        vectors["ps_weights"].append(ps_weights)
         records.append(rec)
 
     out = {}
@@ -1073,16 +1113,16 @@ def num_events(local_infile):
         return int(fin["Events"].num_entries)
 
 
-def process_file(infile, step_size, max_events, xsec, sumw, sqrts, overwrite):
+def process_file(infile, step_size, max_events, xsec, sumw, sqrts, overwrite, sample_name=None, min_mll=None, max_mll=None):
     if sumw == 0:
         raise ValueError("sumw must be nonzero for cross-section normalization.")
 
-    outfile = output_path_for_input(infile)
-    if output_has_events(outfile) and not overwrite:
+    outfile = output_path_for_input(infile, sample_name=sample_name)
+    if os.path.exists(outfile) and not overwrite:
         print(f"[make_gen_DY_ntuple] output exists, skip: {outfile}", file=sys.stderr)
         return outfile
     if os.path.exists(outfile) and not output_has_events(outfile):
-        print(f"[make_gen_DY_ntuple] replacing incomplete output: {outfile}", file=sys.stderr)
+        print(f"[make_gen_DY_ntuple] overwriting incomplete output: {outfile}", file=sys.stderr)
     elif os.path.exists(outfile) and overwrite:
         print(f"[make_gen_DY_ntuple] overwriting output: {outfile}", file=sys.stderr)
 
@@ -1094,6 +1134,7 @@ def process_file(infile, step_size, max_events, xsec, sumw, sqrts, overwrite):
         n_total = num_events(local_infile)
         if max_events >= 0:
             n_total = min(n_total, max_events)
+        total_seen = 0
         total_written = 0
         total_summary = {"dy": 0, "born": 0, "w": 0, "cs": 0, "max_cs_diff": 0.0}
         tree = None
@@ -1111,21 +1152,25 @@ def process_file(infile, step_size, max_events, xsec, sumw, sqrts, overwrite):
                 for arrays in tqdm(chunks, total=math.ceil(n_total / step_size) if step_size > 0 else None, desc="DY ntuple chunks", unit="chunk"):
                     chunk_n = len(next(iter(arrays.values()))) if arrays else 0
                     if max_events >= 0:
-                        keep = max_events - total_written
+                        keep = max_events - total_seen
                         if keep <= 0:
                             break
                         chunk_n = min(chunk_n, keep)
                         arrays = {key: value[:chunk_n] for key, value in arrays.items()}
                     if chunk_n == 0:
                         continue
+                    total_seen += chunk_n
 
-                    out, summary = build_chunk(arrays, chunk_n, xsec, sumw, sqrts)
+                    out, summary = build_chunk(arrays, chunk_n, xsec, sumw, sqrts, min_mll=min_mll, max_mll=max_mll)
+                    out_n = len(next(iter(out.values()))) if out else 0
+                    if out_n == 0:
+                        continue
 
                     if tree is None:
                         tree = fout.mktree("Events", BRANCH_TYPES)
                     tree.extend(out)
 
-                    total_written += chunk_n
+                    total_written += out_n
                     for key in ("dy", "born", "w", "cs"):
                         total_summary[key] += summary[key]
                     total_summary["max_cs_diff"] = max(total_summary["max_cs_diff"], summary["max_cs_diff"])
@@ -1188,17 +1233,23 @@ def expand_samples(sample_names, redirector, small):
         raise RuntimeError(f"All --samples entries must have the same xsec for merged normalization. Got {detail}")
 
     files = []
+    sample_name_by_file = {}
     for sample in samples:
-        sample_files = das_list_files(sample.dataset)
+        if sample.is_disk:
+            sample_files = sample.list_files()
+        else:
+            sample_files = das_list_files(sample.dataset)
         if not sample_files:
             raise RuntimeError(f"No files found for {sample.key}: {sample.dataset}")
+        for sample_file in sample_files:
+            sample_name_by_file[sample_file] = sample.name
         files.extend(sample_files)
 
     if small:
         files = files[:3]
 
     sumw = combined_sumw(files, redirector)
-    return samples, files, samples[0].xsec, sumw
+    return samples, files, sample_name_by_file, samples[0].xsec, sumw
 
 
 def main():
@@ -1210,11 +1261,14 @@ def main():
     parser.add_argument("--list-samples", nargs="?", const="", default=None, help="List known sample keys, optionally filtered by regex")
     parser.add_argument("--xsec", type=float, default=None, help="Cross section for --file mode")
     parser.add_argument("--sumw", type=float, default=None, help="Merged Runs.genEventSumw denominator for --file mode")
+    parser.add_argument("--sample-name", type=str, default=None, help="Fallback output sample name for local files")
+    parser.add_argument("--min-mll", type=float, default=None, help="Minimum Born/LHE dilepton mass to write")
+    parser.add_argument("--max-mll", type=float, default=None, help="Maximum Born/LHE dilepton mass to write")
     parser.add_argument("--redirector", type=str, default=CMS_REDIRECTOR_CERN, help="XRootD redirector")
     parser.add_argument("--step-size", type=int, default=20_000, help="Events per chunk")
     parser.add_argument("--max-events", type=int, default=-1, help="Max events to write (-1 = all)")
     parser.add_argument("--sqrts", type=float, default=13000.0, help="Collider sqrt(s) in GeV")
-    parser.add_argument("--overwrite", action="store_true", help="Overwrite complete output files instead of skipping them")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files instead of skipping them")
     parser.add_argument("--small", action="store_true", help="Debug mode: print/process fewer files/events")
 
     args = parser.parse_args()
@@ -1234,19 +1288,36 @@ def main():
         args.step_size = min(args.step_size, 20_000)
 
     if args.samples:
-        samples, files, xsec, sumw = expand_samples(args.samples, args.redirector, args.small)
+        samples, files, sample_name_by_file, xsec, sumw = expand_samples(args.samples, args.redirector, args.small)
         keys = ",".join(sample.key for sample in samples)
         print(f"# samples: {keys}", file=sys.stderr)
         print(f"# xsec: {xsec:.12g}", file=sys.stderr)
         print(f"# sumw: {sumw:.12g}", file=sys.stderr)
 
+        job_files = {}
         for f in files:
             cmd = f"./make_gen_DY_ntuple.py --file {make_xrootd_url(args.redirector, f)} --xsec {xsec:.12g} --sumw {sumw:.12g} --sqrts {args.sqrts:.12g}"
+            if sample_id_from_store_path(f) == "unknownSample":
+                cmd += f" --sample-name {sample_name_by_file[f]}"
             if args.overwrite:
                 cmd += " --overwrite"
             if args.small:
                 cmd += " --small"
-            print(cmd)
+            sample_name = sample_name_by_file[f]
+            min_mll, max_mll = mll_window_from_sample_name(sample_name)
+            if min_mll is not None:
+                cmd += f" --min-mll {min_mll:g}"
+            if max_mll is not None:
+                cmd += f" --max-mll {max_mll:g}"
+            job_files.setdefault(sample_name, []).append(cmd)
+
+        for sample_name, commands in job_files.items():
+            job_file = f"jobs_{_sanitize(sample_name)}.sh"
+            with open(job_file, "w") as f:
+                f.write("\n".join(commands))
+                f.write("\n")
+            os.chmod(job_file, 0o755)
+            print(f"[make_gen_DY_ntuple] wrote {len(commands)} jobs to {job_file}", file=sys.stderr)
         return
 
     if args.xsec is None or args.sumw is None:
@@ -1261,6 +1332,9 @@ def main():
         sumw=args.sumw,
         sqrts=args.sqrts,
         overwrite=args.overwrite,
+        sample_name=args.sample_name,
+        min_mll=args.min_mll,
+        max_mll=args.max_mll,
     )
     print(f"[make_gen_DY_ntuple] output: {out}")
 

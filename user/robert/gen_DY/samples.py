@@ -1,3 +1,5 @@
+import glob
+import os
 import re
 from dataclasses import dataclass
 
@@ -10,6 +12,19 @@ class Sample:
     era: str
     key: str
     fracNegWeights: float | None = None
+    local_path: str | None = None
+
+    @property
+    def is_disk(self):
+        return self.local_path is not None
+
+    def list_files(self, small=False):
+        if not self.is_disk:
+            raise RuntimeError(f"Sample {self.key} is not disk-backed.")
+        files = sorted(glob.glob(os.path.join(self.local_path, "**", "*.root"), recursive=True))
+        if small:
+            return files[:3]
+        return files
 
 
 def _infer_era(dataset):
@@ -37,6 +52,20 @@ class _Kreator:
             xsec=float(xsec),
             era=era,
             key=key,
+            fracNegWeights=kwargs.get("fracNegWeights"),
+        )
+        self.samples.append(sample)
+        return sample
+
+    def makeLocalComponent(self, name, path, xsec, **kwargs):
+        key = kwargs.get("key", name)
+        sample = Sample(
+            name=name,
+            dataset=path,
+            xsec=float(xsec),
+            era=kwargs.get("era", "UL18"),
+            key=key,
+            local_path=path,
             fracNegWeights=kwargs.get("fracNegWeights"),
         )
         self.samples.append(sample)
@@ -114,7 +143,24 @@ DYJetsToLL_M50_HT800to1200     = kreator.makeMCComponent("DYJetsToLL_M50_HT800to
 DYJetsToLL_M50_HT1200to2500    = kreator.makeMCComponent("DYJetsToLL_M50_HT1200to2500",    "/DYJetsToLL_M-50_HT-1200to2500_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM",     "CMS", ".*root", 0.1305*1.08 )
 DYJetsToLL_M50_HT2500toInf     = kreator.makeMCComponent("DYJetsToLL_M50_HT2500toInf",     "/DYJetsToLL_M-50_HT-2500toInf_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM",      "CMS", ".*root", 0.002997*1.08 )
 
-
+#DY_NLO_EFT_SMEFTatNLO_mll50_100_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll50_100_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_100_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_100_Photos/250904_134742", 6087.44921467)
+#DY_NLO_EFT_SMEFTatNLO_mll100_200_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll100_200_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_100_200_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_100_200_Photos/250904_134749", 6135.542164)
+#DY_NLO_EFT_SMEFTatNLO_mll200_400_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll200_400_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_200_400_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_200_400_Photos/250904_134756", 991.8578552)
+#DY_NLO_EFT_SMEFTatNLO_mll400_600_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll400_600_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_400_600_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_400_600_Photos/250904_134803", 504.7171968)
+#DY_NLO_EFT_SMEFTatNLO_mll600_800_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll600_800_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_600_800_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_600_800_Photos/250904_134809", 351.967252)
+#DY_NLO_EFT_SMEFTatNLO_mll800_1000_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll800_1000_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_800_1000_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_800_1000_Photos/250904_134816", 173.9668168)
+#DY_NLO_EFT_SMEFTatNLO_mll1000_1500_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll1000_1500_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1000_1500_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1000_1500_Photos/250904_134823", 172.266490027)
+#DY_NLO_EFT_SMEFTatNLO_mll1500_inf_Photos = kreator.makeLocalComponent("DY_NLO_EFT_SMEFTatNLO_mll1500_inf_Photos", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1500_inf_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1500_inf_Photos/250904_134829", 78.4195807947)
+#DYMuMu_NLO_EFT_SMEFTatNLO_mll50_100_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll50_100_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_100_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_100_Photos/251014_153049", 1908.0157)
+#DYMuMu_NLO_EFT_SMEFTatNLO_mll100_200_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll100_200_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_100_200_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_100_200_Photos/251016_144321", 172.69619)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_120_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_50_120_Photos/251124_092852", 1912.8516)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_120_200_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_120_200_Photos/251124_092858", 28.816713)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_200_400_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_200_400_Photos/260109_163747", 2.9652782)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_400_600_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_400_600_Photos/260109_163754", 0.18982734)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_600_800_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_600_800_Photos/260109_163801", 0.046906194)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_800_1000_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_800_1000_Photos/260109_163807", 0.010329357)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1000_1500_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1000_1500_Photos/260109_163813", 0.0071970617)
+DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf_Photos_startingOne = kreator.makeLocalComponent("DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf_Photos_startingOne", "/eos/vbc/group/cms/robert.schoefbeck/3DY_SMEFTsim_NLO/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1500_inf_Photos/ZDYEFT-nanoaod18_SMEFTatNLO_mll_1500_inf_Photos/260109_163820", 0.00086687414)
 
 
 all_samples = tuple(kreator.samples)

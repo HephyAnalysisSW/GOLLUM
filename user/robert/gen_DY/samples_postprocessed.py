@@ -183,11 +183,112 @@ DYJetsToLL_M50_LO_UL17_merged = PostProcessedSample(
     color=ROOT.kAzure + 1,
 )
 
+DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120",
+    tex_name="DYMuMu SMEFTatNLO 50 #leq m_{#mu#mu} < 120",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120_Photos_startingOne"),
+    color=ROOT.kAzure + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200",
+    tex_name="DYMuMu SMEFTatNLO 120 #leq m_{#mu#mu} < 200",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200_Photos_startingOne"),
+    color=ROOT.kOrange + 7,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400",
+    tex_name="DYMuMu SMEFTatNLO 200 #leq m_{#mu#mu} < 400",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400_Photos_startingOne"),
+    color=ROOT.kGreen + 2,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600",
+    tex_name="DYMuMu SMEFTatNLO 400 #leq m_{#mu#mu} < 600",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600_Photos_startingOne"),
+    color=ROOT.kRed + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800",
+    tex_name="DYMuMu SMEFTatNLO 600 #leq m_{#mu#mu} < 800",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800_Photos_startingOne"),
+    color=ROOT.kMagenta + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000",
+    tex_name="DYMuMu SMEFTatNLO 800 #leq m_{#mu#mu} < 1000",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000_Photos_startingOne"),
+    color=ROOT.kCyan + 2,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500 = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500",
+    tex_name="DYMuMu SMEFTatNLO 1000 #leq m_{#mu#mu} < 1500",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500_Photos_startingOne"),
+    color=ROOT.kViolet + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf",
+    tex_name="DYMuMu SMEFTatNLO m_{#mu#mu} #geq 1500",
+    files=_files("DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf_Photos_startingOne"),
+    color=ROOT.kBlack,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_shortEFT = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_shortEFT",
+    tex_name="DYMuMu SMEFTatNLO short EFT config",
+    files=(
+        DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500.files
+    ),
+    color=ROOT.kAzure + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT",
+    tex_name="DYMuMu SMEFTatNLO full EFT config",
+    files=(
+        DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf.files
+    ),
+    color=ROOT.kRed + 1,
+)
+
+DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT = PostProcessedSample(
+    name="DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT",
+    tex_name="DYMuMu SMEFTatNLO low-mass EFT config",
+    files=(
+        DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200.files
+    ),
+    color=ROOT.kAzure + 1,
+)
+
 
 all_samples = [
     DYJetsToLL_M50_LO_UL17,
     DYJetsToLL_M50_LO_ext_UL17,
     DYJetsToLL_M50_LO_UL17_merged,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll400_600,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll600_800,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll800_1000,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll1000_1500,
+    DYMuMu_NLO_EFT_SMEFTatNLO_mll1500_inf,
+    DYMuMu_NLO_EFT_SMEFTatNLO_shortEFT,
+    DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT,
+    DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT,
 ]
 
 samples_by_name = {sample.name: sample for sample in all_samples}

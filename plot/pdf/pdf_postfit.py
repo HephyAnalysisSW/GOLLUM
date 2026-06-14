@@ -36,6 +36,7 @@ p.add_argument("--Q", type=float, default=1.65,
                help="Scale Q for PDF evaluation (same units as PDF grid, default: 1.65)")
 p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
 p.add_argument("--subdir", action="store", default='', help="Subdirectory for plotting")
+p.add_argument("--modify-pdf", action="store", default='', help="Modify PDF?")
 
 args = p.parse_args()
 
@@ -86,7 +87,7 @@ print("[info] All required surrogates available. Loading likelihood...")
 like_info = load_likelihood(cfg)
 
 # output directory for PDF plots
-pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, os.path.splitext(os.path.basename(args.config))[0])
+pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, args.modify_pdf, os.path.splitext(os.path.basename(args.config))[0])
 if "nosyst" in args.postfit and ("no_syst" not in pdf_plot_directory):
     pdf_plot_directory += "_no_syst"
 os.makedirs(pdf_plot_directory, exist_ok=True)
@@ -213,6 +214,9 @@ pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
 pdf_type  = pdf_cfg.get("pdf_type", None)
 pdf_basis = pdf_cfg.get("pdf_basis", None)
+if args.modify_pdf:
+    print(f"Warning! Plotting with PDF: {args.modify_pdf}")
+    pdf_basis = args.modify_pdf
 pdf_rescale_pod_amplitudes = pdf_cfg.get("rescale_pod_amplitudes", True)
 
 if pdf_n is None or pdf_type is None:
@@ -508,8 +512,10 @@ Q_tag = f"Q{Q_int:06d}"
 r_suf = "_ROT_"+os.path.splitext(os.path.basename(args.rotate))[0] if rotated else ""
 f_suf = "_FIT_"+os.path.splitext(os.path.basename(args.postfit))[0]
 out_png = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.png")
+out_root = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.root")
 out_pdf = os.path.join(pdf_plot_directory, f"{plot_label}_gluon_{args.postfix}{f_suf}{r_suf}_{Q_tag}.pdf")
 c.SaveAs(out_png)
+c.SaveAs(out_root)
 c.SaveAs(out_pdf)
 
 import csv

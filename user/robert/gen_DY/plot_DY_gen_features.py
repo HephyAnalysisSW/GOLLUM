@@ -89,8 +89,6 @@ BASIS_MARKERS = {
     "V3": 24,
     "V8": 25,
 }
-
-
 def sanitize(name):
     return "".join(c if c.isalnum() or c == "_" else "_" for c in name)
 
@@ -813,6 +811,13 @@ def make_afb_plot(plot_dir, selected_samples):
             yvals.append(afb)
             yerrs.append(err)
 
+        if not xvals:
+            print(
+                f"[plot_DY_gen_features] skip AFB graph for {sample.name}: "
+                f"no events in {AFB_MASS_BINS[0]:.0f}-{AFB_MASS_BINS[-1]:.0f} GeV mass bins"
+            )
+            continue
+
         graph = ROOT.TGraphErrors(len(xvals))
         for ip, (x, y, ey) in enumerate(zip(xvals, yvals, yerrs)):
             graph.SetPoint(ip, x, y)
@@ -838,7 +843,7 @@ def make_afb_plot(plot_dir, selected_samples):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--samples", nargs="+", default=["DYJetsToLL_M50_LO_UL17"], help="Samples from samples_postprocessed.py")
-parser.add_argument("--max-files", type=int, default=2, help="Files per sample")
+parser.add_argument("--max-files", type=int, default=None, help="Files per sample")
 parser.add_argument("--level", choices=["both", "fiducial", "parton"], default="both", help="Selection level to plot")
 parser.add_argument("--small", action="store_true", help="Use one file per sample and write to a _small directory")
 parser.add_argument("--pdf-set", default="NNPDF40_nnlo_as_01180", help="LHAPDF set for basis-response diagnostics")
@@ -875,9 +880,12 @@ for level in levels:
 
     for feature in FEATURES:
         make_stack_plot(plot_dir, selected_samples, feature)
+    syncer.sync()
 
     make_afb_plot(plot_dir, selected_samples)
+    syncer.sync()
     make_unrolled_a4_plot(plot_dir, selected_samples)
+    syncer.sync()
     make_unrolled_a4_basis_response_plot(
         plot_dir,
         selected_samples,
@@ -887,5 +895,4 @@ for level in levels:
         args.basis_epsilon,
         max_events=args.basis_max_events,
     )
-
-syncer.sync()
+    syncer.sync()

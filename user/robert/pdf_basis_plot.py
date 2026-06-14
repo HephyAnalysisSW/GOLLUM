@@ -63,7 +63,10 @@ Q = 1.65
 n_var_per_plot = 5
 #pdf_basis = "250503_pod_basis_40k"
 #pdf_basis = "gluon_POD_nongluon_PDF4LHC21"
-pdf_basis = "gluon_POD_nongluon_ATLASpdf21"
+#pdf_basis = "gluon_POD_nongluon_ATLASpdf21"
+#pdf_basis = "gluon_POD70GeV_quarks_ATLASpdf21"
+#pdf_basis = "gluon_POD70GeV_quarks_PDF4LHC21"
+pdf_basis = "gluon_POD70GeV_quarks_NNPDF40"
 center_pdf = lhapdf.mkPDF(pdf_basis, 0)
 
 plot_directory = os.path.join( user.plot_directory, f"basis_plots_Q_{Q}_{pdf_basis}")
