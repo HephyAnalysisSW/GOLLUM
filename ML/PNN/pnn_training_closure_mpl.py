@@ -16,17 +16,18 @@ import common.syncer as syncer
 from common.helpers import copyIndexPHP
 
 from ML.PNN.PNN import PNN
+from data.UIDSplitter import UIDSplitter
 from tqdm import tqdm
 
 # Plot options (binning, labels, optional y_ratio_range)
 
-#from data.plot_options import plot_options as PLOT_OPTS
-from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
+from data.plot_options import plot_options as PLOT_OPTS
+# from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
 
-MAKE_PUBLIC_PLOTS = True
+MAKE_PUBLIC_PLOTS = False
 
 # ---------------- args ----------------
-p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven)")
+p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven) on held-out test dataset")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
@@ -50,7 +51,7 @@ def list_and_exit():
         sys.exit(0)
     script = os.path.basename(__file__)
     for j in jobs:
-        print(f"python {script} {args.config} --job {j['id']}")
+        print(f"python {__file__} {args.config} --job {j['id']}")
     sys.exit(0)
 
 if args.job is None:
@@ -62,6 +63,42 @@ if J is None or J.get("type") != "pnn":
 
 param_names = list(J.get("parameters", []))
 param_map_tex = " ".join([f"#nu_{{{i+1}}}={p}" for i, p in enumerate(param_names)]) if param_names else ""
+
+# ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
+UID_CFG = (J.get("splitting") or {})
+uid_enabled   = bool(UID_CFG.get("enabled", False))
+uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+uid_seed      = int(UID_CFG.get("seed", 0))
+uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+uid_scheme    = (UID_CFG.get("scheme") or {})
+
+uid_intervals = None
+uid_splitter = None
+if uid_enabled:
+    uid_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=uid_seed,
+        n_buckets=uid_n_buckets,
+    )
+
+    # build bucket intervals (inline; no extra helper, no extra checks)
+    keys  = list(uid_scheme.keys())
+    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+    sizes[-1] += uid_n_buckets - sum(sizes)
+
+    uid_intervals = {}
+    lo = 0
+    for k, sz in zip(keys, sizes):
+        uid_intervals[k] = (lo, lo + int(sz))
+        lo += int(sz)
+    eval_key = "final_eval"
+    eval_interval = uid_intervals[eval_key]
+
+    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+    print(f"[UID] scheme intervals: {uid_intervals}")
+    print(f"[UID] PNN eval split '{eval_key}' -> {eval_interval}")
 
 # ---------------- resolve loaders ----------------
 from data.RDataLoader import RDataLoader
@@ -266,12 +303,32 @@ def iterate_epoch(shard_limit=None):
     if shard_limit is not None:
         n_shards = min(n_shards, shard_limit)
     for shard in range(n_shards):
-        Xs, Ws = [], []
+        Xs, Ws, Os = [], [], []
         for L in loaders:
-            X, w = L.materialize(shard=shard, what="fw")
+            X, O, w = L.materialize(shard=shard, what="fow")
             Xs.append(X)
+            Os.append(O)
             Ws.append(w.astype(np.float32, copy=False))
-        yield Xs, Ws
+        
+        if not uid_enabled:
+            yield Xs, Ws
+            continue
+
+        # evaluating on 'final_eval' partition only
+        # follow structure used in training code
+        Xs_eval, Ws_eval = [], []
+        for L, X, w, O in zip(loaders, Xs, Ws, Os):
+            obs_names = L.observer_names
+            uid_idx = [obs_names.index(f) for f in uid_fields]
+            O_uid = O[:, uid_idx]
+
+            lo, hi = eval_interval
+            m_eval = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+            Xs_eval.append(X[m_eval]); Ws_eval.append(w[m_eval])
+        
+        yield Xs_eval, Ws_eval
+
 
 def nu_tex_from_coords(coords):
     values = [str(int(np.rint(v))) for v in coords]
