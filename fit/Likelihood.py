@@ -1,6 +1,26 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple, Any, Optional
-from iminuit import Minuit
+from types import SimpleNamespace
+
+try:
+    import autograd.numpy as np
+    from autograd import grad, hessian
+    from autograd.tracer import getval
+    _HAS_AUTOGRAD = True
+except ImportError:
+    import numpy as np
+    _HAS_AUTOGRAD = False
+
+    def grad(function):
+        raise ImportError("autograd is required for gradient-based fits.")
+
+    def hessian(function):
+        raise ImportError("autograd is required for Hessian-based fits.")
+
+    def getval(value):
+        return value
+
+from scipy.optimize import minimize
 
 import os
 import yaml
@@ -16,7 +36,7 @@ import copy
 import logging
 logger = logging.getLogger(__name__)
 
-import numpy as np
+import numpy as onp
 
 import sys
 sys.path.insert(0, '..')
@@ -316,6 +336,9 @@ try:
 except Exception:
     _NUMBA = False
 
+if _HAS_AUTOGRAD:
+    _NUMBA = False
+
 if _NUMBA:
     @njit(parallel=True, fastmath=True)
     def _weighted_sum_log1p_minus_x(x: np.ndarray, w: np.ndarray) -> float:
@@ -335,24 +358,19 @@ if _NUMBA:
         return s
 else:
     def _weighted_sum_log1p_minus_x(x: np.ndarray, w: np.ndarray) -> float:
-        x = np.asarray(x, dtype=np.float64)
-        w = np.asarray(w, dtype=np.float64)
-        y = np.empty_like(x)
+        x = np.array(x)
+        w = np.array(w)
         small = (np.abs(x) < 1e-4) & (x > -1.0)
-        if np.any(small):
-            xs = x[small]
-            s_small = xs*xs * (0.5 + xs*(-1/3 + xs*(1/4 + xs*(-1/5 + xs*(1/6)))))
-            y[small] = -s_small
-        big = ~small
-        if np.any(big):
-            xb = x[big]
-            y[big] = np.log1p(xb) - xb
-        return float(np.sum(w * y, dtype=np.float64))
+        s_small = x * x * (0.5 + x * (-1.0 / 3.0 + x * (1.0 / 4.0 + x * (-1.0 / 5.0 + x * (1.0 / 6.0)))))
+        y_small = -s_small
+        y_big = np.log1p(x) - x
+        y = np.where(small, y_small, y_big)
+        return np.sum(w * y, dtype=np.float64)
 
 
 def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float]) -> np.ndarray:
     N = len(poi_names)
-    c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names], dtype=np.float64)
+    c = np.array([poi_values.get(n, 0.0) for n in poi_names])
     quads = []
 
     #FIXME careful here, double sum
@@ -364,19 +382,19 @@ def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, flo
     for i in range(N):
         for j in range(i,N): 
             quads.append((0.5 if i==j else 1) * c[i] * c[j])  # 1/2 c_i c_j
-    return np.concatenate([c, np.asarray(quads, dtype=np.float64)], axis=0) if quads else c
+    return np.concatenate([c, np.array(quads)], axis=0) if quads else c
 
 
 def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]], values: Dict[str, float]) -> np.ndarray:
     if not combinations:
-        return np.zeros(0, dtype=np.float64)
-    out = np.empty(len(combinations), dtype=np.float64)
-    for k, comb in enumerate(combinations):
+        return np.zeros(0)
+    out = []
+    for comb in combinations:
         v = 1.0
         for p in comb:
-            v *= float(values.get(p, 0.0))
-        out[k] = v
-    return out
+            v *= values.get(p, 0.0)
+        out.append(v)
+    return np.array(out)
 
 def pois_jacobian_linear_quadratic(poi_names: List[str],
                                     poi_values: Dict[str, float]) -> np.ndarray:
@@ -394,7 +412,7 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
         return np.zeros((0, 0), dtype=np.float64)
 
     # Base c-vector in the same order as in expand_pois_linear_quadratic
-    c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names],
+    c = np.array([poi_values.get(n, 0.0) for n in poi_names],
                  dtype=np.float64)
 
     n_quads = N * (N + 1) // 2
@@ -454,7 +472,7 @@ def nuis_jacobian_A(param_names: List[str],
     # Loop over rows (each monomial ν_B)
     for k, comb in enumerate(combinations):
         # Fetch the ν values for each factor in the comb
-        vals = [float(values.get(p, 0.0)) for p in comb]
+        vals = [values.get(p, 0.0) for p in comb]
 
         # For each parameter column a, compute ∂ν_B/∂ν_a
         for a_idx, pname in enumerate(param_names):
@@ -1181,13 +1199,13 @@ class N2LL:
                 f"Expected order: {poi_names}"
             )
 
-        return np.array([float(h[name].val) for name in poi_names], dtype=np.float64)
+        return np.array([h[name].val for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
         ν_A vector per ICPh group, per class, for a given hypothesis.
         """
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         out: dict[str, list[tuple[dict, np.ndarray]]] = {}
         for C in self._binned_classes_by_region.get(rid, []):
             cid = C['id']
@@ -1207,7 +1225,7 @@ class N2LL:
         Build λ_i(c,ν) for all bins in a binned region rid by summing processes.
         """
         # per-class lnN (same as unbinned)
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         ln_bias = {}
         for C in self._binned_classes_by_region[rid]:
             cid = C['id']
@@ -1226,7 +1244,7 @@ class N2LL:
         for C in self._binned_classes_by_region[rid]:
             cid = C['id']
             ich = C['_ich']
-            cvec = np.array([float(p.val) for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
+            cvec = np.array([p.val for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
@@ -1238,16 +1256,16 @@ class N2LL:
                 expo = np.zeros(nb1, dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1)
-                    expo += (nuA @ dA).astype(np.float64)  # (nb1,)
-                lam += sigma_hist * np.exp(expo + ln_bias[cid])
+                    expo = expo + (nuA @ dA)  # (nb1,)
+                lam = lam + sigma_hist * np.exp(expo + ln_bias[cid])
             else:
                 nb1, nb2 = sigma_hist.shape
                 expo2d = np.zeros((nb1, nb2), dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1, nb2)
                     # tensordot over combination axis -> (nb1,nb2)
-                    expo2d += np.tensordot(nuA, dA, axes=(0, 0)).astype(np.float64)
-                lam += sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
+                    expo2d = expo2d + np.tensordot(nuA, dA, axes=(0, 0))
+                lam = lam + sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
 
         return lam
 
@@ -1256,7 +1274,7 @@ class N2LL:
     def _assemble_cA_per_class(self, rid: str, hypothesis) -> Dict[str, np.ndarray]:
         """Build c_A vectors per class for a given hypothesis."""
         cA_per_class: Dict[str, np.ndarray] = {}
-        c_vec = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
+        c_vec = {p.name: p.val for p in getattr(hypothesis, 'POIs', [])}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
             cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
@@ -1273,12 +1291,12 @@ class N2LL:
             if pname is None:
                 out[cid] = 0.0
             else:
-                out[cid] = float(hypothesis[pname].val) if pname in hypothesis else 0.0
+                out[cid] = hypothesis[pname].val if pname in hypothesis else 0.0
         return out
 
     def _assemble_nuA_groups(self, rid: str, hypothesis) -> Dict[str, list[tuple[dict, np.ndarray]]]:
         """Build ν_A vectors per Δ-group for a given hypothesis."""
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         nuA_per_group: Dict[str, list[tuple[dict, np.ndarray]]] = {}
         for cid in self._class_ids_by_region.get(rid, []):
             meta = self._meta[(rid, cid)]
@@ -1314,7 +1332,7 @@ class N2LL:
                 c_dot_R = R_slice @ cA
 
             # --- additive POI bias: rate_shift (scalar per class) ---
-            rs = float(rate_shift_map.get(cid, 0.0))
+            rs = rate_shift_map.get(cid, 0.0)
             if rs != 0.0:
                 c_dot_R = c_dot_R + rs
 
@@ -1325,7 +1343,7 @@ class N2LL:
                 dA   = f[dset][start:stop, :]           # (M, nB)
                 if dA.shape[1] != nuA.shape[0]:
                     raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
-                expo += dA @ nuA                        # (M,)
+                expo = expo + (dA @ nuA)                # (M,)
 
             # include per-class lnN bias additively in exponent
             expo += ln_bias_map[cid] # (M,)
@@ -1350,7 +1368,7 @@ class N2LL:
             return
 
         # quick check: any parameter nonzero?
-        any_nonzero = any(abs(float(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
+        any_nonzero = any(abs(getval(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
         # _asimov_active controls whether we have (c',nu')!=(0,0). If that's false, we need not evaluate T(x;c',nu')
         self._asimov_active = bool(any_nonzero)
         self._asimov_hyp = hypothesis if self._asimov_active else None
@@ -1373,7 +1391,7 @@ class N2LL:
             cA_per_class = self._assemble_cA_per_class(rid, hypothesis)
             nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
             ln_bias = {
-                cid: sum(log1p_alpha * float(hypothesis[nm].val) if nm in hypothesis else 0.0
+                cid: sum(log1p_alpha * hypothesis[nm].val if nm in hypothesis else 0.0
                          for nm, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
                 for cid in class_ids
             }
@@ -1615,12 +1633,12 @@ class N2LL:
                     X = np.asarray(X, dtype=np.float64)
                     if len(edges) == 1:
                         x = X[:, idx[0]]
-                        H, _ = np.histogram(x, bins=edges[0], weights=(w if w is not None else None))
+                        H, _ = onp.histogram(x, bins=edges[0], weights=(w if w is not None else None))
                         counts += H.astype(np.float64)
                     else:
                         x = X[:, idx[0]]
                         y = X[:, idx[1]]
-                        H, _, _ = np.histogram2d(x, y, bins=[edges[0], edges[1]], weights=(w if w is not None else None))
+                        H, _, _ = onp.histogram2d(x, y, bins=[edges[0], edges[1]], weights=(w if w is not None else None))
                         counts2d += H.astype(np.float64)
 
                 flat_counts = counts if len(edges) == 1 else counts2d.reshape(-1)
@@ -1657,7 +1675,7 @@ class N2LL:
             # ---------- UNBINNED (if provided) ----------
             if getattr(self, "_obs_unbinned", None):
                 # ν values for lnN bias if we need to reconstruct T from by_class
-                nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
+                nu_vals = {p.name: p.val for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
                 for rid, block in self._obs_unbinned.items():
                     byc = block['by_class']
@@ -1706,7 +1724,7 @@ class N2LL:
                         c_dot_R = R_slice @ cA                                # (N,)
 
                         # Adding rate shift
-                        rs = float(rate_shift.get(cid, 0.0))
+                        rs = rate_shift.get(cid, 0.0)
                         if rs != 0.0:
                             c_dot_R = c_dot_R + rs
 
@@ -1718,7 +1736,7 @@ class N2LL:
                             dA = np.asarray(comp[dset], dtype=np.float64)     # (N, nB)
                             if dA.shape[1] != nuA.shape[0]:
                                 raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
-                            expo += dA @ nuA
+                            expo = expo + (dA @ nuA)
 
                         # include per-class lnN bias additively in exponent
                         expo += ln_bias[cid] # (M,)
@@ -1740,7 +1758,7 @@ class N2LL:
 
             n2ll = -2.0 * (total_unbinned + total_binned)
             n2ll += hypothesis._base.penalty()
-            return float(n2ll)
+            return n2ll
 
         # ===================================================================
         # (B) ASIMOV MODE  
@@ -1748,7 +1766,7 @@ class N2LL:
         total_sum = 0.0   # Σ w * (log1p(T) - T)
         bias_sum  = 0.0   # Σ w * T'(asimov) * log1p(T)
 
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
         for R in self.regions:
             rid = R['id']
@@ -1782,7 +1800,7 @@ class N2LL:
 
                 if asimov_T_chunks is not None:
                     Tprime = asimov_T_chunks[ichunk]
-                    bias_sum += float(np.sum(W * np.log1p(T) * Tprime, dtype=np.float64))
+                    bias_sum += np.sum(W * np.log1p(T) * Tprime, dtype=np.float64)
 
         total_unbinned = total_sum + bias_sum
 
@@ -1798,10 +1816,54 @@ class N2LL:
 
         n2ll = -2.0 * (total_unbinned + total_binned)
         n2ll += hypothesis._base.penalty()
-        return float(n2ll)
+        return n2ll
 
 from iminuit import Minuit
-def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+
+class _CovarianceMatrix:
+    def __init__(self, matrix, parameter_names):
+        self.matrix = onp.asarray(matrix, dtype=onp.float64)
+        self.parameter_names = list(parameter_names)
+
+    def correlation(self):
+        diag = onp.sqrt(onp.clip(onp.diag(self.matrix), 0.0, None))
+        denom = onp.outer(diag, diag)
+        corr = onp.zeros_like(self.matrix)
+        onp.divide(self.matrix, denom, out=corr, where=denom > 0)
+        onp.fill_diagonal(corr, 1.0)
+        return corr
+
+    def __array__(self, dtype=None):
+        return onp.asarray(self.matrix, dtype=dtype)
+
+
+class _FitResult:
+    def __init__(self, *, parameters, values, errors, covariance, fval, edm, niter, success, message, jac):
+        self.parameters = list(parameters)
+        self.values = onp.asarray(values, dtype=onp.float64)
+        self.errors = onp.asarray(errors, dtype=onp.float64)
+        self.covariance = _CovarianceMatrix(covariance, self.parameters)
+        self.fval = float(fval)
+        self.edm = float(edm)
+        self.niter = int(niter)
+        self.success = bool(success)
+        self.message = str(message)
+        self.jac = None if jac is None else onp.asarray(jac, dtype=onp.float64)
+
+    def __repr__(self):
+        status = "success" if self.success else "failed"
+        return f"FitResult(fval={self.fval:.6e}, niter={self.niter}, status={status})"
+
+
+def _scalar_value(value):
+    try:
+        return float(getval(value))
+    except Exception:
+        return float(value)
+
+
+from iminuit import Minuit
+def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                    do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
 
     # -- collect free parameters (works for rotated or plain) --
@@ -1907,6 +1969,135 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         print("\n[final] Best-fit hypothesis:")
         h_final.print()
     return m
+
+def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
+
+    # -- collect free parameters (works for rotated or plain) --
+    if isinstance(hypothesis, Rotated):
+        free = [p for p in hypothesis.POIs if not p.isFrozen] + [p for p in hypothesis.nuisances
+                                  if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = {p.name for p in hypothesis.POIs if not p.isFrozen}
+    else:
+        free = [p for p in hypothesis.parameters
+                if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = set()
+
+    if not free:
+        raise RuntimeError("No free parameters to fit.")
+
+    names = [p.name for p in free]
+    x0 = np.asarray([_scalar_value(p.val) for p in free], dtype=np.float64)
+
+    # step defaults:
+    #   None  -> plain: all 0.1
+    #   float -> uniform
+    #   dict  -> per-parameter overrides
+    if step is None:
+        steps = {p.name: 0.1 for p in free}
+    elif isinstance(step, (int, float)):
+        steps = {p.name: float(step) for p in free}
+    elif isinstance(step, dict):
+        steps = {p.name: 0.1 for p in free}
+        for k, v in step.items():
+            if k in steps:
+                steps[k] = float(v)
+    else:
+        raise TypeError("step must be None, float, or dict{name: float}")
+
+    eval_count = 0
+
+    def fcn(x):
+        nonlocal eval_count
+        pars = {names[i]: x[i] for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pars)
+        f = n2ll(h_eval)
+        eval_count += 1
+        if verbosity >= 2:
+            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
+                print(f"\n[eval {eval_count:6d}] f = {_scalar_value(f): .6e}")
+                h_eval.print()  # print the actually evaluated point
+        if not onp.isfinite(_scalar_value(f)):
+            raise RuntimeError("NaN likelihood!")
+        return f
+
+    bounds = [(-1.0, np.inf) if name.startswith("rate_shift") else (-np.inf, np.inf) for name in names]
+
+    if verbosity >= 1:
+        print("\n[fit] Floating parameters:")
+        for i, nm in enumerate(names):
+            print(f"  - {nm:>16s}  start = {x0[i]: .6e}  step = {steps[nm]: .3g}")
+
+    if do_migrad:
+        result = minimize(
+            fcn,
+            x0,
+            method="L-BFGS-B",
+            jac=grad(fcn),
+            bounds=bounds,
+            options={"maxiter": 1000, "ftol": 1e-9},
+        )
+        x_best = onp.asarray(result.x, dtype=onp.float64)
+        if verbosity >= 1:
+            print("\n[MINIMIZE]")
+            print(result)
+    else:
+        x_best = onp.asarray(x0, dtype=onp.float64)
+        result = SimpleNamespace(success=True, message="minimization skipped", nit=0, fun=fcn(x_best), jac=grad(fcn)(x_best))
+
+    # The objective is -2 log L.  Minuit's errordef=1 convention defines the
+    # 1-sigma boundary as Δ(-2 log L) = 1, so C = 2 H⁻¹ (the factor of 2
+    # absorbs the "-2" prefactor).  Apply the same scaling here.
+    if do_hesse:
+        try:
+            hess = onp.asarray(hessian(fcn)(x_best), dtype=onp.float64)
+            covariance = 2.0 * onp.linalg.pinv(hess)
+        except Exception as exc:
+            if verbosity >= 1:
+                print(f"[warn] Exact Hessian failed ({exc}); falling back to optimizer covariance.")
+            hess_inv = getattr(result, "hess_inv", None)
+            if hess_inv is not None and hasattr(hess_inv, "todense"):
+                covariance = 2.0 * onp.asarray(hess_inv.todense(), dtype=onp.float64)
+            elif hess_inv is not None:
+                covariance = 2.0 * onp.asarray(hess_inv, dtype=onp.float64)
+            else:
+                covariance = onp.eye(len(names), dtype=onp.float64)
+    else:
+        hess_inv = getattr(result, "hess_inv", None)
+        if hess_inv is not None and hasattr(hess_inv, "todense"):
+            covariance = 2.0 * onp.asarray(hess_inv.todense(), dtype=onp.float64)
+        elif hess_inv is not None:
+            covariance = 2.0 * onp.asarray(hess_inv, dtype=onp.float64)
+        else:
+            covariance = onp.eye(len(names), dtype=onp.float64)
+
+    errors = onp.sqrt(onp.clip(onp.diag(covariance), 0.0, None))
+    jac_best = onp.asarray(getattr(result, "jac", grad(fcn)(x_best)), dtype=onp.float64)
+    edm = float(0.5 * onp.dot(jac_best, jac_best))
+
+    final_pars = {names[i]: x_best[i] for i in range(len(names))}
+    h_final = hypothesis.cloneModify(**final_pars)
+    # copy final values onto the original object (single pass)
+    for k, v in final_pars.items():
+        setattr(hypothesis, k, v)
+    if verbosity >= 1:
+        print("\n[final] Best-fit hypothesis:")
+        h_final.print()
+    if do_minos and verbosity >= 1:
+        print("[warn] MINOS uncertainties are not available in the autograd backend; using Hessian errors.")
+
+    return _FitResult(
+        parameters=names,
+        values=x_best,
+        errors=errors,
+        covariance=covariance,
+        fval=_scalar_value(fcn(x_best)),
+        edm=edm,
+        niter=getattr(result, "nit", getattr(result, "niter", 0)),
+        success=getattr(result, "success", True),
+        message=getattr(result, "message", ""),
+        jac=jac_best,
+    )
 
 def serialize_result(m, base, version, args, out_path ):
 
@@ -2139,6 +2330,8 @@ if __name__ == "__main__":
     p.add_argument("--minos", action="store_true", default=False,
                    help="Whether to use MINOS in the fit (POIs only). If not set, then use HESSE by default.")
     p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos. 'all' runs MINOS for all NPs.")
+    p.add_argument("--minuit", action="store_true", default=False,
+                   help="Use the original iminuit/MIGRAD backend instead of the autograd+SciPy backend.")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2412,7 +2605,12 @@ if __name__ == "__main__":
                 # which sets step to 0.1 for all parameters
                 # (see function definition)
                 # step can also be a single value or a dictionary
-                m = run_minuit_fit(
+                _fitter = run_iminuit_fit if args.minuit else run_minuit_fit
+                if args.minuit:
+                    print("[opts] Using iminuit/MIGRAD backend (--minuit)")
+                else:
+                    print("[opts] Using autograd+SciPy backend (default)")
+                m = _fitter(
                     n2ll,
                     hyp_for_fit,
                     print_every=1,
@@ -2429,7 +2627,6 @@ if __name__ == "__main__":
             print("Best -2logL =", fit["fval"])
             print("Correlation")
             print(np.asarray(fit["correlation"]["matrix"]))
-
             # -------- generic Minuit covariance diagnosis (fit basis only) --------
             cov = np.asarray(fit["covariance"]["matrix"], dtype=np.float64)
             cov = 0.5 * (cov + cov.T)  # symmetrize numerically
@@ -2528,4 +2725,13 @@ if __name__ == "__main__":
         corr=fit["correlation"]["matrix"],
         suffix=f"_{version}{suffix}",
     )
-    syncer.sync()
+    try:
+        syncer.sync()
+    except Exception as e:
+        print(f"[sync] Warning: failed to sync outputs ({e}).")
+        # Prevent duplicate failing retries from the atexit sync hook.
+        try:
+            syncer.file_sync_storage = []
+        except Exception:
+            pass
+
