@@ -34,6 +34,7 @@ p.add_argument("--small", action="store_true", help="Only first shard for debugg
 p.add_argument("--lumi_scale", type=float, default=None, help="Scale lumi?")
 p.add_argument("--for_debug", action="store_true", help="Use _for_debug directories")
 p.add_argument("--n_split", default=None, help="Set sample split")
+p.add_argument("--shape_only", action="store_true", help="Removing impact of total rate variations from ICP to plot shape-only variations.")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -276,6 +277,9 @@ print(f"Latest checkpoint: {latest}")
 print(f"Trying to load PNN from {model_dir}")
 try:
     pnn = PNN.load(model_dir)
+    # RB: if model is trained with ICP bias,  
+    # it will be loaded with the ICP bias from the saved payload
+    # even when deleting the use_icp field from the job config
 except Exception as e:
     raise RuntimeError(f"Failed to load PNN from {model_dir}") from e
 print("Success!")
@@ -295,6 +299,13 @@ if icp_id:
     _combs  = [tuple(c) for c in icp.combinations]
     _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
     pnn.set_icp(parameters=_params, combinations=_combs, DeltaA=_DeltaA)
+
+if args.shape_only:
+
+    if not pnn.has_icp():
+        raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+
+    pnn.remove_icp_bias()
 
 # ---------------- helpers ----------------
 def iterate_epoch(shard_limit=None):

@@ -158,21 +158,31 @@ def load_likelihood(cfg):
                     if 'parameters' not in S or not S['parameters']:
                         S['parameters'] = pnn_params
                     S['combinations'] = pnn_combs
+                    print(S['id'], S.get('shape_only', False))
 
-                    # optional: check PNN↔ICP consistency if referenced
-                    try:
-                        extras = (pnn_job or {}).get('extras', {}) or {}
-                        icp_id = extras.get('use_icp')
-                        if isinstance(icp_id, str) and icp_id in id2job:
-                            icp_job = id2job[icp_id]
-                            icp = icp_job.get('predictor', None)
-                            if icp is not None:
-                                icp_params = list(getattr(icp, "parameters"))
-                                icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
-                                if not (pnn_params == icp_params and pnn_combs == icp_combs):
-                                    logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
-                    except Exception:
-                        pass
+                    if S.get('shape_only', False):
+
+                        if not S['predictor'].has_icp():
+                            raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+                        
+                        logger.warning(f"[likelihood] PNN '{pnn_id}' will be used only for shape variations.")
+                        S['predictor'].remove_icp_bias()
+
+                    else:
+                        # optional: check PNN↔ICP consistency if referenced
+                        try:
+                            extras = (pnn_job or {}).get('extras', {}) or {}
+                            icp_id = extras.get('use_icp')
+                            if isinstance(icp_id, str) and icp_id in id2job:
+                                icp_job = id2job[icp_id]
+                                icp = icp_job.get('predictor', None)
+                                if icp is not None:
+                                    icp_params = list(getattr(icp, "parameters"))
+                                    icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
+                                    if not (pnn_params == icp_params and pnn_combs == icp_combs):
+                                        logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
+                        except Exception:
+                            pass
 
                     # collect nuisance names
                     for nm in (S.get("parameters") or []):
