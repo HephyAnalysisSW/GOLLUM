@@ -641,7 +641,149 @@ def make_pnn_closure_plots():
 
         feature_keep[feat] = True
 
+
+def make_pnn_chi2_plots():
+
+    plot_dir = os.path.join(
+        user.plot_directory,
+        "PNN_prediction_diagnostics",
+        cfg_base + ("_for_debug" if args.for_debug else ""),
+        J["id"],
+    )
+
+    if args.shape_only:
+        plot_dir += "_shape"
+        
+    copyIndexPHP(plot_dir)
+
+    for feat in plot_feats:
+        # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
+        x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
+        x_title = fr"${{{x_title}}}$"
+        logY = PLOT_OPTS.get(feat, {}).get("logY", False)
+
+        edges = np.asarray(bins[feat], dtype=np.float64)
+        n_bins = len(edges) - 1
+        x_min, x_max = float(edges[0]), float(edges[-1])
+        centers = 0.5 * (edges[1:] + edges[:-1])
+        widths = edges[1:] - edges[:-1]
+
+        fig = plt.figure(figsize=(8, 12))
+        gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0.03)
+        ax_top = fig.add_subplot(gs[0])
+        ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+        fig.subplots_adjust(top=axes_top)
+
+        # Figure-level header above the plot: sample + nuisance parameters.
+        fig.text(
+            0.5,
+            0.965,
+            legend_mapping_line,
+            ha="center",
+            va="top",
+            fontsize=18,
+            weight="bold",
+        )
+
+        # Top: histograms
+        max_y = 0.0
+        handles = []
+        labels = []
+
+        for k, nu in enumerate(base_points):
+
+            y = true_h[feat][:, k].astype(np.float64)
+            y2 = true_h2[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
+
+            err = np.sqrt(y2)
+
+            # plot predicted as stepped line
+            # use edges for step plotting
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([y_pred, y_pred[-1:]])
+            h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+            # plot truth as markers with errorbars at bin centers
+            # h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+
+            handles.append(h_line)
+            labels.append(nu_tex_from_coords(nu))
+
+            max_y = max(max_y, np.nanmax(y))
+
+        if logY:
+            ax_top.set_yscale("log")
+            y_min = max(0.1, 0.3)
+            y_max = max(1.0, 1.2 * max_y) if max_y > 0 else 1.0
+            ax_top.set_ylim(y_min, y_max)
+        else:
+            ax_top.set_ylim(0.0, 1.2 * max_y if max_y > 0 else 1.0)
+
+        ax_top.set_ylabel("Events")
+        ax_top.tick_params(labelbottom=False)
+
+        # CMS label area
+        hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
+        # hep.mpl_magic()
+
+        # Bottom: ratios to nominal
+        h_nom = true_h[feat][:, nom_idx].astype(np.float64)
+        denom = h_nom.copy()
+        denom[denom == 0] = np.nan
+
+        max_dev = 0.0
+        for k in range(n_entries):
+
+            y = true_h[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
+            # err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
+
+            from ML.TFMC.tfmc_plot_true_model import safe_divide
+            chi_2 = safe_divide(np.square((y_pred - h_nom)),h_nom)
+
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([chi_2, chi_2[-1:]])
+            ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+            validp = np.isfinite(chi_2)
+            if np.any(validp):
+                max_dev = max(max_dev, np.nanmax(np.abs(chi_2[validp])))
+
+        if max_dev <= 0.0:
+            r_max = 0.1
+        else:
+            half_range = 1.3 * max_dev
+            r_max = half_range
+
+        ax_bot.set_ylim(0.0, r_max)
+        ax_bot.set_ylabel(r"$\Delta^2(var,nom)/\sigma_{nom}^2$")
+        ax_bot.set_xlabel(x_title)
+
+        # Figure-level legend in the same top area as the mapping line.
+        fig.legend(
+            handles,
+            labels,
+            ncol=n_cols,
+            loc="upper center",
+            bbox_to_anchor=(0.5, main_legend_y),
+            frameon=False,
+            fontsize=18,
+            handlelength=2.0,
+            columnspacing=1.4,
+        )
+
+        out_png = os.path.join(plot_dir, f"{feat}.png")
+        out_pdf = os.path.join(plot_dir, f"{feat}.pdf")
+        plt.savefig(out_png, bbox_inches="tight")
+        plt.savefig(out_pdf, bbox_inches="tight")
+        plt.close(fig)
+
+        feature_keep[feat] = True
+
 make_pnn_closure_plots()
+
+make_pnn_chi2_plots()
 
 syncer.sync()
 print("Done.")
