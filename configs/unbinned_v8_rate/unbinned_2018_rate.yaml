@@ -462,6 +462,15 @@ jobs:
     output:
       filename: "Scaler_TTLep_pow_2018.pkl"
 
+  - id: scaler_TTLep_pow_2018_no_pt_ttbar
+    type: scaler
+    process: TTLep_pow_2018
+    region: SR_2018
+    selection: null
+    features: ["TOP_KINEMATICS_NO_PT_TTBAR", "LEPTON_KINEMATICS","ASYMMETRY"]
+    output:
+      filename: "Scaler_TTLep_pow_2018_no_pt_ttbar.pkl"      
+
   - id: icp_TTLep_pow_2018_L1Prefire
     type: icp
     region: SR_2018
@@ -881,6 +890,59 @@ jobs:
       rebin: 2
     extras:
       use_scaler: scaler_TTLep_pow_2018
+      use_icp: icp_TTLep_pow_2018_scales
+
+  - id: pnn_TTLep_pow_2018_scales_no_pt_ttbar
+    type: pnn
+    region: SR_2018
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: TTLep_pow_2018
+      addweights: ["scale_ren2p0_fac2p0"]
+    features: ["TOP_KINEMATICS_NO_PT_TTBAR", "LEPTON_KINEMATICS","ASYMMETRY"]
+    model:
+      hidden_layers:
+      - 128
+      - 128
+      activation: relu
+      initialize_zero: true
+    optim:
+      epochs: 200
+      phaseout_epochs: 50
+      learning_rate: 0.001
+    runtime:
+      n_split: 10
+      rebin: 2
+    extras:
+      use_scaler: scaler_TTLep_pow_2018_no_pt_ttbar
       use_icp: icp_TTLep_pow_2018_scales
 
   - id: icp_TTLep_pow_2018_showerISR
