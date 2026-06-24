@@ -538,13 +538,16 @@ def make_pnn_closure_plots():
             step_y = np.concatenate([y_pred, y_pred[-1:]])
             h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
 
-            # plot truth as markers with errorbars at bin centers
-            h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
-
             handles.append(h_line)
             labels.append(nu_tex_from_coords(nu))
 
-            max_y = max(max_y, np.nanmax(y))
+            max_y = max(max_y, np.nanmax(y_pred))
+            
+            # if shape-only, not plotting the truth which will always include the total XS
+            if not args.shape_only:
+                # plot truth as markers with errorbars at bin centers
+                h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+                max_y = max(max_y, np.nanmax(y))
 
         if logY:
             ax_top.set_yscale("log")
@@ -577,15 +580,18 @@ def make_pnn_closure_plots():
             err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
             r_err = err / denom
 
-            ax_bot.errorbar(centers, r_true, yerr=r_err, fmt="o", color=colors[k], markersize=4)
+            # not plotting truth when plotting shape-only
+            if not args.shape_only:
+                ax_bot.errorbar(centers, r_true, yerr=r_err, fmt="o", color=colors[k], markersize=4)
+                # compute max deviation
+                valid = np.isfinite(r_true)
+                if np.any(valid):
+                    max_dev = max(max_dev, np.nanmax(np.abs(r_true[valid] - 1.0)))
+
             step_x = np.concatenate([edges[:-1], edges[-1:]])
             step_y = np.concatenate([r_pred, r_pred[-1:]])
             ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
 
-            # compute max deviation
-            valid = np.isfinite(r_true)
-            if np.any(valid):
-                max_dev = max(max_dev, np.nanmax(np.abs(r_true[valid] - 1.0)))
             validp = np.isfinite(r_pred)
             if np.any(validp):
                 max_dev = max(max_dev, np.nanmax(np.abs(r_pred[validp] - 1.0)))
