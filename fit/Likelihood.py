@@ -158,7 +158,6 @@ def load_likelihood(cfg):
                     if 'parameters' not in S or not S['parameters']:
                         S['parameters'] = pnn_params
                     S['combinations'] = pnn_combs
-                    print(S['id'], S.get('shape_only', False))
 
                     if S.get('shape_only', False):
 
