@@ -17,7 +17,6 @@ import numpy as np
 
 import common.user as user
 from common.helpers import copyIndexPHP
-from common.plot_helpers import edges_from_binning
 from data.plot_options import plot_options
 from data.samples_RunII import BASE_DIRECTORY, Factory, process_labels
 import common.syncer as syncer
@@ -77,6 +76,14 @@ def slugify(text: str) -> str:
     text = re.sub(r"[^A-Za-z0-9]+", "_", text)
     return text.strip("_") or "default"
 
+def edges_from_binning(binning: object) -> np.ndarray:
+    """Convert a plot_options binning specification into bin edges."""
+    if isinstance(binning, (list, tuple)) and len(binning) == 3 and isinstance(binning[0], int):
+        nbins, x_min, x_max = binning
+        return np.linspace(float(x_min), float(x_max), int(nbins) + 1, dtype=np.float64)
+    if isinstance(binning, np.ndarray):
+        return np.asarray(binning, dtype=np.float64)
+    return np.asarray(tuple(cast(Iterable[float], binning)), dtype=np.float64)
 
 def hist_with_flow(values: np.ndarray, weights: np.ndarray, edges: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Fill a 1D histogram and fold under/overflow into the edge bins."""
