@@ -81,7 +81,7 @@ likelihood:
                   parameters: [nu_btag_l]
                 - id: Scales
                   type: pnn
-                  job: pnn_TTLep_pow_2018_scales
+                  job: pnn_TTLep_pow_2018_scales_no_pt_ttbar
                   shape_only: true
                   parameters: [nu_mu_ren, nu_mu_fac]
                 - id: ShowerISR
