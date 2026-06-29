@@ -998,9 +998,10 @@ class N2LL:
                         'id': S['id'],
                         'params': list(S.get('parameters', []) or []),
                         'combs':  [list(t) for t in (getattr(pred, "combinations", []) or [])],
-                        # We store deltas as (nB, nb1) or (nB, nb1, nb2) in float64
-                        '_deltas': np.asarray(pred.deltas, dtype=np.float64),
+                        # Always copy so shape_only normalization below does not mutate the loaded surrogate
+                        '_deltas': np.array(pred.deltas, dtype=np.float64),
                         '_obj': pred,
+                        'shape_only': bool(S.get('shape_only', False)),
                     }
                     icph_groups.append({'_meta': gm})
 
@@ -1258,23 +1259,40 @@ class N2LL:
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
-            # accumulate nuisance exponent per bin from all ICPh groups
-            # we’ll form a flat vector exp(exponent + ln_bias[cid])
+            # accumulate nuisance exponent per bin from all ICPh groups,
+            # separating shape-only groups (exact runtime renormalization) from the rest
             if sigma_hist.ndim == 1:
                 nb1 = sigma_hist.shape[0]
-                expo = np.zeros(nb1, dtype=np.float64)
+                expo_norm  = np.zeros(nb1, dtype=np.float64)
+                expo_shape = np.zeros(nb1, dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1)
-                    expo = expo + (nuA @ dA)  # (nb1,)
-                lam = lam + sigma_hist * np.exp(expo + ln_bias[cid])
+                    if gm.get('shape_only', False):
+                        expo_shape = expo_shape + (nuA @ dA)
+                    else:
+                        expo_norm  = expo_norm  + (nuA @ dA)
+                shape_factor = np.exp(expo_shape)
+                shape_sum = sigma_hist @ shape_factor
+                if shape_sum > 0:
+                    shape_factor *= sigma_hist.sum() / shape_sum
+                lam = lam + sigma_hist * np.exp(expo_norm + ln_bias[cid]) * shape_factor
             else:
                 nb1, nb2 = sigma_hist.shape
-                expo2d = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_norm2d  = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_shape2d = np.zeros((nb1, nb2), dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1, nb2)
-                    # tensordot over combination axis -> (nb1,nb2)
-                    expo2d = expo2d + np.tensordot(nuA, dA, axes=(0, 0))
-                lam = lam + sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
+                    contrib = np.tensordot(nuA, dA, axes=(0, 0))  # (nb1, nb2)
+                    if gm.get('shape_only', False):
+                        expo_shape2d = expo_shape2d + contrib
+                    else:
+                        expo_norm2d  = expo_norm2d  + contrib
+                shape_factor2d = np.exp(expo_shape2d)
+                sig_flat = sigma_hist.reshape(-1)
+                shape_sum = sig_flat @ shape_factor2d.reshape(-1)
+                if shape_sum > 0:
+                    shape_factor2d *= sig_flat.sum() / shape_sum
+                lam = lam + sig_flat * np.exp(expo_norm2d.reshape(-1) + ln_bias[cid]) * shape_factor2d.reshape(-1)
 
         return lam
 
