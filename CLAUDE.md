@@ -150,6 +150,9 @@ plt.savefig(os.path.join(plot_dir, "figure.png"))
 - Docstrings on all new files and functions (brief, not multi-paragraph).
 - Don't add backward-compatibility shims when refactoring — change all call sites directly.
 - Don't abstract logic that appears only once. Three similar instances warrant a helper; one or two do not.
+- Don't use shorthand naming for variables that are not auxiliary variables. Be verbose but no more than three words.
+- Use ascii characters only, and e.g. write lambda explicitly instead of the lambda character.
+- Don't give a random name to plan files. The plan file name should be a shorthand for what is being implemented.
 
 ## Non-obvious design decisions
 
