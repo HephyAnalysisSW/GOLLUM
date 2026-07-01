@@ -40,7 +40,7 @@ from fit.Likelihood import (
 # Show all available derivatives by default.
 # To restrict the output, uncomment and edit, e.g.
 # SHOW_ONLY = [("c1",), ("c2",), ("c1", "c1"), ("c1", "c2")]
-SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",)]
+SHOW_ONLY = [("c0",), ("c1",), ("c2",), ("c3",), ("c4",), ("c5",), ("c6",)]
 
 # --small will stop after this many selected events
 SMALL_MAX_EVENTS = 500000

@@ -15,22 +15,25 @@
 #python plot_DY_giacomo_unrolled_eft.py --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
 #python plot_DY_giacomo_unrolled_eft.py --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
 
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point c3pl1_1:c3pl1=1 --eft-point c3pl1_m1:c3pl1=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point c3pl2_1:c3pl2=1 --eft-point c3pl2_m1:c3pl2=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cll1221_1:cll1221=1 --eft-point cll1221_m1:cll1221=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpd_1:cpd=1 --eft-point cpd_m1:cpd=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpdc_1:cpdc=1 --eft-point cpdc_m1:cpdc=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpl2_1:cpl2=1 --eft-point cpl2_m1:cpl2=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpmu_1:cpmu=1 --eft-point cpmu_m1:cpmu=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpq3_1:cpq3=1 --eft-point cpq3_m1:cpq3=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpq3i_1:cpq3i=1 --eft-point cpq3i_m1:cpq3i=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpqm_1:cpqm=1 --eft-point cpqm_m1:cpqm=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpqmi_1:cpqmi=1 --eft-point cpqmi_m1:cpqmi=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpu_1:cpu=1 --eft-point cpu_m1:cpu=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cpwb_1:cpwb=1 --eft-point cpwb_m1:cpwb=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cqe2_1:cqe2=1 --eft-point cqe2_m1:cqe2=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
-python plot_DY_giacomo_unrolled_eft.py --low-mass --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point c3pl1_1:c3pl1=1 --eft-point c3pl1_m1:c3pl1=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point c3pl2_1:c3pl2=1 --eft-point c3pl2_m1:c3pl2=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cll1221_1:cll1221=1 --eft-point cll1221_m1:cll1221=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpd_1:cpd=1 --eft-point cpd_m1:cpd=-1
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpdc_0p5:cpdc=0.5 --eft-point cpdc_m0p5:cpdc=-0.5
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpl2_1:cpl2=1 --eft-point cpl2_m1:cpl2=-1
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpmu_0p5:cpmu=0.5 --eft-point cpmu_m0p5:cpmu=-0.5
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpq3_0p5:cpq3=0.5 --eft-point cpq3_m0p5:cpq3=-0.5
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpq3i_0p5:cpq3i=0.5 --eft-point cpq3i_m0p5:cpq3i=-0.5
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpqm_1:cpqm=1 --eft-point cpqm_m1:cpqm=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpqmi_1:cpqmi=1 --eft-point cpqmi_m1:cpqmi=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpu_1:cpu=1 --eft-point cpu_m1:cpu=-1
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpwb_0p5:cpwb=0.5 --eft-point cpwb_m0p5:cpwb=-0.5
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cqe2_1:cqe2=1 --eft-point cqe2_m1:cqe2=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
+#python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
+
+
+python plot_DY_giacomo_unrolled_eft.py --delta-a4-y-min -0.05 --delta-a4-y-max 0.05 --low-mass --eft-point cpwb_0p5:cpwb=0.5 --eft-point cpwb_m0p5:cpwb=-0.5 --eft-point cpmu_0p5:cpmu=0.5 --eft-point cpmu_m0p5:cpmu=-0.5 --eft-point cpq3i_0p5:cpq3i=0.5 --eft-point cpq3i_m0p5:cpq3i=-0.5
 
 #python plot_DY_giacomo_unrolled_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT --eft-point c3pl3_1:c3pl3=1 --eft-point c3pl3_m1:c3pl3=-1
 #python plot_DY_giacomo_unrolled_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT --eft-point cpe_1:cpe=1 --eft-point cpe_m1:cpe=-1

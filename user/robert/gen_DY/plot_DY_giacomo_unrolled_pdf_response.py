@@ -3,6 +3,7 @@
 import argparse
 import math
 import os
+import shutil
 import sys
 
 import awkward as ak
@@ -69,9 +70,9 @@ GIACOMO_MLL_BINS = np.array(
     ],
     dtype=np.float64,
 )
-GIACOMO_ABSY_BINS = np.array([0.0, 0.5, 1.0, 1.5, 2.5], dtype=np.float64)
+GIACOMO_ABSY_BINS = np.array([0.0, 0.8, 1.6, 2.4], dtype=np.float64)
 LOW_MASS_MLL_BINS = np.array([60, 70, 80, 86, 91, 96, 106, 120, 133], dtype=np.float64)
-LOW_MASS_ABSY_BINS = np.array([0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.7, 3.0, 3.4], dtype=np.float64)
+LOW_MASS_ABSY_BINS = np.array([0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4], dtype=np.float64)
 MLL_BINS = GIACOMO_MLL_BINS
 ABSY_BINS = GIACOMO_ABSY_BINS
 COSTHETA_BINS = np.array([-1.0, -0.6, -0.2, 0.2, 0.6, 1.0], dtype=np.float64)
@@ -94,6 +95,16 @@ WEIGHT_BRANCHES = ["xsec_weight"]
 DEFAULT_SELECTION = "(dy_born_has_candidate > 0)"
 
 QPM_BASIS = ["uplus", "dplus", "splus", "cplus", "uminus", "dminus", "sminus"]
+SET_B_COLORS = [
+    ROOT.TColor.GetColor("#b0e0e8"),
+    ROOT.TColor.GetColor("#50b8e8"),
+    ROOT.TColor.GetColor("#607070"),
+    ROOT.TColor.GetColor("#4068e0"),
+    ROOT.TColor.GetColor("#a89898"),
+    ROOT.TColor.GetColor("#b01008"),
+    ROOT.TColor.GetColor("#d86850"),
+    ROOT.TColor.GetColor("#f0b030"),
+]
 QPM_TEX = {
     "uplus": "u^{+}=u+#bar{u}",
     "dplus": "d^{+}=d+#bar{d}",
@@ -105,14 +116,14 @@ QPM_TEX = {
     "g": "g",
 }
 QPM_COLORS = {
-    "uplus": ROOT.kBlue + 1,
-    "uminus": ROOT.kBlue + 1,
-    "dplus": ROOT.kRed + 1,
-    "dminus": ROOT.kRed + 1,
-    "splus": ROOT.kGreen + 2,
-    "sminus": ROOT.kGreen + 2,
-    "cplus": ROOT.kOrange + 7,
-    "g": ROOT.kBlack,
+    "uplus": SET_B_COLORS[1],
+    "uminus": SET_B_COLORS[1],
+    "dplus": SET_B_COLORS[5],
+    "dminus": SET_B_COLORS[5],
+    "splus": SET_B_COLORS[7],
+    "sminus": SET_B_COLORS[7],
+    "cplus": SET_B_COLORS[3],
+    "g": SET_B_COLORS[2],
 }
 QPM_STYLES = {
     "uplus": 1,
@@ -124,30 +135,17 @@ QPM_STYLES = {
     "sminus": 2,
     "g": 3,
 }
-QPM_MARKERS = {
-    "uplus": 20,
-    "dplus": 21,
-    "splus": 22,
-    "cplus": 33,
-    "uminus": 24,
-    "dminus": 25,
-    "sminus": 26,
-    "g": 27,
-}
 
 POD_COLOR_CYCLE = [
-    ROOT.kBlack,
-    ROOT.kBlue + 1,
-    ROOT.kRed + 1,
-    ROOT.kGreen + 2,
-    ROOT.kMagenta + 1,
-    ROOT.kCyan + 2,
-    ROOT.kOrange + 7,
-    ROOT.kViolet + 1,
-    ROOT.kAzure + 7,
-    ROOT.kPink + 7,
+    SET_B_COLORS[0],
+    SET_B_COLORS[1],
+    SET_B_COLORS[2],
+    SET_B_COLORS[3],
+    SET_B_COLORS[4],
+    SET_B_COLORS[5],
+    SET_B_COLORS[6],
+    SET_B_COLORS[7],
 ]
-POD_MARKER_CYCLE = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 33, 34]
 
 
 def sanitize(name):
@@ -195,6 +193,14 @@ def selected_files(component, small=None, max_files=None):
     if max_files is not None:
         files = files[:max_files]
     return files
+
+
+def copy_index_php(directory):
+    os.makedirs(directory, exist_ok=True)
+    shutil.copyfile(
+        os.path.join(os.path.dirname(helpers.__file__), "scripts/php/index.php"),
+        os.path.join(directory, "index.php"),
+    )
 
 
 def make_loader(name, files, selection, files_per_chunk):
@@ -764,12 +770,6 @@ def basis_line_style(basis_name):
     return QPM_STYLES[basis_name]
 
 
-def basis_marker(basis_name):
-    if basis_name.startswith("pod"):
-        return POD_MARKER_CYCLE[(pod_index_from_name(basis_name) - 1) % len(POD_MARKER_CYCLE)]
-    return QPM_MARKERS[basis_name]
-
-
 def label_tex(label):
     basis_name, sign = label_basis_and_sign(label)
     if basis_name is None:
@@ -795,39 +795,42 @@ def label_line_style(label):
     return base_style
 
 
-def label_marker(label):
-    basis_name, sign = label_basis_and_sign(label)
-    if basis_name is None:
-        return 20
-    marker = basis_marker(basis_name)
-    if sign == "-":
-        return marker + 4 if marker < 30 else 27
-    return marker
-
-
 def label_key(label):
     return sanitize(label.replace("+", "_plus").replace("-", "_minus"))
 
 
-def make_block_graph(values, name, block, n_m, label, positive_only=False):
-    graph = ROOT.TGraph()
-    graph.SetName(f"{name}_{label_key(label)}_block{block}")
-    graph.SetLineColor(label_color(label))
-    graph.SetMarkerColor(label_color(label))
-    graph.SetLineStyle(label_line_style(label))
-    graph.SetLineWidth(2)
-    graph.SetMarkerStyle(label_marker(label))
-    graph.SetMarkerSize(0.50)
+def make_block_hists(values, name, block, n_m, label, positive_only=False):
+    hists = []
     start = block * n_m
     stop = start + n_m
-    ip = 0
+    seg_start = None
+    seg_values = []
     for ibin in range(start, stop):
         value = values[ibin]
-        if not np.isfinite(value) or (positive_only and value <= 0):
+        valid = np.isfinite(value) and (not positive_only or value > 0)
+        if valid:
+            if seg_start is None:
+                seg_start = ibin
+            seg_values.append(float(value))
             continue
-        graph.SetPoint(ip, ibin + 0.5, value)
-        ip += 1
-    return graph if ip else None
+        if seg_start is not None:
+            hists.append(make_segment_hist(name, block, seg_start, seg_values, label))
+            seg_start = None
+            seg_values = []
+    if seg_start is not None:
+        hists.append(make_segment_hist(name, block, seg_start, seg_values, label))
+    return hists
+
+
+def make_segment_hist(name, block, start_bin, values, label):
+    hist = ROOT.TH1D(f"{name}_{label_key(label)}_block{block}_{start_bin}", "", len(values), start_bin, start_bin + len(values))
+    hist.SetLineColor(label_color(label))
+    hist.SetLineStyle(label_line_style(label))
+    hist.SetLineWidth(2)
+    hist.SetFillStyle(0)
+    for i, value in enumerate(values, start=1):
+        hist.SetBinContent(i, value)
+    return hist
 
 
 def set_pad_ticks(pad):
@@ -982,17 +985,15 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
     stuff.append(legend)
 
     for label in labels:
-        legend_graph = None
+        legend_hist = None
         for block in range(n_blocks):
-            graph = make_block_graph(yield_sum[label], "g_yield", block, n_m, label, positive_only=True)
-            if graph is None:
-                continue
-            graph.Draw("L SAME")
-            stuff.append(graph)
-            if legend_graph is None:
-                legend_graph = graph
-        if legend_graph is not None:
-            legend.AddEntry(legend_graph, label_tex(label), "l")
+            for hist in make_block_hists(yield_sum[label], "h_yield", block, n_m, label, positive_only=True):
+                hist.Draw("L SAME")
+                stuff.append(hist)
+                if legend_hist is None:
+                    legend_hist = hist
+        if legend_hist is not None:
+            legend.AddEntry(legend_hist, label_tex(label), "l")
     legend.Draw()
 
     bot.cd()
@@ -1012,11 +1013,9 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
         ok = sm != 0.0
         ratio[ok] = yield_sum[label][ok] / sm[ok]
         for block in range(n_blocks):
-            graph = make_block_graph(ratio, "g_yield_ratio", block, n_m, label)
-            if graph is None:
-                continue
-            graph.Draw("L SAME")
-            stuff.append(graph)
+            for hist in make_block_hists(ratio, "h_yield_ratio", block, n_m, label):
+                hist.Draw("L SAME")
+                stuff.append(hist)
     line = ROOT.TLine(0, 1.0, len(sm), 1.0)
     line.SetLineStyle(2)
     line.SetLineColor(ROOT.kGray + 2)
@@ -1038,7 +1037,7 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
     print(f"[pdf response] output: {base}.{{png,pdf,root}}")
 
 
-def plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4):
+def plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4, delta_a4_y_range=None):
     n_m = len(MLL_BINS) - 1
     n_y = len(ABSY_BINS) - 1
     n_bins = n_y * n_m
@@ -1054,8 +1053,11 @@ def plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4):
     else:
         a4_ymin, a4_ymax = -0.1, 0.1
 
-    delta_ymin = -0.012
-    delta_ymax = 0.012
+    if delta_a4_y_range is not None:
+        delta_ymin, delta_ymax = delta_a4_y_range
+    else:
+        delta_ymin = -0.012
+        delta_ymax = 0.012
 
     canvas = ROOT.TCanvas("c_A4_deltaA4_mll_y", "A4 and Delta A4 mll y unrolled PDF response", 1700, 860)
     top = ROOT.TPad("top_A4", "top_A4", 0.0, 0.34, 1.0, 1.0)
@@ -1103,17 +1105,15 @@ def plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4):
     stuff.append(legend)
 
     for label in labels:
-        legend_graph = None
+        legend_hist = None
         for iy in range(n_y):
-            graph = make_block_graph(a4_values[label], "g_A4", iy, n_m, label)
-            if graph is None:
-                continue
-            graph.Draw("LP SAME")
-            stuff.append(graph)
-            if legend_graph is None:
-                legend_graph = graph
-        if legend_graph is not None:
-            legend.AddEntry(legend_graph, label_tex(label), "lp")
+            for hist in make_block_hists(a4_values[label], "h_A4", iy, n_m, label):
+                hist.Draw("L SAME")
+                stuff.append(hist)
+                if legend_hist is None:
+                    legend_hist = hist
+        if legend_hist is not None:
+            legend.AddEntry(legend_hist, label_tex(label), "l")
     legend.Draw()
 
     bot.cd()
@@ -1147,11 +1147,9 @@ def plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4):
 
     for basis_name in basis_names:
         for iy in range(n_y):
-            graph = make_block_graph(delta_a4[basis_name], "g_deltaA4", iy, n_m, basis_name)
-            if graph is None:
-                continue
-            graph.Draw("LP SAME")
-            stuff.append(graph)
+            for hist in make_block_hists(delta_a4[basis_name], "h_deltaA4", iy, n_m, basis_name):
+                hist.Draw("L SAME")
+                stuff.append(hist)
 
     base = os.path.join(plot_dir, "A4_DeltaA4_unrolled_mll_y")
     fout = ROOT.TFile.Open(base + ".root", "RECREATE")
@@ -1197,7 +1195,15 @@ parser.add_argument(
     default="mll_y",
     help="Yield plot unrolling. Default mll_y makes four spectra; mll makes one inclusive spectrum; mll_y_costheta keeps the old triple-differential plot.",
 )
+parser.add_argument("--delta-a4-y-min", type=float, default=None, help="Optional lower y-axis bound for the Delta A4 bottom pad")
+parser.add_argument("--delta-a4-y-max", type=float, default=None, help="Optional upper y-axis bound for the Delta A4 bottom pad")
 args = parser.parse_args()
+
+if (args.delta_a4_y_min is None) != (args.delta_a4_y_max is None):
+    raise RuntimeError("Set both --delta-a4-y-min and --delta-a4-y-max, or neither.")
+if args.delta_a4_y_min is not None and args.delta_a4_y_min >= args.delta_a4_y_max:
+    raise RuntimeError("--delta-a4-y-min must be smaller than --delta-a4-y-max.")
+delta_a4_y_range = None if args.delta_a4_y_min is None else (args.delta_a4_y_min, args.delta_a4_y_max)
 
 default_samples = ["DYMuMu_NLO_EFT_SMEFTatNLO_shortEFT", "DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT"]
 low_mass_samples = ["DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT"]
@@ -1218,8 +1224,8 @@ else:
     if args.include_gluon_response:
         basis_names = ["g"] + basis_names
 
-helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY"))
-helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY", "giacomo_unrolled_pdf_response"))
+copy_index_php(os.path.join(user.plot_directory, "DY"))
+copy_index_php(os.path.join(user.plot_directory, "DY", "giacomo_unrolled_pdf_response_2"))
 
 if args.samples == default_samples:
     label = "DYMuMu_NLO_EFT_SMEFTatNLO_allEFT"
@@ -1238,9 +1244,9 @@ if args.response_mode == "pod":
 else:
     label += f"_qpm_{epsilon_filename(args.basis_epsilon)}"
 
-plot_dir = os.path.join(user.plot_directory, "DY", "giacomo_unrolled_pdf_response", label)
+plot_dir = os.path.join(user.plot_directory, "DY", "giacomo_unrolled_pdf_response_2", label)
 os.makedirs(plot_dir, exist_ok=True)
-helpers.copyIndexPHP(plot_dir)
+copy_index_php(plot_dir)
 print(f"[pdf response] output directory: {plot_dir}")
 print(f"[pdf response] selection: {args.selection}")
 print(f"[pdf response] response mode: {args.response_mode}")
@@ -1308,5 +1314,5 @@ print(f"[pdf response] total events inside hard-coded unrolling bins: {grand_bin
 print(f"[pdf response] total processed events: {grand_processed}")
 labels, yield_sum, a4_values, delta_a4 = finalize_variations(basis_names, accum)
 plot_yield(plot_dir, labels, yield_sum, args.yield_mode)
-plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4)
+plot_a4_response(plot_dir, labels, basis_names, a4_values, delta_a4, delta_a4_y_range=delta_a4_y_range)
 syncer.sync()

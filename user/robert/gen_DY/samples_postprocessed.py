@@ -269,6 +269,7 @@ DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT = PostProcessedSample(
     files=(
         DYMuMu_NLO_EFT_SMEFTatNLO_mll50_120.files
         + DYMuMu_NLO_EFT_SMEFTatNLO_mll120_200.files
+        + DYMuMu_NLO_EFT_SMEFTatNLO_mll200_400.files
     ),
     color=ROOT.kAzure + 1,
 )

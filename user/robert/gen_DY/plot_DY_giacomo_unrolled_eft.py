@@ -3,6 +3,7 @@
 import argparse
 import math
 import os
+import shutil
 import sys
 
 import awkward as ak
@@ -68,9 +69,9 @@ GIACOMO_MLL_BINS = np.array(
     ],
     dtype=np.float64,
 )
-GIACOMO_ABSY_BINS = np.array([0.0, 0.5, 1.0, 1.5, 2.5], dtype=np.float64)
+GIACOMO_ABSY_BINS = np.array([0.0, 0.8, 1.6, 2.4], dtype=np.float64)
 LOW_MASS_MLL_BINS = np.array([60, 70, 80, 86, 91, 96, 106, 120, 133], dtype=np.float64)
-LOW_MASS_ABSY_BINS = np.array([0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.7, 3.0, 3.4], dtype=np.float64)
+LOW_MASS_ABSY_BINS = np.array([0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4], dtype=np.float64)
 MLL_BINS = GIACOMO_MLL_BINS
 ABSY_BINS = GIACOMO_ABSY_BINS
 COSTHETA_BINS = np.array([-1.0, -0.6, -0.2, 0.2, 0.6, 1.0], dtype=np.float64)
@@ -87,8 +88,17 @@ VECTOR_BRANCHES = ["LHEReweightingWeight"]
 WEIGHT_BRANCHES = ["xsec_weight"]
 DEFAULT_SELECTION = "(dy_born_has_candidate > 0)"
 
-COLORS = [ROOT.kRed + 1, ROOT.kBlue + 1, ROOT.kGreen + 2, ROOT.kMagenta + 1, ROOT.kOrange + 7, ROOT.kCyan + 2]
-MARKERS = [20, 21, 22, 23, 33, 34]
+# Approximate Set B swatches from Fig. 1 of arXiv:2107.02270.
+COLORS = [
+    ROOT.TColor.GetColor("#b0e0e8"),
+    ROOT.TColor.GetColor("#50b8e8"),
+    ROOT.TColor.GetColor("#607070"),
+    ROOT.TColor.GetColor("#4068e0"),
+    ROOT.TColor.GetColor("#a89898"),
+    ROOT.TColor.GetColor("#b01008"),
+    ROOT.TColor.GetColor("#d86850"),
+    ROOT.TColor.GetColor("#f0b030"),
+]
 
 
 def sanitize(name):
@@ -107,6 +117,14 @@ def selected_files(component, small=None, max_files=None):
     if max_files is not None:
         files = files[:max_files]
     return files
+
+
+def copy_index_php(directory):
+    os.makedirs(directory, exist_ok=True)
+    shutil.copyfile(
+        os.path.join(os.path.dirname(helpers.__file__), "scripts/php/index.php"),
+        os.path.join(directory, "index.php"),
+    )
 
 
 def make_loader(name, files, selection, files_per_chunk):
@@ -327,25 +345,37 @@ def make_hist(name, title, values):
     return hist
 
 
-def make_block_graph(values, name, block, n_m, color, marker=None, positive_only=True):
-    graph = ROOT.TGraph()
-    graph.SetName(f"{name}_block{block}")
-    graph.SetLineColor(color)
-    graph.SetMarkerColor(color)
-    graph.SetLineWidth(2)
-    if marker is not None:
-        graph.SetMarkerStyle(marker)
-        graph.SetMarkerSize(0.55)
+def make_block_hists(values, name, block, n_m, color, positive_only=True):
+    hists = []
     start = block * n_m
     stop = start + n_m
-    ip = 0
+    seg_start = None
+    seg_values = []
     for ibin in range(start, stop):
         value = values[ibin]
-        if not np.isfinite(value) or (positive_only and value <= 0):
+        valid = np.isfinite(value) and (not positive_only or value > 0)
+        if valid:
+            if seg_start is None:
+                seg_start = ibin
+            seg_values.append(float(value))
             continue
-        graph.SetPoint(ip, ibin + 0.5, value)
-        ip += 1
-    return graph if ip else None
+        if seg_start is not None:
+            hists.append(make_segment_hist(name, block, seg_start, seg_values, color))
+            seg_start = None
+            seg_values = []
+    if seg_start is not None:
+        hists.append(make_segment_hist(name, block, seg_start, seg_values, color))
+    return hists
+
+
+def make_segment_hist(name, block, start_bin, values, color):
+    hist = ROOT.TH1D(f"{name}_block{block}_{start_bin}", "", len(values), start_bin, start_bin + len(values))
+    hist.SetLineColor(color)
+    hist.SetLineWidth(2)
+    hist.SetFillStyle(0)
+    for i, value in enumerate(values, start=1):
+        hist.SetBinContent(i, value)
+    return hist
 
 
 def set_pad_ticks(pad):
@@ -560,17 +590,15 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
     legend.SetTextSize(0.045)
     for ilabel, label in enumerate(labels):
         color = ROOT.kBlack if label == "SM" else COLORS[(ilabel - 1) % len(COLORS)]
-        legend_graph = None
+        legend_hist = None
         for block in range(n_blocks):
-            graph = make_block_graph(yield_sum[label], f"g_yield_{sanitize(label)}", block, n_m, color)
-            if graph is None:
-                continue
-            graph.Draw("L SAME")
-            stuff.append(graph)
-            if legend_graph is None:
-                legend_graph = graph
-        if legend_graph is not None:
-            legend.AddEntry(legend_graph, label, "l")
+            for hist in make_block_hists(yield_sum[label], f"h_yield_{sanitize(label)}", block, n_m, color):
+                hist.Draw("L SAME")
+                stuff.append(hist)
+                if legend_hist is None:
+                    legend_hist = hist
+        if legend_hist is not None:
+            legend.AddEntry(legend_hist, label, "l")
     legend.Draw()
     stuff.append(legend)
 
@@ -603,17 +631,15 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
             ok = sm != 0.0
             ratio[ok] = yield_sum[label][ok] / sm[ok]
             for block in range(n_blocks):
-                graph = make_block_graph(
+                for hist in make_block_hists(
                     ratio,
-                    f"g_yield_ratio_{sanitize(label)}",
+                    f"h_yield_ratio_{sanitize(label)}",
                     block,
                     n_m,
                     COLORS[(ilabel - 1) % len(COLORS)],
-                )
-                if graph is None:
-                    continue
-                graph.Draw("L SAME")
-                stuff.append(graph)
+                ):
+                    hist.Draw("L SAME")
+                    stuff.append(hist)
     line = ROOT.TLine(0, 1.0, len(sm), 1.0)
     line.SetLineStyle(2)
     line.SetLineColor(ROOT.kGray + 2)
@@ -639,7 +665,7 @@ def plot_yield(plot_dir, labels, yield_sum, yield_mode):
     print(f"[giacomo] output: {base}.{{png,pdf,root}}")
 
 
-def plot_a4(plot_dir, labels, a4):
+def plot_a4(plot_dir, labels, a4, delta_a4_y_range=None):
     n_m = len(MLL_BINS) - 1
     n_y = len(ABSY_BINS) - 1
     n_bins = n_y * n_m
@@ -661,8 +687,11 @@ def plot_a4(plot_dir, labels, a4):
         delta[label] = a4[label] - sm
     finite_delta_chunks = [values[np.isfinite(values)] for values in delta.values() if np.any(np.isfinite(values))]
     finite_delta = np.concatenate(finite_delta_chunks) if finite_delta_chunks else np.array([], dtype=np.float64)
-    delta_ymax = max(0.001, 1.25 * float(np.max(np.abs(finite_delta))) if len(finite_delta) else 0.001)
-    delta_ymin = -delta_ymax
+    if delta_a4_y_range is not None:
+        delta_ymin, delta_ymax = delta_a4_y_range
+    else:
+        delta_ymax = max(0.001, 1.25 * float(np.max(np.abs(finite_delta))) if len(finite_delta) else 0.001)
+        delta_ymin = -delta_ymax
 
     canvas = ROOT.TCanvas("c_giacomo_a4_mll_y", "A4 mll y unrolled", 1700, 860)
     top = ROOT.TPad("a4_top", "a4_top", 0.0, 0.34, 1.0, 1.0)
@@ -708,29 +737,15 @@ def plot_a4(plot_dir, labels, a4):
 
     for ilabel, label in enumerate(labels):
         color = ROOT.kBlack if label == "SM" else COLORS[(ilabel - 1) % len(COLORS)]
-        legend_graph = None
+        legend_hist = None
         for iy in range(n_y):
-            graph = ROOT.TGraph()
-            graph.SetName(f"g_a4_{sanitize(label)}_iy{iy}")
-            graph.SetLineColor(color)
-            graph.SetMarkerColor(color)
-            graph.SetLineWidth(2)
-            graph.SetMarkerStyle(MARKERS[ilabel % len(MARKERS)])
-            graph.SetMarkerSize(0.55)
-            ip = 0
-            for im in range(n_m):
-                ibin = iy * n_m + im
-                value = a4[label][ibin]
-                if np.isfinite(value):
-                    graph.SetPoint(ip, ibin + 0.5, value)
-                    ip += 1
-            if ip:
-                graph.Draw("LP SAME")
-                stuff.append(graph)
-                if legend_graph is None:
-                    legend_graph = graph
-        if legend_graph is not None:
-            legend.AddEntry(legend_graph, label, "lp")
+            for hist in make_block_hists(a4[label], f"h_a4_{sanitize(label)}", iy, n_m, color, positive_only=False):
+                hist.Draw("L SAME")
+                stuff.append(hist)
+                if legend_hist is None:
+                    legend_hist = hist
+        if legend_hist is not None:
+            legend.AddEntry(legend_hist, label, "l")
     legend.Draw()
 
     bot.cd()
@@ -763,19 +778,16 @@ def plot_a4(plot_dir, labels, a4):
     for ilabel, label in enumerate(labels[1:], start=1):
         color = COLORS[(ilabel - 1) % len(COLORS)]
         for iy in range(n_y):
-            graph = make_block_graph(
+            for hist in make_block_hists(
                 delta[label],
-                f"g_deltaA4_{sanitize(label)}",
+                f"h_deltaA4_{sanitize(label)}",
                 iy,
                 n_m,
                 color,
-                marker=MARKERS[ilabel % len(MARKERS)],
                 positive_only=False,
-            )
-            if graph is None:
-                continue
-            graph.Draw("LP SAME")
-            stuff.append(graph)
+            ):
+                hist.Draw("L SAME")
+                stuff.append(hist)
 
     base = os.path.join(plot_dir, "A4_DeltaA4_unrolled_mll_y")
     fout = ROOT.TFile.Open(base + ".root", "RECREATE")
@@ -820,7 +832,15 @@ parser.add_argument(
     default=0.03,
     help="Deprecated; kept for command compatibility. The A4 plot now shows absolute Delta A4, not a ratio.",
 )
+parser.add_argument("--delta-a4-y-min", type=float, default=None, help="Optional lower y-axis bound for the Delta A4 bottom pad")
+parser.add_argument("--delta-a4-y-max", type=float, default=None, help="Optional upper y-axis bound for the Delta A4 bottom pad")
 args = parser.parse_args()
+
+if (args.delta_a4_y_min is None) != (args.delta_a4_y_max is None):
+    raise RuntimeError("Set both --delta-a4-y-min and --delta-a4-y-max, or neither.")
+if args.delta_a4_y_min is not None and args.delta_a4_y_min >= args.delta_a4_y_max:
+    raise RuntimeError("--delta-a4-y-min must be smaller than --delta-a4-y-max.")
+delta_a4_y_range = None if args.delta_a4_y_min is None else (args.delta_a4_y_min, args.delta_a4_y_max)
 
 default_samples = ["DYMuMu_NLO_EFT_SMEFTatNLO_shortEFT", "DYMuMu_NLO_EFT_SMEFTatNLO_fullEFT"]
 low_mass_samples = ["DYMuMu_NLO_EFT_SMEFTatNLO_lowMassEFT"]
@@ -832,8 +852,8 @@ if args.low_mass:
 
 eft_points = [eft_reweighting.parse_eft_point(point) for point in args.eft_point]
 labels = ["SM"] + [label for label, _ in eft_points]
-helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY"))
-helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY", "giacomo_unrolled_eft"))
+copy_index_php(os.path.join(user.plot_directory, "DY"))
+copy_index_php(os.path.join(user.plot_directory, "DY", "giacomo_unrolled_eft_2"))
 
 if args.samples == default_samples:
     label = "DYMuMu_NLO_EFT_SMEFTatNLO_allEFT"
@@ -849,9 +869,9 @@ if args.yield_mode != "mll_y_costheta":
     label += f"_{args.yield_mode}"
 label += file_label(eft_points)
 
-plot_dir = os.path.join(user.plot_directory, "DY", "giacomo_unrolled_eft", label)
+plot_dir = os.path.join(user.plot_directory, "DY", "giacomo_unrolled_eft_2", label)
 os.makedirs(plot_dir, exist_ok=True)
-helpers.copyIndexPHP(plot_dir)
+copy_index_php(plot_dir)
 print(f"[giacomo] output directory: {plot_dir}")
 print(f"[giacomo] selection: {args.selection}")
 print(f"[giacomo] yield mode: {args.yield_mode}")
@@ -881,5 +901,5 @@ print(f"[giacomo] total selected events after loader selection: {grand_selected}
 print(f"[giacomo] total events inside hard-coded unrolling bins: {grand_binned}")
 a4 = finalize_a4(labels, afb_sumw, afb_sum_sign)
 plot_yield(plot_dir, labels, yield_sum, args.yield_mode)
-plot_a4(plot_dir, labels, a4)
+plot_a4(plot_dir, labels, a4, delta_a4_y_range=delta_a4_y_range)
 syncer.sync()

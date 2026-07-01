@@ -129,8 +129,40 @@ tt2l_delphes = RDataLoader(
 
 tt2l_delphes_RunII = copy.deepcopy(tt2l_delphes)
 tt2l_delphes_RunII.weight_rescale=24.12*137./16.81 # first scale to 2016 (=16.81/fb), then to RunII
+import numpy as np
+def _id_columns(obs_matrix: np.ndarray, obs_names=None):
+    names = observables.OBSERVERS if obs_names is None else obs_names
+    ix1, ix2 = names.index("Generator_id1"), names.index("Generator_id2")
+    id1 = obs_matrix[:, ix1].astype(int, copy=False)
+    id2 = obs_matrix[:, ix2].astype(int, copy=False)
+    return id1, id2
 
-# ----------------------------------------------------------------------
+def sel_GG(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
+    id1, id2 = _id_columns(obs_matrix, obs_names); return (id1 == 21) & (id2 == 21)
+
+def sel_QG(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
+    id1, id2 = _id_columns(obs_matrix, obs_names)
+    abs_ids = np.array([1,2,3,4,5,6], dtype=int)
+    return ((id1 == 21) & np.isin(np.abs(id2), abs_ids)) | ((id2 == 21) & np.isin(np.abs(id1), abs_ids))
+
+def sel_QQ(obs_matrix: np.ndarray, obs_names=None) -> np.ndarray:
+    id1, id2 = _id_columns(obs_matrix, obs_names)
+    abs_ids = np.array([1,2,3,4,5,6], dtype=int)
+    return (np.isin(np.abs(id1), abs_ids) & np.isin(np.abs(id2), abs_ids) & (id1 * id2 < 0))
+
+tt2l_delphes_RunII_GG = SelectionView(tt2l_delphes_RunII, name="tt2l_delphes_RunII_GG",
+                        selection_fn=lambda G,n: sel_GG(G,n),
+                        selection_feature_names=["Generator_id1","Generator_id2"])
+
+tt2l_delphes_RunII_QG = SelectionView(tt2l_delphes_RunII, name="tt2l_delphes_RunII_QG",
+                        selection_fn=lambda G,n: sel_QG(G,n),
+                        selection_feature_names=["Generator_id1","Generator_id2"])
+
+tt2l_delphes_RunII_QQ = SelectionView(tt2l_delphes_RunII, name="tt2l_delphes_RunII_QQ",
+                        selection_fn=lambda G,n: sel_QQ(G,n),
+                        selection_feature_names=["Generator_id1","Generator_id2"])
+
+
 # Helpers
 # ----------------------------------------------------------------------
 

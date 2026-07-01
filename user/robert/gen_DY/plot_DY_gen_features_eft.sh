@@ -1,16 +1,35 @@
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqe2_1:cqe2=1 --eft-point cqe2_m1:cqe2=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cll1221_1:cll1221=1 --eft-point cll1221_m1:cll1221=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpdc_1:cpdc=1 --eft-point cpdc_m1:cpdc=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpwb_1:cpwb=1 --eft-point cpwb_m1:cpwb=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpl2_1:cpl2=1 --eft-point cpl2_m1:cpl2=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl1_1:c3pl1=1 --eft-point c3pl1_m1:c3pl1=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl2_1:c3pl2=1 --eft-point c3pl2_m1:c3pl2=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpmu_1:cpmu=1 --eft-point cpmu_m1:cpmu=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqmi_1:cpqmi=1 --eft-point cpqmi_m1:cpqmi=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3i_1:cpq3i=1 --eft-point cpq3i_m1:cpq3i=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3_1:cpq3=1 --eft-point cpq3_m1:cpq3=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqm_1:cpqm=1 --eft-point cpqm_m1:cpqm=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpu_1:cpu=1 --eft-point cpu_m1:cpu=-1
-python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpd_1:cpd=1 --eft-point cpd_m1:cpd=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl1_1:c3pl1=1 --eft-point c3pl1_m1:c3pl1=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl2_1:c3pl2=1 --eft-point c3pl2_m1:c3pl2=-1
+#
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqe2_1:cqe2=1 --eft-point cqe2_m1:cqe2=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cll1221_1:cll1221=1 --eft-point cll1221_m1:cll1221=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpdc_1:cpdc=1 --eft-point cpdc_m1:cpdc=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpwb_1:cpwb=1 --eft-point cpwb_m1:cpwb=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpl2_1:cpl2=1 --eft-point cpl2_m1:cpl2=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpmu_1:cpmu=1 --eft-point cpmu_m1:cpmu=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqmi_1:cpqmi=1 --eft-point cpqmi_m1:cpqmi=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3i_1:cpq3i=1 --eft-point cpq3i_m1:cpq3i=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3_1:cpq3=1 --eft-point cpq3_m1:cpq3=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqm_1:cpqm=1 --eft-point cpqm_m1:cpqm=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpu_1:cpu=1 --eft-point cpu_m1:cpu=-1
+#python plot_DY_gen_features_eft.py --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpd_1:cpd=1 --eft-point cpd_m1:cpd=-1
+
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl1_1:c3pl1=1 --eft-point c3pl1_m1:c3pl1=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point c3pl2_1:c3pl2=1 --eft-point c3pl2_m1:c3pl2=-1
+
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqlm2_1:cqlm2=1 --eft-point cqlm2_m1:cqlm2=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cql32_1:cql32=1 --eft-point cql32_m1:cql32=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cqe2_1:cqe2=1 --eft-point cqe2_m1:cqe2=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cll1221_1:cll1221=1 --eft-point cll1221_m1:cll1221=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpdc_1:cpdc=1 --eft-point cpdc_m1:cpdc=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpwb_1:cpwb=1 --eft-point cpwb_m1:cpwb=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpl2_1:cpl2=1 --eft-point cpl2_m1:cpl2=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpmu_1:cpmu=1 --eft-point cpmu_m1:cpmu=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqmi_1:cpqmi=1 --eft-point cpqmi_m1:cpqmi=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3i_1:cpq3i=1 --eft-point cpq3i_m1:cpq3i=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpq3_1:cpq3=1 --eft-point cpq3_m1:cpq3=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpqm_1:cpqm=1 --eft-point cpqm_m1:cpqm=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpu_1:cpu=1 --eft-point cpu_m1:cpu=-1
+python plot_DY_gen_features_eft.py --low-mass --samples DYMuMu_NLO_EFT_SMEFTatNLO_all_Photos_startingOne --level parton --small 10 --eft-point cpd_1:cpd=1 --eft-point cpd_m1:cpd=-1

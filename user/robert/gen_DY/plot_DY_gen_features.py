@@ -114,6 +114,15 @@ def require_feature(sample, branch):
     return sample.feature_names.index(branch)
 
 
+def selected_files(component, small=None, max_files=None):
+    files = component.files
+    if small:
+        files = files[::small]
+    if max_files is not None:
+        files = files[:max_files]
+    return files
+
+
 def make_stack_plot(plot_dir, selected_samples, feature):
     branch, xtitle, nbins, xmin, xmax = feature
     canvas = ROOT.TCanvas(f"c_{sanitize(branch)}", branch, 800, 700)
@@ -845,15 +854,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--samples", nargs="+", default=["DYJetsToLL_M50_LO_UL17"], help="Samples from samples_postprocessed.py")
 parser.add_argument("--max-files", type=int, default=None, help="Files per sample")
 parser.add_argument("--level", choices=["both", "fiducial", "parton"], default="both", help="Selection level to plot")
-parser.add_argument("--small", action="store_true", help="Use one file per sample and write to a _small directory")
+parser.add_argument("--small", nargs="?", const=10, type=int, default=None, help="Use one in N files, e.g. --small 10")
 parser.add_argument("--pdf-set", default="NNPDF40_nnlo_as_01180", help="LHAPDF set for basis-response diagnostics")
 parser.add_argument("--pdf-member", type=int, default=0, help="LHAPDF member for basis-response diagnostics")
 parser.add_argument("--basis-epsilon", type=float, default=0.01, help="Relative evolution-basis deformation for response plot")
 parser.add_argument("--basis-max-events", type=int, default=None, help="Optional event cap for testing the basis-response calculation")
 args = parser.parse_args()
-
-if args.small:
-    args.max_files = 1
 
 helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY"))
 helpers.copyIndexPHP(os.path.join(user.plot_directory, "DY", "gen_features"))
@@ -866,12 +872,20 @@ for level in levels:
     for sample_name in args.samples:
         if sample_name not in samples_postprocessed.samples_by_name:
             raise RuntimeError(f"Unknown sample '{sample_name}'. Known: {', '.join(sorted(samples_postprocessed.samples_by_name))}")
-        sample = samples_postprocessed.samples_by_name[sample_name].get_loader(max_files=args.max_files, selection=level)
+        component = samples_postprocessed.samples_by_name[sample_name]
+        files = selected_files(component, small=args.small, max_files=args.max_files)
+        component = samples_postprocessed.PostProcessedSample(
+            name=component.name,
+            tex_name=component.tex_name,
+            files=files,
+            color=component.color,
+        )
+        sample = component.get_loader(selection=level)
         selected_samples.append(sample)
 
     label = "_".join(sample.name for sample in selected_samples)
     if args.small:
-        label += "_small"
+        label += f"_small{args.small}"
 
     plot_dir = os.path.join(user.plot_directory, "DY", "gen_features", level, label)
     os.makedirs(plot_dir, exist_ok=True)
