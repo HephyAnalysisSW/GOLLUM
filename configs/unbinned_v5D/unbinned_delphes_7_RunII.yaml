@@ -145,7 +145,7 @@ jobs:
   - id: bit_NG_PDF4LHC21_7_tt2l_delphes
     type: bit
     region: SR
-    process: tt2l_delphes
+    process: tt2l_delphes_RunII
     selection: null               # optional extra selection layered on top
     numba: True
     pdf:
