@@ -4,6 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
+def _coerce_parameter_value(value):
+    """Keep differentiable scalar types (e.g. autograd ArrayBox) when needed."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
 # ----------------------------- Parameter & Hypothesis scaffolding ----------
 class ModelParameter:
     """
@@ -12,7 +20,7 @@ class ModelParameter:
     def __init__(self, name, val=0.0, *, isPOI=False,
                  isFrozen=False, isPenalized=False):
         self.name        = str(name)
-        self.val         = float(val)
+        self.val         = _coerce_parameter_value(val)
         self.isPOI       = bool(isPOI)
         self.isFrozen    = bool(isFrozen)
         self.isPenalized = bool(isPenalized)
@@ -33,7 +41,7 @@ class ModelParameter:
 
     def freeze(self, value=None):
         if value is not None:
-            self.val = float(value)
+            self.val = _coerce_parameter_value(value)
         self.isFrozen = True
         return self
 
@@ -51,7 +59,7 @@ class ModelParameter:
         return self
 
     def set(self, value):
-        self.val = float(value)
+        self.val = _coerce_parameter_value(value)
         return self
 
     def __float__(self):
@@ -144,7 +152,7 @@ class Hypothesis:
             if p.name == name:
                 if p.isFrozen:
                     raise RuntimeError(f"Parameter {name} is frozen; cannot assign.")
-                p.val = float(value)
+                p.val = _coerce_parameter_value(value)
                 return
 
         # Fallback: ordinary attribute

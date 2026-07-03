@@ -93,47 +93,105 @@ def load_yaml(path: str):
     _apply_defaults_and_checks(cfg)   # <<< NEW
     return cfg
 
+"""
+takes in list of loaded configurations and combines them, performing some sanity checks before
+NB: this function can be called before or after load_surrogates
+"""
+
+def combine_configs(list_configs: List[dict]):
+
+    combined_cfg = {}
+    for i_cfg, cfg in enumerate(list_configs):
+
+        if i_cfg == 0:
+            combined_cfg = cfg
+        else:
+
+            if cfg["version"] != combined_cfg['version']:
+                """
+                    This is done such that load_surrogates does not need to be changed.
+
+                    In any case, the config version should not need to define the era,
+                    as the models are already stored via region, which does have the era.
+
+                    Currently (28/5) simlinking the region folders inside a single version folder.
+                
+                """
+                raise ValueError("Version of all the configs should be the same.")
+            
+            if cfg["defaults"] != combined_cfg['defaults']:
+                """
+                    Same as above but for defaults, such that the code in Likelihood.py that depends
+                    on the defaults field is consistent.
+                """
+                raise ValueError("Defaults of all the configs should be the same.")
+            
+            # failing on duplicate regions
+            if "regions" in cfg["likelihood"]:
+                if "regions" in combined_cfg["likelihood"]: 
+                    
+                    current_unbinned_rids = set(region["id"] for region in combined_cfg["likelihood"]["regions"])
+                    new_unbinned_rids = set(region["id"] for region in cfg["likelihood"].get("regions",{}))
+                    duplicate_unbinned_rids = current_unbinned_rids & new_unbinned_rids
+                
+                    if duplicate_unbinned_rids != set():
+                        raise ValueError(f"Unbinned regions {duplicate_unbinned_rids} are duplicated !")
+                    
+                    combined_cfg["likelihood"]["regions"].extend(cfg["likelihood"]["regions"])
+                
+                else:
+                    combined_cfg["likelihood"]["regions"] = cfg["likelihood"]["regions"]
+
+            if "binned" in cfg["likelihood"]:
+                if "binned" in combined_cfg["likelihood"]: 
+
+                    current_binned_rids = set(region["id"] for region in combined_cfg["likelihood"]["binned"])
+                    new_binned_rids = set(region["id"] for region in cfg["likelihood"]["binned"])
+                    duplicate_binned_rids = current_binned_rids & new_binned_rids
+                    
+                    if duplicate_binned_rids != set():
+                        raise ValueError(f"Binned regions {duplicate_binned_rids} are duplicated !")
+            
+                    combined_cfg["likelihood"]["binned"].extend(cfg["likelihood"]["binned"])
+                
+                else:
+
+                    combined_cfg["likelihood"]["binned"] = cfg["likelihood"]["binned"]
+
+            # will always assume all configs have jobs, as the exception is extremely rare
+            # e.g. a config where the regions just have normalization uncertainties
+
+            current_job_ids = set(job["id"] for job in combined_cfg["jobs"])
+            new_job_ids = set(job["id"] for job in cfg["jobs"])
+            duplicate_job_ids = current_job_ids & new_job_ids
+            if duplicate_job_ids != set():
+                raise ValueError(f"Job IDs {duplicate_job_ids} are duplicated.")
+            
+            combined_cfg["jobs"].extend(cfg["jobs"])
+
+    return combined_cfg   
+
+
 # --- feature resolution (NEW) ---------------------------------------------
-def _resolve_features_list(tokens: Iterable[str], module_samples: str | None = None) -> List[str]:
+def _resolve_features_list(tokens: Iterable[str]) -> List[str]:
     """
     Expand a list like ["TOP_KINEMATICS", "ASYMMETRY", "tr_ttbar_pt"] into a flat
-    unique list of feature column names, first using the sample module if provided,
-    then falling back to data.observables.
+    unique list of feature column names using data.observables.
 
     Rules:
-      - If token names a list defined in module_samples, extend by that list.
-      - Else, if token is in module_samples.ALL_FEATURES, append it as a single feature.
-      - Else, if token names a list defined in data.observables (e.g. TOP_KINEMATICS),
+      - If token names a list defined in data.observables (e.g. TOP_KINEMATICS),
         extend by that list.
       - Else, if token is in data.observables.ALL_FEATURES, append it as a single feature.
       - Else, raise a descriptive error.
     """
     if not tokens:
         return []
-    sample_obs = None
-    if module_samples:
-        try:
-            import importlib
-            sample_obs = importlib.import_module(module_samples)
-        except Exception:
-            sample_obs = None
     from data import observables as obs
     out = []
     seen = set()
     for t in tokens:
         if not isinstance(t, str):
             raise RuntimeError(f"[features] All entries must be strings, got {type(t)} for {t!r}")
-        if sample_obs is not None and hasattr(sample_obs, t):
-            val = getattr(sample_obs, t)
-            if isinstance(val, list) and all(isinstance(x, str) for x in val):
-                for name in val:
-                    if name not in seen:
-                        out.append(name); seen.add(name)
-                continue
-        if sample_obs is not None and hasattr(sample_obs, "ALL_FEATURES") and t in getattr(sample_obs, "ALL_FEATURES"):
-            if t not in seen:
-                out.append(t); seen.add(t)
-            continue
         # try attribute list (e.g. TOP_KINEMATICS)
         if hasattr(obs, t):
             val = getattr(obs, t)
@@ -147,9 +205,7 @@ def _resolve_features_list(tokens: Iterable[str], module_samples: str | None = N
             if t not in seen:
                 out.append(t); seen.add(t)
             continue
-        raise RuntimeError(
-            f"[features] '{t}' is neither a list in module_samples/data.observables nor a known feature in ALL_FEATURES."
-        )
+        raise RuntimeError(f"[features] '{t}' is neither a list in data.observables nor a known feature in ALL_FEATURES.")
     return out
 
 def _apply_defaults_and_checks(cfg: dict):
@@ -172,9 +228,8 @@ def _apply_defaults_and_checks(cfg: dict):
     defaults = cfg.get("defaults", {}) or {}
 
     # ---------- feature defaults ----------
-    module_samples = defaults.get("module_samples", None)
     default_tokens = (defaults.get("default_features") or [])
-    default_features = _resolve_features_list(default_tokens, module_samples=module_samples)
+    default_features = _resolve_features_list(default_tokens)
     cfg.setdefault("defaults", {})["_resolved_features"] = list(default_features)
 
     # default binning/splitting/early stopping, if there is one
@@ -296,7 +351,7 @@ def _apply_defaults_and_checks(cfg: dict):
         if feat_tokens is None:
             j["features"] = list(default_features)
         else:
-            j["features"] = _resolve_features_list(feat_tokens, module_samples=module_samples)
+            j["features"] = _resolve_features_list(feat_tokens)
 
     # ---------- scaler-feature consistency for TFMC/PNN that reference a scaler ----------
     id2job = {j.get("id"): j for j in jobs if isinstance(j, dict) and j.get("id")}
@@ -753,8 +808,27 @@ def load_surrogates(cfg, config_path, overwrite=False):
 
 # --- cli ------------------------------------------------------------------
 if __name__ == "__main__":
-    import sys
-    root = sys.argv[1]
-    cfg = load_yaml(root)
-    print_summary(cfg, root, _INCLUDE_TRACE)
-    load_surrogates(cfg, root, overwrite=False)
+
+    import argparse
+    p = argparse.ArgumentParser(description="YAML config loader files. Runs simple set of tests for testing.")
+    p.add_argument("configs", nargs="+",help="Path to one or more global YAML configs")
+
+    args = p.parse_args()
+
+    from pprint import pprint
+
+    list_configs = []
+
+    print(f"[yaml_loader: test] {len(args.configs)=}")
+    for config_path in args.configs:
+        aux_cfg = load_yaml(config_path)
+        print_summary(aux_cfg, config_path, _INCLUDE_TRACE)
+        load_surrogates(aux_cfg, config_path, overwrite=False)
+        pprint(f"individual config from path {config_path}: {aux_cfg}")
+
+        list_configs.append(aux_cfg)
+    
+    cfg = combine_configs(list_configs)
+
+    pprint(f"combined config: {cfg}")
+

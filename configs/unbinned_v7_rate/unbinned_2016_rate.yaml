@@ -1,4 +1,4 @@
-version: unbinned_2016_v6
+version: unbinned_v7
 
 defaults:
   module_samples: "data.samples_RunII"
@@ -22,7 +22,7 @@ defaults:
 
   early_stopping:
     enabled: true
-    patience: 20        # same as current hard-coded
+    patience: 20        
     min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
     mode: "min"         # val_loss should decrease
     warmup_epochs: 0    # optional: do not early-stop before this epoch
@@ -34,9 +34,10 @@ likelihood:
             id: Data_2016
             sample: Data_2016         
           classifier:
-            type: null
-            id: null    # no classifier needed for a single process
-            asimov: [TTLep_pow_2016]
+            # does this make sense as "type"? shouldn't it be "framework" to match what's in the job ?
+            type: tfmc
+            job: tfmc_2016_DY_LO
+            asimov: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
           classes: 
             - id: TTLep_pow_2016
               sample: TTLep_pow_2016
@@ -188,7 +189,446 @@ likelihood:
                   job: pnn_TTLep_pow_2016_Uncl
                   parameters: [nu_Uncl]
 
+            - id: SingleTop_2016
+              sample: SingleTop_2016
+              systematics:
+                - id: nu_norm_SingleTop
+                  type: lnN
+                  value: 0.08
+                  parameters: [nu_norm_SingleTop]
+                - id: Lumi_1516
+                  type: lnN
+                  value: 0.0118
+                  parameters: [nu_lumi_1516]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718]
+
+            - id: DrellYan_LO_HTbinned_2016
+              sample: DrellYan_LO_HTbinned_2016
+              systematics:
+                - id: nu_norm_DrellYan
+                  type: lnN
+                  value: 0.06 
+                  parameters: [nu_norm_DrellYan]
+                - id: Lumi_1516
+                  type: lnN
+                  value: 0.0118
+                  parameters: [nu_lumi_1516]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718]
+
+            - id: TTSemi_pow_2016
+              sample: TTSemi_pow_2016
+              systematics:
+                - id: nu_norm_TTSemi
+                  type: lnN
+                  value: 0.13 
+                  parameters: [nu_norm_TTSemi]
+                - id: Lumi_1516
+                  type: lnN
+                  value: 0.0118
+                  parameters: [nu_lumi_1516]
+                - id: Lumi_151617
+                  type: lnN
+                  value: 0.0004
+                  parameters: [nu_lumi_151617]
+                - id: Lumi_15161718
+                  type: lnN
+                  value: 0.0035              
+                  parameters: [nu_lumi_15161718] 
+
 jobs:
+
+  - id: tfmc_2016 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+    optim:
+      epochs: 1000
+      phaseout_epochs: 0
+      learning_rate: 0.0002
+    runtime:
+      batch_size: -1 # batch = shard (= 1 by default)
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016.pkl"
+
+  - id: tfmc_2016_DY_LO 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_DY_LO.pkl"
+
+  - id: tfmc_2016_DY_LO_small
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_DY_LO_small.pkl"
+
+  - id: tfmc_2016_DY_LO_strat
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+      stratified: true
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_DY_LO_strat.pkl"
+
+  - id: tfmc_2016_DY_LO_nologitpriors 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 1000
+      phaseout_epochs: 300
+      learning_rate: 0.02
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100        
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_DY_LO_nologitpriors.pkl"      
+
+  - id: tfmc_2016_bkgonly 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [SingleTop_2016, DrellYan_LO_HTbinned_2016, TTSemi_pow_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_bkgonly.pkl"
+
+  - id: tfmc_2016_SB 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2016, Background_DrellYan_LO_HTbinned_2016]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_2016 
+    output:
+      filename: "tfmc_2016_SB.pkl" 
+
+  - id: tfmc_RunII_DY_LO_small 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_RunII, SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_DY_LO_small.pkl"
+
+  - id: tfmc_RunII_bkgonly 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_bkgonly.pkl"
+
+  - id: tfmc_RunII_SB 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_RunII, Background_DrellYan_LO_HTbinned_RunII]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_SB.pkl"
+
+  - id: tfmc_RunII_bkgonly_large
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128, 128, 128]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_bkgonly_large.pkl"
+
+  - id: tfmc_RunII_SB_large 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_RunII, Background_DrellYan_LO_HTbinned_RunII]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_large.pkl"
+
+  - id: tfmc_RunII_bkgonly_small
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [SingleTop_RunII, DrellYan_LO_HTbinned_RunII, TTSemi_pow_RunII]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_bkgonly_small.pkl"
+
+  - id: tfmc_RunII_SB_small 
+    type: classifier
+    region: SR_2016
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_RunII, Background_DrellYan_LO_HTbinned_RunII]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_SB_small.pkl"
 
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2016
     type: bit
@@ -220,6 +660,14 @@ jobs:
     selection: null
     output:
       filename: "Scaler_TTLep_pow_2016.pkl"
+
+  - id: scaler_TTLep_pow_RunII
+    type: scaler
+    process: TTLep_pow_RunII
+    region: SR_2016
+    selection: null
+    output:
+      filename: "Scaler_TTLep_pow_RunII.pkl"
 
   - id: icp_TTLep_pow_2016_L1Prefire
     type: icp
@@ -703,13 +1151,13 @@ jobs:
     base_points:
       - coords: [-1.0]
         loader: TTLep_pow_2016
-        addweights: ["shower_isr0p5_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr0p5"]
       - coords: [0]
         loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
         loader: TTLep_pow_2016
-        addweights: ["shower_isr2p0_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr2p0"]
  
     train_ratio: true
     output:
@@ -723,13 +1171,13 @@ jobs:
     base_points:
       - coords: [-1.0]
         loader: TTLep_pow_2016
-        addweights: ["shower_isr0p5_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr0p5"]
       - coords: [0]
         loader: TTLep_pow_2016
         nominal: true
       - coords: [1.0]
         loader: TTLep_pow_2016
-        addweights: ["shower_isr2p0_fsr1p0"]
+        addweights: ["shower_isr1p0_fsr2p0"]
  
     model:
       hidden_layers:
@@ -1796,3 +2244,122 @@ jobs:
       use_scaler: scaler_TTLep_pow_2016
       use_icp: icp_TTLep_pow_2016_Uncl
   
+  - id: icp_SingleTop_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: SingleTop_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_SingleTop_2016_scales.pkl
+
+  - id: icp_DY_LO_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: DrellYan_LO_HTbinned_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_DY_LO_2016_scales.pkl
+
+  - id: icp_TTSemi_pow_2016_scales
+    type: icp
+    region: SR_2016
+    parameters: [nu_mu_ren, nu_mu_fac]
+    combinations: [[nu_mu_ren], [nu_mu_fac], [nu_mu_ren, nu_mu_ren], [nu_mu_ren, 
+          nu_mu_fac], [nu_mu_fac, nu_mu_fac]]
+    base_points:
+    - coords: [-1.0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac0p5"]
+    - coords: [-1.0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac1p0"]
+    - coords: [-1.0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren0p5_fac2p0"]
+    - coords: [0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac0p5"]
+    - coords: [0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac1p0"]
+      nominal: true
+    - coords: [0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren1p0_fac2p0"]
+    - coords: [1.0, -1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac0p5"]
+    - coords: [1.0, 0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac1p0"]
+    - coords: [1.0, 1.0]
+      loader: TTSemi_pow_2016
+      addweights: ["scale_ren2p0_fac2p0"]
+  
+    train_ratio: true
+    output:
+      filename: icp_TTSemi_pow_2016_scales.pkl

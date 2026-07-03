@@ -7,7 +7,7 @@ import os, sys, time, argparse, importlib, yaml, numpy as np, math
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
-from typing import List
+from typing import List, Tuple
 
 import tensorflow as tf
 
@@ -540,7 +540,7 @@ if not args.overwrite and os.path.exists(best_txt):
         pass
 
 # ---------------- stratified batch helper ----------------
-def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> List[int]:
+def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     
     """
     Returns a list with index arrays for each batch.
@@ -557,12 +557,14 @@ def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> List[int]:
     
     max_n = max((len(idx) for idx in cls_idx), default=0)
     if max_n == 0:
-        return []
+        return [], []
     n_batches = math.ceil(max_n / per_class_bs)
 
     batches = []
+    inverse_oversampling_factors = []
     for b in range(n_batches):
         parts = []
+        inv_factors = []
         
         for idx in cls_idx:
 
@@ -573,10 +575,21 @@ def _stratified_batches(y_onehot: np.ndarray, per_class_bs: int) -> List[int]:
             # minority classes are oversampled via 'wrap'
             tiled_batch = idx.take(np.arange(b*per_class_bs, (b+1)*per_class_bs), mode='wrap')
             parts.append(tiled_batch)
+
+            inv_factors_cls = np.ones_like(tiled_batch) * n_c/(n_batches * per_class_bs)
+            inv_factors.append(inv_factors_cls)
+
         if parts:
+            
             combined = np.concatenate(parts)
-            batches.append(combined[np.random.permutation(len(combined))])
-    return batches
+            combined_inv_factors = np.concatenate(inv_factors)
+
+            permutation = np.random.permutation(len(combined))
+
+            batches.append(combined[permutation])
+            inverse_oversampling_factors.append(combined_inv_factors[permutation])
+
+    return batches, inverse_oversampling_factors
 
 # ---------------- train ----------------
 for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
@@ -605,8 +618,11 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
 
         if stratified and batch_size != -1:
             per_class_bs = max(1, eff_bs // len(classes_names))
-            batch_list_tr  = _stratified_batches(y_tr,  per_class_bs)
-            batch_list_val = _stratified_batches(y_val, per_class_bs)
+            # batching with equal number of events for each class
+            # oversamples minority classes, applies inverse_oversample_factors
+            # to downweight the oversampled events 
+            batch_list_tr, inverse_oversample_factors_tr  = _stratified_batches(y_tr,  per_class_bs)
+            batch_list_val, inverse_oversample_factors_val = _stratified_batches(y_val, per_class_bs)
             num_batches     = len(batch_list_tr)
             num_batches_val = max(1, len(batch_list_val))
         else:
@@ -617,8 +633,8 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 if stratified and batch_size != -1:
                     idx_tr  = batch_list_tr[b]
                     idx_val = batch_list_val[b % num_batches_val]
-                    Xb_tr,  yb_tr,  wb_tr  = X_tr[idx_tr],  y_tr[idx_tr],  w_tr[idx_tr]
-                    Xb_val, yb_val, wb_val = X_val[idx_val], y_val[idx_val], w_val[idx_val]
+                    Xb_tr,  yb_tr,  wb_tr  = X_tr[idx_tr],  y_tr[idx_tr],  w_tr[idx_tr]*inverse_oversample_factors_tr[b]
+                    Xb_val, yb_val, wb_val = X_val[idx_val], y_val[idx_val], w_val[idx_val]*inverse_oversample_factors_val[b % num_batches_val]
                 else:
                     start = b * eff_bs
                     stop  = min(start + eff_bs, N)
@@ -632,6 +648,9 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
                 # train_on_batch performs weight updates
                 # putting this here ensures epoch 0 plot
                 # gives the state of the network at initialization
+                # NB: it will mix the plot from the initialization, done in batch 0
+                # with the plots after the gradient updates in epoch 0
+                # done with further batches
                 if do_plot:
                     values_tr  = model.predict(Xb_tr,  probability=args.plot_probability)
                     accumulate_histograms(true_h_tr,  pred_h_tr,  bins, Xb_tr,  yb_tr,  values_tr,  wb_tr,  plot_feats, feat2col)
@@ -698,5 +717,32 @@ for epoch in trange(start_epoch, epochs, desc="Epoch", position=0):
         append_dcr_summary(true_h_tr, pred_h_tr, epoch, plot_dir, label="train")
         append_dcr_summary(true_h_val, pred_h_val, epoch, plot_dir, label="val")
 
+copyIndexPHP(plot_dir)
 print(f"Done. Model stored in {model_dir}")
 open(f"{model_dir}/done","w")
+
+# Plot loss curve at the end of training
+# Still updated consistently in the text file,
+# in case one wants to monitor loss during the training
+import subprocess
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+subprocess.run(
+    ["python", "ML/TFMC/plot_loss_curve.py", "-i", loss_txt],
+    cwd=repo_root,
+    check=False,
+)
+
+# this will redo the dataloader materializing, which in theory is unnecessary to have in this script
+# given that it is not so heavy, we keep it here for now
+subprocess.run(
+    ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"]],
+    cwd=repo_root,
+    check=False,
+)
+
+subprocess.run(
+    ["python", "ML/TFMC/tfmc_training_closure_mpl.py", args.config, "--job", J["id"], "--norm_plot"],
+    cwd=repo_root,
+    check=False,
+)

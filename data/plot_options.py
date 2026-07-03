@@ -247,11 +247,23 @@ plot_options = {
 
 def get_sample_legend(sample_id: str) -> str:
     if "TTLep" in sample_id:
-        return r"t#bar{t}(2L)"
-    else:
-        print(f"[get_sample_legend] name for {sample_id=} not yet implemented, returning sample name")
-
-
+        return r"t#bar{t} (2l)"
+    
+    if "SingleTop" in sample_id:
+        return "Single top"
+    
+    if "DrellYan" in sample_id:
+        
+        if "LO" in sample_id:
+            return "DY (LO)"
+        
+        return "DY"
+    
+    if "TTSemi" in sample_id:
+        return r"t#bar{t} (1l)"
+    
+    print(f"[get_sample_legend] name for {sample_id=} not yet implemented, returning sample name")
+    return sample_id
 
 def get_nice_parameter_name(variation: str) -> str:
 

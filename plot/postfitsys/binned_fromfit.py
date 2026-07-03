@@ -83,7 +83,8 @@ def evaluate_class(cls, h_base):
 
 p = argparse.ArgumentParser(description="Simple binned template plots from an external fit result.")
 p.add_argument("fit_result", help="Fit JSON file")
-p.add_argument("--config", default=None, help="Config YAML. If omitted, try to read it from the fit JSON.")
+p.add_argument("--configs", nargs="+",default=None, help="Path to one or more configs.", required=True)
+p.add_argument("--base", help="Base name for output directories")
 p.add_argument("--rotate", default=None, help="Rotation JSON, same logic as Likelihood.py")
 p.add_argument("--outdir", default=None, help="Output directory")
 p.add_argument("--n-toys", default=1000, type=int, help="Number of covariance toys")
@@ -96,22 +97,21 @@ args = p.parse_args()
 
 fit = json.load(open(args.fit_result))
 
-config_path = args.config
-if config_path is None:
-    config_path = (
-        fit.get("args", {}).get("config", None)
-        or fit.get("config", None)
-    )
-if config_path is None:
-    raise RuntimeError("Need --config, because no config path was found inside the fit JSON.")
-
 print(f"[info] fit_result : {args.fit_result}")
-print(f"[info] config     : {config_path}")
+print(f"[info] configs     : {args.configs}")
 print(f"[info] rotate     : {args.rotate}")
 
-cfg = yaml_loader.load_yaml(config_path)
-yaml_loader.print_summary(cfg, config_path, yaml_loader._INCLUDE_TRACE)
-yaml_loader.load_surrogates(cfg, config_path, overwrite=False)
+# doing it this way, since print_summary and load_surrogates
+# use the path of the configs to give info to the user
+list_configs = []
+for config_path in args.configs:
+    aux_cfg = yaml_loader.load_yaml(config_path)
+    yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+    yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
+
+    list_configs.append(aux_cfg)
+
+cfg = yaml_loader.combine_configs(list_configs)
 
 like_info = load_likelihood(cfg)
 hyp = build_hypothesis_from_likelihood(like_info, name="SR")
@@ -193,7 +193,16 @@ else:
     x_title_default = "bin"
     logY_default = False
 
-base = os.path.splitext(os.path.basename(config_path))[0]
+# base from mangling together configs or given by user
+base_list = []
+for config_path in args.configs:
+    base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+
+base = "_".join(base_list) 
+
+if args.base:
+    base = args.base
+
 base_fit_result = os.path.splitext(os.path.basename(args.fit_result))[0]
 version = str(cfg.get("version", "v0"))
 suffix = "_rotate" if rotated else ""
