@@ -118,28 +118,46 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare correlation matrices across two JSON files"
     )
+
     parser.add_argument(
-        "fit_a",
-        help="Path to first fit JSON file"
+        'fit_files',
+        nargs='+',
+        help='Path(s) to fit result JSON file(s)'
     )
+
     parser.add_argument(
-        "fit_b",
-        help="Path to second fit JSON file"
+        "-l","--labels",
+        nargs="+",
+        type=str,
+        help="Optional labels for plots. If not given, uses version name."
     )
+
     parser.add_argument(
         "-o", "--output",
         help="Output directory (relative to user.plot_directory)",
     )
     args = parser.parse_args()
 
-    fit_a_path = args.fit_a
-    fit_b_path = args.fit_b
+    if len(args.fit_files) != 2:
+        raise ValueError("Need to pass two fit files.")
+
+    fit_a_path = args.fit_files[0]
+    fit_b_path = args.fit_files[1]
+    
+    label_a = os.path.basename(fit_a_path).replace(".json", "")
+    label_b = os.path.basename(fit_b_path).replace(".json", "")
+
+    if args.labels:
+        if len(args.labels) != 2:
+            raise ValueError("If passing labels, should pass both labels")
+
+        label_a = args.labels[0]
+        label_b = args.labels[1]
+            
 
     output_name = args.output
     if output_name is None:
-        base_a = os.path.basename(fit_a_path).replace(".json", "")
-        base_b = os.path.basename(fit_b_path).replace(".json", "")
-        output_name = f"correlation_comparison_{base_a}_vs_{base_b}"
+        output_name = f"correlation_comparison_{label_a}_vs_{label_b}"
 
     output_dir = os.path.join(user.plot_directory, "fit_comparison" ,output_name)
 
@@ -155,13 +173,11 @@ def main() -> None:
         )
 
     diff_matrix = matrix_a - matrix_b
-    base_a = os.path.basename(fit_a_path).replace(".json", "")
-    base_b = os.path.basename(fit_b_path).replace(".json", "")
 
-    create_comparison_canvas(order_a, matrix_a, matrix_b, output_dir, base_a, base_b, diff_matrix)
-    create_difference_heatmap(order_a, diff_matrix, output_dir, base_a, base_b)
+    create_comparison_canvas(order_a, matrix_a, matrix_b, output_dir, label_a, label_b, diff_matrix)
+    create_difference_heatmap(order_a, diff_matrix, output_dir, label_a, label_b)
     
-    diff_filename = f"correlation_only_diff_{base_a}_vs_{base_b}.json"
+    diff_filename = f"correlation_only_diff_{label_a}_vs_{label_b}.json"
     os.makedirs(output_dir, exist_ok=True)
     payload = {
         "correlation": {
