@@ -421,7 +421,7 @@ class Rotated(Hypothesis):
         # sync local nuisance values for printing
         n0 = self._D.shape[0]
         for i, nm in enumerate(self._nuis_names):
-            val = float(getattr(self._base, nm).val)
+            self.parameters[n0 + i].val = getattr(self._base, nm).val
 
     def modify(self, **kwargs):
         if not kwargs:
@@ -466,24 +466,24 @@ class Rotated(Hypothesis):
         # sync rotated POIs from base
         d_vals = self._compute_d_from_base()
         for j, p in enumerate(self.parameters[:self._D.shape[0]]):
-            p.val = float(d_vals[j])
+            p.val = d_vals[j]
         # sync nuisances from base
         n0 = self._D.shape[0]
         for i, nm in enumerate(self._nuis_names):
-            self.parameters[n0 + i].val = float(getattr(self._base, nm).val)
+            self.parameters[n0 + i].val = getattr(self._base, nm).val
 
         title = self.name if self.name else "rotated"
         print(f"Rotated Hypothesis ({title})")
         print("\n  [rotated POIs]")
         for i, p in enumerate(self.parameters[:self._D.shape[0]]):
-            print(f"{i:02d}  {p}")
+            print(f"{i:02d}  {p.name} = {getval(p.val): .6e}")
         print("\n  [nuisances (passthrough)]")
         for j, p in enumerate(self.parameters[self._D.shape[0]:], start=self._D.shape[0]):
-            print(f"{j:02d}  {p}")
+            print(f"{j:02d}  {p.name} = {getval(p.val): .6e}")
 
         print("\n[base] Current base POIs:")
         for nm in self._c_names:
-            print(f"    {nm:>16s} = {float(getattr(self._base, nm).val): .6e}")
+            print(f"    {nm:>16s} = {getval(getattr(self._base, nm).val): .6e}")
 
     def clone(self):
         base_clone = self._base.clone()
