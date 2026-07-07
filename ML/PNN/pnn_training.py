@@ -321,7 +321,9 @@ os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 best_txt = os.path.join(model_dir, "best_checkpoint.txt")
 
 if args.overwrite:
-    os.rmdir(model_dir)
+    import shutil
+    shutil.rmtree(model_dir, ignore_errors=True)
+    os.makedirs(model_dir, exist_ok=True)
     print(f"Directory {model_dir} has been removed successfully")
 else:
 

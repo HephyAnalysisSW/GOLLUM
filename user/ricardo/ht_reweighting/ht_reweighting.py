@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from pathlib import Path
-
+from typing import Iterable, cast
 import matplotlib
 
 matplotlib.use("Agg")
@@ -28,7 +28,7 @@ hep.style.use("CMS")
 
 DEFAULT_FEATURES = ["ht", "dilep_mass", "dilep_pt", "lep0_pt", "lep1_pt", "nSelJet", "nBJet"]
 DEFAULT_PROCESSES = ["TTLep_pow", "SingleTop", "TTSemi_pow", "DrellYan_LO_HTbinned"]
-DEFAULT_ERAS = ["2016", "2016APV", "2017", "2018"]
+DEFAULT_ERAS = ["2016", "2016APV", "2017", "2018", "RunII"]
 DEFAULT_REWEIGHT_FEATURE = "ht"
 
 def parse_args() -> argparse.Namespace:
@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--features", nargs="+", default=DEFAULT_FEATURES)
     parser.add_argument("--selection")
     parser.add_argument(
-        "--selection_branches",
+        "--selection-branches",
         nargs="+",
         default=None,
         help="Branches needed by --selection. Required when --selection is used.",
@@ -326,6 +326,7 @@ def main() -> None:
     plot_dir = plot_root / output_tag
     output_dir = output_root / output_tag
     plot_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     copyIndexPHP(str(plot_dir))
 
     dy_samples = [process for process in args.processes if (("DrellYan" in process) or ("DY" in process))]

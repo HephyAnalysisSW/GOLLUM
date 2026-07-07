@@ -161,11 +161,14 @@ def load_likelihood(cfg):
 
                     if S.get('shape_only', False):
 
-                        if not S['predictor'].has_icp():
-                            raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
-                        
                         logger.warning(f"[likelihood] PNN '{pnn_id}' will be used only for shape variations.")
-                        S['predictor'].remove_icp_bias()
+                        
+                        if S['predictor'] is not None:
+                            
+                            if not S['predictor'].has_icp():
+                                raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+                            
+                            S['predictor'].remove_icp_bias()
 
                     else:
                         # optional: check PNN↔ICP consistency if referenced
