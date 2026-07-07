@@ -993,7 +993,7 @@ class N2LL:
                     pred = S.get('predictor', None)
                     if pred is None:
                         raise RuntimeError(f"[binned] Missing ICPH predictor for {rid}/{cid}/{S.get('id','?')}")
-                    # stash a meta dict we’ll enrich with deltas as numpy arrays for fast math
+                    # stash a meta dict we'll enrich with deltas as numpy arrays for fast math
                     gm = {
                         'id': S['id'],
                         'params': list(S.get('parameters', []) or []),
@@ -1997,7 +1997,7 @@ def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         h_final.print()
     return m
 
-def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+def run_autograd_fit(n2ll, hypothesis, *, step=None, print_every=25,
                    do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
 
     # -- collect free parameters (works for rotated or plain) --
@@ -2363,6 +2363,9 @@ if __name__ == "__main__":
 
     import common.yaml_loader as yaml_loader
 
+    if not (args.minuit or _HAS_AUTOGRAD):
+        raise ImportError("Trying to run autograd fit but autograd was not imported properly.")
+
     # doing it this way, since print_summary and load_surrogates
     # use the path of the configs to give info to the user
     list_configs = []
@@ -2632,7 +2635,7 @@ if __name__ == "__main__":
                 # which sets step to 0.1 for all parameters
                 # (see function definition)
                 # step can also be a single value or a dictionary
-                _fitter = run_iminuit_fit if args.minuit else run_minuit_fit
+                _fitter = run_iminuit_fit if args.minuit else run_autograd_fit
                 if args.minuit:
                     print("[opts] Using iminuit/MIGRAD backend (--minuit)")
                 else:
