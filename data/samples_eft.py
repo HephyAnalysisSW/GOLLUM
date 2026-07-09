@@ -9,86 +9,37 @@ sys.path.insert(0, "../..")
 from data.RDataLoader import RDataLoader
 import common.user as user
 from data.plot_options_eft import plot_options
+from typing import Optional
 
 
-BASE_DIRECTORY = "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/TTbarEFT-centralGen-ntuples"
-LUMI = {
-    "2016APV": 19.52,
-    "2016": 16.81,
-    "2017": 41.48,
-    "2018": 59.83,
-}
+BASE_DIRECTORY = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2_nJ2p_nB2p_2l"
 
-kinematics = [
-    "l0_pt",
-    "l0_eta",
-    "l0_phi",
-    "l1_pt",
-    "l1_eta",
-    "l1_phi",
-    "lminus_pt",
-    "lminus_eta",
-    "lminus_phi",
-    "lplus_pt",
-    "lplus_eta",
-    "lplus_phi",
-    "dilep_pt",
-    "dilep_mass",
-    "dilep_dphi",
-    "dilep_deta",
-    "j0_pt",
-    "j0_eta",
-    "j0_phi",
-    "j1_pt",
-    "j1_eta",
-    "j1_phi",
-    "dijet_pt",
-    "dijet_mass",
-    "dijet_dphi",
-    "dijet_deta",
-    "pseudo_mtt",
-    "nJets",
-    "max_obj_pair_pt",
-]
-KINEMATICS = list(kinematics)
+# no longer needed since lumi normalization is done at cmgrdf level
+# LUMI = {
+#     "2016APV": 19.52,
+#     "2016": 16.81,
+#     "2017": 41.48,
+#     "2018": 59.83,
+# }
 
-TOP_KINEMATICS = [
-    "j0_pt",
-    "j0_eta",
-    "j0_phi",
-    "j1_pt",
-    "j1_eta",
-    "j1_phi",
-    "dijet_pt",
-    "dijet_mass",
-    "pseudo_mtt",
+# kinematics not in original ttbar samples
+# will need to run make_ntuple on those again
+additional_kinematics = [
+    "jet0_phi", "jet0_mass",
+    "jet1_phi", "jet1_mass",
+    "dijet_dPhi", "dijet_dEta",
+    "dijet_pt", "dijet_mass",
+    "bjet0_pt", "bjet1_pt",
+    "bjet0_eta", "bjet1_eta",
+    "dibjet_pt", "dibjet_mass",
+    "lepMinus_pt", "lepMinus_phi", "lepMinus_eta",
+    "lepPlus_pt", "lepPlus_phi", "lepPlus_eta",
+    "dilep_dPhi", "dilep_absDPhi",
+    "lj0_pt", "max_obj_pair_pt",
+    "pseudo_mtt"
 ]
 
-LEPTON_KINEMATICS = [
-    "l0_pt",
-    "l0_eta",
-    "l0_phi",
-    "l1_pt",
-    "l1_eta",
-    "l1_phi",
-    "lminus_pt",
-    "lminus_eta",
-    "lminus_phi",
-    "lplus_pt",
-    "lplus_eta",
-    "lplus_phi",
-    "dilep_pt",
-    "dilep_mass",
-]
-
-ASYMMETRY = [
-    "dilep_dphi",
-    "dilep_deta",
-    "dijet_dphi",
-    "dijet_deta",
-    "nJets",
-    "max_obj_pair_pt",
-]
+from data.observables import TOP_KINEMATICS, LEPTON_KINEMATICS, ASYMMETRY
 
 ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY
 
@@ -124,8 +75,8 @@ def _derivative_branches(wcs):
 eft_derivatives = _derivative_branches(wc_names)
 
 observers = [
-    "weight1fb",
-    "Generator_weight",
+    "weight", # lumi*xs/sumw factor (from CMGRDF) 
+    "Generator_weight", # 1.0 for all samples
     "Generator_scalePDF",
     "Generator_x1",
     "Generator_x2",
@@ -135,139 +86,123 @@ observers = [
     "nEFTfitCoefficients",
 ] + eft_derivatives
 
-SELECTION = (
-    "(dijet_mass < 1000)"
-    " & (dijet_pt < 700)"
-    " & (dijet_deta < 4)"
-    " & (dilep_mass < 800)"
-    " & (dilep_pt < 400)"
-    " & (dilep_deta < 4)"
-    " & (j0_pt < 800)"
-    " & (j1_pt < 500)"
-    " & (l0_pt < 350)"
-    " & (l1_pt < 350)"
-    " & (max_obj_pair_pt < 800)"
-    " & (nJets <= 5)"
-    " & (pseudo_mtt < 1500)"
-)
-SELECTION_BRANCHES = [
-    "dijet_mass",
-    "dijet_pt",
-    "dijet_deta",
-    "dilep_mass",
-    "dilep_pt",
-    "dilep_deta",
-    "j0_pt",
-    "j1_pt",
-    "l0_pt",
-    "l1_pt",
-    "max_obj_pair_pt",
-    "nJets",
-    "pseudo_mtt",
-]
 
 
-def _eft_loader(*relpaths: str, lumi: float) -> RDataLoader:
+def _eft_loader(*relpaths: str) -> RDataLoader:
+
     loader = RDataLoader(
         input_paths=[os.path.join(BASE_DIRECTORY, relpath) for relpath in relpaths],
         tree_name="Events",
-        branches=observers + kinematics,
+        branches=ALL_FEATURES,
         selection=None,
         n_split=1,
         splitting_strategy="files",
         strict_branches=False,
         weight_branches=[
-            "weight1fb",
-            "EFTWeight_SM",
+            "weight", # weight already contains lumi normalization from CMGRDF
+            "EFTWeight_SM", # SM weight, since Generator_weight is one for all the generated samples
+            "L1PreFiringWeight_Nom",
+            "JetPUID_SF",
+            "Pileup_SF",
+            "btagSF_fixedWP_SF",
+            "lepEle_SF",
+            "lepMu_SF",
         ],
-        feature_names=kinematics,
+        feature_names=ALL_FEATURES,
         observer_names=observers,
-        weight_rescale=lumi,
     )
-    loader.addSelection(SELECTION, required_branches=SELECTION_BRANCHES)
+
+    # matching the selection in samples_RunII.py
+    loader.addSelection(
+            "(dilep_mass > 20) & (lep1_pt>20) & (tr_isvalid>0) & (isOS>0) & (offZ>0)",
+            required_branches=["dilep_mass", "lep1_pt", "isOS", "offZ", "tr_isvalid"],
+        )
+    # selection to truncate outliers (see samples_eft_gen) can be added in the config
     return loader
 
-
+# configs
 TT01j2l_EFT_2016APV_mtt_0to700 = _eft_loader(
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_0to700",
-    lumi=LUMI["2016APV"],
+    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
 )
 TT01j2l_EFT_2016APV_mtt_700to900 = _eft_loader(
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_700to900",
-    lumi=LUMI["2016APV"],
+    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
 )
 TT01j2l_EFT_2016APV_mtt_900toInf = _eft_loader(
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2016APV"],
+    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
 )
 
 TT01j2l_EFT_2016_mtt_0to700 = _eft_loader(
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_0to700",
-    lumi=LUMI["2016"],
+    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
 )
 TT01j2l_EFT_2016_mtt_700to900 = _eft_loader(
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_700to900",
-    lumi=LUMI["2016"],
+    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
 )
 TT01j2l_EFT_2016_mtt_900toInf = _eft_loader(
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2016"],
+    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
 )
 
-TT01j2l_EFT_2017_mtt_0to700 = _eft_loader(
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_0to700",
-    lumi=LUMI["2017"],
-)
-TT01j2l_EFT_2017_mtt_700to900 = _eft_loader(
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_700to900",
-    lumi=LUMI["2017"],
-)
-TT01j2l_EFT_2017_mtt_900toInf = _eft_loader(
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2017"],
-)
+
+# 2017 files cannot be generated atm, as they're
+# missing some of the branches to make jet corrections
+# TT01j2l_EFT_2017_mtt_0to700 = _eft_loader(
+#     "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
+# )
+# TT01j2l_EFT_2017_mtt_700to900 = _eft_loader(
+#     "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
+# )
+# TT01j2l_EFT_2017_mtt_900toInf = _eft_loader(
+#     "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
+# )
 
 TT01j2l_EFT_2018_mtt_0to700 = _eft_loader(
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_0to700",
-    lumi=LUMI["2018"],
+    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
 )
 TT01j2l_EFT_2018_mtt_700to900 = _eft_loader(
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_700to900",
-    lumi=LUMI["2018"],
+    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
 )
 TT01j2l_EFT_2018_mtt_900toInf = _eft_loader(
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2018"],
+    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
 )
 
 
 TT01j2l_EFT_2016APV = _eft_loader(
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_0to700",
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_700to900",
-    "hnelson2__mc__UL16APV/UL16APV_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2016APV"],
+    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
+    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
+    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
 )
 TT01j2l_EFT_2016 = _eft_loader(
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_0to700",
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_700to900",
-    "hnelson2__mc__UL16/UL16_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2016"],
+    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
+    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
+    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
 )
-TT01j2l_EFT_2017 = _eft_loader(
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_0to700",
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_700to900",
-    "hnelson2__mc__UL17/UL17_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2017"],
-)
+# TT01j2l_EFT_2017 = _eft_loader(
+#     "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
+#     "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
+#     "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
+# )
+
 TT01j2l_EFT_2018 = _eft_loader(
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_0to700",
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_700to900",
-    "hnelson2__mc__UL18/UL18_TT01j2l_mtt_900toInf",
-    lumi=LUMI["2018"],
+    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
+    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
+    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
 )
 
+TT01j2l_EFT_RunII = _eft_loader(
+    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
+    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
+    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
+    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
+    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
+    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
+    # "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
+    # "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
+    # "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
+    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
+    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
+    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
+)
 
 if __name__ == "__main__":
-    print("Base:", TT01j2l_EFT_2018_mtt_0to700)
+    print("Base:_nominal.root", TT01j2l_EFT_2018_mtt_0to700)
     F, O, W = TT01j2l_EFT_2018_mtt_0to700.materialize(0, "fow")
-    print("Shapes:", F.shape, O.shape, W.shape)
+    print("Shapes:_nominal.root", F.shape, O.shape, W.shape)
