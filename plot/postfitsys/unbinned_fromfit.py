@@ -710,13 +710,14 @@ if __name__ == "__main__":
             c.cd()
             c.Update()
 
-            out_name = os.path.join(outdir, f"{_safe_name(region_id)}")
-            helpers.copyIndexPHP(out_name) 
+            plot_dir = os.path.join(outdir, f"{_safe_name(region_id)}/")
+            helpers.copyIndexPHP(plot_dir) 
+            out_name = f"{plot_dir}/{_safe_name(feature_name)}"
 
             if args.prefit:
-                out_name += f"{_safe_name(feature_name)}__prefit"
+                out_name += f"__prefit"
             else:
-                out_name += f"{_safe_name(feature_name)}__postfit"
+                out_name += f"__postfit"
 
             c.SaveAs(f"{out_name}.png")
             c.SaveAs(f"{out_name}.pdf")

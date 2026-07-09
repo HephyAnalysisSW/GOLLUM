@@ -27,9 +27,10 @@ from common.helpers import copyIndexPHP
 from data.colors import cmap_petroff10_mpl
 from data.plot_options import plot_options as PLOT_OPTS
 from ML.TFMC.TFMC import TFMC
+from data.UIDSplitter import UIDSplitter
 
 LOGGER = logging.getLogger(__name__)
-
+MAKE_PUBLIC_PLOTS = False
 
 def list_jobs_and_exit(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     """List TFMC jobs and exit."""
@@ -44,7 +45,7 @@ def list_jobs_and_exit(cfg: dict[str, Any], args: argparse.Namespace) -> None:
 
     script = os.path.basename(__file__)
     for job in jobs:
-        LOGGER.info("python %s %s --job %s", script, args.config, job["id"])
+        print(f"python {__file__} {args.config} --job {job['id']}")
     raise SystemExit(0)
 
 
@@ -221,7 +222,7 @@ def make_feature_plot(
 
     ax.grid(True, alpha=0.25)
 
-    hep.cms.label("Internal", ax=ax)
+    hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", ax=ax)
 
     class_handles = [
         Line2D([], [], color=color, linewidth=2.0, label=class_name)
@@ -235,9 +236,10 @@ def make_feature_plot(
         Line2D([], [], color="black", linewidth=2.0, label="prediction"),
     ]
 
+    from data.plot_options import get_sample_legend
     fig.legend(
         class_handles,
-        class_names,
+        ["$"+get_sample_legend(class_name).replace('#','\\')+"$" for class_name in class_names],
         loc="upper center",
         bbox_to_anchor=(0.5, 0.98),
         ncol=min(4, len(class_names)),
@@ -269,7 +271,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
     parser = argparse.ArgumentParser(
-        description="Plot TFMC training-closure curves from a trained classifier."
+        description="Plot TFMC training-closure curves from a trained classifier on a held-out test dataset."
     )
     parser.add_argument("config", help="Path to global YAML config")
     parser.add_argument("--job", default=None, help="TFMC classifier job id to run")
@@ -333,6 +335,42 @@ def main() -> None:
     if args.small:
         n_shards = min(n_shards, 1)
 
+    # ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
+    UID_CFG = (job.get("splitting") or {})
+    uid_enabled   = bool(UID_CFG.get("enabled", False))
+    uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+    uid_seed      = int(UID_CFG.get("seed", 0))
+    uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+    uid_scheme    = (UID_CFG.get("scheme") or {})
+
+    uid_intervals = None
+    uid_splitter = None
+    if uid_enabled:
+        uid_splitter = UIDSplitter(
+            uid_fields=tuple(uid_fields),
+            seed=uid_seed,
+            n_buckets=uid_n_buckets,
+        )
+
+        # build bucket intervals (inline; no extra helper, no extra checks)
+        keys  = list(uid_scheme.keys())
+        fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+        sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+        sizes[-1] += uid_n_buckets - sum(sizes)
+
+        uid_intervals = {}
+        lo = 0
+        for k, sz in zip(keys, sizes):
+            uid_intervals[k] = (lo, lo + int(sz))
+            lo += int(sz)
+        eval_key = "final_eval"
+        eval_interval = uid_intervals[eval_key]
+
+        print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+        print(f"[UID] scheme intervals: {uid_intervals}")
+        print(f"[UID] PNN eval split '{eval_key}' -> {eval_interval}")
+
     LOGGER.info("Iterating over %d shard(s) across %d classes.", n_shards, n_classes)
 
     for shard in range(n_shards):
@@ -340,12 +378,23 @@ def main() -> None:
         Ys: list[np.ndarray] = []
         Ws: list[np.ndarray] = []
         for class_idx, loader in enumerate(loaders):
-            X, w = loader.materialize(shard=shard, what="fw")
+            X, o, w = loader.materialize(shard=shard, what="fow")
             y = np.zeros((len(X), n_classes), dtype=np.float32)
             y[:, class_idx] = 1.0
-            Xs.append(X)
-            Ys.append(y)
-            Ws.append(w)
+
+            if not uid_enabled:
+                Xs.append(X)
+                Ys.append(y)
+                Ws.append(w)
+            else:
+                obs_names = loader.observer_names
+                uid_idx = [obs_names.index(f) for f in uid_fields]
+                O_uid = o[:, uid_idx]
+
+                lo, hi = eval_interval
+                m_eval = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+                Xs.append(X[m_eval]); Ys.append(y[m_eval]); Ws.append(w[m_eval])
 
         X_all = np.concatenate(Xs, axis=0) if Xs else np.empty((0, len(feature_names)))
         y_all = np.concatenate(Ys, axis=0) if Ys else np.empty((0, n_classes))

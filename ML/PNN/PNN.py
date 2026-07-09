@@ -145,6 +145,14 @@ class PNN:
         if DeltaA.shape[0] != len(pnn_combs):
             raise ValueError(f"DeltaA length {DeltaA.shape[0]} != #combos {len(pnn_combs)}")
         self._icp_bias = tf.constant(DeltaA, dtype=tf.float32)
+    
+    def has_icp(self):
+        return (self._icp_bias is not None)
+
+    def remove_icp_bias(self):
+        # removes effect ICP bias. usage: do shape-only variations
+        # on models trained with ICP bias
+        self._icp_bias = None
 
     # ---------------------- inference helpers ----------------------
     def deltaA(self, X: np.ndarray) -> np.ndarray:

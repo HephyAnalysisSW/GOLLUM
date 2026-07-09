@@ -137,7 +137,7 @@ def create_comparison_plot(
         ax.set_xlabel('Parameter value', fontsize=11)
         ax.legend(loc='upper right', fontsize=14)
         ax.grid(axis='x', alpha=0.3)
-        x_range = max(abs(x_min),abs(x_max),1.5)
+        x_range = min(max(abs(x_min),abs(x_max)), 2.)
         ax.set_xlim(-x_range*1.2, x_range*1.2)
         ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8, alpha=0.5)
 

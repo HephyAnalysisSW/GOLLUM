@@ -16,23 +16,25 @@ import common.syncer as syncer
 from common.helpers import copyIndexPHP
 
 from ML.PNN.PNN import PNN
+from data.UIDSplitter import UIDSplitter
 from tqdm import tqdm
 
 # Plot options (binning, labels, optional y_ratio_range)
 
-#from data.plot_options import plot_options as PLOT_OPTS
-from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
+from data.plot_options import plot_options as PLOT_OPTS
+# from plot.bit.propaganda_plot_options import plot_options as PLOT_OPTS #temporary change
 
-MAKE_PUBLIC_PLOTS = True
+MAKE_PUBLIC_PLOTS = False
 
 # ---------------- args ----------------
-p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven)")
+p = argparse.ArgumentParser(description="PNN training-closure per-feature plots (YAML-driven) on held-out test dataset")
 p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="PNN job id to run (omit to list)")
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
 p.add_argument("--lumi_scale", type=float, default=None, help="Scale lumi?")
 p.add_argument("--for_debug", action="store_true", help="Use _for_debug directories")
 p.add_argument("--n_split", default=None, help="Set sample split")
+p.add_argument("--shape_only", action="store_true", help="Removing impact of total rate variations from ICP to plot shape-only variations.")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -50,7 +52,7 @@ def list_and_exit():
         sys.exit(0)
     script = os.path.basename(__file__)
     for j in jobs:
-        print(f"python {script} {args.config} --job {j['id']}")
+        print(f"python {__file__} {args.config} --job {j['id']}")
     sys.exit(0)
 
 if args.job is None:
@@ -62,6 +64,42 @@ if J is None or J.get("type") != "pnn":
 
 param_names = list(J.get("parameters", []))
 param_map_tex = " ".join([f"#nu_{{{i+1}}}={p}" for i, p in enumerate(param_names)]) if param_names else ""
+
+# ---------------- UID splitting (YAML-driven, implemented in data/UIDSplitter.py) ----------------
+UID_CFG = (J.get("splitting") or {})
+uid_enabled   = bool(UID_CFG.get("enabled", False))
+uid_fields    = UID_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+uid_seed      = int(UID_CFG.get("seed", 0))
+uid_n_buckets = int(UID_CFG.get("n_buckets", 10000))
+uid_scheme    = (UID_CFG.get("scheme") or {})
+
+uid_intervals = None
+uid_splitter = None
+if uid_enabled:
+    uid_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=uid_seed,
+        n_buckets=uid_n_buckets,
+    )
+
+    # build bucket intervals (inline; no extra helper, no extra checks)
+    keys  = list(uid_scheme.keys())
+    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+    sizes[-1] += uid_n_buckets - sum(sizes)
+
+    uid_intervals = {}
+    lo = 0
+    for k, sz in zip(keys, sizes):
+        uid_intervals[k] = (lo, lo + int(sz))
+        lo += int(sz)
+    eval_key = "final_eval"
+    eval_interval = uid_intervals[eval_key]
+
+    print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+    print(f"[UID] scheme intervals: {uid_intervals}")
+    print(f"[UID] PNN eval split '{eval_key}' -> {eval_interval}")
 
 # ---------------- resolve loaders ----------------
 from data.RDataLoader import RDataLoader
@@ -220,15 +258,6 @@ model_dir = os.path.join(
     J["id"],
 )
 
-plot_dir = os.path.join(
-    user.plot_directory,
-    "PNN_training_closure",
-    cfg_base + ("_for_debug" if args.for_debug else ""),
-    J["id"],
-)
-os.makedirs(plot_dir, exist_ok=True)
-copyIndexPHP(plot_dir)
-
 # ensure there is a checkpoint (we do not display epoch)
 latest = tf.train.latest_checkpoint(model_dir)
 if not latest:
@@ -239,6 +268,9 @@ print(f"Latest checkpoint: {latest}")
 print(f"Trying to load PNN from {model_dir}")
 try:
     pnn = PNN.load(model_dir)
+    # RB: if model is trained with ICP bias,  
+    # it will be loaded with the ICP bias from the saved payload
+    # even when deleting the use_icp field from the job config
 except Exception as e:
     raise RuntimeError(f"Failed to load PNN from {model_dir}") from e
 print("Success!")
@@ -259,6 +291,14 @@ if icp_id:
     _DeltaA = np.asarray(icp.DeltaA, dtype=np.float64)
     pnn.set_icp(parameters=_params, combinations=_combs, DeltaA=_DeltaA)
 
+if args.shape_only:
+
+    if not pnn.has_icp():
+        raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+
+    print("Removing impact of ICP (shape-only variations).")
+    pnn.remove_icp_bias()
+
 # ---------------- helpers ----------------
 def iterate_epoch(shard_limit=None):
     shard_counts = [len(getattr(L, "base", L)) for L in loaders]
@@ -266,12 +306,32 @@ def iterate_epoch(shard_limit=None):
     if shard_limit is not None:
         n_shards = min(n_shards, shard_limit)
     for shard in range(n_shards):
-        Xs, Ws = [], []
+        Xs, Ws, Os = [], [], []
         for L in loaders:
-            X, w = L.materialize(shard=shard, what="fw")
+            X, O, w = L.materialize(shard=shard, what="fow")
             Xs.append(X)
+            Os.append(O)
             Ws.append(w.astype(np.float32, copy=False))
-        yield Xs, Ws
+        
+        if not uid_enabled:
+            yield Xs, Ws
+            continue
+
+        # evaluating on 'final_eval' partition only
+        # follow structure used in training code
+        Xs_eval, Ws_eval = [], []
+        for L, X, w, O in zip(loaders, Xs, Ws, Os):
+            obs_names = L.observer_names
+            uid_idx = [obs_names.index(f) for f in uid_fields]
+            O_uid = O[:, uid_idx]
+
+            lo, hi = eval_interval
+            m_eval = uid_splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
+
+            Xs_eval.append(X[m_eval]); Ws_eval.append(w[m_eval])
+        
+        yield Xs_eval, Ws_eval
+
 
 def nu_tex_from_coords(coords):
     values = [str(int(np.rint(v))) for v in coords]
@@ -358,8 +418,6 @@ import mplhep as hep
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 
-print(f"Writing per-feature closure plots to: {plot_dir}")
-
 from data.plot_options import get_sample_legend, get_short_parameter_name
 if param_names:
     label_param_names_latex = [r"\nu_{"+get_short_parameter_name(param_name)+"}" for param_name in param_names]
@@ -391,15 +449,12 @@ else:
     main_legend_y = 0.915
     truth_pred_y = 0.895
 
-# CAT recommends accessible color scheme from Matthew Petroff
 # CMS style only has the 6-color Petroff scheme
-# implemented a quick workaround to use the 10 color scheme
-
-plt.style.use("petroff10")
-cmap = plt.rcParams['axes.prop_cycle'].by_key()['color']
+# stored colors from 10 color scheme in cmap_petroff10_mpl
+from data.colors import cmap_petroff10_mpl
 hep.style.use("CMS")
 
-colors = [cmap[i] for i in range(n_entries)]
+colors = [cmap_petroff10_mpl[i] for i in range(n_entries)]
 colors[nom_idx] = "black"
 
 feature_keep = {}
@@ -419,155 +474,322 @@ for era in lumi_by_era:
         lumi_era = era
         break
 
-for feat in plot_feats:
-    # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
-    x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
-    x_title = fr"${{{x_title}}}$"
-    logY = PLOT_OPTS.get(feat, {}).get("logY", False)
+def make_pnn_closure_plots():
 
-    edges = np.asarray(bins[feat], dtype=np.float64)
-    n_bins = len(edges) - 1
-    x_min, x_max = float(edges[0]), float(edges[-1])
-    centers = 0.5 * (edges[1:] + edges[:-1])
-    widths = edges[1:] - edges[:-1]
-
-    fig = plt.figure(figsize=(8, 12))
-    gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0.03)
-    ax_top = fig.add_subplot(gs[0])
-    ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
-    fig.subplots_adjust(top=axes_top)
-
-    # Figure-level header above the plot: sample + nuisance parameters.
-    fig.text(
-        0.5,
-        0.965,
-        legend_mapping_line,
-        ha="center",
-        va="top",
-        fontsize=18,
-        weight="bold",
+    plot_dir = os.path.join(
+        user.plot_directory,
+        "PNN_training_closure",
+        cfg_base + ("_for_debug" if args.for_debug else ""),
+        J["id"],
     )
 
-    # Top: histograms
-    max_y = 0.0
-    handles = []
-    labels = []
+    if args.shape_only:
+        plot_dir += "_shape"
 
-    for k, nu in enumerate(base_points):
-        y = true_h[feat][:, k].astype(np.float64)
-        y2 = true_h2[feat][:, k].astype(np.float64)
-        y_pred = pred_h[feat][:, k].astype(np.float64)
+    print(f"Writing per-feature closure plots to: {plot_dir}")
 
-        err = np.sqrt(y2)
+    os.makedirs(plot_dir, exist_ok=True)
+    copyIndexPHP(plot_dir)
 
-        # plot predicted as stepped line
-        # use edges for step plotting
-        step_x = np.concatenate([edges[:-1], edges[-1:]])
-        step_y = np.concatenate([y_pred, y_pred[-1:]])
-        h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+    for feat in plot_feats:
+        # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
+        x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
+        x_title = fr"${{{x_title}}}$"
+        logY = PLOT_OPTS.get(feat, {}).get("logY", False)
 
-        # plot truth as markers with errorbars at bin centers
-        h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+        edges = np.asarray(bins[feat], dtype=np.float64)
+        n_bins = len(edges) - 1
+        x_min, x_max = float(edges[0]), float(edges[-1])
+        centers = 0.5 * (edges[1:] + edges[:-1])
+        widths = edges[1:] - edges[:-1]
 
-        handles.append(h_line)
-        labels.append(nu_tex_from_coords(nu))
+        fig = plt.figure(figsize=(8, 12))
+        gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0.03)
+        ax_top = fig.add_subplot(gs[0])
+        ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+        fig.subplots_adjust(top=axes_top)
 
-        max_y = max(max_y, np.nanmax(y))
+        # Figure-level header above the plot: sample + nuisance parameters.
+        fig.text(
+            0.5,
+            0.965,
+            legend_mapping_line,
+            ha="center",
+            va="top",
+            fontsize=18,
+            weight="bold",
+        )
 
-    if logY:
-        ax_top.set_yscale("log")
-        y_min = max(0.1, 0.3)
-        y_max = max(1.0, 1.2 * max_y) if max_y > 0 else 1.0
-        ax_top.set_ylim(y_min, y_max)
-    else:
-        ax_top.set_ylim(0.0, 1.2 * max_y if max_y > 0 else 1.0)
+        # Top: histograms
+        max_y = 0.0
+        handles = []
+        labels = []
 
-    ax_top.set_ylabel("Events")
-    ax_top.tick_params(labelbottom=False)
+        for k, nu in enumerate(base_points):
+            y = true_h[feat][:, k].astype(np.float64)
+            y2 = true_h2[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
 
-    # CMS label area
-    hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
-    # hep.mpl_magic()
+            err = np.sqrt(y2)
 
-    # Bottom: ratios to nominal
-    h_nom = true_h[feat][:, nom_idx].astype(np.float64)
-    denom = h_nom.copy()
-    denom[denom == 0] = np.nan
+            # plot predicted as stepped line
+            # use edges for step plotting
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([y_pred, y_pred[-1:]])
+            h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
 
-    max_dev = 0.0
-    for k in range(n_entries):
-        y = true_h[feat][:, k].astype(np.float64)
-        y_pred = pred_h[feat][:, k].astype(np.float64)
+            handles.append(h_line)
+            labels.append(nu_tex_from_coords(nu))
 
-        r_true = y / denom
-        r_pred = y_pred / denom
+            max_y = max(max_y, np.nanmax(y_pred))
+            
+            # if shape-only, not plotting the truth which will always include the total XS
+            if not args.shape_only:
+                # plot truth as markers with errorbars at bin centers
+                h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+                max_y = max(max_y, np.nanmax(y))
 
-        err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
-        r_err = err / denom
+        if logY:
+            ax_top.set_yscale("log")
+            y_min = max(0.1, 0.3)
+            y_max = max(1.0, 1.2 * max_y) if max_y > 0 else 1.0
+            ax_top.set_ylim(y_min, y_max)
+        else:
+            ax_top.set_ylim(0.0, 1.2 * max_y if max_y > 0 else 1.0)
 
-        ax_bot.errorbar(centers, r_true, yerr=r_err, fmt="o", color=colors[k], markersize=4)
-        step_x = np.concatenate([edges[:-1], edges[-1:]])
-        step_y = np.concatenate([r_pred, r_pred[-1:]])
-        ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+        ax_top.set_ylabel("Events")
+        ax_top.tick_params(labelbottom=False)
 
-        # compute max deviation
-        valid = np.isfinite(r_true)
-        if np.any(valid):
-            max_dev = max(max_dev, np.nanmax(np.abs(r_true[valid] - 1.0)))
-        validp = np.isfinite(r_pred)
-        if np.any(validp):
-            max_dev = max(max_dev, np.nanmax(np.abs(r_pred[validp] - 1.0)))
+        # CMS label area
+        hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
+        # hep.mpl_magic()
 
-    if max_dev <= 0.0:
-        r_min, r_max = 0.9, 1.1
-    else:
-        half_range = 1.3 * max_dev
-        r_min = 1.0 - half_range
-        r_max = 1.0 + half_range
+        # Bottom: ratios to nominal
+        h_nom = true_h[feat][:, nom_idx].astype(np.float64)
+        denom = h_nom.copy()
+        denom[denom == 0] = np.nan
 
-    ax_bot.set_ylim(r_min, r_max)
-    ax_bot.set_ylabel("var / nominal")
-    ax_bot.set_xlabel(x_title)
-    ax_bot.axhline(1.0, color="k", linestyle="--")
+        max_dev = 0.0
+        for k in range(n_entries):
+            y = true_h[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
 
-    # Figure-level legend in the same top area as the mapping line.
-    fig.legend(
-        handles,
-        labels,
-        ncol=n_cols,
-        loc="upper center",
-        bbox_to_anchor=(0.5, main_legend_y),
-        frameon=False,
-        fontsize=18,
-        handlelength=2.0,
-        columnspacing=1.4,
+            r_true = y / denom
+            r_pred = y_pred / denom
+
+            err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
+            r_err = err / denom
+
+            # not plotting truth when plotting shape-only
+            if not args.shape_only:
+                ax_bot.errorbar(centers, r_true, yerr=r_err, fmt="o", color=colors[k], markersize=4)
+                # compute max deviation
+                valid = np.isfinite(r_true)
+                if np.any(valid):
+                    max_dev = max(max_dev, np.nanmax(np.abs(r_true[valid] - 1.0)))
+
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([r_pred, r_pred[-1:]])
+            ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+            validp = np.isfinite(r_pred)
+            if np.any(validp):
+                max_dev = max(max_dev, np.nanmax(np.abs(r_pred[validp] - 1.0)))
+
+        if max_dev <= 0.0:
+            r_min, r_max = 0.9, 1.1
+        else:
+            half_range = 1.3 * max_dev
+            r_min = 1.0 - half_range
+            r_max = 1.0 + half_range
+
+        ax_bot.set_ylim(r_min, r_max)
+        ax_bot.set_ylabel("var / nominal")
+        ax_bot.set_xlabel(x_title)
+        # ax_bot.axhline(1.0, color="k", linestyle="--")
+
+        # Figure-level legend in the same top area as the mapping line.
+        fig.legend(
+            handles,
+            labels,
+            ncol=n_cols,
+            loc="upper center",
+            bbox_to_anchor=(0.5, main_legend_y),
+            frameon=False,
+            fontsize=18,
+            handlelength=2.0,
+            columnspacing=1.4,
+        )
+
+        # Marker/line meaning centered below the basis-point legend.
+        truth_pred_handles = [
+            Line2D([], [], color="black", marker="o", linestyle="None", markersize=8, label="truth"),
+            Line2D([], [], color="black", linestyle="-", linewidth=2, label="prediction"),
+        ]
+        
+        fig.legend(
+            truth_pred_handles,
+            ["truth", "prediction"],
+            ncol=2,
+            loc="lower center",
+            bbox_to_anchor=(0.5, truth_pred_y),
+            frameon=False,
+            fontsize=14,
+            handlelength=2.0,
+            columnspacing=1.8,
+        )
+
+        out_png = os.path.join(plot_dir, f"{feat}.png")
+        out_pdf = os.path.join(plot_dir, f"{feat}.pdf")
+        plt.savefig(out_png, bbox_inches="tight")
+        plt.savefig(out_pdf, bbox_inches="tight")
+        plt.close(fig)
+
+        feature_keep[feat] = True
+
+
+def make_pnn_chi2_plots():
+
+    plot_dir = os.path.join(
+        user.plot_directory,
+        "PNN_prediction_diagnostics",
+        cfg_base + ("_for_debug" if args.for_debug else ""),
+        J["id"],
     )
 
-    # Marker/line meaning centered below the basis-point legend.
-    truth_pred_handles = [
-        Line2D([], [], color="black", marker="o", linestyle="None", markersize=8, label="truth"),
-        Line2D([], [], color="black", linestyle="-", linewidth=2, label="prediction"),
-    ]
-    
-    fig.legend(
-        truth_pred_handles,
-        ["truth", "prediction"],
-        ncol=2,
-        loc="lower center",
-        bbox_to_anchor=(0.5, truth_pred_y),
-        frameon=False,
-        fontsize=14,
-        handlelength=2.0,
-        columnspacing=1.8,
-    )
+    if args.shape_only:
+        plot_dir += "_shape"
+        
+    copyIndexPHP(plot_dir)
 
-    out_png = os.path.join(plot_dir, f"{feat}.png")
-    out_pdf = os.path.join(plot_dir, f"{feat}.pdf")
-    plt.savefig(out_png, bbox_inches="tight")
-    plt.savefig(out_pdf, bbox_inches="tight")
-    plt.close(fig)
+    for feat in plot_feats:
+        # changing ROOT latex format (in PLOT_OPTS) to mpl latex format
+        x_title = PLOT_OPTS.get(feat, {}).get("tex", feat).replace("#","\\")
+        x_title = fr"${{{x_title}}}$"
+        logY = PLOT_OPTS.get(feat, {}).get("logY", False)
 
-    feature_keep[feat] = True
+        edges = np.asarray(bins[feat], dtype=np.float64)
+        n_bins = len(edges) - 1
+        x_min, x_max = float(edges[0]), float(edges[-1])
+        centers = 0.5 * (edges[1:] + edges[:-1])
+        widths = edges[1:] - edges[:-1]
+
+        fig = plt.figure(figsize=(8, 12))
+        gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0.03)
+        ax_top = fig.add_subplot(gs[0])
+        ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+        fig.subplots_adjust(top=axes_top)
+
+        # Figure-level header above the plot: sample + nuisance parameters.
+        fig.text(
+            0.5,
+            0.965,
+            legend_mapping_line,
+            ha="center",
+            va="top",
+            fontsize=18,
+            weight="bold",
+        )
+
+        # Top: histograms
+        max_y = 0.0
+        handles = []
+        labels = []
+
+        for k, nu in enumerate(base_points):
+
+            y = true_h[feat][:, k].astype(np.float64)
+            y2 = true_h2[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
+
+            err = np.sqrt(y2)
+
+            # plot predicted as stepped line
+            # use edges for step plotting
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([y_pred, y_pred[-1:]])
+            h_line, = ax_top.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+            # plot truth as markers with errorbars at bin centers
+            # h_err = ax_top.errorbar(centers, y, yerr=err, fmt="o", color=colors[k], markersize=4, label=nu_tex_from_coords(nu))
+
+            handles.append(h_line)
+            labels.append(nu_tex_from_coords(nu))
+
+            max_y = max(max_y, np.nanmax(y))
+
+        if logY:
+            ax_top.set_yscale("log")
+            y_min = max(0.1, 0.3)
+            y_max = max(1.0, 1.2 * max_y) if max_y > 0 else 1.0
+            ax_top.set_ylim(y_min, y_max)
+        else:
+            ax_top.set_ylim(0.0, 1.2 * max_y if max_y > 0 else 1.0)
+
+        ax_top.set_ylabel("Events")
+        ax_top.tick_params(labelbottom=False)
+
+        # CMS label area
+        hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, year = lumi_era, ax=ax_top, loc=0, fontsize=14)
+        # hep.mpl_magic()
+
+        # Bottom: ratios to nominal
+        h_nom = true_h[feat][:, nom_idx].astype(np.float64)
+        denom = h_nom.copy()
+        denom[denom == 0] = np.nan
+
+        max_dev = 0.0
+        for k in range(n_entries):
+
+            y = true_h[feat][:, k].astype(np.float64)
+            y_pred = pred_h[feat][:, k].astype(np.float64)
+            # err = np.sqrt(true_h2[feat][:, k].astype(np.float64))
+
+            from ML.TFMC.tfmc_plot_true_model import safe_divide
+            chi_2 = safe_divide(np.square((y_pred - h_nom)),h_nom)
+
+            step_x = np.concatenate([edges[:-1], edges[-1:]])
+            step_y = np.concatenate([chi_2, chi_2[-1:]])
+            ax_bot.step(step_x, step_y, where="post", color=colors[k], linewidth=2)
+
+            validp = np.isfinite(chi_2)
+            if np.any(validp):
+                max_dev = max(max_dev, np.nanmax(np.abs(chi_2[validp])))
+
+        if max_dev <= 0.0:
+            r_max = 0.1
+        else:
+            half_range = 1.3 * max_dev
+            r_max = half_range
+
+        ax_bot.set_ylim(0.0, r_max)
+        ax_bot.set_ylabel(r"$\Delta^2(var,nom)/\sigma_{nom}^2$")
+        ax_bot.set_xlabel(x_title)
+
+        # Figure-level legend in the same top area as the mapping line.
+        fig.legend(
+            handles,
+            labels,
+            ncol=n_cols,
+            loc="upper center",
+            bbox_to_anchor=(0.5, main_legend_y),
+            frameon=False,
+            fontsize=18,
+            handlelength=2.0,
+            columnspacing=1.4,
+        )
+
+        out_png = os.path.join(plot_dir, f"{feat}.png")
+        out_pdf = os.path.join(plot_dir, f"{feat}.pdf")
+        plt.savefig(out_png, bbox_inches="tight")
+        plt.savefig(out_pdf, bbox_inches="tight")
+        plt.close(fig)
+
+        feature_keep[feat] = True
+
+make_pnn_closure_plots()
+
+make_pnn_chi2_plots()
 
 syncer.sync()
 print("Done.")

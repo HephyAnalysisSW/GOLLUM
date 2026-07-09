@@ -314,13 +314,18 @@ l2              = float(J.get("optim", {}).get("l2", 0))
 
 pnn = None
 model_dir = os.path.join(user.model_directory, cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory, "PNN", cfg_base+("_for_debug" if args.for_debug else ""),  J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 # A small pointer file for BEST (epoch + val_loss)
 best_txt = os.path.join(model_dir, "best_checkpoint.txt")
 
-if not args.overwrite:
+if args.overwrite:
+    import shutil
+    shutil.rmtree(model_dir, ignore_errors=True)
+    os.makedirs(model_dir, exist_ok=True)
+    print(f"Directory {model_dir} has been removed successfully")
+else:
 
     if os.path.exists(os.path.join(model_dir,"done")):
         raise Exception("Training finished properly and rerunning without --overwrite. Will stop here.")

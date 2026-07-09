@@ -159,20 +159,32 @@ def load_likelihood(cfg):
                         S['parameters'] = pnn_params
                     S['combinations'] = pnn_combs
 
-                    # optional: check PNN↔ICP consistency if referenced
-                    try:
-                        extras = (pnn_job or {}).get('extras', {}) or {}
-                        icp_id = extras.get('use_icp')
-                        if isinstance(icp_id, str) and icp_id in id2job:
-                            icp_job = id2job[icp_id]
-                            icp = icp_job.get('predictor', None)
-                            if icp is not None:
-                                icp_params = list(getattr(icp, "parameters"))
-                                icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
-                                if not (pnn_params == icp_params and pnn_combs == icp_combs):
-                                    logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
-                    except Exception:
-                        pass
+                    if S.get('shape_only', False):
+
+                        logger.warning(f"[likelihood] PNN '{pnn_id}' will be used only for shape variations.")
+                        
+                        if S['predictor'] is not None:
+                            
+                            if not S['predictor'].has_icp():
+                                raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+                            
+                            S['predictor'].remove_icp_bias()
+
+                    else:
+                        # optional: check PNN↔ICP consistency if referenced
+                        try:
+                            extras = (pnn_job or {}).get('extras', {}) or {}
+                            icp_id = extras.get('use_icp')
+                            if isinstance(icp_id, str) and icp_id in id2job:
+                                icp_job = id2job[icp_id]
+                                icp = icp_job.get('predictor', None)
+                                if icp is not None:
+                                    icp_params = list(getattr(icp, "parameters"))
+                                    icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
+                                    if not (pnn_params == icp_params and pnn_combs == icp_combs):
+                                        logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
+                        except Exception:
+                            pass
 
                     # collect nuisance names
                     for nm in (S.get("parameters") or []):
@@ -984,14 +996,15 @@ class N2LL:
                     pred = S.get('predictor', None)
                     if pred is None:
                         raise RuntimeError(f"[binned] Missing ICPH predictor for {rid}/{cid}/{S.get('id','?')}")
-                    # stash a meta dict we’ll enrich with deltas as numpy arrays for fast math
+                    # stash a meta dict we'll enrich with deltas as numpy arrays for fast math
                     gm = {
                         'id': S['id'],
                         'params': list(S.get('parameters', []) or []),
                         'combs':  [list(t) for t in (getattr(pred, "combinations", []) or [])],
-                        # We store deltas as (nB, nb1) or (nB, nb1, nb2) in float64
-                        '_deltas': np.asarray(pred.deltas, dtype=np.float64),
+                        # Always copy so shape_only normalization below does not mutate the loaded surrogate
+                        '_deltas': np.array(pred.deltas, dtype=np.float64),
                         '_obj': pred,
+                        'shape_only': bool(S.get('shape_only', False)),
                     }
                     icph_groups.append({'_meta': gm})
 
@@ -1249,23 +1262,40 @@ class N2LL:
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
-            # accumulate nuisance exponent per bin from all ICPh groups
-            # we’ll form a flat vector exp(exponent + ln_bias[cid])
+            # accumulate nuisance exponent per bin from all ICPh groups,
+            # separating shape-only groups (exact runtime renormalization) from the rest
             if sigma_hist.ndim == 1:
                 nb1 = sigma_hist.shape[0]
-                expo = np.zeros(nb1, dtype=np.float64)
+                expo_norm  = np.zeros(nb1, dtype=np.float64)
+                expo_shape = np.zeros(nb1, dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1)
-                    expo = expo + (nuA @ dA)  # (nb1,)
-                lam = lam + sigma_hist * np.exp(expo + ln_bias[cid])
+                    if gm.get('shape_only', False):
+                        expo_shape = expo_shape + (nuA @ dA)
+                    else:
+                        expo_norm  = expo_norm  + (nuA @ dA)
+                shape_factor = np.exp(expo_shape)
+                shape_sum = sigma_hist @ shape_factor
+                if shape_sum > 0:
+                    shape_factor *= sigma_hist.sum() / shape_sum
+                lam = lam + sigma_hist * np.exp(expo_norm + ln_bias[cid]) * shape_factor
             else:
                 nb1, nb2 = sigma_hist.shape
-                expo2d = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_norm2d  = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_shape2d = np.zeros((nb1, nb2), dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1, nb2)
-                    # tensordot over combination axis -> (nb1,nb2)
-                    expo2d = expo2d + np.tensordot(nuA, dA, axes=(0, 0))
-                lam = lam + sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
+                    contrib = np.tensordot(nuA, dA, axes=(0, 0))  # (nb1, nb2)
+                    if gm.get('shape_only', False):
+                        expo_shape2d = expo_shape2d + contrib
+                    else:
+                        expo_norm2d  = expo_norm2d  + contrib
+                shape_factor2d = np.exp(expo_shape2d)
+                sig_flat = sigma_hist.reshape(-1)
+                shape_sum = sig_flat @ shape_factor2d.reshape(-1)
+                if shape_sum > 0:
+                    shape_factor2d *= sig_flat.sum() / shape_sum
+                lam = lam + sig_flat * np.exp(expo_norm2d.reshape(-1) + ln_bias[cid]) * shape_factor2d.reshape(-1)
 
         return lam
 
@@ -1970,7 +2000,7 @@ def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         h_final.print()
     return m
 
-def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+def run_autograd_fit(n2ll, hypothesis, *, step=None, print_every=25,
                    do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
 
     # -- collect free parameters (works for rotated or plain) --
@@ -2336,6 +2366,9 @@ if __name__ == "__main__":
 
     import common.yaml_loader as yaml_loader
 
+    if not (args.minuit or _HAS_AUTOGRAD):
+        raise ImportError("Trying to run autograd fit but autograd was not imported properly.")
+
     # doing it this way, since print_summary and load_surrogates
     # use the path of the configs to give info to the user
     list_configs = []
@@ -2605,7 +2638,7 @@ if __name__ == "__main__":
                 # which sets step to 0.1 for all parameters
                 # (see function definition)
                 # step can also be a single value or a dictionary
-                _fitter = run_iminuit_fit if args.minuit else run_minuit_fit
+                _fitter = run_iminuit_fit if args.minuit else run_autograd_fit
                 if args.minuit:
                     print("[opts] Using iminuit/MIGRAD backend (--minuit)")
                 else:

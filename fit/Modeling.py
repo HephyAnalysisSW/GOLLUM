@@ -1,7 +1,25 @@
 import copy
 import logging
+
+import json
+
+# inverting structure used in Likelihood.py:
+# instead of having autograd.numpy as np and 
+# changing the calls to the vanilla numpy to onp,
+# keeping normal numpy as np, 
 import numpy as np
 
+try:
+    import autograd.numpy as anp
+    from autograd.tracer import getval
+    _HAS_AUTOGRAD = True
+except ImportError:
+    import numpy as anp
+    _HAS_AUTOGRAD = False
+
+    def getval(value):
+        return value
+    
 logger = logging.getLogger(__name__)
 
 
@@ -217,10 +235,6 @@ class Hypothesis:
         print()
         for j, p in enumerate(self.nuisances, start=len(self.POIs)):
             print(f"{j:02d}  {p}")
-import json
-import numpy as np
-import json
-import numpy as np
 
 class Rotated(Hypothesis):
     """
@@ -345,13 +359,13 @@ class Rotated(Hypothesis):
         m, K = D.shape
         if m == K:
             try:
-                return np.linalg.solve(D, d_target)
-            except np.linalg.LinAlgError:
+                return anp.linalg.solve(D, d_target)
+            except anp.linalg.LinAlgError:
                 pass
-        return np.linalg.pinv(D, rcond=self._rcond) @ d_target
+        return anp.linalg.pinv(D, rcond=self._rcond) @ d_target
 
     def _apply_d_update(self, d_new: np.ndarray, *, tol_frozen: float = 0.0) -> None:
-        d_new = np.asarray(d_new, dtype=np.float64)
+        # d_new = np.asarray(d_new, dtype=np.float64)
         if d_new.shape != (self._D.shape[0],):
             raise RuntimeError("[Rotated] d_new has wrong shape.")
 
@@ -361,16 +375,16 @@ class Rotated(Hypothesis):
         # check frozen POIs on base
         for nm, vo, vn in zip(self._c_names, c_old, c_new):
             bp = getattr(self._base, nm)
-            if bp.isFrozen and (abs(float(vn) - float(vo)) > tol_frozen):
+            if bp.isFrozen and (abs(getval(vn) - getval(vo)) > tol_frozen):
                 raise RuntimeError(f"[Rotated] Attempt to change frozen base POI '{nm}': {vo} → {vn}")
 
         # write POIs back to base
         for nm, vn in zip(self._c_names, c_new):
-            getattr(self._base, nm).val = float(vn)
+            getattr(self._base, nm).val = vn
 
         # sync local displayed d values
         for j, p in enumerate(self.parameters[:self._D.shape[0]]):
-            p.val = float(d_new[j])
+            p.val = d_new[j]
 
     # ---------- public API ----------
     def penalty(self) -> float:
@@ -384,30 +398,30 @@ class Rotated(Hypothesis):
             raise RuntimeError("[Rotated.set_vector] names and values length mismatch.")
 
         # start from current values
-        d_cur = self._compute_d_from_base()
+        d_cur_list = list(self._compute_d_from_base())
         # We will also track nuisance updates
         nuis_updates = {}
 
         for nm, v in zip(names, values):
             if nm in self._d_index:
-                d_cur[self._d_index[nm]] = float(v)
+                d_cur_list[self._d_index[nm]] = v
             elif nm in self._nuis_index:
-                nuis_updates[nm] = float(v)
+                nuis_updates[nm] = v
             else:
                 raise KeyError(f"[Rotated.set_vector] Unknown parameter '{nm}' (neither rotated POI nor nuisance).")
 
         # apply rotated POI updates
-        self._apply_d_update(d_cur, tol_frozen=tol_frozen)
+        self._apply_d_update(anp.array(d_cur_list), tol_frozen=tol_frozen)
 
         # apply nuisance updates to base
         for nm, val in nuis_updates.items():
             bp = getattr(self._base, nm)
-            bp.val = float(val)
+            bp.set(val)# = float(val)
 
         # sync local nuisance values for printing
         n0 = self._D.shape[0]
         for i, nm in enumerate(self._nuis_names):
-            self.parameters[n0 + i].val = float(getattr(self._base, nm).val)
+            self.parameters[n0 + i].val = getattr(self._base, nm).val
 
     def modify(self, **kwargs):
         if not kwargs:
@@ -452,24 +466,24 @@ class Rotated(Hypothesis):
         # sync rotated POIs from base
         d_vals = self._compute_d_from_base()
         for j, p in enumerate(self.parameters[:self._D.shape[0]]):
-            p.val = float(d_vals[j])
+            p.val = d_vals[j]
         # sync nuisances from base
         n0 = self._D.shape[0]
         for i, nm in enumerate(self._nuis_names):
-            self.parameters[n0 + i].val = float(getattr(self._base, nm).val)
+            self.parameters[n0 + i].val = getattr(self._base, nm).val
 
         title = self.name if self.name else "rotated"
         print(f"Rotated Hypothesis ({title})")
         print("\n  [rotated POIs]")
         for i, p in enumerate(self.parameters[:self._D.shape[0]]):
-            print(f"{i:02d}  {p}")
+            print(f"{i:02d}  {p.name} = {getval(p.val): .6e}")
         print("\n  [nuisances (passthrough)]")
         for j, p in enumerate(self.parameters[self._D.shape[0]:], start=self._D.shape[0]):
-            print(f"{j:02d}  {p}")
+            print(f"{j:02d}  {p.name} = {getval(p.val): .6e}")
 
         print("\n[base] Current base POIs:")
         for nm in self._c_names:
-            print(f"    {nm:>16s} = {float(getattr(self._base, nm).val): .6e}")
+            print(f"    {nm:>16s} = {getval(getattr(self._base, nm).val): .6e}")
 
     def clone(self):
         base_clone = self._base.clone()

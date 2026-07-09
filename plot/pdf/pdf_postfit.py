@@ -23,7 +23,8 @@ from pdf.PDFParametrization import PDFParametrization
 
 # ---------------- args ----------------
 p = argparse.ArgumentParser(description="Gluon PDF plotting")
-p.add_argument("config", help="Path to global YAML config")
+p.add_argument("configs", nargs="+", help="Path to global YAML configs")
+p.add_argument("--base", help="")
 p.add_argument("--yes", "-y", action="store_true",
                help="Automatically run missing surrogate trainings without asking")
 p.add_argument("--postfit", required=True,
@@ -32,6 +33,7 @@ p.add_argument("--postfix", default='v1',
                help="A txt string")
 p.add_argument("--freezePOI", action="store_true",
                help="Do not sample POIs, use only central values")
+p.add_argument("--ntoys", type=int, default=10000)
 p.add_argument("--Q", type=float, default=1.65,
                help="Scale Q for PDF evaluation (same units as PDF grid, default: 1.65)")
 p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
@@ -43,50 +45,59 @@ plot_label = "gluonPDF"
 
 # ---------------- load YAML CFG ----------------
 
-print(f"[info] Loading config from: {args.config}")
-cfg = yaml_loader.load_yaml(args.config)
+print(f"[info] Loading configs from: {args.configs}")
+print(f"[info] Not checking surrogate information, as they're not used downstream")
+list_configs = []
+for config_path in args.configs:
+    aux_cfg = yaml_loader.load_yaml(config_path)
+    yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+    # missing_cmds = yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
 
-yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-missing_cmds = yaml_loader.load_surrogates(
-    cfg,
-    args.config,
-    overwrite=False,
-)
+    list_configs.append(aux_cfg)
 
-# Are there missing commands? If so, let's do those. Ask the user (or require --yes)
-if missing_cmds:
-    print(f"[info] Found {len(missing_cmds)} missing surrogate trainings.")
-    if not args.yes:
-        ans = input(f"{len(missing_cmds)} surrogates missing. Run training now? [y/N] ")
-        if ans.lower() not in ("y", "yes"):
-            print("[info] Not running trainings, exiting.")
-            sys.exit(1)
+    # # Are there missing commands? If so, let's do those. Ask the user (or require --yes)
+    # if missing_cmds:
+    #     print(f"[info] Found {len(missing_cmds)} missing surrogate trainings.")
+    #     if not args.yes:
+    #         ans = input(f"{len(missing_cmds)} surrogates missing. Run training now? [y/N] ")
+    #         if ans.lower() not in ("y", "yes"):
+    #             raise SystemError("[info] Not running trainings, exiting.")
 
-    for cmd in missing_cmds:
-        print("[info] Running:", cmd)
-        ret = subprocess.run(cmd, shell=True)
-        if ret.returncode != 0:
-            print(f"[error] Command failed with exit code {ret.returncode}")
-            sys.exit(ret.returncode)
+    #     for cmd in missing_cmds:
+    #         print("[info] Running:", cmd)
+    #         ret = subprocess.run(cmd, shell=True)
+    #         if ret.returncode != 0:
+    #             raise RuntimeError(f"[error] Command failed with exit code {ret.returncode}")
 
-    # try again
-    print("[info] Re-checking for missing surrogates after training...")
-    missing_cmds = yaml_loader.load_surrogates(
-        cfg,
-        args.config,
-        overwrite=False,
-    )
-    if missing_cmds:
-        print("[error] Still missing surrogates after running trainings:")
-        for cmd in missing_cmds:
-            print("  ", cmd)
-        sys.exit(1)
+    #     # try again
+    #     print("[info] Re-checking for missing surrogates after training...")
+    #     missing_cmds = yaml_loader.load_surrogates(
+    #         cfg,
+    #         args.config,
+    #         overwrite=False,
+    #     )
+    #     if missing_cmds:
+    #         print("[error] Still missing surrogates after running trainings:")
+    #         for cmd in missing_cmds:
+    #             print("  ", cmd)
+    #         raise RuntimeError
 
-print("[info] All required surrogates available. Loading likelihood...")
+cfg = yaml_loader.combine_configs(list_configs)
+# print("[info] All required surrogates available. Loading likelihood...")
 like_info = load_likelihood(cfg)
 
+# base from mangling together configs or given by user
+base_list = []
+for config_path in args.configs:
+    base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+
+base = "_".join(base_list) 
+
+if args.base:
+    base = args.base
+
 # output directory for PDF plots
-pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, os.path.splitext(os.path.basename(args.config))[0])
+pdf_plot_directory = os.path.join(user.plot_directory,  plot_label, args.subdir, base)
 if "nosyst" in args.postfit and ("no_syst" not in pdf_plot_directory):
     pdf_plot_directory += "_no_syst"
 os.makedirs(pdf_plot_directory, exist_ok=True)
@@ -167,12 +178,13 @@ else:
 
 # ----------------------------------------------------------------------
 # Find first POI-dependent BIT/ICH entry in likelihood and corresponding job
+# only used to get the PDF basis information such that it can be evaluated.
 # ----------------------------------------------------------------------
 like_params = None
 poi_job_id = None
 region_string = None
 
-# binned
+# POI definition, to get the PDF information for evaluation
 if like_info.get("regions", []):
     region_string = "regions"
     poi_type = "bit"
@@ -193,12 +205,11 @@ for region in like_info.get(region_string, []):
         break
 
 if like_params is None or poi_job_id is None:
-    print("[error] Could not find a POI-dependent term in the likelihood.")
-    sys.exit(1)
+    raise RuntimeError("[error] Could not find a POI-dependent term in the likelihood.")
 
 print(f"[info] Using POI-dependent job '{poi_job_id}' with POIs: {', '.join(like_params)}")
 
-# find corresponding job J in cfg['jobs']
+# find first job J in cfg['jobs'] which matches the expected POI definition
 J = None
 for job in cfg.get("jobs", []):
     if job.get("id") == poi_job_id:
@@ -206,8 +217,7 @@ for job in cfg.get("jobs", []):
         break
 
 if J is None:
-    print(f"[error] No job with id '{poi_job_id}' found in cfg['jobs'].")
-    sys.exit(1)
+    raise RuntimeError(f"[error] No job with id '{poi_job_id}' found in cfg['jobs'].")
 
 pdf_cfg   = J.get("pdf", {})
 pdf_n     = pdf_cfg.get("pdf_n", None)
@@ -216,8 +226,7 @@ pdf_basis = pdf_cfg.get("pdf_basis", None)
 pdf_rescale_pod_amplitudes = pdf_cfg.get("rescale_pod_amplitudes", True)
 
 if pdf_n is None or pdf_type is None:
-    print(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
-    sys.exit(1)
+    raise RuntimeError(f"[error] Job '{poi_job_id}' has no 'pdf' configuration (pdf_n / pdf_type).")
 
 print(f"[info] PDF configuration: pdf_n={pdf_n}, pdf_type={pdf_type}")
 
@@ -246,7 +255,7 @@ if poi_names_missing:
         print("[error] These POIs are missing in the fit result parameter list:")
         for name in poi_names_missing:
             print("  ", name)
-        sys.exit(1)
+        raise ValueError
 
 poi_indices = [idx_map[name] for name in poi_names_in_fit]
 
@@ -264,7 +273,7 @@ for name in poi_names:
 cov_poi = cov[np.ix_(poi_indices, poi_indices)] if poi_indices else np.zeros((0, 0), dtype=float)
 
 # knobs for sampling
-n_toys       = 10000
+n_toys       = args.ntoys
 fit_rng_seed = 42
 
 # sample POIs unless freezePOI is set
