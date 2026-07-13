@@ -23,8 +23,9 @@ class EFTWeightInterface:
 
         self.required_observers = ["EFTWeight_SM"]
         self.required_observers.extend(f"der_{op}" for op in self.parameters)
+        # lower triangular matrix in (op0,op1)
         self.required_observers.extend(
-            f"der_{op0}_{op1}" for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2)
+            f"der_{op1}_{op0}" for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2)
         )
 
     @property
@@ -46,7 +47,7 @@ class EFTWeightInterface:
             der = observers[:, idx[f"der_{op}"]].astype(np.float32, copy=False)
             out.append(nominal_weight * der / safe_sm)
         for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2):
-            der = observers[:, idx[f"der_{op0}_{op1}"]].astype(np.float32, copy=False)
+            der = observers[:, idx[f"der_{op1}_{op0}"]].astype(np.float32, copy=False)
             out.append(nominal_weight * der / safe_sm)
 
         return np.stack(out, axis=1)

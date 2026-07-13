@@ -43,6 +43,8 @@ wc_names = [
 ]
 
 
+# lower triangular matrix in coefficients
+# same as in postprocessing script (make_ntuple)
 def _derivative_branches(wcs):
     out = ["EFTWeight_SM"]
     for j, wc_j in enumerate(wcs):
@@ -57,11 +59,6 @@ eft_derivatives = _derivative_branches(wc_names)
 observers = [
     "weight", # lumi*xs/sumw factor (from CMGRDF) 
     "Generator_weight", # 1.0 for all samples
-    "Generator_scalePDF",
-    "Generator_x1",
-    "Generator_x2",
-    "Generator_id1",
-    "Generator_id2",
     "LHEWeight_originalXWGTUP",
     "nEFTfitCoefficients",
 ] + eft_derivatives
@@ -77,7 +74,7 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
         selection=None,
         n_split=1,
         splitting_strategy="files",
-        strict_branches=False,
+        strict_branches=True,
         weight_branches=[
             "weight", # weight contains lumi*xs/sumw normalization from CMGRDF
             "EFTWeight_SM", # SM weight, since Generator_weight is one for all the generated samples
@@ -184,6 +181,10 @@ TT01j2l_EFT_RunII = _eft_loader(
 )
 
 if __name__ == "__main__":
+
+    # lower triangular matrix of derivatives
+    print(eft_derivatives)
+
     print("Base:_nominal.root", TT01j2l_EFT_2018_mtt_0to700)
     F, O, W = TT01j2l_EFT_2018_mtt_0to700.materialize(0, "fow")
     print("Shapes:_nominal.root", F.shape, O.shape, W.shape)
