@@ -1,6 +1,7 @@
 from math import pi
 
-plot_options = {
+# naming of variables in gen ntuple
+plot_options_gen = {
     "l0_pt":            {"binning": [30, 20, 350],    "tex": "p_{T}(l_{0})",           "logY": True},
     "l0_eta":           {"binning": [24, -2.6, 2.6],  "tex": "#eta(l_{0})",            "logY": False},
     "l0_phi":           {"binning": [24, -pi, pi],    "tex": "#phi(l_{0})",            "logY": False},

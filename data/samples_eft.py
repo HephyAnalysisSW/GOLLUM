@@ -8,7 +8,8 @@ sys.path.insert(0, "../..")
 
 from data.RDataLoader import RDataLoader
 import common.user as user
-from data.plot_options_eft import plot_options
+import observables
+from data.plot_options import plot_options
 from typing import Optional
 
 
@@ -22,44 +23,23 @@ BASE_DIRECTORY = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2
 #     "2018": 59.83,
 # }
 
-# kinematics not in original ttbar samples
-# will need to run make_ntuple on those again
-additional_kinematics = [
-    "jet0_phi", "jet0_mass",
-    "jet1_phi", "jet1_mass",
-    "dijet_dPhi", "dijet_dEta",
-    "dijet_pt", "dijet_mass",
-    "bjet0_pt", "bjet1_pt",
-    "bjet0_eta", "bjet1_eta",
-    "dibjet_pt", "dibjet_mass",
-    "lepMinus_pt", "lepMinus_phi", "lepMinus_eta",
-    "lepPlus_pt", "lepPlus_phi", "lepPlus_eta",
-    "dilep_dPhi", "dilep_absDPhi",
-    "lj0_pt", "max_obj_pair_pt",
-    "pseudo_mtt"
-]
-
-from data.observables import TOP_KINEMATICS, LEPTON_KINEMATICS, ASYMMETRY
-
-ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY
-
 wc_names = [
     "cQd1",
     "ctj1",
     "cQj31",
-    "ctj8",
+    "ctj8", # ML4EFT
     "ctd1",
-    "ctd8",
-    "ctGRe",
-    "ctGIm",
+    "ctd8", # ML4EFT
+    "ctGRe", # ML4EFT
+    "ctGIm", # ML4EFT
     "cQj11",
-    "cQj18",
-    "ctu8",
-    "cQd8",
+    "cQj18", # ML4EFT
+    "ctu8", # ML4EFT 
+    "cQd8", # ML4EFT
     "ctu1",
     "cQu1",
-    "cQj38",
-    "cQu8",
+    "cQj38", # ML4EFT
+    "cQu8", # ML4EFT
 ]
 
 
@@ -93,13 +73,13 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
     loader = RDataLoader(
         input_paths=[os.path.join(BASE_DIRECTORY, relpath) for relpath in relpaths],
         tree_name="Events",
-        branches=ALL_FEATURES,
+        branches=observables.ALL_FEATURES + observers,
         selection=None,
         n_split=1,
         splitting_strategy="files",
         strict_branches=False,
         weight_branches=[
-            "weight", # weight already contains lumi normalization from CMGRDF
+            "weight", # weight contains lumi*xs/sumw normalization from CMGRDF
             "EFTWeight_SM", # SM weight, since Generator_weight is one for all the generated samples
             "L1PreFiringWeight_Nom",
             "JetPUID_SF",
@@ -108,8 +88,9 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
             "lepEle_SF",
             "lepMu_SF",
         ],
-        feature_names=ALL_FEATURES,
+        feature_names=observables.ALL_FEATURES,
         observer_names=observers,
+        weight_rescale=1000.0 # forgot to convert the cross-section to fb when processing the samples
     )
 
     # matching the selection in samples_RunII.py

@@ -102,4 +102,20 @@ BASIC_EVENT = [
 # Generator-level observers (not directly features)
 OBSERVERS = ["weight", "Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "run", "luminosityBlock", "event"]
 
-ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT
+# kinematics added for the EFT analysis
+ADDITIONAL_KINEMATICS = [
+    "lepMinus_pt", "lepMinus_phi", "lepMinus_eta",
+    "lepPlus_pt", "lepPlus_phi", "lepPlus_eta",
+    "dilep_dPhi", "dilep_absDPhi",
+    "jet0_phi", "jet0_mass",
+    "jet1_phi", "jet1_mass",
+    "dijet_dPhi", "dijet_dEta",
+    "dijet_pt", "dijet_mass",
+    "bjet0_pt", "bjet1_pt",
+    "bjet0_eta", "bjet1_eta",
+    "dibjet_pt", "dibjet_mass",
+    "lb0_pt", "max_obj_pair_pt",
+    "pseudo_mtt" # m(llbb)
+]
+
+ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT + ADDITIONAL_KINEMATICS

@@ -8,7 +8,8 @@ sys.path.insert(0, "../..")
 
 from data.RDataLoader import RDataLoader
 import common.user as user
-from data.plot_options_eft import plot_options
+# plot options for gen-level variables used by Notre Dame group
+from data.plot_options_eft import plot_options_gen
 
 
 BASE_DIRECTORY = "/scratch-cbe/users/robert.schoefbeck/SBIPDF/output/TTbarEFT-centralGen-ntuples"

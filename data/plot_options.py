@@ -243,6 +243,32 @@ plot_options = {
     "Generator_id2"               : { 'binning': [26,  -5,    21],   'tex': 'PDGID(2)',                    'logY': False },
 
     "x"                           : { 'binning': [20,   0,     1],   'tex': 'x',                           'logY': False },
+
+    # variables added for EFT analysis
+    "lepMinus_pt":        {"binning": [30, 20, 500],    "tex": "p_{T}(l^{-})",           "logY": True},
+    "lepMinus_eta":       {"binning": [24, -2.6, 2.6],  "tex": "#eta(l^{-})",            "logY": False},
+    "lepMinus_phi":       {"binning": [24, -pi, pi],    "tex": "#phi(l^{-})",            "logY": False},
+    "lepPlus_pt":         {"binning": [30, 20, 500],    "tex": "p_{T}(l^{+})",           "logY": True},
+    "lepPlus_eta":        {"binning": [24, -2.6, 2.6],  "tex": "#eta(l^{+})",            "logY": False},
+    "lepPlus_phi":        {"binning": [24, -pi, pi],    "tex": "#phi(l^{+})",            "logY": False},
+    "dilep_dPhi":       {"binning": [24, 0, pi],      "tex": "#Delta#phi(ll)",         "logY": False},
+    "dilep_absDPhi":       {"binning": [24, 0, pi],      "tex": "#Delta#phi(ll)",         "logY": False},    
+    "jet0_phi":           {"binning": [24, -pi, pi],    "tex": "#phi(j_{0})",            "logY": False},
+    "jet1_phi":           {"binning": [24, -pi, pi],    "tex": "#phi(j_{1})",            "logY": False},
+    "jet0_mass":           {"binning": [24, -pi, pi],    "tex": "m(j_{0})",            "logY": False},
+    "jet1_mass":           {"binning": [24, -pi, pi],    "tex": "m(j_{1})",            "logY": False},
+    "dijet_pt":         {"binning": [30, 0, 700],     "tex": "p_{T}(jj)",              "logY": True},
+    "dijet_mass":       {"binning": [30, 0, 1000],    "tex": "M(jj)",                  "logY": True},
+    "dijet_dPhi":       {"binning": [24, 0, pi],      "tex": "#Delta#phi(jj)",         "logY": False},
+    "dijet_dEta":       {"binning": [24, 0, 4],       "tex": "#Delta#eta(jj)",         "logY": False},
+    "bjet0_pt":            {"binning": [30, 30, 800],    "tex": "p_{T}(b_{0})",           "logY": True},
+    "bjet0_eta":           {"binning": [24, -2.6, 2.6],  "tex": "#eta(b_{0})",            "logY": False},
+    "bjet1_pt":            {"binning": [30, 30, 800],    "tex": "p_{T}(b_{1})",           "logY": True},
+    "bjet1_eta":           {"binning": [24, -2.6, 2.6],  "tex": "#eta(b_{1})",            "logY": False},
+    "dibjet_pt":         {"binning": [30, 0, 700],     "tex": "p_{T}(bb)",              "logY": True},
+    "dibjet_mass":       {"binning": [30, 0, 1000],    "tex": "M(bb)",                  "logY": True},         
+    "pseudo_mtt":       {"binning": [30, 300, 1500],  "tex": "M(llbb)",                "logY": True},
+    "max_obj_pair_pt":  {"binning": [30, 0, 800],     "tex": "max p_{T}(obj pair)",    "logY": True},
 }
 
 def get_sample_legend(sample_id: str) -> str:
