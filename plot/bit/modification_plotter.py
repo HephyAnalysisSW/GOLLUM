@@ -30,6 +30,7 @@ import sys
 import argparse
 import importlib
 import logging
+import json
 
 import matplotlib
 
@@ -101,7 +102,6 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--operators", nargs="+", default=None, help="Restrict to these operators (default: all in the provider)")
     p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled)")
     p.add_argument("--small", type=int, default=None, help="Stop after roughly this many selected events")
-    p.add_argument("--postfix", default=None, help="Extra tag appended to the output directory")
     return p
 
 
@@ -194,6 +194,38 @@ def _select_combinations(provider, args):
 
 
 # --------------------------------------------------------------------------------
+# textual analysis output
+# --------------------------------------------------------------------------------
+
+def _write_analysis_json(out_dir, plot_feats, selected, truth_num, sm_hist, feature_edges, value):
+    """Write JSON file with bin contents for each feature and derivative combination."""
+    analysis = {}
+    for feat in plot_feats:
+        analysis[feat] = {}
+        sm = sm_hist[feat]
+        edges = feature_edges[feat]
+        bin_centers = (edges[:-1] + edges[1:]) / 2.0
+
+        analysis[feat]["bin_centers"] = bin_centers.tolist()
+        analysis[feat]["sm_histogram"] = sm.tolist()
+
+        for der in selected:
+            scale = value ** len(der)
+            coeff = np.zeros_like(sm)
+            nz = sm != 0.0
+            coeff[nz] = scale * truth_num[feat][der][nz] / sm[nz]
+
+            der_label = derivative_label(der)
+            analysis[feat][der_label] = coeff.tolist()
+
+    # Write JSON
+    json_path = os.path.join(out_dir, "bin_contents.json")
+    with open(json_path, "w") as f:
+        json.dump(analysis, f, indent=2)
+    logger.info("Wrote bin contents to %s", json_path)
+
+
+# --------------------------------------------------------------------------------
 # main entry: accumulate + draw
 # --------------------------------------------------------------------------------
 
@@ -234,7 +266,6 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         raise RuntimeError("Loader has no feature_names.")
 
     plot_opts = getattr(samples_mod, "plot_options", DEFAULT_PLOT_OPTS)
-    print(plot_opts)
     plot_feats = [f for f in feat_names if f in plot_opts]
     if not plot_feats:
         raise RuntimeError("No plottable features (none of the job features are in plot_options).")
@@ -344,8 +375,21 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     )
     if args.split != "all":
         out_dir = os.path.join(out_dir, args.split)
-    if args.postfix:
-        out_dir = os.path.join(out_dir, args.postfix)
+
+    if args.terms == "linear":
+        out_dir = os.path.join(out_dir, "lin")
+
+    if args.terms == "quadratic":
+        out_dir = os.path.join(out_dir, "quad")
+        if not args.mixed:
+            out_dir += "_no_mix"
+
+    if args.terms == "both":
+        if args.mixed:
+            out_dir = os.path.join(out_dir, "all")
+        else:
+            out_dir = os.path.join(out_dir, "linquad_no_mix")
+
     os.makedirs(out_dir, exist_ok=True)
     logger.info("Output directory: %s", out_dir)
 
@@ -441,3 +485,6 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
 
     helpers.copyIndexPHP(out_dir)
     logger.info("Wrote %d feature plots.", len(plot_feats))
+
+    # ---- write textual analysis files ----
+    _write_analysis_json(out_dir, plot_feats, selected, truth_num, sm_hist, feature_edges, args.value)

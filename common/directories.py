@@ -9,7 +9,7 @@ _HOSTNAME = socket.gethostname()
 
 # Keep the default paths as the default. Only switch explicitly on hepgpu2.
 SAMPLES_RUNII_BASE_DIRECTORY = Path(
-    "/groups/hephy/cms/robert.schoefbeck/CMGRDF_ntuples/v2-3-2_nJ2p_nB2p_2l/"
+    "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples/v3-2_nJ2p_nB2p_2l/"
 )
 
 DELPHES_TT2L_DIRECTORY = Path(
