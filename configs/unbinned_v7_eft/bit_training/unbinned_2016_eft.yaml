@@ -1,0 +1,399 @@
+version: unbinned_v7_eft
+
+defaults:
+  module_samples: "data.samples_eft"
+  default_features:
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+    - SPIN_CORRELATION
+
+  # added on top of baseline config from loader
+  default_selection: >-
+    (lep0_pt < 350) & (lep1_pt < 350) & (dilep_pt < 400) & (dilep_mass < 800)
+    & (tr_Top_pt < 900) & (tr_AntiTop_pt < 900) & (tr_ttbar_mass < 2000) 
+    & (tr_ttbar_pt < 900)
+
+  default_selection_features:
+    - lep0_pt
+    - lep1_pt
+    - dilep_pt
+    - dilep_mass
+    - tr_Top_pt
+    - tr_AntiTop_pt
+    - tr_ttbar_mass
+    - tr_ttbar_pt
+
+  splitting:
+    enabled: true
+    type: random
+    seed: 0
+    fraction: 0.5
+
+  early_stopping:
+    enabled: true
+    patience: 20        # same as current hard-coded
+    min_delta: 0.0      # improvement threshold; keep 0.0 to match current behavior
+    mode: "min"         # val_loss should decrease
+    warmup_epochs: 0    # optional: do not early-stop before this epoch
+
+
+likelihood:
+    regions:
+        - id: SR_2016 
+          classifier:
+            type: null
+            id: null    # no classifier needed for a single process
+            asimov: [TT01j2l_EFT_2016]
+          classes: 
+            - id: tt2l_gen
+              sample: TT01j2l_EFT_2016 
+              POI:
+                job: bit_TT01j2l_EFT_2016 
+                type: bit
+                parameters: [ctGRe, ctGIm, cQd1]
+
+jobs:
+  - id: bit_TT01j2l_EFT_2016 
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016 
+    selection: null               # optional extra selection layered on top
+    numba: True
+    eft:
+        parameters: [ctGRe, ctGIm, cQd1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE                   # or "CrossEntropy"
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true  # if True: quantile edges; else uniform edges
+    runtime:
+      training_plots: true        # keep if you want training plots
+    output:
+      filename: "bit_TT01j2l_EFT_2016.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_allWC
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_allWC.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_halfWC
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQd1, ctj1, cQj31, ctj8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_halfWC.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_ML4EFTWC_noctG
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj8, ctd8, cQj18, ctu8, cQd8, cQj38, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ML4EFTWC_noctG.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_ctG
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ctG.pkl" 
+
+  - id: bit_TT01j2l_EFT_2016_nonML4EFTWC
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQd1, cQj31, ctu1, ctd1, cQu1, cQj11, ctj1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_nonML4EFTWC.pkl"
+
+  # Claude
+
+  # ctG operators (very large contributions, kept separate)
+  - id: bit_TT01j2l_EFT_2016_ctG_only
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ctG_only.pkl"
+
+  # ct(...) non-ML4EFT operators
+  - id: bit_TT01j2l_EFT_2016_ct_nonML4EFT
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj1, ctd1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ct_nonML4EFT.pkl"
+
+  # ct(...) ML4EFT operators
+  - id: bit_TT01j2l_EFT_2016_ct_ML4EFT
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj8, ctd8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ct_ML4EFT.pkl"
+
+  # cQ(...) non-ML4EFT operators in blocks
+  - id: bit_TT01j2l_EFT_2016_cQ_nonML4EFT_block01
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQd1, cQj31, cQj11]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQ_nonML4EFT_block01.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQ_nonML4EFT_block02
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQu1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQ_nonML4EFT_block02.pkl"
+
+  # cQ(...) ML4EFT operators in blocks
+  - id: bit_TT01j2l_EFT_2016_cQ_ML4EFT_block01
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQj18, cQd8, cQj38]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQ_ML4EFT_block01.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQ_ML4EFT_block02
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQ_ML4EFT_block02.pkl"
+
+  # Mixed terms: pairs of operators to visualize interference effects
+  - id: bit_TT01j2l_EFT_2016_mixed_ct_pair
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj1, ctj8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_mixed_ct_pair.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_mixed_cQ_pair
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQd1, cQj18]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_mixed_cQ_pair.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_mixed_ct_cQ_pair
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj1, cQd1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_mixed_ct_cQ_pair.pkl"
