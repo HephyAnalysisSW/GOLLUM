@@ -1,9 +1,12 @@
-version: unbinned_v3_eft_ND
+version: unbinned_v7_eft
 
 defaults:
   module_samples: "data.samples_eft"
   default_features:
-    - ALL_FEATURES
+    - TOP_KINEMATICS
+    - LEPTON_KINEMATICS
+    - ASYMMETRY
+    - SPIN_CORRELATION
 
   splitting:
     enabled: true

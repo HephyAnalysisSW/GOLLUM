@@ -102,20 +102,39 @@ BASIC_EVENT = [
 # Generator-level observers (not directly features)
 OBSERVERS = ["weight", "Generator_x1", "Generator_x2", "Generator_id1", "Generator_id2", "Generator_scalePDF", "run", "luminosityBlock", "event"]
 
-# kinematics added for the EFT analysis
-ADDITIONAL_KINEMATICS = [
-    "lepMinus_pt", "lepMinus_phi", "lepMinus_eta",
-    "lepPlus_pt", "lepPlus_phi", "lepPlus_eta",
-    "dilep_dPhi", "dilep_absDPhi",
-    "jet0_phi", "jet0_mass",
-    "jet1_phi", "jet1_mass",
-    "dijet_dPhi", "dijet_dEta",
-    "dijet_pt", "dijet_mass",
+ML4EFT_VARIABLES = [
+    "lep0_pt", "lep0_eta",
+    "lep1_pt", "lep1_eta",
+    "lepMinus_pt", "lepMinus_eta",
+    "lepPlus_pt", "lepPlus_eta",
+    "dilep_pt", "dilep_mass",
+    "dilep_absDPhi", "dilep_dAbsEta",
     "bjet0_pt", "bjet1_pt",
     "bjet0_eta", "bjet1_eta",
     "dibjet_pt", "dibjet_mass",
-    "lb0_pt", "max_obj_pair_pt",
-    "pseudo_mtt" # m(llbb)
 ]
 
-ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT + ADDITIONAL_KINEMATICS
+"""
+kinematics used by ND group, extends ML4EFT set with:
+- b-jet and lepton phi,
+- dibjet and dilepton deltaEta and deltaPhi,
+- max pT from dilepton, dibjet and leading lepton+leading b-jet
+- number of jets
+- pseudo mtttbar
+
+uses dilepton deltaEta and deltaPhi instead of absolute deltaPhi and deltaAbsoluteEta 
+"""
+ND_VARIABLES = [
+    "lep0_pt", "lep0_eta", "lep0_phi",
+    "lep1_pt", "lep1_eta", "lep1_phi",
+    "lepMinus_pt", "lepMinus_phi", "lepMinus_eta",
+    "lepPlus_pt", "lepPlus_phi", "lepPlus_eta",
+    "dilep_pt", "dilep_mass", "dilep_dEta", "dilep_dPhi",
+    "bjet0_pt", "bjet0_eta", "bjet0_phi",
+    "bjet1_pt", "bjet1_eta", "bjet1_phi",
+    "dibjet_pt", "dibjet_mass",
+    "dibjet_dPhi", "dibjet_dEta",
+    "pseudo_mtt", "nSelJet", "max_obj_pair_pt"
+]
+
+ALL_FEATURES = TOP_KINEMATICS + LEPTON_KINEMATICS + ASYMMETRY + SPIN_CORRELATION + BASIC_EVENT

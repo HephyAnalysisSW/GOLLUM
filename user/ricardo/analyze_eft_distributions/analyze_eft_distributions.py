@@ -169,7 +169,7 @@ def main():
         "max_abs_coeff", "flagged_bin_center", "mean_abs_coeff", "std_abs_coeff",
         "max_to_mean_ratio", "recommendation",
     ]
-    detail_path = os.path.join(args.out_dir, "eft_sensitivity_detail.txt")
+    detail_path = os.path.join(args.out_dir, "eft_sensitivity_detail.csv")
     with open(detail_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=detail_cols)
         writer.writeheader()
@@ -190,7 +190,7 @@ def main():
         "feature", "worst_job_id", "worst_term_order", "worst_derivative",
         "max_abs_coeff", "flagged_bin_center", "max_to_mean_ratio", "recommendation",
     ]
-    summary_path = os.path.join(args.out_dir, "eft_sensitivity_summary.txt")
+    summary_path = os.path.join(args.out_dir, "eft_sensitivity_summary.csv")
     with open(summary_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=summary_cols)
         writer.writeheader()
