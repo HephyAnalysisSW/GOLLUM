@@ -1,4 +1,4 @@
-version: unbinned_v7_eft
+version: unbinned_v7_eft_noselection
 
 defaults:
   module_samples: "data.samples_eft"
