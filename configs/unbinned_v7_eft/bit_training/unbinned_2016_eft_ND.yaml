@@ -55,26 +55,6 @@ likelihood:
                 parameters: [ctGRe, ctGIm, cQd1]
 
 jobs:
-  - id: bit_TT01j2l_EFT_2016 
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016 
-    selection: null               # optional extra selection layered on top
-    numba: True
-    eft:
-        parameters: [ctGRe, ctGIm, cQd1]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE                   # or "CrossEntropy"
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true  # if True: quantile edges; else uniform edges
-    runtime:
-      training_plots: true        # keep if you want training plots
-    output:
-      filename: "bit_TT01j2l_EFT_2016.pkl"
 
   - id: bit_TT01j2l_EFT_2016_allWC
     type: bit
@@ -118,6 +98,27 @@ jobs:
     output:
       filename: "bit_TT01j2l_EFT_2016_halfWC.pkl"
 
+  - id: bit_TT01j2l_EFT_2016_ML4EFTWC
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctj8, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, cQj38, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ML4EFTWC.pkl"
+
   - id: bit_TT01j2l_EFT_2016_ML4EFTWC_noctG
     type: bit
     region: SR_2016
@@ -138,27 +139,6 @@ jobs:
       training_plots: true
     output:
       filename: "bit_TT01j2l_EFT_2016_ML4EFTWC_noctG.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctG
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe, ctGIm]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctG.pkl" 
 
   - id: bit_TT01j2l_EFT_2016_nonML4EFTWC
     type: bit
