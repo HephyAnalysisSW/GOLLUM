@@ -4,6 +4,20 @@ import itertools
 
 import numpy as np
 
+from data.samples_eft import wc_names
+
+
+def _derivative_branch_name(op0: str, op1: str) -> str:
+    """Name of the der_{later}_{earlier} branch for a pair of operators.
+
+    Branch names are fixed at ROOT-production time by the global order of
+    wc_names in data/samples_eft.py (der_{wc_j}_{wc_k} for k <= j), which need
+    not match the order operators are listed in a job's `eft.parameters`.
+    """
+    j0, j1 = wc_names.index(op0), wc_names.index(op1)
+    later, earlier = (op0, op1) if j0 >= j1 else (op1, op0)
+    return f"der_{later}_{earlier}"
+
 
 class EFTWeightInterface:
     def __init__(self, parameters):
@@ -23,9 +37,9 @@ class EFTWeightInterface:
 
         self.required_observers = ["EFTWeight_SM"]
         self.required_observers.extend(f"der_{op}" for op in self.parameters)
-        # lower triangular matrix in (op0,op1)
+        # lower triangular matrix in (op0,op1), named per the global wc_names order
         self.required_observers.extend(
-            f"der_{op1}_{op0}" for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2)
+            _derivative_branch_name(op0, op1) for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2)
         )
 
     @property
@@ -47,7 +61,7 @@ class EFTWeightInterface:
             der = observers[:, idx[f"der_{op}"]].astype(np.float32, copy=False)
             out.append(nominal_weight * der / safe_sm)
         for op0, op1 in itertools.combinations_with_replacement(self.parameters, 2):
-            der = observers[:, idx[f"der_{op1}_{op0}"]].astype(np.float32, copy=False)
+            der = observers[:, idx[_derivative_branch_name(op0, op1)]].astype(np.float32, copy=False)
             out.append(nominal_weight * der / safe_sm)
 
         return np.stack(out, axis=1)
