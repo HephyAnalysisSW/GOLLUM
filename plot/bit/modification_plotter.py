@@ -31,6 +31,7 @@ import argparse
 import importlib
 import logging
 import json
+import math
 
 import matplotlib
 
@@ -50,6 +51,8 @@ import common.user as user
 import common.yaml_loader as yaml_loader
 import common.helpers as helpers
 from data.RandomSplitter import RandomSplitter
+from data.UIDSplitter import UIDSplitter
+
 from data.plot_options import plot_options as DEFAULT_PLOT_OPTS
 
 logger = logging.getLogger(__name__)
@@ -259,7 +262,18 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         loader.addSelection(selection, job.get("selection_features", []))
         logger.info("Added selection: %s", selection)
 
-    loader.setFeatures(job["features"], observer_names=list(provider.required_observers))
+    # ---- event split config (checked before setFeatures: UID splitting needs extra observers) ----
+    split_cfg = job.get("splitting") or {}
+    # plot true deviations on entire dataset 
+    split_enabled = bool(split_cfg.get("enabled", False)) and (args.split != "all" or (not args.with_bit))
+    split_type = split_cfg.get("type", "random")
+    uid_fields = tuple(split_cfg.get("uid_fields", ["run", "luminosityBlock", "event"]))
+
+    required_observers = list(provider.required_observers)
+    if split_enabled and split_type == "uid":
+        required_observers = required_observers + [f for f in uid_fields if f not in required_observers]
+
+    loader.setFeatures(job["features"], observer_names=required_observers)
     feat_names = list(getattr(loader, "feature_names", []) or [])
     obs_names = list(getattr(loader, "observer_names", []) or [])
     if not feat_names:
@@ -286,18 +300,46 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                            [derivative_label(d) for d in drop])
 
     # ---- event split ----
-    split_cfg = job.get("splitting") or {}
-    split_enabled = bool(split_cfg.get("enabled", False)) and args.split != "all"
     splitter = None
+    uid_idx = None
+    train_interval = val_interval = None
     if split_enabled:
-        if split_cfg.get("type", "random") != "random":
-            raise RuntimeError("Only 'random' splitting is supported here.")
-        splitter = RandomSplitter(
-            fraction=float(split_cfg.get("fraction", 0.5)),
-            seed=int(split_cfg.get("seed", 0)),
-        )
-        logger.info("Plotting the '%s' split (fraction=%.3f, seed=%d).",
-                    args.split, splitter.fraction, splitter.seed)
+        if split_type == "random":
+            splitter = RandomSplitter(
+                fraction=float(split_cfg.get("fraction", 0.5)),
+                seed=int(split_cfg.get("seed", 0)),
+            )
+            logger.info("Plotting the '%s' split (random, fraction=%.3f, seed=%d).",
+                        args.split, splitter.fraction, splitter.seed)
+
+        elif split_type == "uid":
+            uid_seed = int(split_cfg.get("seed", 0))
+            uid_n_buckets = int(split_cfg.get("n_buckets", 10000))
+            uid_scheme = split_cfg.get("scheme") or {}
+
+            splitter = UIDSplitter(uid_fields=uid_fields, seed=uid_seed, n_buckets=uid_n_buckets)
+
+            # build bucket intervals EXACTLY like PNN / eft_bit_training.py
+            keys = list(uid_scheme.keys())
+            fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+            sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+            sizes[-1] += uid_n_buckets - sum(sizes)
+
+            uid_intervals = {}
+            lo = 0
+            for k, sz in zip(keys, sizes):
+                uid_intervals[k] = (lo, lo + int(sz))
+                lo += int(sz)
+
+            train_interval = uid_intervals["c2st_train"]
+            val_interval = uid_intervals["c2st_val"]
+            uid_idx = [obs_names.index(f) for f in uid_fields]
+
+            logger.info("Plotting the '%s' split (uid, fields=%s, seed=%d, n_buckets=%d).",
+                        "c2st_val" if args.split == 'valid' else "c2st_train", uid_fields, uid_seed, uid_n_buckets)
+            logger.info("UID scheme intervals: %s", uid_intervals)
+        else:
+            raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' are implemented.")
     elif args.split != "all":
         logger.warning("--split %s requested but job has no enabled splitting; plotting all events.", args.split)
 
@@ -324,9 +366,14 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             continue
 
         if splitter is not None:
-            keep = splitter.mask(len(X), shard=shard)
-            if args.split == "valid":
-                keep = ~keep
+            if split_type == "random":
+                keep = splitter.mask(len(X), shard=shard)
+                if args.split == "valid":
+                    keep = ~keep
+            else:  # uid
+                O_uid = G[:, uid_idx]
+                lo, hi = train_interval if args.split == "train" else val_interval
+                keep = splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
             X, G, w = X[keep], G[keep], w[keep]
             if len(X) == 0:
                 continue
@@ -369,10 +416,17 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     logger.info("Processed %d selected events.", selected_events)
 
     # ---- output directory ----
-    out_dir = os.path.join(
-        user.plot_directory, "BIT-modification",
-        cfg.get("version", "default"), job["region"], job["id"],
-    )
+    if args.with_bit:
+        out_dir = os.path.join(
+            user.plot_directory, "BIT-closure",
+            cfg.get("version", "default"), job["region"], job["id"],
+        )
+    else:
+        out_dir = os.path.join(
+            user.plot_directory, "BIT-modification",
+            cfg.get("version", "default"), job["region"], job["id"],
+        )
+
     if args.split != "all":
         out_dir = os.path.join(out_dir, args.split)
 
@@ -389,6 +443,11 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             out_dir = os.path.join(out_dir, "all")
         else:
             out_dir = os.path.join(out_dir, "linquad_no_mix")
+
+    if args.operators is None:
+        out_dir = os.path.join(out_dir, "all_ops")
+    else:
+        out_dir = os.path.join(out_dir, "_".join(args.operators))
 
     os.makedirs(out_dir, exist_ok=True)
     logger.info("Output directory: %s", out_dir)

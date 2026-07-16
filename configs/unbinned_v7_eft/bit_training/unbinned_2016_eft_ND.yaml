@@ -35,8 +35,8 @@ defaults:
     scheme:
       pnn_train:     { fraction: 0.50 }
       pnn_val:       { fraction: 0.10 }
-      c2st_train:    { fraction: 0.15 }
-      c2st_val:      { fraction: 0.05 }
+      c2st_train:    { fraction: 0.00 }
+      c2st_val:      { fraction: 0.20 }
       final_eval:    { fraction: 0.20 }
 
   early_stopping:
