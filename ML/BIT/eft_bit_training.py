@@ -13,6 +13,8 @@ import common.syncer as syncer
 import common.yaml_loader as yaml_loader
 
 from data.RandomSplitter import RandomSplitter
+from data.UIDSplitter import UIDSplitter
+import math
 from eft.EFTWeightInterface import EFTWeightInterface
 
 from tqdm import trange, tqdm
@@ -85,10 +87,10 @@ elif args.small:
     print(f"Reduced number of training files from {before} to {len(L._all_files)} for --small")
 
 runtime_cfg = J.get("runtime", {}) or {}
-materialization_n_split = int(runtime_cfg.get("materialization_n_split", 50))
-if materialization_n_split > 1 and len(L._all_files) > 1:
+n_split = int(runtime_cfg.get("n_split", 1))
+if n_split > 1 and len(L._all_files) > 1:
     before_split = len(L)
-    L.set_n_split(materialization_n_split)
+    L.set_n_split(n_split)
     print(
         f"Using {len(L)} file shards for training-data materialization "
         f"(was {before_split}, files={len(L._all_files)})"
@@ -124,14 +126,53 @@ SPLIT_CFG = (J.get("splitting") or {})
 split_enabled  = bool(SPLIT_CFG.get("enabled", False))
 split_type     = SPLIT_CFG.get("type", "random")
 split_seed     = int(SPLIT_CFG.get("seed", 0))
-split_fraction = float(SPLIT_CFG.get("fraction", 0.5))
 splitter = None
 
 if split_enabled:
-    if split_type != "random":
-        raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' is implemented.")
-    splitter = RandomSplitter(fraction=split_fraction, seed=split_seed)
-    print(f"[SPLIT] enabled=True type={split_type} seed={split_seed} fraction={split_fraction}")
+
+    if split_type == "random":
+        split_fraction = float(SPLIT_CFG.get("fraction", 0.5))
+        splitter = RandomSplitter(fraction=split_fraction, seed=split_seed)
+        print(f"[SPLIT] enabled=True type={split_type} seed={split_seed} fraction={split_fraction}")
+
+    elif split_type == "uid":
+
+        uid_fields    = SPLIT_CFG.get("uid_fields", ["run", "luminosityBlock", "event"])
+        uid_seed      = split_seed
+        uid_n_buckets = int(SPLIT_CFG.get("n_buckets", 10000))
+        uid_scheme    = (SPLIT_CFG.get("scheme") or {})
+
+        splitter = UIDSplitter(
+            uid_fields=tuple(uid_fields),
+            seed=uid_seed,
+            n_buckets=uid_n_buckets,
+        )
+
+        # build bucket intervals EXACTLY like PNN
+        keys  = list(uid_scheme.keys())
+        fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
+
+        sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
+        sizes[-1] += uid_n_buckets - sum(sizes)
+
+        uid_intervals = {}
+        lo = 0
+        for k, sz in zip(keys, sizes):
+            uid_intervals[k] = (lo, lo + int(sz))
+            lo += int(sz)
+
+        bit_train_key = "pnn_train"
+        bit_val_key   = "pnn_val"
+        train_interval = uid_intervals[bit_train_key]
+        val_interval   = uid_intervals[bit_val_key]
+
+        print(f"[SPLIT] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
+        print(f"[SPLIT] scheme intervals: {uid_intervals}")
+        print(f"[SPLIT] BIT train split '{bit_train_key}' -> {train_interval}")
+        print(f"[SPLIT] BIT val   split '{bit_val_key}' -> {val_interval}")
+    else:
+        raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' is implemented.")
+    
 
 # ---------------- EFT target interface ----------------
 eft = EFTWeightInterface(J.get("eft", {}).get("parameters", []))
@@ -146,7 +187,12 @@ def weight_views(weight_matrix):
 # features / observers
 needed_observers = list(eft.required_observers)
 
-L.setFeatures(J["features"], observer_names=needed_observers)
+if split_enabled and split_type=='uid':
+    # keeping only needed derivatives + variables used for UID spliting
+    L.setFeatures(J["features"], observer_names=needed_observers+list(uid_fields))
+else:
+    L.setFeatures(J["features"], observer_names=needed_observers)
+
 feat_names = list(getattr(L, "feature_names", []) or [])
 if not feat_names:
     raise RuntimeError("Loader has no feature_names.")
@@ -157,24 +203,45 @@ print(L)
 # ---------------- collect all data (single pass) ----------------
 def iterate_all(shard_limit=None):
     """
-    Yields per-shard arrays PLUS an optional deterministic keep mask.
+    Yields per-shard arrays PLUS optional deterministic masks.
     - Always yields X,G,w
-    - If split_enabled: also yields m_keep with the same length as X
+    - If split_enabled and split_type 'random': also yields m_keep with the same length as X
+    - If split_enabled and split_type 'uid': also yields (m_tr, m_va) boolean masks with same length as X
     """
     n_shards = len(L)
     if args.small: n_shards = 1
     if shard_limit is not None: n_shards = min(n_shards, shard_limit)
 
+    on2idx = {n: i for i, n in enumerate(obs_names)}
+
+    if split_enabled and split_type=='uid':
+        
+        uid_idx = [on2idx[f] for f in uid_fields]
+        lo_tr, hi_tr = train_interval
+        lo_va, hi_va = val_interval
+
     for shard in range(n_shards):
         X, G, w = L.materialize(shard=shard, what="fow")
         if split_enabled:
-            m_keep = splitter.mask(len(X), shard=shard)
-            yield (
-                X.astype(np.float32, copy=False),
-                G.astype(np.float32, copy=False),
-                w.astype(np.float32, copy=False),
-                m_keep,
-            )
+            if split_type=='random':
+                m_keep = splitter.mask(len(X), shard=shard)
+                yield (
+                    X.astype(np.float32, copy=False),
+                    G.astype(np.float32, copy=False),
+                    w.astype(np.float32, copy=False),
+                    m_keep,
+                )
+            if split_type=='uid':
+                O_uid = G[:, uid_idx]  # shape (N, len(uid_fields))
+                m_tr = splitter.mask_from_np(O_uid, list(uid_fields), lo_tr, hi_tr)
+                m_va = splitter.mask_from_np(O_uid, list(uid_fields), lo_va, hi_va)
+                yield (
+                        X.astype(np.float32, copy=False),
+                        G.astype(np.float32, copy=False),
+                        w.astype(np.float32,   copy=False),
+                        m_tr,
+                        m_va,
+                    )
         else:
             yield (
                 X.astype(np.float32, copy=False),
@@ -193,18 +260,39 @@ materialize_pbar = tqdm(
 )
 
 if split_enabled:
-    for X, G, w, m_keep in materialize_pbar:
-        deriv_w = eft.make_weight_matrix(G, obs_names, w)
-        if np.any(m_keep):
-            Xs_tr.append(X[m_keep])
-            targets_tr.append(deriv_w[m_keep])
 
-    if not Xs_tr:
-        raise RuntimeError("Random splitting removed all training events. Increase splitting.fraction.")
+    if split_type == 'random':
+        for X, G, w, m_keep in materialize_pbar:
+            deriv_w = eft.make_weight_matrix(G, obs_names, w)
+            if np.any(m_keep):
+                Xs_tr.append(X[m_keep])
+                targets_tr.append(deriv_w[m_keep])
 
-    X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
-    DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
-    X_valid, DER_valid = None, None
+        if not Xs_tr:
+            raise RuntimeError("Random splitting removed all training events. Increase splitting.fraction.")
+
+        X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
+        DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
+        X_valid, DER_valid = None, None
+    
+    elif split_type=='uid':
+        for X, G, w, m_tr, m_va in materialize_pbar:
+            deriv_w = eft.make_weight_matrix(G, obs_names, w)
+
+            if np.any(m_tr):
+                Xs_tr.append(X[m_tr])
+                targets_tr.append(deriv_w[m_tr])
+            
+            if np.any(m_va):
+                Xs_va.append(X[m_va])
+                targets_va.append(deriv_w[m_va])
+
+        X_train   = np.concatenate(Xs_tr, axis=0) if len(Xs_tr) > 1 else Xs_tr[0]
+        DER_train = np.concatenate(targets_tr, axis=0) if len(targets_tr) > 1 else targets_tr[0]
+
+        X_valid   = np.concatenate(Xs_va, axis=0) if len(Xs_va) > 1 else Xs_va[0]
+        DER_valid = np.concatenate(targets_va, axis=0) if len(targets_va) > 1 else targets_va[0]       
+
 else:
     Xs, targets_acc = [], []
     for X, G, w in materialize_pbar:
@@ -803,4 +891,5 @@ else:
         szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
         tqdm.write(f"Kept boosting weights snapshot -> {weights_path} ({szz:.1f} MB)")
 
+open(f"{model_dir}/done","w")
 print("Done.")

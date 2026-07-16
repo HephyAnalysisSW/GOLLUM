@@ -61,6 +61,9 @@ observers = [
     "Generator_weight", # 1.0 for all samples
     "LHEWeight_originalXWGTUP",
     "nEFTfitCoefficients",
+    "run",
+    "luminosityBlock",
+    "event",
 ] + eft_derivatives
 
 
