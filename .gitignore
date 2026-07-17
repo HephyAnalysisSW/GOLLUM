@@ -2,9 +2,9 @@ __pycache__
 .ipynb_checkpoints/
 *.pyc
 www
-output
-caches
-models
+output*
+caches*
+models*
 *.err
 *.out
 slurm*

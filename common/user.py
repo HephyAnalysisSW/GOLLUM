@@ -49,9 +49,9 @@ elif user in ['ricardo.barrue']:
     # Where the plots go:
     plot_directory         = "/scratch/users/ricardo.barrue/www/SBIEFT/"
     # For model output:
-    model_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/models/"
-    cache_directory        = "/groups/hephy/cms/ricardo.barrue/SBIPDF/caches/"
-    output_directory       = "/groups/hephy/cms/ricardo.barrue/SBIPDF/output/"
+    model_directory        = "/groups/hephy/cms/ricardo.barrue/SBIEFT/models/"
+    cache_directory        = "/groups/hephy/cms/ricardo.barrue/SBIEFT/caches/"
+    output_directory       = "/groups/hephy/cms/ricardo.barrue/SBIEFT/output/"
 
 elif user in ['daohan.wang']:
     plot_directory   = "/groups/hephy/mlearning/daohan/gluonPDF_BIT_retrain3/plots/"

@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# SUPERSEDED: this script has been split into ML/Calibration/calibration_runner.py
+# (shared pipeline) plus ML/Calibration/pdf_calibration.py and eft_calibration.py
+# (thin PDF/EFT entry points), so calibration checks work for both PDF and EFT jobs.
+# Use pdf_calibration.py in place of this file; kept here for reference only.
 from __future__ import annotations
 import os, sys, argparse, importlib
 import numpy as np

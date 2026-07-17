@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# SUPERSEDED: pdf_calibration.py / eft_calibration.py (via calibration_runner.py) now
+# also write calib_prediction_<split>.csv (same <label>_truth/<label>_pred/weight
+# columns as this script), for both PDF and EFT jobs. Use those instead; kept here for
+# reference only.
 from __future__ import annotations
 import os, sys, argparse, importlib
 import numpy as np
