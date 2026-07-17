@@ -54,13 +54,14 @@ from data.RandomSplitter import RandomSplitter
 from data.UIDSplitter import UIDSplitter
 
 from data.plot_options import plot_options as DEFAULT_PLOT_OPTS
+from common.derivative_providers import canonical_combination
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 hep.style.use("CMS")
 
-# Wong/Okabe-Ito palette (color-blind friendly), extended.
+# Petroff 6 palette (color-blind friendly), extended.
 from data.colors import cmap_petroff10_mpl
 COLOR_HEX = cmap_petroff10_mpl
 
@@ -68,14 +69,6 @@ COLOR_HEX = cmap_petroff10_mpl
 # --------------------------------------------------------------------------------
 # small shared helpers
 # --------------------------------------------------------------------------------
-
-def canonical_combination(comb) -> tuple:
-    """Canonical, hashable key for a derivative combination (sorted if length>=2)."""
-    comb = tuple(comb)
-    if len(comb) <= 1:
-        return comb
-    return tuple(sorted(comb))
-
 
 def derivative_label(der) -> str:
     """Human-readable label for a derivative combination (matplotlib mathtext)."""
@@ -103,7 +96,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--terms", choices=["linear", "quadratic", "both"], default="both", help="Which term orders to draw")
     p.add_argument("--mixed", action="store_true", help="Also draw mixed cross terms (op0, op1)")
     p.add_argument("--operators", nargs="+", default=None, help="Restrict to these operators (default: all in the provider)")
-    p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled)")
+    p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled). Train: events used in training; valid: events not used in training.")
     p.add_argument("--small", type=int, default=None, help="Stop after roughly this many selected events")
     return p
 
@@ -265,7 +258,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     # ---- event split config (checked before setFeatures: UID splitting needs extra observers) ----
     split_cfg = job.get("splitting") or {}
     # plot true deviations on entire dataset 
-    split_enabled = bool(split_cfg.get("enabled", False)) and (args.split != "all" or (not args.with_bit))
+    split_enabled = bool(split_cfg.get("enabled", False)) and (args.split != "all")
     split_type = split_cfg.get("type", "random")
     uid_fields = tuple(split_cfg.get("uid_fields", ["run", "luminosityBlock", "event"]))
 
@@ -290,7 +283,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     if args.with_bit:
         cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
         model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
-        model_path = os.path.join(model_dir, job.get("output", {}).get("filename", "BIT.pkl"))
+        model_path = os.path.join(model_dir, "BIT_best.pkl")
         logger.info("Loading BIT model from %s", model_path)
         bit = _BITPrediction(model_path, max_n_tree=args.max_n_tree)
         logger.info("Loaded BIT: %d trees (using %d)", bit.n_trees, bit.max_n_tree)
@@ -298,6 +291,9 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         if drop:
             logger.warning("BIT model does not predict %s; drawing truth only for those.",
                            [derivative_label(d) for d in drop])
+        
+        if not split_enabled:
+            raise RuntimeError("Splitting disabled, testing BIT closure on all the events. Enable splitting to avoid data leakage.")
 
     # ---- event split ----
     splitter = None
@@ -330,13 +326,15 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             for k, sz in zip(keys, sizes):
                 uid_intervals[k] = (lo, lo + int(sz))
                 lo += int(sz)
-
-            train_interval = uid_intervals["c2st_train"]
-            val_interval = uid_intervals["c2st_val"]
+            
+            # either plotting data used in training (pnn...) or data not used in training (c2st...)
+            # keeping the final_eval partition for downstream testing
+            train_interval = (uid_intervals["pnn_train"][0], uid_intervals["pnn_val"][1])
+            val_interval = (uid_intervals["c2st_train"][0], uid_intervals["c2st_val"][1])
             uid_idx = [obs_names.index(f) for f in uid_fields]
 
             logger.info("Plotting the '%s' split (uid, fields=%s, seed=%d, n_buckets=%d).",
-                        "c2st_val" if args.split == 'valid' else "c2st_train", uid_fields, uid_seed, uid_n_buckets)
+                        "pnn (train+val)" if args.split == 'train' else "c2st (train+val)", uid_fields, uid_seed, uid_n_buckets)
             logger.info("UID scheme intervals: %s", uid_intervals)
         else:
             raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' are implemented.")
@@ -499,13 +497,13 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             scale = args.value ** len(der)
             coeff_truth = np.zeros_like(sm)
             coeff_truth[nz] = scale * truth_num[feat][der][nz] / sm[nz]
-            ax_right.stairs(coeff_truth, edges, color=colors[der], linewidth=2.0, linestyle="-", baseline=None, zorder=3)
+            ax_right.stairs(coeff_truth, edges, color=colors[der], linewidth=2.0, linestyle="--", baseline=None, zorder=3)
             coeff_values.append(coeff_truth[nz])
 
             if bit is not None and der in bit.derivatives:
                 coeff_pred = np.zeros_like(sm)
                 coeff_pred[nz] = scale * pred_num[feat][der][nz] / sm[nz]
-                ax_right.stairs(coeff_pred, edges, color=colors[der], linewidth=2.0, linestyle="--", baseline=None, zorder=3)
+                ax_right.stairs(coeff_pred, edges, color=colors[der], linewidth=2.0, linestyle="-", baseline=None, zorder=3)
                 coeff_values.append(coeff_pred[nz])
 
         # symmetric-ish padding on the right axis, always including 0
@@ -524,9 +522,9 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         # legend: SM stat band + operator colors + truth/BIT linestyles
         handles = [Patch(facecolor="0.55", alpha=0.45, label="SM stat. unc.")]
         handles += [Line2D([0], [0], color=colors[der], linewidth=2.0, label=derivative_label(der)) for der in selected]
+        handles.append(Line2D([0], [0], color="0.2", linewidth=2.0, linestyle="--", label="truth"))
         if bit is not None:
-            handles.append(Line2D([0], [0], color="0.2", linewidth=2.0, linestyle="-", label="truth"))
-            handles.append(Line2D([0], [0], color="0.2", linewidth=2.0, linestyle="--", label="BIT"))
+            handles.append(Line2D([0], [0], color="0.2", linewidth=2.0, linestyle="-", label="BIT"))
         n_col = 1 if len(handles) <= 6 else (2 if len(handles) <= 14 else 3)
         ax_right.legend(handles=handles, frameon=False, fontsize=9, ncol=n_col, loc="upper right")
 

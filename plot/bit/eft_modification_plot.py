@@ -31,22 +31,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import common.syncer as syncer
-from eft.EFTWeightInterface import EFTWeightInterface
+from common.derivative_providers import EFTDerivativeProvider
 
 import modification_plotter as mp
-
-
-class EFTDerivativeProvider:
-    """EFT derivative provider: combines precomputed derivative branches."""
-
-    def __init__(self, parameters):
-        self._eft = EFTWeightInterface(parameters)
-        self.parameters = list(parameters)
-        self.combinations = [mp.canonical_combination(c) for c in self._eft.combinations]
-        self.required_observers = list(self._eft.required_observers)
-
-    def truth_weight_matrix(self, G, w, observer_names):
-        return self._eft.make_weight_matrix(G, observer_names, w)
 
 
 def main():
