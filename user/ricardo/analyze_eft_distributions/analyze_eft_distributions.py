@@ -8,6 +8,13 @@ statistics of the per-bin EFT coefficient (ratio of modified to SM weight) and
 flags variables with large or wildly fluctuating coefficients as candidates for
 an upper cut, so BIT training is not destabilized by rare large-weight events.
 
+Each bin also carries a per-bin coefficient uncertainty (MC-statistical, from
+the derivative weight's own sumw2 -- see `modification_plotter.py`), used here
+to compute a pull (`|coeff| / unc`) per bin. This separates "large because of
+real physical structure" (large coeff, large pull) from "large because the
+per-event derivative weight is just noisy" (large coeff, small pull) -- the
+latter flagged as `noisy_bin_frac` per (feature, derivative).
+
 Takes plain file/directory paths -- no dependency on the YAML config, so it
 works on any job you add later without touching this script.
 
@@ -25,16 +32,19 @@ Usage
     python user/ricardo/analyze_eft_distributions.py \
         www/BIT-modification/unbinned_v3_eft_ND/SR_2016/bit_TT01j2l_EFT_2016_ctG_only \
         www/BIT-modification/unbinned_v3_eft_ND/SR_2016/bit_TT01j2l_EFT_2016_ct_ML4EFT \
-        --sensitivity-threshold 0.1 --ratio-threshold 5.0 --min-stat 20
+        --sensitivity-threshold 0.1 --ratio-threshold 5.0 --min-stat 20 --pull-threshold 3.0
 
 Job id and term order (lin/quad) are inferred from the path
 (`.../<job_id>/<lin|quad>/bin_contents.json`), matching the layout written by
 `modification_plotter.py`.
 
-Outputs two CSVs in --out-dir (default: this script's directory):
-    - eft_sensitivity_detail.csv  : one row per (job, terms, feature, derivative)
-    - eft_sensitivity_summary.csv : one row per feature, worst case across all
-                                     files scanned
+Outputs three CSVs in --out-dir (default: this script's directory):
+    - eft_sensitivity_detail.csv      : one row per (job, terms, feature, derivative)
+    - eft_sensitivity_summary.csv     : one row per feature, worst case across all
+                                         files scanned
+    - eft_sensitivity_by_derivative.csv : one row per derivative, worst feature plus
+                                         the noisy_bin_frac/pull averaged over all
+                                         features it appears in
 """
 
 from __future__ import annotations
@@ -80,7 +90,7 @@ def _job_and_term_from_path(path: str) -> tuple[str, str]:
     return job_id, term_order
 
 
-def _analyze_file(path: str, min_stat: float) -> list[dict]:
+def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull_threshold: float) -> list[dict]:
     """Return per-(feature, derivative) statistics rows for one bin_contents.json."""
     with open(path) as f:
         data = json.load(f)
@@ -93,23 +103,41 @@ def _analyze_file(path: str, min_stat: float) -> list[dict]:
             if key in ("bin_centers", "sm_histogram"):
                 continue
             derivative = key
+            coeff_vals = values["coeff"]
+            unc_vals = values["unc"]
 
-            used = [(bc, v, s) for bc, v, s in zip(bin_centers, values, sm) if s >= min_stat]
+            used = [
+                (bc, c, u, s) for bc, c, u, s in zip(bin_centers, coeff_vals, unc_vals, sm) if s >= min_stat
+            ]
             if not used:
                 rows.append({
                     "feature": feature, "derivative": derivative,
                     "n_bins_used": 0, "max_abs_coeff": 0.0, "flagged_bin_center": None,
                     "mean_abs_coeff": 0.0, "std_abs_coeff": 0.0, "max_to_mean_ratio": 0.0,
+                    "mean_abs_pull": 0.0, "max_abs_pull": 0.0, "noisy_bin_frac": 0.0,
                 })
                 continue
 
-            abs_vals = [abs(v) for _, v, _ in used]
+            abs_vals = [abs(c) for _, c, _, _ in used]
             max_abs = max(abs_vals)
             max_idx = abs_vals.index(max_abs)
             mean_abs = sum(abs_vals) / len(abs_vals)
             var = sum((a - mean_abs) ** 2 for a in abs_vals) / len(abs_vals)
             std_abs = var ** 0.5
             ratio = (max_abs / mean_abs) if mean_abs > 1e-10 else 0.0
+
+            # pull: how many "sigma" a bin's coefficient sits from zero, given its own
+            # per-bin MC-statistical uncertainty. A large coefficient with a small pull
+            # is consistent with statistical noise in the derivative weight, not real
+            # structure.
+            pulls = [(abs(c) / u if u > 1e-12 else 0.0) for _, c, u, _ in used]
+            mean_abs_pull = sum(pulls) / len(pulls)
+            max_abs_pull = max(pulls)
+            noisy_bins = sum(
+                1 for (_, c, _, _), pull in zip(used, pulls)
+                if abs(c) >= sensitivity_threshold and pull < pull_threshold
+            )
+            noisy_bin_frac = noisy_bins / len(used)
 
             rows.append({
                 "feature": feature,
@@ -120,6 +148,9 @@ def _analyze_file(path: str, min_stat: float) -> list[dict]:
                 "mean_abs_coeff": round(mean_abs, PRECISION),
                 "std_abs_coeff": round(std_abs, PRECISION),
                 "max_to_mean_ratio": round(ratio,PRECISION),
+                "mean_abs_pull": round(mean_abs_pull, PRECISION),
+                "max_abs_pull": round(max_abs_pull, PRECISION),
+                "noisy_bin_frac": round(noisy_bin_frac, PRECISION),
             })
     return rows
 
@@ -143,8 +174,10 @@ def main():
                          help="Min max/mean(|coeff|) ratio to flag a variable for an upper cut")
     parser.add_argument("--min-stat", type=float, default=20.0,
                          help="Minimum SM event count in a bin for it to be used in statistics (avoids low-stat artifacts)")
+    parser.add_argument("--pull-threshold", type=float, default=3.0,
+                         help="Min |coeff|/unc for a bin to count as statistically significant, not just noisy")
     parser.add_argument("--out-dir", default=os.path.dirname(os.path.abspath(__file__)),
-                         help="Directory to write the two output CSVs")
+                         help="Directory to write the output CSVs")
     args = parser.parse_args()
 
     json_files = _find_bin_contents(args.paths)
@@ -155,7 +188,7 @@ def main():
     detail_rows = []
     for path in json_files:
         job_id, term_order = _job_and_term_from_path(path)
-        for row in _analyze_file(path, args.min_stat):
+        for row in _analyze_file(path, args.min_stat, args.sensitivity_threshold, args.pull_threshold):
             row["job_id"] = job_id
             row["term_order"] = term_order
             row["recommendation"] = _recommend(
@@ -167,7 +200,7 @@ def main():
     detail_cols = [
         "job_id", "term_order", "feature", "derivative", "n_bins_used",
         "max_abs_coeff", "flagged_bin_center", "mean_abs_coeff", "std_abs_coeff",
-        "max_to_mean_ratio", "recommendation",
+        "max_to_mean_ratio", "mean_abs_pull", "max_abs_pull", "noisy_bin_frac", "recommendation",
     ]
     detail_path = os.path.join(args.out_dir, "eft_sensitivity_detail.csv")
     with open(detail_path, "w", newline="") as f:
@@ -212,9 +245,41 @@ def main():
     n_keep = sum(1 for r in by_feature.values() if r["recommendation"] == "keep")
     logger.info("Recommendation breakdown (worst case per feature): cut=%d monitor=%d keep=%d",
                 n_cut, n_monitor, n_keep)
-    
+
+    # ---- per-derivative summary across all features it appears in ----
+    # Transpose of the per-feature summary above: is this *operator* noisy across
+    # (most of) the features it's projected onto, not just in one worst-case bin.
+    by_derivative: dict[str, list[dict]] = {}
+    for row in detail_rows:
+        by_derivative.setdefault(row["derivative"], []).append(row)
+
+    by_derivative_path = os.path.join(args.out_dir, "eft_sensitivity_by_derivative.csv")
+    by_derivative_cols = [
+        "derivative", "n_features", "worst_feature", "worst_job_id", "worst_term_order",
+        "max_abs_coeff", "mean_noisy_bin_frac", "mean_abs_pull",
+    ]
+    with open(by_derivative_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=by_derivative_cols)
+        writer.writeheader()
+        by_derivative_summary = {}
+        for derivative, rows in by_derivative.items():
+            worst = max(rows, key=lambda r: r["max_abs_coeff"])
+            by_derivative_summary[derivative] = {
+                "derivative": derivative,
+                "n_features": len(rows),
+                "worst_feature": worst["feature"],
+                "worst_job_id": worst["job_id"],
+                "worst_term_order": worst["term_order"],
+                "max_abs_coeff": worst["max_abs_coeff"],
+                "mean_noisy_bin_frac": round(sum(r["noisy_bin_frac"] for r in rows) / len(rows), PRECISION),
+                "mean_abs_pull": round(sum(r["mean_abs_pull"] for r in rows) / len(rows), PRECISION),
+            }
+        for derivative, row in sorted(by_derivative_summary.items(), key=lambda kv: -kv[1]["mean_noisy_bin_frac"]):
+            writer.writerow(row)
+    logger.info("Wrote %d per-derivative rows to %s", len(by_derivative_summary), by_derivative_path)
+
     # adding files by hand to single object to send them to LXPLUS/EOS
-    syncer.file_sync_storage.extend([summary_path, detail_path])
+    syncer.file_sync_storage.extend([summary_path, detail_path, by_derivative_path])
     syncer.sync()
 
 
