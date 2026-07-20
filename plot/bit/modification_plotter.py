@@ -445,27 +445,26 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             cfg.get("version", "default"), job["region"], job["id"],
         )
 
-    if args.split != "all":
-        out_dir = os.path.join(out_dir, args.split)
-
-    if args.terms == "linear":
-        out_dir = os.path.join(out_dir, "lin")
-
-    if args.terms == "quadratic":
-        out_dir = os.path.join(out_dir, "quad")
-        if not args.mixed:
-            out_dir += "_no_mix"
-
-    if args.terms == "both":
-        if args.mixed:
-            out_dir = os.path.join(out_dir, "all")
-        else:
-            out_dir = os.path.join(out_dir, "linquad_no_mix")
+    out_dir = os.path.join(out_dir, f"{args.split}_events")
 
     if args.operators is None:
         out_dir = os.path.join(out_dir, "all_ops")
     else:
         out_dir = os.path.join(out_dir, "_".join(args.operators))
+
+    if args.terms == "linear":
+        out_dir = os.path.join(out_dir, "lin_terms")
+
+    if args.terms == "quadratic":
+        out_dir = os.path.join(out_dir, "quad_terms")
+        if not args.mixed:
+            out_dir += "_no_mix"
+
+    if args.terms == "both":
+        if args.mixed:
+            out_dir = os.path.join(out_dir, "all_terms")
+        else:
+            out_dir = os.path.join(out_dir, "linquad_terms_no_mix")
 
     os.makedirs(out_dir, exist_ok=True)
     logger.info("Output directory: %s", out_dir)
