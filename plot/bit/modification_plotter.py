@@ -193,8 +193,17 @@ def _select_combinations(provider, args):
 # textual analysis output
 # --------------------------------------------------------------------------------
 
-def _write_analysis_json(out_dir, plot_feats, selected, truth_num, sm_hist, feature_edges, value):
-    """Write JSON file with bin contents for each feature and derivative combination."""
+def _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, sm_hist, feature_edges, value):
+    """Write JSON file with bin contents for each feature and derivative combination.
+
+    Each derivative entry is ``{"coeff": [...], "unc": [...]}``: ``coeff`` is the
+    usual ratio-to-SM coefficient, ``unc`` is its per-bin MC-statistical
+    uncertainty from the numerator alone (``sqrt(sum w_der^2)) / sum(w_SM)``,
+    treating the SM denominator as fixed. This is not a full error propagation
+    (numerator and denominator are correlated, sharing the same events) but is
+    enough to separate "large because of real structure" from "large because
+    the per-event derivative weight is noisy" -- see ``analyze_eft_distributions.py``.
+    """
     analysis = {}
     for feat in plot_feats:
         analysis[feat] = {}
@@ -208,11 +217,13 @@ def _write_analysis_json(out_dir, plot_feats, selected, truth_num, sm_hist, feat
         for der in selected:
             scale = value ** len(der)
             coeff = np.zeros_like(sm)
+            unc = np.zeros_like(sm)
             nz = sm != 0.0
             coeff[nz] = scale * truth_num[feat][der][nz] / sm[nz]
+            unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / sm[nz]
 
             der_label = derivative_label(der)
-            analysis[feat][der_label] = coeff.tolist()
+            analysis[feat][der_label] = {"coeff": coeff.tolist(), "unc": unc.tolist()}
 
     # Write JSON
     json_path = os.path.join(out_dir, "bin_contents.json")
@@ -292,8 +303,13 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             logger.warning("BIT model does not predict %s; drawing truth only for those.",
                            [derivative_label(d) for d in drop])
         
-        if not split_enabled:
-            raise RuntimeError("Splitting disabled, testing BIT closure on all the events. Enable splitting to avoid data leakage.")
+        if not split_enabled or args.split=="all":
+            raise RuntimeError("Splitting disabled or checking BIT closure on all the events." \
+                                "Enable splitting or run with args.split != 'all' to avoid data leakage.")
+
+        if args.split == "train":
+            logger.warning("Checking closure on training dataset, beware not to generalize conclusions." \
+                            "To check closure on independent dataset, run with args.split == 'valid'.")
 
     # ---- event split ----
     splitter = None
@@ -347,6 +363,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     sm_hist = {}
     sm_sumw2 = {}
     truth_num = {}
+    truth_num_sumw2 = {}
     pred_num = {}
     for feat in plot_feats:
         n_bins, x_lo, x_hi = plot_opts[feat]["binning"]
@@ -354,6 +371,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         sm_hist[feat] = np.zeros(int(n_bins), dtype=np.float64)
         sm_sumw2[feat] = np.zeros(int(n_bins), dtype=np.float64)
         truth_num[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
+        truth_num_sumw2[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
         pred_num[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
 
     # ---- event loop ----
@@ -401,7 +419,9 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             sm_hist[feat] += np.histogram(xvals, bins=edges, weights=nominal_w)[0]
             sm_sumw2[feat] += np.histogram(xvals, bins=edges, weights=nominal_w ** 2)[0]
             for der in selected:
-                truth_num[feat][der] += np.histogram(xvals, bins=edges, weights=deriv_w[:, combo_to_col[der]])[0]
+                der_w = deriv_w[:, combo_to_col[der]]
+                truth_num[feat][der] += np.histogram(xvals, bins=edges, weights=der_w)[0]
+                truth_num_sumw2[feat][der] += np.histogram(xvals, bins=edges, weights=der_w ** 2)[0]
                 if der in pred_col:
                     pred_num[feat][der] += np.histogram(
                         xvals, bins=edges, weights=nominal_w * pred[:, pred_col[der]]
@@ -497,8 +517,19 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             scale = args.value ** len(der)
             coeff_truth = np.zeros_like(sm)
             coeff_truth[nz] = scale * truth_num[feat][der][nz] / sm[nz]
+            # per-bin MC statistical uncertainty on the truth coefficient, from the
+            # derivative weight's own sumw2 (numerator only, SM denominator treated as
+            # fixed -- see _write_analysis_json). Shaded so wildly-fluctuating, poorly
+            # constrained phase-space regions are visible at a glance.
+            coeff_truth_unc = np.zeros_like(sm)
+            coeff_truth_unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / sm[nz]
+            ax_right.fill_between(
+                edges[:-1], coeff_truth - coeff_truth_unc, coeff_truth + coeff_truth_unc,
+                step="post", color=colors[der], alpha=0.18, linewidth=0.0, zorder=2,
+            )
             ax_right.stairs(coeff_truth, edges, color=colors[der], linewidth=2.0, linestyle="--", baseline=None, zorder=3)
-            coeff_values.append(coeff_truth[nz])
+            coeff_values.append(coeff_truth[nz] + coeff_truth_unc[nz])
+            coeff_values.append(coeff_truth[nz] - coeff_truth_unc[nz])
 
             if bit is not None and der in bit.derivatives:
                 coeff_pred = np.zeros_like(sm)
@@ -520,7 +551,10 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         ax_right.set_ylabel(coeff_label)
 
         # legend: SM stat band + operator colors + truth/BIT linestyles
-        handles = [Patch(facecolor="0.55", alpha=0.45, label="SM stat. unc.")]
+        handles = [
+            Patch(facecolor="0.55", alpha=0.45, label="SM stat. unc."),
+            Patch(facecolor="0.3", alpha=0.18, label="truth stat. unc. (per-operator color)"),
+        ]
         handles += [Line2D([0], [0], color=colors[der], linewidth=2.0, label=derivative_label(der)) for der in selected]
         handles.append(Line2D([0], [0], color="0.2", linewidth=2.0, linestyle="--", label="truth"))
         if bit is not None:
@@ -544,4 +578,4 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     logger.info("Wrote %d feature plots.", len(plot_feats))
 
     # ---- write textual analysis files ----
-    _write_analysis_json(out_dir, plot_feats, selected, truth_num, sm_hist, feature_edges, args.value)
+    _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, sm_hist, feature_edges, args.value)
