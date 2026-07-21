@@ -18,7 +18,7 @@ import common.syncer as syncer
 
 def impact_table_plot(
     nuis_names, nuis_vals, nuis_errs,
-    impact_pos, impact_neg, poi_names,
+    impact_pos, impact_neg, param_names,
     top_n=None, figsize=(12, 0.35*20), outpath=None,
     name_col_width=0.23, pull_col_width=0.27, poi_col_width=0.4
 ):
@@ -42,7 +42,7 @@ def impact_table_plot(
     nuis_errs = np.asarray(nuis_errs, dtype=float)
     impact_pos = np.asarray(impact_pos, dtype=float)
     impact_neg = np.asarray(impact_neg, dtype=float)
-    poi_names = list(poi_names)
+    param_names = list(param_names)
 
     M = len(nuis_names)
     if nuis_vals.shape[0] != M or nuis_errs.shape[0] != M:
@@ -52,7 +52,8 @@ def impact_table_plot(
     if impact_pos.shape != impact_neg.shape:
         raise ValueError("impact_pos and impact_neg must have the same shape")
     N = impact_pos.shape[1]
-    if len(poi_names) != N:
+    if len(param_names) != N:
+        print(len(param_names), N)
         raise ValueError("Number of poi_names must equal number of columns in impact arrays")
 
     # sort based on mean average impact (also average between positive and negative)  
@@ -133,7 +134,7 @@ def impact_table_plot(
         span = max(abs(x_min), abs(x_max), 1e-6)
         ax.set_xlim(-1.2*span, 1.2*span)
         ax.axvline(0, linestyle='--', linewidth=0.6)
-        print(poi_names[j])
+        print(parametersForImpacts[j])
         for i in range(Msel):
             p = col_pos[i]
             n = col_neg[i]
@@ -148,7 +149,7 @@ def impact_table_plot(
             else:
                 ax.hlines(i, 0.0, n, linewidth=6, alpha=0.8)
 
-        ax.set_title(poi_names[j], fontsize=10, pad=8)
+        ax.set_title(parametersForImpacts[j], fontsize=10, pad=8)
         ax.xaxis.grid(True, linestyle=':', linewidth=0.4, alpha=0.6)
         ax.tick_params(axis='x', labelsize=8)
 
@@ -177,11 +178,21 @@ if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="Calculates impacts of individual nuisance parameters and plots.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("config", help="Path to global YAML config")
-    p.add_argument("--step", default="step0")
+    p.add_argument("configs", nargs="+", help="Path to one or more global YAML configs")
+    p.add_argument("--base", help="Base name for fit result and cache directories")
+    p.add_argument("--step", default="step0", help="step0: run Asimov fit; step1: run fits fixing each nuisance at ±1 sigma; step2: plot impacts")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--freezePOIs", default="")
-    p.add_argument("--nuisanceForImpacts", default="")
+    p.add_argument("--nuisanceForImpacts", default="", help="Which nuisances to vary for impact plot.")
+    p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+    p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
+    p.add_argument("--verbosity", type=int, default=1, help="Verbosity passed to the fitter")
+    p.add_argument("--parametersForImpacts", default="",help="Which non-POI parameters to plot impacts for (step1 and step2).")
+    p.add_argument(
+        "--minuit",
+        action="store_true",
+        default=False,
+        help="Use the original iminuit/MIGRAD backend instead of the autograd+SciPy backend.")
     p.add_argument(
         "--overwrite",
         nargs="?",
@@ -205,17 +216,17 @@ if __name__ == "__main__":
 
     import common.yaml_loader as yaml_loader 
 
-    cfg = yaml_loader.load_yaml(args.config)
-    yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
+    list_configs = []
+    for config_path in args.configs:
+        aux_cfg = yaml_loader.load_yaml(config_path)
+        yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+        yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
+        list_configs.append(aux_cfg)
+
+    cfg = yaml_loader.combine_configs(list_configs)
 
     like_info = lh.load_likelihood(cfg)
 
-    suffix  = ""
-
-    if args.freezePOIs != "":
-        suffix += f"_freezePOIs_{args.freezePOIs.replace(',','_')}" 
-    base    = os.path.splitext(os.path.basename(args.config))[0] + ("_rotate" if args.rotate else "") + suffix
     version = str(cfg.get("version", "v0"))
     overwrite_fit = (args.overwrite == "fit") or (args.overwrite == "all")
     overwrite_cache = args.overwrite == "all"
@@ -225,6 +236,35 @@ if __name__ == "__main__":
 
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
+
+    base_list = []
+    for config_path in args.configs:
+        base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+    base  = "_".join(base_list)
+
+    if args.base:
+        base = args.base
+
+    suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
+
+    if args.freezePOIs != "":
+        suffix += f"_freezePOIs_{args.freezePOIs.replace(',','_')}" 
+    if args.syst_only:
+        suffix = "_systonly"
+
+    if args.no_syst and args.syst_only:
+        raise ValueError("You cannot ask for a fit with --no_syst and --syst_only.")
+
+    if args.no_syst:
+        for p_ in hyp.nuisances + hyp_for_fit.nuisances:
+            p_.val = 0.0
+            p_.isFrozen = True
+        print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+    elif args.syst_only:
+        for p_ in hyp.POIs + hyp_for_fit.POIs:
+            # p_.val = 0.0 # do I need this ? I don't think I do.
+            p_.isFrozen = True
+        print("[opts] --syst_only: all POIs frozen.")
 
     if args.prepareSlurmJobs:
         if args.step != "step1":
@@ -240,8 +280,6 @@ if __name__ == "__main__":
         )
         print("Slurm job files prepared. Exiting.")
         sys.exit(0)
-
-
 
     step = 1.0 if rotated else 0.1
 
@@ -272,29 +310,42 @@ if __name__ == "__main__":
     n2ll.build_cache()
     n2ll.prepare_runtime()
 
-    if args.step == "step0": 
-        n2ll.setAsimov(hyp_for_fit) 
-        with open(f"{base}_{version}_asimov.pck", 'wb') as outf: # store asimov to pick it in the next steps
-            pck.dump(hyp_for_fit, outf)
-        m = lh.run_minuit_fit(n2ll, hyp_for_fit, step=step, print_every=100, do_migrad=True, do_hesse=True, do_minos=False)
+    if args.step == "step0":
+        out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
+        if os.path.exists(out_path) and (not overwrite_fit):
+            print(f"Fit result in {out_path} already exists and did not ask to overwrite, skipping.")
+            sys.exit(0)
 
-        out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_initialfit.json")
-        args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
+        n2ll.setAsimov(hyp_for_fit)
+        with open(f"{base}_{version}{suffix}_asimov.pck", 'wb') as outf: # store asimov to pick it in the next steps
+            pck.dump(hyp_for_fit, outf)
+
+        fitter = lh.run_iminuit_fit if args.minuit else lh.run_autograd_fit
+        m = fitter(n2ll, hyp_for_fit, step=step, print_every=100, do_migrad=True, do_hesse=True,
+                   do_minos=False, verbosity=args.verbosity)
+
         lh.serialize_result(m, base, version, args, out_path)
 
     elif args.step == "step1": 
         # First, we want the exact same asimov dataset as before
-        with open(f"{base}_{version}_asimov.pck", 'rb') as inf: 
+        with open(f"{base}_{version}{suffix}_asimov.pck", 'rb') as inf: 
             n2ll.setAsimov( pck.load( inf )  ) 
         
         # We now get the results from the previous fit 
-        in_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_initialfit.json")
+        in_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
         with open(in_path) as inf: 
             initial_fit=json.load( inf )
             initial_fit_dict = fit_result_to_dict(initial_fit)
             
         for param_name in initial_fit_dict:
+
+            # skipping parameters which are not defined as nuisances
             if param_name not in [p.name for p in hyp_for_fit.nuisances]: 
+                continue
+
+            # skipping nuisances that user wants to check impacts for
+            if args.parametersForImpacts != "" and param_name in args.parametersForImpacts.split(","):
+                print(f"skipping parameter {param_name} as it is a parameter for which we want to calculate impacts")
                 continue
 
             if args.nuisanceForImpacts != "" and args.nuisanceForImpacts != param_name: 
@@ -302,7 +353,7 @@ if __name__ == "__main__":
 
             for direction in [ 'down', 'up']:
 
-                out_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_{direction}.json")
+                out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_{direction}.json")
                 if os.path.exists(out_path) and (not overwrite_fit):
                     print(f"Fit result in {out_path} already exists and did not ask to overwrite, skipping.")
                     continue
@@ -312,14 +363,15 @@ if __name__ == "__main__":
                 print(f"Setting parameter {param_name} to {value}")
                 hyp_var.modify(**{param_name: value})
                 hyp_var.set_nuisance_frozen(param_name, True)
-                m = lh.run_minuit_fit(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=False, do_minos=False)
+                fitter = lh.run_iminuit_fit if args.minuit else lh.run_autograd_fit
+                m = fitter(n2ll, hyp_var, step=0.01, print_every=100, do_migrad=True, do_hesse=False,
+                           do_minos=False, verbosity=args.verbosity)
 
-                args.no_syst = False # to do better. I dont like the no syst option passed to the impact tool
                 lh.serialize_result(m, base, version, args, out_path)
             
     elif args.step == "step2": 
         # Results from the first fit
-        in_path = os.path.join(user.output_directory, f"{base}_{version}_impacts_initialfit.json")
+        in_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
 
         with open(in_path) as inf: 
             initial_fit=json.load( inf )
@@ -331,12 +383,22 @@ if __name__ == "__main__":
         impacts_up=[]
         impacts_dn=[]
         POIs= hyp_for_fit.POIs
+        nuisances = hyp_for_fit.nuisances
+
+        parametersForImpacts = [p for p in POIs if not p.isFrozen]
+
+        if args.parametersForImpacts != "":
+            parametersForImpacts.extend(
+                [p for p in hyp_for_fit.nuisances if p.name in args.parametersForImpacts.split("," ) and not p.isFrozen])
 
         for p in hyp_for_fit.nuisances:
-            param_name = p.name 
+            param_name = p.name
             param = initial_fit_dict[param_name]
 
-            nuisances_names .append( param_name )
+            if args.parametersForImpacts != "" and (param_name in args.parametersForImpacts.split("," )):
+                continue
+            
+            nuisances_names.append( param_name )
             nuisances_values.append( param['value'] )
             nuisances_errors.append( param['error'] )
 
@@ -346,27 +408,29 @@ if __name__ == "__main__":
                     fit_var=json.load( inf )
                     fit_var_dict = fit_result_to_dict(fit_var)
 
-                for poi in POIs:
-                    if poi.name in args.freezePOIs.split("," ): 
+                for param in parametersForImpacts:
+                    if param.name in args.freezePOIs.split("," ): 
                         continue
-                    ret.append( fit_var_dict[poi.name]['value'] - initial_fit_dict[poi.name]['value'])
+                    if param.isFrozen:
+                        continue
+
+                    ret.append( fit_var_dict[param.name]['value'] - initial_fit_dict[param.name]['value'])
                 return ret 
                 
             try: 
-                impacts_up.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_up.json")))
+                impacts_up.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_up.json")))
             except FileNotFoundError:
                 print(f"Warning: up variation for {param_name} not found")
-                impacts_up.append( [0. for _ in POIs])
+                impacts_up.append( [0. for _ in parametersForImpacts])
             try:
-                impacts_dn.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}_impacts_{param_name}_down.json")))
+                impacts_dn.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_down.json")))
             except FileNotFoundError:
                 print(f"Warning: down variation for {param_name} not found")
-                impacts_dn.append( [0. for _ in POIs])
+                impacts_dn.append( [0. for _ in parametersForImpacts])
 
-                   
-        plot_outpath = os.path.join(user.plot_directory, "likelihood_fit", base, version, "impacts.png")
+        plot_outpath = os.path.join(user.plot_directory, "likelihood_fit", base, f"{version}{suffix}", "impacts.png")
         impact_table_plot( nuisances_names, nuisances_values, nuisances_errors,
-                           impacts_up, impacts_dn, [x.name for x in POIs if x.name not in args.freezePOIs.split("," )], outpath=plot_outpath)
+                           impacts_up, impacts_dn, [p.name for p in parametersForImpacts if p.name not in args.freezePOIs.split("," )], outpath=plot_outpath)
 
 
         syncer.sync()
