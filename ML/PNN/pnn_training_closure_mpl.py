@@ -94,12 +94,12 @@ if uid_enabled:
     for k, sz in zip(keys, sizes):
         uid_intervals[k] = (lo, lo + int(sz))
         lo += int(sz)
-    eval_key = "final_eval"
-    eval_interval = uid_intervals[eval_key]
+    
+    eval_interval = (uid_intervals["c2st_train"][0], uid_intervals["c2st_val"][1])
 
     print(f"[UID] enabled=True fields={uid_fields} seed={uid_seed} n_buckets={uid_n_buckets}")
     print(f"[UID] scheme intervals: {uid_intervals}")
-    print(f"[UID] PNN eval split '{eval_key}' -> {eval_interval}")
+    print(f"[UID] PNN eval split 'c2st' -> {eval_interval}")
 
 # ---------------- resolve loaders ----------------
 from data.RDataLoader import RDataLoader
