@@ -15,6 +15,13 @@ real physical structure" (large coeff, large pull) from "large because the
 per-event derivative weight is just noisy" (large coeff, small pull) -- the
 latter flagged as `noisy_bin_frac` per (feature, derivative).
 
+Also computes a neighbor pull between geometrically adjacent used bins
+(`|coeff[i+1] - coeff[i]| / sqrt(unc[i]^2 + unc[i+1]^2)`, skipping pairs
+separated by a bin dropped for low statistics), flagging roughness/instability
+that a single-bin pull can miss -- two consecutive bins can each look fine on
+their own while jumping between each other by far more than their combined
+uncertainty allows.
+
 Takes plain file/directory paths -- no dependency on the YAML config, so it
 works on any job you add later without touching this script.
 
@@ -61,7 +68,6 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 import common.syncer as syncer
 import common.user as user
 
-TERM_DIRS = ("lin", "quad")
 
 # number of decimal places in output table
 PRECISION: int = 3
@@ -79,16 +85,6 @@ def _find_bin_contents(paths: list[str]) -> list[str]:
         else:
             raise RuntimeError(f"Path not found: {path}")
     return sorted(set(found))
-
-
-def _job_and_term_from_path(path: str) -> tuple[str, str]:
-    """Infer (job_id, term_order) from a '.../<job_id>/<lin|quad>/bin_contents.json' path."""
-    term_dir = os.path.basename(os.path.dirname(path))
-    job_dir = os.path.basename(os.path.dirname(os.path.dirname(path)))
-    term_order = term_dir if term_dir in TERM_DIRS else "unknown"
-    job_id = job_dir if term_dir in TERM_DIRS else term_dir
-    return job_id, term_order
-
 
 def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull_threshold: float) -> list[dict]:
     """Return per-(feature, derivative) statistics rows for one bin_contents.json."""
@@ -115,6 +111,7 @@ def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull
                     "n_bins_used": 0, "max_abs_coeff": 0.0, "flagged_bin_center": None,
                     "mean_abs_coeff": 0.0, "std_abs_coeff": 0.0, "max_to_mean_ratio": 0.0,
                     "mean_abs_pull": 0.0, "max_abs_pull": 0.0, "noisy_bin_frac": 0.0,
+                    "max_neighbor_pull": 0.0, "neighbor_jump_frac": 0.0,
                 })
                 continue
 
@@ -139,6 +136,23 @@ def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull
             )
             noisy_bin_frac = noisy_bins / len(used)
 
+            # neighbor pull: is the jump between two *geometrically adjacent* bins
+            # (skipping pairs separated by a bin dropped for low SM statistics) larger
+            # than their combined per-bin uncertainty can explain -- catches a rough,
+            # unstable coefficient even where each bin looks fine on its own.
+            bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 0.0
+            neighbor_pulls = []
+            for (bc0, c0, u0, _), (bc1, c1, u1, _) in zip(used, used[1:]):
+                if bin_width <= 0.0 or abs((bc1 - bc0) - bin_width) > 1e-6 * bin_width:
+                    continue
+                combined_unc = (u0 ** 2 + u1 ** 2) ** 0.5
+                neighbor_pulls.append(abs(c1 - c0) / combined_unc if combined_unc > 1e-12 else 0.0)
+            max_neighbor_pull = max(neighbor_pulls) if neighbor_pulls else 0.0
+            neighbor_jump_frac = (
+                sum(1 for p in neighbor_pulls if p >= pull_threshold) / len(neighbor_pulls)
+                if neighbor_pulls else 0.0
+            )
+
             rows.append({
                 "feature": feature,
                 "derivative": derivative,
@@ -151,6 +165,8 @@ def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull
                 "mean_abs_pull": round(mean_abs_pull, PRECISION),
                 "max_abs_pull": round(max_abs_pull, PRECISION),
                 "noisy_bin_frac": round(noisy_bin_frac, PRECISION),
+                "max_neighbor_pull": round(max_neighbor_pull, PRECISION),
+                "neighbor_jump_frac": round(neighbor_jump_frac, PRECISION),
             })
     return rows
 
@@ -187,10 +203,9 @@ def main():
 
     detail_rows = []
     for path in json_files:
-        job_id, term_order = _job_and_term_from_path(path)
+        job_id = path.split("/")[-5]
         for row in _analyze_file(path, args.min_stat, args.sensitivity_threshold, args.pull_threshold):
             row["job_id"] = job_id
-            row["term_order"] = term_order
             row["recommendation"] = _recommend(
                 row["max_abs_coeff"], row["max_to_mean_ratio"],
                 args.sensitivity_threshold, args.ratio_threshold,
@@ -198,11 +213,12 @@ def main():
             detail_rows.append(row)
 
     detail_cols = [
-        "job_id", "term_order", "feature", "derivative", "n_bins_used",
+        "job_id", "feature", "derivative", "n_bins_used",
         "max_abs_coeff", "flagged_bin_center", "mean_abs_coeff", "std_abs_coeff",
-        "max_to_mean_ratio", "mean_abs_pull", "max_abs_pull", "noisy_bin_frac", "recommendation",
+        "max_to_mean_ratio", "mean_abs_pull", "max_abs_pull", "noisy_bin_frac",
+        "max_neighbor_pull", "neighbor_jump_frac", "recommendation",
     ]
-    detail_path = os.path.join(args.out_dir, "eft_sensitivity_detail.csv")
+    detail_path = os.path.join(args.out_dir, f"eft_sensitivity_detail_minstat{str(args.min_stat).replace('.','p')}.csv")
     with open(detail_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=detail_cols)
         writer.writeheader()
@@ -220,10 +236,10 @@ def main():
             by_feature[feat] = row
 
     summary_cols = [
-        "feature", "worst_job_id", "worst_term_order", "worst_derivative",
+        "feature", "worst_job_id", "worst_derivative",
         "max_abs_coeff", "flagged_bin_center", "max_to_mean_ratio", "recommendation",
     ]
-    summary_path = os.path.join(args.out_dir, "eft_sensitivity_summary.csv")
+    summary_path = os.path.join(args.out_dir, f"eft_sensitivity_summary_minstat{str(args.min_stat).replace('.','p')}.csv")
     with open(summary_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=summary_cols)
         writer.writeheader()
@@ -231,7 +247,6 @@ def main():
             writer.writerow({
                 "feature": feat,
                 "worst_job_id": row["job_id"],
-                "worst_term_order": row["term_order"],
                 "worst_derivative": row["derivative"],
                 "max_abs_coeff": row["max_abs_coeff"],
                 "flagged_bin_center": row["flagged_bin_center"],
@@ -253,10 +268,11 @@ def main():
     for row in detail_rows:
         by_derivative.setdefault(row["derivative"], []).append(row)
 
-    by_derivative_path = os.path.join(args.out_dir, "eft_sensitivity_by_derivative.csv")
+    by_derivative_path = os.path.join(args.out_dir, f"eft_sensitivity_by_derivative_minstat{str(args.min_stat).replace('.','p')}.csv")
     by_derivative_cols = [
-        "derivative", "n_features", "worst_feature", "worst_job_id", "worst_term_order",
+        "derivative", "n_features", "worst_feature", "worst_job_id",
         "max_abs_coeff", "mean_noisy_bin_frac", "mean_abs_pull",
+        "mean_neighbor_jump_frac", "max_neighbor_pull",
     ]
     with open(by_derivative_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=by_derivative_cols)
@@ -269,10 +285,11 @@ def main():
                 "n_features": len(rows),
                 "worst_feature": worst["feature"],
                 "worst_job_id": worst["job_id"],
-                "worst_term_order": worst["term_order"],
                 "max_abs_coeff": worst["max_abs_coeff"],
                 "mean_noisy_bin_frac": round(sum(r["noisy_bin_frac"] for r in rows) / len(rows), PRECISION),
                 "mean_abs_pull": round(sum(r["mean_abs_pull"] for r in rows) / len(rows), PRECISION),
+                "mean_neighbor_jump_frac": round(sum(r["neighbor_jump_frac"] for r in rows) / len(rows), PRECISION),
+                "max_neighbor_pull": max(r["max_neighbor_pull"] for r in rows),
             }
         for derivative, row in sorted(by_derivative_summary.items(), key=lambda kv: -kv[1]["mean_noisy_bin_frac"]):
             writer.writerow(row)
