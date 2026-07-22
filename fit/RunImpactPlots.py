@@ -310,14 +310,16 @@ if __name__ == "__main__":
     n2ll.build_cache()
     n2ll.prepare_runtime()
 
+    output_directory = os.path.join(user.output_directory, f"impacts_{base}_{version}{suffix}")
+
     if args.step == "step0":
-        out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
+        out_path = os.path.join(output_directory, "impacts_initial_fit.json")
         if os.path.exists(out_path) and (not overwrite_fit):
             print(f"Fit result in {out_path} already exists and did not ask to overwrite, skipping.")
             sys.exit(0)
 
         n2ll.setAsimov(hyp_for_fit)
-        with open(f"{base}_{version}{suffix}_asimov.pck", 'wb') as outf: # store asimov to pick it in the next steps
+        with open(os.path.join(output_directory, "asimov.pck"), 'wb') as outf: # store asimov to pick it in the next steps
             pck.dump(hyp_for_fit, outf)
 
         fitter = lh.run_iminuit_fit if args.minuit else lh.run_autograd_fit
@@ -328,11 +330,11 @@ if __name__ == "__main__":
 
     elif args.step == "step1": 
         # First, we want the exact same asimov dataset as before
-        with open(f"{base}_{version}{suffix}_asimov.pck", 'rb') as inf: 
+        with open(os.path.join(output_directory, "asimov.pck"), 'rb') as inf: 
             n2ll.setAsimov( pck.load( inf )  ) 
         
         # We now get the results from the previous fit 
-        in_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
+        in_path = os.path.join(output_directory, "impacts_initial_fit.json")
         with open(in_path) as inf: 
             initial_fit=json.load( inf )
             initial_fit_dict = fit_result_to_dict(initial_fit)
@@ -352,8 +354,7 @@ if __name__ == "__main__":
                 continue
 
             for direction in [ 'down', 'up']:
-
-                out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_{direction}.json")
+                out_path = os.path.join(output_directory, f"{param_name}_{direction}_fit.json")
                 if os.path.exists(out_path) and (not overwrite_fit):
                     print(f"Fit result in {out_path} already exists and did not ask to overwrite, skipping.")
                     continue
@@ -371,7 +372,7 @@ if __name__ == "__main__":
             
     elif args.step == "step2": 
         # Results from the first fit
-        in_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_initialfit.json")
+        in_path = os.path.join(output_directory, "impacts_initial_fit.json")
 
         with open(in_path) as inf: 
             initial_fit=json.load( inf )
@@ -418,12 +419,12 @@ if __name__ == "__main__":
                 return ret 
                 
             try: 
-                impacts_up.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_up.json")))
+                impacts_up.append( get_impacts_for_nuisance( os.path.join(output_directory, f"impacts_{param_name}_up.json")))
             except FileNotFoundError:
                 print(f"Warning: up variation for {param_name} not found")
                 impacts_up.append( [0. for _ in parametersForImpacts])
             try:
-                impacts_dn.append( get_impacts_for_nuisance( os.path.join(user.output_directory, f"{base}_{version}{suffix}_impacts_{param_name}_down.json")))
+                impacts_dn.append( get_impacts_for_nuisance( os.path.join(output_directory, f"impacts_{param_name}_down.json")))
             except FileNotFoundError:
                 print(f"Warning: down variation for {param_name} not found")
                 impacts_dn.append( [0. for _ in parametersForImpacts])
