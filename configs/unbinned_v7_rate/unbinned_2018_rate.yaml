@@ -430,6 +430,62 @@ jobs:
     output:
       filename: "tfmc_2018_SB.pkl"
 
+  # Run 2-trained TFMC models, symlinked from 2016 folder
+  - id: tfmc_RunII_SB_eval2018 
+    type: classifier
+    region: SR_2018
+    framework: "tfmc"
+    data:
+      classes: [TTLep_pow_2018, Background_DrellYan_LO_HTbinned_2018]
+    model:
+      activation: relu
+      hidden_layers: [128, 128, 128]
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_SB.pkl"
+
+  - id: tfmc_RunII_bkgonly_small_eval2018
+    type: classifier
+    region: SR_2018
+    framework: "tfmc"
+    data:
+      classes: [SingleTop_2018, DrellYan_LO_HTbinned_2018, TTSemi_pow_2018]
+    model:
+      activation: relu
+      hidden_layers: [64, 64]
+      # dropout_rate: 0.25  
+    optim:
+      epochs: 500
+      phaseout_epochs: 150
+      learning_rate: 0.02
+    set_logit_priors: true
+    runtime:
+      batch_size: 16384
+    early_stopping:
+      enabled: true
+      patience: 50        
+      min_delta: 0.0
+      mode: "min"
+      warmup_epochs: 100
+    extras:
+      use_scaler: scaler_TTLep_pow_RunII 
+    output:
+      filename: "tfmc_RunII_bkgonly_small.pkl"
+
   - id: bit_NG_PDF4LHC21_6_TTLep_pow_2018
     type: bit
     region: SR_2018
@@ -460,6 +516,14 @@ jobs:
     selection: null
     output:
       filename: "Scaler_TTLep_pow_2018.pkl"
+
+  - id: scaler_TTLep_pow_RunII
+    type: scaler
+    process: TTLep_pow_RunII
+    region: SR_2018
+    selection: null
+    output:
+      filename: "Scaler_TTLep_pow_RunII.pkl"
 
   - id: icp_TTLep_pow_2018_L1Prefire
     type: icp
