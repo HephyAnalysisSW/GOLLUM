@@ -46,7 +46,8 @@ def write_slurm_script(outdir, n_tasks):
         f.write(f"""#!/bin/bash
 #SBATCH --job-name=fit-impacts
 #SBATCH --array=0-{n_tasks-1}
-#SBATCH --mem-per-cpu=6G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=8G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/impact_%a.out
 #SBATCH --error=logs/impact_%a.err
