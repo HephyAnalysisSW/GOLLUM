@@ -246,6 +246,10 @@ plot_options = {
 }
 
 def get_sample_legend(sample_id: str) -> str:
+
+    if "Background" in sample_id:
+        return "Total Bkg."
+    
     if "TTLep" in sample_id:
         return r"t#bar{t} (2l)"
     
