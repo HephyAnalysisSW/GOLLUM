@@ -40,8 +40,13 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "ML", "Calibration"))
 
 from fit.Likelihood import N2LL, expand_pois_linear_quadratic, build_hypothesis_from_likelihood
 from fit.Modeling import Hypothesis
-from common.derivative_providers import build_derivative_provider
 import calibration_runner as cr  # _uid_split_interval
+
+# common.derivative_providers is imported lazily inside _materialize_truth_weights
+# (see below): it pulls in data/samples_eft.py, which eagerly constructs RDataLoaders
+# for every declared EFT sample at import time, so importing it at module level would
+# make cache-mode generation depend on the EFT sample data being reachable even though
+# cache mode never touches it.
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +100,19 @@ def throw_constraint_centers(hypothesis, rng: np.random.Generator) -> dict:
 # cache-mode unbinned
 # ============================================================================
 
-def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng: np.random.Generator) -> dict:
+def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng: np.random.Generator,
+                                      *, allow_negative_weights: bool = False) -> dict:
     """Cache-mode unbinned toy: n_i ~ Poisson(w0_i * (1 + T_i(hypothesis))) over the
     whole cached MC (no UID split -- see the plan's "UID splitting" section for why
     cache mode uses everything).
+
+    Negative intensity has two distinct causes, both real: at hypothesis=0, T is
+    identically 0 for every event, so a negative w0_i * (1+T_i) there can only come
+    from a negative-weight MC event (routine for NLO generators like aMC@NLO/POWHEG,
+    not a modelling problem); away from hypothesis=0 it can also come from T < -1
+    (the model extrapolating outside its valid range). Both are reported and treated
+    the same way as truth mode's negative-weight handling: crash by default with the
+    offending fraction, clip to zero under allow_negative_weights=True.
 
     Returns row indices and multiplicities for n_i > 0 (not sliced columns -- the
     surrogate columns are verbatim cache slices, rehydrated by `load_toy`).
@@ -122,11 +136,18 @@ def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng
     lam = w0 * (1.0 + T)
 
     neg = lam < 0.0
-    if np.any(neg):
-        raise RuntimeError(
-            f"[toy:cache:{region_id}] {int(neg.sum())}/{N} events have negative intensity "
-            f"w0*(1+T); this hypothesis is outside the model's valid range."
-        )
+    n_neg = int(np.sum(neg))
+    if n_neg > 0:
+        neg_weight_sum = float(np.sum(lam[neg]))
+        if not allow_negative_weights:
+            raise RuntimeError(
+                f"[toy:cache:{region_id}] {n_neg}/{N} events ({n_neg / N:.4%}) have negative intensity "
+                f"w0*(1+T) (summed negative intensity {neg_weight_sum:.4g}); pass "
+                f"allow_negative_weights=True to clip them to zero."
+            )
+        logger.info("[toy:cache:%s] clipping %d/%d negative-intensity events (summed %.4g) to zero.",
+                    region_id, n_neg, N, neg_weight_sum)
+        lam = np.where(neg, 0.0, lam)
 
     n_i = rng.poisson(lam)
     keep = n_i > 0
@@ -260,6 +281,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
                     f"[toy:{region_id}/{source.class_id}] POI(s) {overlap} injected via both "
                     f"'coefficients' and a nonzero hypothesis value; pick one route."
                 )
+        from common.derivative_providers import build_derivative_provider
         job = _class_bit_job(n2ll, region_id, source.class_id)
         provider = build_derivative_provider(job)
         expected_poi_order = n2ll._poi_order.get((region_id, source.class_id), [])
@@ -462,8 +484,14 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
             lam = lam + H.reshape(-1)
 
     neg = lam < 0.0
-    if np.any(neg):
-        raise RuntimeError(f"[toy:binned:{region_id}] negative expected counts in {int(neg.sum())} bins.")
+    n_neg = int(np.sum(neg))
+    if n_neg > 0:
+        if not allow_negative_weights:
+            raise RuntimeError(
+                f"[toy:binned:{region_id}] negative expected counts in {n_neg}/{Nflat} bins "
+                f"(summed {float(np.sum(lam[neg])):.4g}); pass allow_negative_weights=True to clip them to zero."
+            )
+        lam = np.where(neg, 0.0, lam)
 
     counts = rng.poisson(lam)
     return {"counts": counts.astype(np.float64)}
@@ -499,7 +527,8 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
         rid = region["id"]
         region_rng = _spawn_rng(seed, rid)
         if source == "cache":
-            toy = generate_unbinned_toy_from_cache(n2ll, rid, gen_hypothesis, region_rng)
+            toy = generate_unbinned_toy_from_cache(n2ll, rid, gen_hypothesis, region_rng,
+                                                    allow_negative_weights=allow_negative_weights)
             unbinned_blocks[rid] = {
                 "X": None, "w": toy["n"], "indices": toy["indices"],
                 "by_class": _rehydrate_cache_by_class(n2ll, rid, toy["indices"]),
@@ -517,7 +546,8 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
         rid = region["id"]
         region_rng = _spawn_rng(seed, rid)
         if source == "cache":
-            toy = generate_binned_toy(n2ll, rid, region_rng, hypothesis=gen_hypothesis)
+            toy = generate_binned_toy(n2ll, rid, region_rng, hypothesis=gen_hypothesis,
+                                       allow_negative_weights=allow_negative_weights)
         else:
             sources_for_region = (truth_sources or {}).get(rid, [])
             toy = generate_binned_toy(
