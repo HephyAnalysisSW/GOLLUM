@@ -1,0 +1,39 @@
+# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2018.yaml.
+#
+#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2018.yaml \
+#       --toySpec configs/unbinned_v6/toys_example.yaml --toyPoint c0_0p5_bit \
+#       --seeds 0-499 --outputDir <some output dir>
+#
+# The spec defines the ensemble (source, split, which points); the CLI only
+# selects which point and which seed(s) to generate, and where to write the
+# result. See user/ricardo/claude/plans/toy-generation-for-pseudo-experiments.md
+# for the full design.
+
+source: truth              # or cache
+split: final_eval           # truth mode only; null for the whole dataset
+throw_nuisances: true
+allow_negative_weights: false
+
+points:
+  # nominal truth-mode toy: no modifiers, no hypothesis -- the surrogate-correct
+  # limit, useful as the mean-pull baseline for verification 6.
+  - name: nominal
+
+  # exact PDF weight injection at c0=0.5, generated from generator-level info.
+  - name: c0_0p5
+    injection:
+      SR_2018:
+        TTLep_pow_2018:
+          coefficients: {c0: 0.5}
+
+  # the same point injected through the trained BIT instead (surrogate route),
+  # on the *same* truth-mode split -- the control for c0_0p5 (see the plan's
+  # "two POI injection routes" section). Do not also set 'coefficients' for the
+  # same POI on the same source -- the two routes are mutually exclusive.
+  - name: c0_0p5_bit
+    hypothesis: {c0: 0.5}
+
+# For a per-process rate mismodelling with no rate nuisance to absorb it (a
+# background scaled by e.g. 20%, everything else nominal), see the multi-process
+# example in configs/Eta_unbinned/toys_example.yaml, which has more than one class
+# per region -- this config's SR_2018 region has only TTLep_pow_2018.
