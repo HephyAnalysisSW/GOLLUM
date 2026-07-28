@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import common.syncer as syncer
-from common.derivative_providers import EFTDerivativeProvider
+from common.derivative_providers import build_derivative_provider
 
 import modification_plotter as mp
 
@@ -43,7 +43,7 @@ def main():
     if not job.get("eft"):
         raise RuntimeError(f"Job '{job['id']}' has no 'eft' block; use pdf_modification_plot.py for PDF jobs.")
 
-    provider = EFTDerivativeProvider(job["eft"].get("parameters", []))
+    provider = build_derivative_provider(job)
     mp.make_modification_plots(cfg, job, samples_mod, args, provider)
 
 

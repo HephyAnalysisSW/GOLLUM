@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from common.derivative_providers import EFTDerivativeProvider
+from common.derivative_providers import build_derivative_provider
 
 import calibration_runner as cr
 
@@ -32,7 +32,7 @@ def main():
     if not job.get("eft"):
         raise RuntimeError(f"Job '{job['id']}' has no 'eft' block; use pdf_calibration.py for PDF jobs.")
 
-    provider = EFTDerivativeProvider(job["eft"].get("parameters", []))
+    provider = build_derivative_provider(job)
     cr.run_calibration(cfg, job, samples_mod, args, provider)
 
 
