@@ -50,7 +50,7 @@ class ModelParameter:
         else:                tags.append("Nuis.")
         if self.isFrozen:    tags.append("frozen")
         if self.isPenalized: tags.append("pen.")
-        return f"<{self.name}({','.join(tags)})={self.val:.6e}>"
+        return f"<{self.name}({','.join(tags)})={float(getval(self.val)):.6e}>"
 
     def __str__(self):
         return self.__repr__().lstrip('<').rstrip('>')
