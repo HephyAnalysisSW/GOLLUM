@@ -5,10 +5,10 @@ defaults:
   default_features:
     - ND_VARIABLES
   
-  default_selection: >-
-    (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
-    (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
-    & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
+  # default_selection: >-
+  #   (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+  #   (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+  #   & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
 
   default_selection_features:
     - dibjet_mass
@@ -68,7 +68,10 @@ jobs:
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
-    selection: null
+    selection: >-
+      (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+      (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+      & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
     numba: True
     eft:
         parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
@@ -85,11 +88,38 @@ jobs:
     output:
       filename: "bit_TT01j2l_EFT_2016_allWC.pkl"
 
+  - id: bit_TT01j2l_EFT_2016_allWC_sel2
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: >-
+      (dibjet_mass < 800) & (dibjet_pt < 600) & (dibjet_dEta < 4) & (dilep_mass < 600) &
+      (dilep_pt < 350) &  (dilep_dEta < 4) & (bjet0_pt < 500) & (bjet1_pt < 300) & (lep0_pt < 350)
+      & (lep1_pt < 300) & (max_obj_pair_pt < 600) & (nSelJet <= 5) & (pseudo_mtt < 1300)
+    numba: True
+    eft:
+        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_allWC_sel2.pkl"
+
   - id: bit_TT01j2l_EFT_2016_ML4EFTWC
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
-    selection: null
+    selection: >-
+      (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+      (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+      & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
     numba: True
     eft:
         parameters: [ctj8, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, cQj38, cQu8]
@@ -106,11 +136,90 @@ jobs:
     output:
       filename: "bit_TT01j2l_EFT_2016_ML4EFTWC.pkl"
 
+  - id: bit_TT01j2l_EFT_2016_ML4EFTWC_sel2
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: >-
+      (dibjet_mass < 800) & (dibjet_pt < 600) & (dibjet_dEta < 4) & (dilep_mass < 600) &
+      (dilep_pt < 350) &  (dilep_dEta < 4) & (bjet0_pt < 500) & (bjet1_pt < 300) & (lep0_pt < 350)
+      & (lep1_pt < 300) & (max_obj_pair_pt < 600) & (nSelJet <= 5) & (pseudo_mtt < 1300)
+    numba: True
+    eft:
+        parameters: [ctj8, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, cQj38, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ML4EFTWC_sel2.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_ML4EFTWC_redux
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: >-
+      (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+      (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+      & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
+    numba: True
+    eft:
+        # five operators with the largest Fisher Information values. missing:
+        # cQd1, ctj1, cQj31, ctd1, ctd8, cQj11, ctu8, cQd8, ctu1, cQu1, cQj38
+        parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ML4EFTWC_redux.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_ctG
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: >-
+      (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+      (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+      & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
+    numba: True
+    eft:
+        # five operators with the largest Fisher Information values. missing:
+        # cQd1, ctj1, cQj31, ctd1, ctd8, cQj11, ctu8, cQd8, ctu1, cQu1, cQj38
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ctG.pkl"
+
   - id: bit_TT01j2l_EFT_2016_nonML4EFTWC
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
-    selection: null
+    selection: >-
+      (dibjet_mass < 1000) & (dibjet_pt < 700) & (dibjet_dEta < 4) & (dilep_mass < 800) &
+      (dilep_pt < 400) &  (dilep_dEta < 4) & (bjet0_pt < 800) & (bjet1_pt < 500) & (lep0_pt < 350)
+      & (lep1_pt < 350) & (max_obj_pair_pt < 800) & (nSelJet <= 5) & (pseudo_mtt < 1500)
     numba: True
     eft:
         parameters: [cQd1, cQj31, ctu1, ctd1, cQu1, cQj11, ctj1]
@@ -126,3 +235,27 @@ jobs:
       training_plots: true
     output:
       filename: "bit_TT01j2l_EFT_2016_nonML4EFTWC.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_nonML4EFTWC_sel2
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: >-
+      (dibjet_mass < 800) & (dibjet_pt < 600) & (dibjet_dEta < 4) & (dilep_mass < 600) &
+      (dilep_pt < 350) &  (dilep_dEta < 4) & (bjet0_pt < 500) & (bjet1_pt < 300) & (lep0_pt < 350)
+      & (lep1_pt < 300) & (max_obj_pair_pt < 600) & (nSelJet <= 5) & (pseudo_mtt < 1300)
+    numba: True
+    eft:
+        parameters: [cQd1, cQj31, ctu1, ctd1, cQu1, cQj11, ctj1]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_nonML4EFTWC_sel2.pkl"
