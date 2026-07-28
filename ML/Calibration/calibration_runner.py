@@ -178,6 +178,16 @@ def run_calibration(cfg, job, samples_mod, args, provider):
     if () not in combos:
         raise RuntimeError("provider.combinations missing the nominal '()' entry.")
 
+    runtime_cfg = job.get("runtime", {}) or {}
+    n_split = int(runtime_cfg.get("n_split", 1))
+    if n_split > 1 and len(loader._all_files) > 1:
+        before_split = len(loader)
+        loader.set_n_split(n_split)
+        print(
+            f"Using {len(loader)} file shards for training-data materialization "
+            f"(was {before_split}, files={len(loader._all_files)})"
+        )
+
     # ---------------- collect all data (single pass) ----------------
     def iterate_all():
         n_shards = 1 if args.small else len(loader)
