@@ -100,6 +100,30 @@ def throw_constraint_centers(hypothesis, rng: np.random.Generator) -> dict:
 # cache-mode unbinned
 # ============================================================================
 
+def _compute_cache_intensity(n2ll: N2LL, region_id: str, hypothesis) -> np.ndarray:
+    """w0_i * (1 + T_i(hypothesis)) over the whole cached MC for one region -- the
+    model's expected (Asimov) per-event intensity, unclipped. Shared by
+    `generate_unbinned_toy_from_cache` (which draws Poisson toys from it) and the
+    diagnostic Asimov reference histogram in plot/toys (which sums it as-is)."""
+    N = n2ll._N_region.get(region_id, 0)
+    if N == 0:
+        return np.empty(0, dtype=np.float64)
+
+    cA_per_class = n2ll._assemble_cA_per_class(region_id, hypothesis)
+    nuA_per_group = n2ll._assemble_nuA_groups(region_id, hypothesis)
+    nu_vals = {p.name: p.val for p in getattr(hypothesis, "parameters", []) if not p.isPOI}
+    ln_bias = {
+        cid: sum(a * nu_vals.get(nm, 0.0) for nm, a in n2ll._lnN_by_class.get((region_id, cid), []))
+        for cid in n2ll._class_ids_by_region[region_id]
+    }
+    rate_shift = n2ll._assemble_rate_shift_per_class(region_id, hypothesis)
+
+    class_ids = n2ll._class_ids_by_region[region_id]
+    w0 = np.asarray(n2ll._h5[(region_id, class_ids[0])]["w0"], dtype=np.float64)
+    T = n2ll._compute_T_chunk(region_id, cA_per_class, nuA_per_group, ln_bias, rate_shift, 0, N)
+    return w0 * (1.0 + T)
+
+
 def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng: np.random.Generator,
                                       *, allow_negative_weights: bool = False) -> dict:
     """Cache-mode unbinned toy: n_i ~ Poisson(w0_i * (1 + T_i(hypothesis))) over the
@@ -121,19 +145,7 @@ def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng
     if N == 0:
         return {"indices": np.empty(0, dtype=np.int64), "n": np.empty(0, dtype=np.float64)}
 
-    cA_per_class = n2ll._assemble_cA_per_class(region_id, hypothesis)
-    nuA_per_group = n2ll._assemble_nuA_groups(region_id, hypothesis)
-    nu_vals = {p.name: p.val for p in getattr(hypothesis, "parameters", []) if not p.isPOI}
-    ln_bias = {
-        cid: sum(a * nu_vals.get(nm, 0.0) for nm, a in n2ll._lnN_by_class.get((region_id, cid), []))
-        for cid in n2ll._class_ids_by_region[region_id]
-    }
-    rate_shift = n2ll._assemble_rate_shift_per_class(region_id, hypothesis)
-
-    class_ids = n2ll._class_ids_by_region[region_id]
-    w0 = np.asarray(n2ll._h5[(region_id, class_ids[0])]["w0"], dtype=np.float64)
-    T = n2ll._compute_T_chunk(region_id, cA_per_class, nuA_per_group, ln_bias, rate_shift, 0, N)
-    lam = w0 * (1.0 + T)
+    lam = _compute_cache_intensity(n2ll, region_id, hypothesis)
 
     neg = lam < 0.0
     n_neg = int(np.sum(neg))
@@ -166,22 +178,52 @@ def _rehydrate_cache_by_class(n2ll: N2LL, region_id: str, indices: np.ndarray) -
     return by_class
 
 
-def materialize_cache_region_features(n2ll: N2LL, region_id: str, indices: np.ndarray,
-                                       feature_names: list) -> np.ndarray:
-    """Re-stream a region's Asimov samples once to recover raw feature values at the
-    given cache row indices. Cache-mode toys store only (indices, surrogate columns),
-    not X, to avoid duplicating the surrogate cache -- this is the opt-in, costly path
-    back to raw kinematics, for diagnostic plotting only (see plot/toys).
+def materialize_cache_region_diagnostics(n2ll: N2LL, region_id: str, hypothesis, feature_names: list,
+                                          plot_opts: dict, extra_indices: Optional[np.ndarray] = None):
+    """Single re-stream pass over a region's Asimov samples, for diagnostic plotting
+    (see plot/toys/toy_diagnostic_plots.py). Cache-mode toys store only (indices,
+    surrogate columns), not X, to avoid duplicating the surrogate cache, so this is
+    the opt-in, costly path back to raw kinematics.
 
-    `indices` must be sorted ascending (true of both `generate_unbinned_toy_from_cache`'s
-    and `np.unique`'s output) since row extraction relies on a single ordered pass.
+    Returns (asimov_hist, extra_X):
+      - asimov_hist: {feature_name: weighted histogram of w0*(1+T) at `hypothesis`
+        over the WHOLE cached MC, binned per `plot_opts`} -- what toys generated at
+        this hypothesis should fluctuate around, always available since the
+        surrogate cache is always built regardless of toy source. Negative
+        intensities are clipped to zero for display (a diagnostic reference isn't
+        the place to enforce generation's crash-by-default policy), with a logged
+        count/fraction.
+      - extra_X: raw feature matrix at `extra_indices` (e.g. the union of
+        cache-mode toys' kept row indices), or None if `extra_indices` is None.
+        Piggy-backs on the same pass since computing `asimov_hist` already visits
+        every cached event once.
+
+    `extra_indices`, if given, must be sorted ascending (true of both
+    `generate_unbinned_toy_from_cache`'s and `np.unique`'s output).
     """
     region = _find_region(n2ll, region_id)
-    indices = np.asarray(indices, dtype=np.int64)
-    if not np.all(np.diff(indices) >= 0):
-        raise ValueError(f"[toy:plot:{region_id}] indices must be sorted ascending.")
 
-    out = np.empty((len(indices), len(feature_names)), dtype=np.float64)
+    lam = _compute_cache_intensity(n2ll, region_id, hypothesis)
+    neg = lam < 0.0
+    n_neg = int(np.sum(neg))
+    if n_neg > 0:
+        logger.info(
+            "[toy:plot:%s] clipping %d/%d negative-intensity events (summed %.4g) to zero "
+            "for the Asimov reference histogram.", region_id, n_neg, len(lam), float(np.sum(lam[neg])),
+        )
+        lam = np.where(neg, 0.0, lam)
+
+    edges = {
+        feat: np.linspace(*plot_opts[feat]["binning"][1:], int(plot_opts[feat]["binning"][0]) + 1)
+        for feat in feature_names if feat in plot_opts
+    }
+    asimov_hist = {feat: np.zeros(len(e) - 1, dtype=np.float64) for feat, e in edges.items()}
+
+    extra_indices = None if extra_indices is None else np.asarray(extra_indices, dtype=np.int64)
+    if extra_indices is not None and not np.all(np.diff(extra_indices) >= 0):
+        raise ValueError(f"[toy:plot:{region_id}] extra_indices must be sorted ascending.")
+    extra_X = np.empty((len(extra_indices), len(feature_names)), dtype=np.float64) if extra_indices is not None else None
+
     col_positions = None
     row_ptr = 0
     global_offset = 0
@@ -192,19 +234,24 @@ def materialize_cache_region_features(n2ll: N2LL, region_id: str, indices: np.nd
             if missing:
                 raise KeyError(f"[toy:plot:{region_id}] Feature(s) {missing} not in region samples.")
             col_positions = [pos[f] for f in feature_names]
+
         batch_hi = global_offset + len(X)
-        while row_ptr < len(indices) and indices[row_ptr] < batch_hi:
-            out[row_ptr] = X[indices[row_ptr] - global_offset, col_positions]
-            row_ptr += 1
+        batch_lam = lam[global_offset:batch_hi]
+        for feat, e in edges.items():
+            asimov_hist[feat] += np.histogram(X[:, pos[feat]], bins=e, weights=batch_lam)[0]
+
+        if extra_indices is not None:
+            while row_ptr < len(extra_indices) and extra_indices[row_ptr] < batch_hi:
+                extra_X[row_ptr] = X[extra_indices[row_ptr] - global_offset, col_positions]
+                row_ptr += 1
         global_offset = batch_hi
-        if row_ptr >= len(indices):
-            break
-    if row_ptr < len(indices):
+
+    if extra_indices is not None and row_ptr < len(extra_indices):
         raise RuntimeError(
-            f"[toy:plot:{region_id}] {len(indices) - row_ptr} indices exceeded the re-streamed "
+            f"[toy:plot:{region_id}] {len(extra_indices) - row_ptr} indices exceeded the re-streamed "
             f"event count ({global_offset}); does the toy's cache match this config's samples?"
         )
-    return out
+    return asimov_hist, extra_X
 
 
 # ============================================================================
