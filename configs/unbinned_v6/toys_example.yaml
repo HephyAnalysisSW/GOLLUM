@@ -1,6 +1,6 @@
-# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2018.yaml.
+# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2016.yaml.
 #
-#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2018.yaml \
+#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2016.yaml \
 #       --toySpec configs/unbinned_v6/toys_example.yaml --toyPoint c0_0p5_bit \
 #       --seeds 0-499 --outputDir <some output dir>
 #
@@ -11,8 +11,8 @@
 
 source: truth              # or cache
 split: final_eval           # truth mode only; null for the whole dataset
-throw_nuisances: true
-allow_negative_weights: false
+throw_nuisances: false
+allow_negative_weights: true
 
 points:
   # nominal truth-mode toy: no modifiers, no hypothesis -- the surrogate-correct
@@ -22,9 +22,23 @@ points:
   # exact PDF weight injection at c0=0.5, generated from generator-level info.
   - name: c0_0p5
     injection:
-      SR_2018:
-        TTLep_pow_2018:
+      SR_2016:
+        TTLep_pow_2016:
           coefficients: {c0: 0.5}
+  
+  # exact JES NP uncertainty injection via alternative sample
+  - name: CMS_scale_j_FlavorPureQuark_up
+    injection:
+      SR_2016:
+        TTLep_pow_2016:
+          sample_name: TTLep_pow_2016_CMS_scale_j_FlavorPureQuark_up
+  
+  # exact renormalization scale uncertainty injection via additional weight
+  - name: mu_ren_up
+    injection:
+      SR_2016:
+        TTLep_pow_2016:
+          weight_branches: [scale_ren2p0_fac1p0]  
 
   # the same point injected through the trained BIT instead (surrogate route),
   # on the *same* truth-mode split -- the control for c0_0p5 (see the plan's
@@ -36,4 +50,4 @@ points:
 # For a per-process rate mismodelling with no rate nuisance to absorb it (a
 # background scaled by e.g. 20%, everything else nominal), see the multi-process
 # example in configs/Eta_unbinned/toys_example.yaml, which has more than one class
-# per region -- this config's SR_2018 region has only TTLep_pow_2018.
+# per region -- this config's SR_2016 region has only TTLep_pow_2016.

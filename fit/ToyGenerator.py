@@ -392,6 +392,9 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         uid_splitter, uid_fields, (lo, hi) = cr._uid_split_interval(splitting_cfg, split)
 
     observer_names = list(dict.fromkeys(required_observers + uid_fields))
+    if source.weight_branches:
+        for weight_branch in source.weight_branches:
+            observer_names.append(weight_branch)
     loader = n2ll.factory.get(sample_name).clone()
     loader.setFeatures(feature_names, observer_names=observer_names)
 
