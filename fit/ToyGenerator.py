@@ -389,7 +389,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
                 f"[toy:{region_id}/{source.class_id}] split='{split}' requested but n2ll has no attached "
                 f"splitting config (ToyGenerator.__main__ sets n2ll._toy_splitting_defaults)."
             )
-        uid_splitter, uid_fields, (lo, hi) = cr._uid_split_interval(splitting_cfg, split)
+        split_names = [split] if isinstance(split, str) else list(split)
+        uid_splitter, uid_fields, (lo, hi) = cr._uid_split_interval(splitting_cfg, *split_names)
 
     observer_names = list(dict.fromkeys(required_observers + uid_fields))
     if source.weight_branches:
@@ -485,7 +486,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 # ============================================================================
 
 def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: np.random.Generator, *,
-                                      split: Optional[str] = "final_eval", hypothesis=None,
+                                      split: tuple[str] | None = ("c2st_train", "c2st_val"), hypothesis=None,
                                       allow_negative_weights: bool = False) -> dict:
     """Multi-process truth-mode unbinned toy (see module docstring / plan
     "Multi-process handling"). Per source (one per class): reconstruct the truth
@@ -537,7 +538,7 @@ def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: n
 # ============================================================================
 
 def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
-                         hypothesis=None, sources=None, split: Optional[str] = "final_eval",
+                         hypothesis=None, sources=None, split: tuple[str] | None = ("c2st_train", "c2st_val"),
                          allow_negative_weights: bool = False) -> dict:
     """Binned toy: N_obs ~ Poisson(lambda) per bin, thrown once per bin (see the
     plan's "Binned" section for why histogram-first is exact and cheaper than
@@ -593,7 +594,7 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
 # ============================================================================
 
 def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_sources=None,
-                  split: Optional[str] = "final_eval", throw_nuisances: bool = False,
+                  split: tuple[str] | None = ("c2st_train", "c2st_val"), throw_nuisances: bool = False,
                   allow_negative_weights: bool = False) -> dict:
     """Generate one full toy (every unbinned + binned region of n2ll's likelihood).
 
@@ -852,18 +853,28 @@ if __name__ == "__main__":
         cache_root=None,
         overwrite=(args.overwrite == "all"),
     )
-    n2ll.shuffle_features = None
-    n2ll.build_cache()
-    n2ll.prepare_runtime()
-    n2ll.version = cfg.get("version")
-    n2ll._toy_splitting_defaults = (cfg.get("defaults") or {}).get("splitting")
-    n2ll._toy_jobs_by_id = {j["id"]: j for j in (cfg.get("jobs") or []) if j.get("id")}
 
     spec = yaml_loader.load_yaml(args.toySpec)
     spec_source = spec.get("source", "cache")
-    spec_split = spec.get("split", "final_eval")
+    spec_split = spec.get("split", ("c2st_train","c2st_val"))
+    if isinstance(spec_split, str):
+        logger.info("spec_split is a string")
+        spec_split = [part.strip() for part in spec_split.split(",") if part.strip()]
+    else:
+        logger.info("spec_split is a list")
     spec_throw_nuisances = bool(spec.get("throw_nuisances", False))
     spec_allow_negative = bool(spec.get("allow_negative_weights", False))
+
+    n2ll.shuffle_features = None
+    if spec_source == "cache":
+        n2ll.build_cache()
+        n2ll.prepare_runtime()
+    else:
+        logger.warning("Running with truth mode, skipping build_cache() and prepare_runtime(). If cache doesn't exist, running with --plot will crash.")
+
+    n2ll.version = cfg.get("version")
+    n2ll._toy_splitting_defaults = (cfg.get("defaults") or {}).get("splitting")
+    n2ll._toy_jobs_by_id = {j["id"]: j for j in (cfg.get("jobs") or []) if j.get("id")}
 
     point = next((pt for pt in (spec.get("points") or []) if pt.get("name") == args.toyPoint), None)
     if point is None:

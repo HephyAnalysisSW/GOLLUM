@@ -10,7 +10,7 @@
 # for the full design.
 
 source: truth              # or cache
-split: final_eval           # truth mode only; null for the whole dataset
+split: [c2st_train, c2st_val]           # truth mode only; null for the whole dataset
 throw_nuisances: false
 allow_negative_weights: true
 

@@ -8,7 +8,7 @@
 #       --seeds 0-499 --outputDir <some output dir>
 
 source: truth
-split: final_eval           # null makes cache-mode-vs-truth-mode pull *widths* comparable (verification 6)
+split: [c2st_train, c2st_val] # null makes cache-mode-vs-truth-mode pull *widths* comparable (verification 6)
 throw_nuisances: true
 allow_negative_weights: false
 
