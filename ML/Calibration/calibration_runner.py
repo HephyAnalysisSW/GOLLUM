@@ -169,6 +169,14 @@ def run_calibration(cfg, job, samples_mod, args, provider):
     required_observers += [f for f in uid_fields if f not in required_observers]
 
     loader.setFeatures(job["features"], observer_names=required_observers)
+
+    # Add selection
+    selection  = job.get("selection", None)
+    selection_features = job.get("selection_features", [])
+    if selection:
+        loader.addSelection( selection, selection_features)
+        logger.info(f"Added selection: {selection}")
+
     feat_names = list(getattr(loader, "feature_names", []) or [])
     if not feat_names:
         raise RuntimeError("Loader has no feature_names.")

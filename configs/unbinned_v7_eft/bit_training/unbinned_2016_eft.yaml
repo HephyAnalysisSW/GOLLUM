@@ -9,10 +9,10 @@ defaults:
     - SPIN_CORRELATION
 
   # added on top of baseline config from loader
-  default_selection: >-
-    (lep0_pt < 350) & (lep1_pt < 350) & (dilep_pt < 400) & (dilep_mass < 800)
-    & (tr_Top_pt < 900) & (tr_AntiTop_pt < 900) & (tr_ttbar_mass < 2000) 
-    & (tr_ttbar_pt < 900)
+  # default_selection: >-
+  #   (lep0_pt < 350) & (lep1_pt < 350) & (dilep_pt < 400) & (dilep_mass < 800)
+  #   & (tr_Top_pt < 900) & (tr_AntiTop_pt < 900) & (tr_ttbar_mass < 2000) 
+  #   & (tr_ttbar_pt < 900)
 
   default_selection_features:
     - lep0_pt
@@ -215,6 +215,83 @@ jobs:
       training_plots: true
     output:
       filename: "bit_TT01j2l_EFT_2016_ctG.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_ctG_sel2
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    
+    selection: >-
+      (lep0_pt < 350) & (lep1_pt < 300) & (dilep_pt < 400) & (dilep_mass < 800)
+      & (tr_Top_pt < 800) & (tr_AntiTop_pt < 800) & (tr_ttbar_mass < 1500) 
+      & (tr_ttbar_pt < 800)
+    numba: True
+    eft: 
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_ctG_sel2.pkl"
+
+  - id: bit_TT01j2l_EFT_RunII_ctG
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_RunII
+    
+    selection: >-
+      (lep0_pt < 350) & (lep1_pt < 350) & (dilep_pt < 400) & (dilep_mass < 800)
+      & (tr_Top_pt < 900) & (tr_AntiTop_pt < 900) & (tr_ttbar_mass < 2000) 
+      & (tr_ttbar_pt < 900)
+    numba: True
+    eft: 
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+      n_split: 9 # nr. of files
+    output:
+      filename: "bit_TT01j2l_EFT_RunII_ctG.pkl"
+
+  - id: bit_TT01j2l_EFT_RunII_ctG_sel2
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_RunII
+    
+    selection: >-
+      (lep0_pt < 350) & (lep1_pt < 300) & (dilep_pt < 400) & (dilep_mass < 800)
+      & (tr_Top_pt < 800) & (tr_AntiTop_pt < 800) & (tr_ttbar_mass < 1500) 
+      & (tr_ttbar_pt < 800)
+    numba: True
+    eft: 
+        parameters: [ctGRe, ctGIm]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    runtime:
+      training_plots: true
+      n_split: 9 # nr. of files
+    output:
+      filename: "bit_TT01j2l_EFT_RunII_ctG_sel2.pkl"
 
   - id: bit_TT01j2l_EFT_2016_nonML4EFTWC
     type: bit

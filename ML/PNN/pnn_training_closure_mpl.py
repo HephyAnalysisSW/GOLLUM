@@ -120,6 +120,12 @@ for i, spec in enumerate(bp_specs):
 
     base.setFeatures(J["features"])
 
+    selection = J.get("selection", None)
+    selection_features = J.get("selection_features", [])
+    if selection:
+        print("Applying selection '%s' with features %s", selection, selection_features)
+        base.addSelection(selection, selection_features)
+        
     remove = list(spec.get("removeweights", []) or [])
     add    = list(spec.get("addweights", []) or [])
 
