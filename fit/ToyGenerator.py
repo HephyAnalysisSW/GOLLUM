@@ -166,6 +166,47 @@ def _rehydrate_cache_by_class(n2ll: N2LL, region_id: str, indices: np.ndarray) -
     return by_class
 
 
+def materialize_cache_region_features(n2ll: N2LL, region_id: str, indices: np.ndarray,
+                                       feature_names: list) -> np.ndarray:
+    """Re-stream a region's Asimov samples once to recover raw feature values at the
+    given cache row indices. Cache-mode toys store only (indices, surrogate columns),
+    not X, to avoid duplicating the surrogate cache -- this is the opt-in, costly path
+    back to raw kinematics, for diagnostic plotting only (see plot/toys).
+
+    `indices` must be sorted ascending (true of both `generate_unbinned_toy_from_cache`'s
+    and `np.unique`'s output) since row extraction relies on a single ordered pass.
+    """
+    region = _find_region(n2ll, region_id)
+    indices = np.asarray(indices, dtype=np.int64)
+    if not np.all(np.diff(indices) >= 0):
+        raise ValueError(f"[toy:plot:{region_id}] indices must be sorted ascending.")
+
+    out = np.empty((len(indices), len(feature_names)), dtype=np.float64)
+    col_positions = None
+    row_ptr = 0
+    global_offset = 0
+    for feat_names, X, _w0 in n2ll._iter_asimov_batches(region):
+        if col_positions is None:
+            pos = {f: i for i, f in enumerate(feat_names)}
+            missing = [f for f in feature_names if f not in pos]
+            if missing:
+                raise KeyError(f"[toy:plot:{region_id}] Feature(s) {missing} not in region samples.")
+            col_positions = [pos[f] for f in feature_names]
+        batch_hi = global_offset + len(X)
+        while row_ptr < len(indices) and indices[row_ptr] < batch_hi:
+            out[row_ptr] = X[indices[row_ptr] - global_offset, col_positions]
+            row_ptr += 1
+        global_offset = batch_hi
+        if row_ptr >= len(indices):
+            break
+    if row_ptr < len(indices):
+        raise RuntimeError(
+            f"[toy:plot:{region_id}] {len(indices) - row_ptr} indices exceeded the re-streamed "
+            f"event count ({global_offset}); does the toy's cache match this config's samples?"
+        )
+    return out
+
+
 # ============================================================================
 # truth-mode: resolving sources, feature union, per-source truth weights
 # ============================================================================
@@ -727,6 +768,11 @@ if __name__ == "__main__":
     p.add_argument("--outputDir", required=True, help="Directory to write <point>_toy<seed>.h5 files")
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
                    help="Overwrite the surrogate cache ('all') before generating.")
+    p.add_argument("--plot", action="store_true",
+                   help="After generating, write per-feature diagnostic plots (config's "
+                        "default_features, overlaid across the requested seeds) under "
+                        "<plot_directory>/toys/<version>/<point>/. Cache-mode toys pay the "
+                        "cost of re-streaming the raw samples once to recover kinematics.")
     args = p.parse_args()
 
     list_configs = []
@@ -779,6 +825,7 @@ if __name__ == "__main__":
 
     seeds = _parse_seeds(args.seeds)
     os.makedirs(args.outputDir, exist_ok=True)
+    generated_toys = []
     for seed in seeds:
         toy = generate_toy(
             n2ll, seed, source=spec_source, hypothesis=hypothesis, truth_sources=truth_sources,
@@ -787,3 +834,15 @@ if __name__ == "__main__":
         toy["point"] = args.toyPoint
         out_path = os.path.join(args.outputDir, f"{args.toyPoint}_toy{seed}.h5")
         save_toy(out_path, toy)
+        generated_toys.append(toy)
+
+    if args.plot:
+        if not features:
+            raise RuntimeError("--plot requires defaults.default_features to be set in the config.")
+        import common.user as user
+        import common.syncer as syncer
+        from plot.toys.toy_diagnostic_plots import plot_toy_feature_distributions
+
+        plot_dir = os.path.join(user.plot_directory, "toys", str(cfg.get("version")), args.toyPoint)
+        plot_toy_feature_distributions(n2ll, generated_toys, features, plot_dir)
+        syncer.sync()
