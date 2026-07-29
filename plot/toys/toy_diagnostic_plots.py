@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 hep.style.use("CMS")
 
+from common.helpers import copyIndexPHP
 
 def _hypothesis_from_toy(n2ll, toy: dict):
     """Rebuild the generation Hypothesis from a toy's stored {name: value} dict
@@ -142,6 +143,7 @@ def plot_toy_feature_distributions(n2ll, toys: list, feature_names: list, out_di
             continue
 
         region_dir = os.path.join(out_dir, rid)
+        copyIndexPHP(region_dir)
         os.makedirs(region_dir, exist_ok=True)
         for i_feat, feat in enumerate(available):
             n_bins, x_lo, x_hi = plot_opts[feat]["binning"]
