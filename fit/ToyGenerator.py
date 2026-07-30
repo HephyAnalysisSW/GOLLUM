@@ -893,7 +893,7 @@ if __name__ == "__main__":
             split=spec_split, throw_nuisances=spec_throw_nuisances, allow_negative_weights=spec_allow_negative,
         )
         toy["point"] = args.toyPoint
-        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_toy{seed}.h5")
+        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_{spec_source}_toy{seed}.h5")
         save_toy(out_path, toy)
         generated_toys.append(toy)
 

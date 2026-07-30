@@ -2537,8 +2537,9 @@ if __name__ == "__main__":
         with h5py.File(args.toyFile, "r") as _toy_meta_f:
             _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
             _toy_seed = int(_toy_meta_f["meta"].attrs["seed"])
-        suffix += f"_{_toy_point}_toy{_toy_seed}"
-        print(f"Fitting to toy '{_toy_point}' seed {_toy_seed} from {args.toyFile}")
+            _toy_source = str(_toy_meta_f["meta"].attrs.get("source", ""))
+        suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
+        print(f"Fitting to toy '{_toy_point}' seed {_toy_seed} from {args.toyFile} (source: {_toy_source})")
 
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
