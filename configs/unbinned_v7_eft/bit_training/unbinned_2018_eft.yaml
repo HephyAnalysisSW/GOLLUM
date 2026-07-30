@@ -81,6 +81,7 @@ jobs:
       quantile_bins: true
     runtime:
       training_plots: true
+      n_split: 3
     output:
       filename: "bit_TT01j2l_EFT_2018_allWC.pkl"
 
@@ -102,6 +103,7 @@ jobs:
       quantile_bins: true
     runtime:
       training_plots: true
+      n_split: 3
     output:
       filename: "bit_TT01j2l_EFT_2018_ML4EFTWC.pkl"
 
@@ -123,5 +125,6 @@ jobs:
       quantile_bins: true
     runtime:
       training_plots: true
+      n_split: 3
     output:
       filename: "bit_TT01j2l_EFT_2018_nonML4EFTWC.pkl"

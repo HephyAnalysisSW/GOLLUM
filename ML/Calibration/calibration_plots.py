@@ -71,9 +71,8 @@ def load_cfg_and_job(args):
         if not jobs:
             print("No BIT jobs found.")
             sys.exit(0)
-        script = os.path.basename(sys.argv[0])
         for j in jobs:
-            print(f"python {script} {args.config} --job {j['id']}")
+            print(f"python {__file__} {args.config} --job {j['id']}")
         sys.exit(0)
 
     job = next((j for j in (cfg.get("jobs") or []) if j.get("id") == args.job), None)

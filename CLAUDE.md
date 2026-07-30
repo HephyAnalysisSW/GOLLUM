@@ -42,7 +42,10 @@ python ML/ICP/icp_training.py configs/... --job <job_id>
 # Closure test (PNN)
 python ML/PNN/pnn_training_closure_mpl.py configs/unbinned_v6/unbinned_2018.yaml --job <job_id>
 python ML/TFMC/tfmc_training_closure_mpl.py configs/... --job <job_id>
+python ML/ICPH/icph_closure_mpl.py configs/... --job <job_id>
 ```
+
+`ML/IC/ic_training.py` still exists but IC is deprecated — don't train new IC jobs.
 
 Common flags: `--overwrite` (rewrite model dir), `--small` (debug with first shard only), `--epochs N`.
 
@@ -140,6 +143,25 @@ plt.savefig(os.path.join(plot_dir, "figure.png"))
 ```
 `syncer` registers an `atexit` hook that uploads files under `www/` to CERN EOS via `xrdcp`. Requires `$CERN_USER` in the environment.
 
+## Code simplicity
+
+Over-complex code is a failure mode I care about. Simple and wrong is
+cheap to fix; complex and wrong has to be understood before it can be fixed.
+
+- Write the simplest thing that handles the case in front of you. Not the case
+  you can imagine arriving later.
+- Before adding a parameter, flag, config option, class, or helper that I did
+  not ask for, say why the version without it fails. If you cannot name a
+  concrete failure, don't add it.
+- Don't generalize past the data. If the array is always 2D here, write the 2D
+  version.
+- A function until proven otherwise. Reach for a class when there is state that
+  genuinely outlives a call.
+- Match the size of the change to the size of the request. If I asked you to fix
+  one function, don't restructure the module around it.
+- If the simple version has a real drawback, write the simple version and tell
+  me the drawback in one line. Don't pre-emptively engineer around it.
+
 ## Code style
 
 - Type hints where they don't bulk the code; spaces for indentation (no tabs).
@@ -153,6 +175,9 @@ plt.savefig(os.path.join(plot_dir, "figure.png"))
 - Don't use shorthand naming for variables that are not auxiliary variables. Be verbose but no more than three words.
 - Use ascii characters only, and e.g. write lambda explicitly instead of the lambda character.
 - Don't give a random name to plan files. The plan file name should be a shorthand for what is being implemented.
+- Plans live in `user/<name>/claude/`.
+- Keep rejected alternatives and their rationale in a separate `*-design-decisions.md` alongside the plan: the plan goes stale once implemented, the decision record does not, and the implementer doesn't need it.
+- When developing code, use worktrees, putting each individual new functionality or change to pieces of individual functionality into separate commits.
 
 ## Non-obvious design decisions
 
@@ -169,6 +194,7 @@ These look wrong to a fresh reader but are correct for this codebase — don't "
 - **PNN and Scaler must share the same feature list**: enforced in `yaml_loader._apply_defaults_and_checks()`. If a PNN job references a scaler via `extras.use_scaler`, both must have identical `features` (easiest to achieve by relying on `defaults.default_features` for both).
 - **`combine_configs()` requires identical `version` and `defaults` across all merged configs**: the surrogate loader uses `version` to locate model directories; a mismatch raises immediately.
 - **Region IDs and job IDs must be globally unique** within a merged config. Use era-suffixed IDs everywhere (e.g. `SR_2018`, `pnn_TTLep_pow_2018_PU`).
+- **Wrong statistics code produces plausible output.** A mis-ordered derivative contraction, a dropped Taylor factor, or pseudo-data drawn from the wrong distribution still yields smooth pulls, sensible-looking coverage and publishable plots. No downstream check catches it. When refactoring numerics, capture reference output *before* the change and assert exact equality after. A failing exact-equality check is a hard stop, never a tolerance to loosen.
 
 ## Physics and statistical context
 

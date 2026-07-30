@@ -10,10 +10,16 @@ from data.RDataLoader import RDataLoader
 import common.user as user
 import observables
 from data.plot_options import plot_options
-from typing import Optional
+from typing import Optional, List
+from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
 
+# used in EFT sample factory class
+from data.samples_RunII import Factory as Factory_RunII
+from data.samples_RunII import BASE_DIRECTORY as BASE_DIRECTORY_RUNII
 
-BASE_DIRECTORY = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2_nJ2p_nB2p_2l"
+BASE_DIRECTORY_EFT = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2_nJ2p_nB2p_2l"
 
 # no longer needed since lumi normalization is done at cmgrdf level
 # LUMI = {
@@ -71,7 +77,7 @@ observers = [
 def _eft_loader(*relpaths: str) -> RDataLoader:
 
     loader = RDataLoader(
-        input_paths=[os.path.join(BASE_DIRECTORY, relpath) for relpath in relpaths],
+        input_paths=[os.path.join(BASE_DIRECTORY_EFT, relpath) for relpath in relpaths],
         tree_name="Events",
         branches=observables.ALL_FEATURES + observers,
         selection=None,
@@ -183,11 +189,73 @@ TT01j2l_EFT_RunII = _eft_loader(
     "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
 )
 
+# Factory class to allow running fits with EFT samples (closure studies) and mixing EFT samples with Run 2 samples
+class Factory:
+
+    def __init__( self, 
+            BASE_DIRECTORY: str = BASE_DIRECTORY_EFT,
+            features: Optional[List[str]] = None,
+            selection: Optional[str] = None,
+            selection_features: Optional[List[str]] = None,
+            ):
+        if type(BASE_DIRECTORY) == str:
+            self.BASE_DIRECTORY = Path(BASE_DIRECTORY)
+        else:
+            self.BASE_DIRECTORY = BASE_DIRECTORY
+
+        self.features = features
+        self.selection = selection
+        self.selection_features = selection_features
+
+        self.Factory_RunII = Factory_RunII(BASE_DIRECTORY_RUNII,
+                                           self.features,
+                                           self.selection,
+                                           self.selection_features)
+    
+    def get(self, process: str, era: Optional[str] = None, tag: Optional[str] = None) -> RDataLoader:
+
+        loader = None
+        if era is None and tag is None:
+            try:
+                loader = globals()[process]
+                if self.features:
+                    loader.setFeatures( self.features )
+                if self.selection:
+                    loader.addSelection( self.selection, required_branches = self.selection_features )
+                return loader             
+            except KeyError:
+                logger.debug(f"EFT loader with name {process} not found! Reverting to Run 2 sample module.")
+                loader = self.Factory_RunII.get(process)
+                return loader
+        else:
+            logger.debug("Asking for era and tag, only available for Run 2 sample module.")
+            loader = self.Factory_RunII.get(process, era, tag)
+            return loader
+
+
 if __name__ == "__main__":
 
     # lower triangular matrix of derivatives
     print(eft_derivatives)
 
-    print("Base:_nominal.root", TT01j2l_EFT_2018_mtt_0to700)
-    F, O, W = TT01j2l_EFT_2018_mtt_0to700.materialize(0, "fow")
+    base_loader = TT01j2l_EFT_2016_mtt_0to700
+    print("Base:_nominal.root", base_loader)
+    F, O, W = base_loader.materialize(0, "fow")
     print("Shapes:_nominal.root", F.shape, O.shape, W.shape)
+
+    factory = Factory(
+        features=base_loader.feature_names,
+        selection=base_loader.selection,
+        selection_features=base_loader.feature_names
+    )
+
+    L_EFT = factory.get("TT01j2l_EFT_2016")
+    F, O, W = L_EFT.materialize(0, "fow")
+    print("Shapes:L_EFT.root", F.shape, O.shape, W.shape)
+    print("w[:5]",W[:5])
+
+    L_from_samples_RunII = factory.get("TTLep_pow_2016")
+    F, O, W = L_from_samples_RunII.materialize(0, "fow")
+    print(L_from_samples_RunII)
+    print("Shapes:L_from_samples_RunII.root", F.shape, O.shape, W.shape)
+    print("w[:5]",W[:5])
