@@ -1,0 +1,69 @@
+# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2016.yaml.
+#
+#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2016.yaml \
+#       --toySpec configs/unbinned_v6/toys_example.yaml --toyPoint c0_0p5_bit \
+#       --seeds 0-499 --outputDir <some output dir>
+#
+# The spec defines the ensemble (source, split, which points); the CLI only
+# selects which point and which seed(s) to generate, and where to write the
+# result. See user/ricardo/claude/plans/toy-generation-for-pseudo-experiments.md
+# for the full design.
+
+source: truth              # or cache
+split: [pnn_train, pnn_val, c2st_train, c2st_val] # partitions to use, truth mode only; null for the whole dataset
+throw_nuisances: false
+allow_negative_weights: true
+
+points:
+  # nominal truth-mode toy: no modifiers, no hypothesis -- the surrogate-correct
+  # limit, useful as the mean-pull baseline for verification 6.
+  - name: nominal
+
+  # exact PDF weight injection at ctGRe=0.5, generated from generator-level info.
+  - name: ctGRe_0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: 0.5}
+
+  - name: ctGRe_m0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: -0.5}
+
+  - name: ctGIm_0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGIm: 0.5}
+
+  - name: ctGIm_m0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGIm: -0.5}   
+
+  - name: ctGRe_ctGIm_0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: 0.5, ctGIm: 0.5}                            
+
+  - name: ctGRe_ctGIm_m0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: -0.5, ctGIm: -0.5}
+
+  - name: ctGRe_0p5_ctGIm_m0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: 0.5, ctGIm: -0.5}
+
+  - name: ctGRe_m0p5_ctGIm_0p5
+    injection:
+      SR_2016:
+        TT01j2l_EFT_2016:
+          coefficients: {ctGRe: -0.5, ctGIm: 0.5}

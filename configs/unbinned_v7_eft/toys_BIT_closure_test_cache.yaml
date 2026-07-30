@@ -1,0 +1,19 @@
+# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2016.yaml.
+#
+#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2016.yaml \
+#       --toySpec configs/unbinned_v6/toys_example.yaml --toyPoint c0_0p5_bit \
+#       --seeds 0-499 --outputDir <some output dir>
+#
+# The spec defines the ensemble (source, split, which points); the CLI only
+# selects which point and which seed(s) to generate, and where to write the
+# result. See user/ricardo/claude/plans/toy-generation-for-pseudo-experiments.md
+# for the full design.
+
+source: cache              # or cache
+split: null # partitions to use, truth mode only; null for the whole dataset
+throw_nuisances: false
+allow_negative_weights: true
+
+points:
+  # nominal cache-mode toy
+  - name: nominal
