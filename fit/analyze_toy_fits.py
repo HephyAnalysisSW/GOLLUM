@@ -48,7 +48,7 @@ def load_groups(input_dir: str) -> dict:
 
     Returns {(point, source): list of fit payloads}. Fits without a 'toy' block
     are a hard error: they carry no injected truth, so pulls cannot be formed.
-    Run user/ricardo/scripts/backfill_toy_info.py on older outputs first.
+    Re-run fit/Likelihood.py --toyFile, which writes the 'toy' block directly.
     """
     fit_paths = sorted(glob.glob(os.path.join(input_dir, "**", "*_toy*_fit.json"), recursive=True))
     groups = {}
@@ -56,7 +56,7 @@ def load_groups(input_dir: str) -> dict:
         with open(fit_path) as fit_file:
             payload = json.load(fit_file)
         if "toy" not in payload:
-            raise RuntimeError(f"{fit_path} has no 'toy' block; run backfill_toy_info.py first.")
+            raise RuntimeError(f"{fit_path} has no 'toy' block; regenerate this fit with fit/Likelihood.py.")
         groups.setdefault((payload["toy"]["point"], payload["toy"]["source"]), []).append(payload)
     return groups
 
