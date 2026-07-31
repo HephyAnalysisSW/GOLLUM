@@ -669,6 +669,12 @@ class N2LL:
                     if poi_type == "bit" and not poi_names:
                         print(f"[N2LL] No POI parameter names for {rid}/{cid}")
 
+                    # The BIT alphabetizes its derivative columns (GpuMultiNode.py:293-297),
+                    # so its R_A order is sorted, not the config order. c_A is built from
+                    # this list and contracted positionally against those columns, so it
+                    # must be sorted too -- otherwise the operators are silently permuted.
+                    poi_names = sorted(poi_names)
+
                 self._poi_order[key] = poi_names
                 self._rate_shift_by_class[key] = rate_shift_param
 
