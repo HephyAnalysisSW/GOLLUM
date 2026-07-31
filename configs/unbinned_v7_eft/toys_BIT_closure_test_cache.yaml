@@ -17,3 +17,33 @@ allow_negative_weights: true
 points:
   # nominal cache-mode toy
   - name: nominal
+
+  - name: ctGRe_0p5
+    hypothesis: {ctGRe: 0.5}
+
+  - name: ctGRe_m0p5
+    hypothesis: {ctGRe: -0.5}
+
+  - name: ctGRe_0p5
+    hypothesis: {ctGRe: 0.5}
+ 
+  - name: ctGRe_m0p5
+    hypothesis: {ctGRe: -0.5}
+
+  - name: ctGIm_0p5
+    hypothesis: {ctGIm: 0.5}
+
+  - name: ctGIm_m0p5
+    hypothesis: {ctGIm: -0.5}   
+
+  - name: ctGRe_ctGIm_0p5
+    hypothesis: {ctGRe: 0.5, ctGIm: 0.5}                            
+
+  - name: ctGRe_ctGIm_m0p5
+    hypothesis: {ctGRe: -0.5, ctGIm: -0.5}
+
+  - name: ctGRe_0p5_ctGIm_m0p5
+    hypothesis: {ctGRe: 0.5, ctGIm: -0.5}
+
+  - name: ctGRe_m0p5_ctGIm_0p5
+    hypothesis: {ctGRe: -0.5, ctGIm: 0.5}
