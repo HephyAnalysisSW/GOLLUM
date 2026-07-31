@@ -8,6 +8,103 @@ end so the history doesn't only live in chat.
 Branch: `toy-generation-for-pseudo-experiments`, worktree at
 `/users/ricardo.barrue/nsbi_gluon_pdf/GOLLUM-toygen`.
 
+## Landed (2026-07-31)
+
+Root cause found for the "truth toys land in the wrong operator"
+symptom reported in the 1000-toy EFT campaign (`output_SBIEFT/`,
+`configs/unbinned_v7_eft/unbinned_2016_eft.yaml`, POIs
+`ctGIm`/`ctGRe`): `source=truth` toys came back with the injection on
+the wrong operator (inject `ctGIm=0.5`, fit returns `ctGRe=0.435`);
+`source=cache` toys looked fine.
+
+- **Root cause, confirmed against the trained artifact
+  (`bit_TT01j2l_EFT_2016_ctG.pkl`)**: `ML/BIT/GpuMultiNode.py:293-297`
+  alphabetizes the BIT's `R_A` derivative columns
+  (`self.coefficients = sorted(...)`), independent of the config's
+  `POI.parameters` order (`[ctGRe, ctGIm]` throughout this config).
+  `N2LL._poi_order` (`fit/Likelihood.py`) took POI order straight from
+  the config, and `c_A` was built in that order and contracted
+  positionally against the BIT's alphabetical columns -- silently
+  swapping the operators for any config whose POI list isn't already
+  alphabetical. Training itself is correct: every binding inside the
+  BIT (`weight_views`, the `training_weights[der]` lookup, `predict`'s
+  `derivatives[1:]`) is keyed by name, never positional, so the node
+  in the `('ctGRe',)` slot really does predict the ctGRe derivative,
+  and the artifact labels its own columns correctly (`derivatives`
+  attribute on the pickled `MultiBoostedInformationTree`). The fit
+  just never read that label.
+  - Explains the cache/truth asymmetry: cache-mode generation uses the
+    same swapped `_assemble_cA_per_class` the fit uses, so a file
+    labelled `ctGRe_0p5` was generated with ctGIm=0.5 physics --
+    cancels exactly against the equally-swapped fit. Truth-mode
+    generation bypasses the surrogate (`EFTWeightInterface.
+    make_weight_matrix`, config order throughout), so the fit's
+    swapped contraction was exposed as a clean operator swap.
+  - **Not** `pois_list = sorted(all_pois)` at the old
+    `fit/Likelihood.py:319` (`build_hypothesis_from_likelihood`'s
+    input) -- traced every downstream path (`_assemble_cA_per_class`,
+    `_assemble_c_vector_for_ich`, `_hypothesis_from_point`, the Minuit
+    wrapper, `Rotated.set_vector`) and all of them key by name. That
+    line is still a latent hazard (`c10` sorts before `c2`) but did
+    not produce this symptom.
+- **Fix, `fit/Likelihood.py`**: sort `poi_names` before it's stored in
+  `_poi_order`, matching the BIT's own alphabetization, with a comment
+  pointing at `GpuMultiNode.py:293-297`. Deliberately not a rename/
+  lookup of `predictor.derivatives` -- `sorted()` on the same string
+  set as the BIT used is definitionally the same order, no need to
+  read it back off the artifact.
+- **Companion fixes, `fit/ToyGenerator.py`** (both required once
+  `_poi_order` is sorted instead of config-order):
+  - `_materialize_truth_weights`'s provider/class POI guard compared
+    exact lists (`list(provider.parameters) != list(expected_poi_order)`);
+    with `_poi_order` now sorted and `provider.parameters` still in
+    config order, every truth-mode toy using `coefficients` would
+    raise. Changed to a set comparison -- the truth route evaluates
+    `make_weight_matrix` and `expand_pois_linear_quadratic` both in
+    `provider.parameters` order consistently, so it's self-consistent
+    in any order; only the operator *set* needs to match.
+  - `generate_toy` recorded `meta.attrs['hypothesis']` from
+    `gen_hypothesis` alone, which stays nominal for a point that
+    injects via `ProcessSource.coefficients` (`injection:` with no
+    `hypothesis:` key -- the shape every point in
+    `toys_BIT_closure_test_all.yaml` uses). This is the second,
+    independent bug from the handoff: truth toy HDF5s recorded
+    `{"ctGIm": 0.0, "ctGRe": 0.0}` regardless of point. Now folds the
+    injected coefficients into the recorded dict, raising on
+    conflicting values across regions/sources. Verified in isolation
+    against the exact `ProcessSource` shapes from the closure-test
+    spec (single-operator, two-operator, and a manufactured
+    conflicting-value case).
+- **Removed**: `user/ricardo/scripts/backfill_toy_info.py` -- every
+  existing toy fit under `output_SBIEFT/` needs re-running anyway
+  (cache toys need regenerating with correct physics; truth toys need
+  re-fitting with the corrected contraction), so there's nothing left
+  to backfill. `fit/analyze_toy_fits.py`'s error message now points at
+  re-running the fit instead.
+- Commits: `6929d8e` (Likelihood.py fix), `4e68868` (ToyGenerator.py
+  companion fixes), `ed0341a` (backfill script removal).
+
+### What this means for the existing 1000-toy campaign
+
+- **Truth toys**: physically correct as generated (injection went
+  through `make_weight_matrix` in config order against config-ordered
+  columns, self-consistent) -- re-fit the existing HDF5s, no need to
+  regenerate.
+- **Cache toys**: must be regenerated, not just re-fitted. A file
+  labelled `ctGRe_0p5` contains ctGIm=0.5 physics; re-fitting it as-is
+  with the corrected contraction will now report ctGIm=0.5, i.e. it
+  will look swapped in the *other* direction until regenerated.
+- **All existing EFT fits to data/Asimov** (not just toys) carry the
+  same swap: what was reported as the `ctGRe` constraint was actually
+  the `ctGIm` constraint, and vice versa.
+- **Not checked**: whether the binned ICH path (`_poi_order` set
+  separately at `Likelihood.py:1024` from its own artifact) has the
+  same alphabetization issue in its stored parameter order. Worth
+  confirming before trusting a binned EFT cross-check.
+- **Not checked**: downstream consumers that may assume alphabetical
+  POI order regardless -- `orth/` rotate JSONs, POD basis ordering,
+  `fit/MultiDimFit.py`.
+
 ## Landed (2026-07-29)
 
 - `f265664` -- `--plot` flag on `fit/ToyGenerator.py`: after generating a

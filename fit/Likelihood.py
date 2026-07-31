@@ -2523,7 +2523,6 @@ if __name__ == "__main__":
             )
 
     # -------- paths (fit + plots) --------
-    from common.user import plot_directory
     import common.user as user
     
     # base from mangling together configs or given by user
@@ -2549,6 +2548,7 @@ if __name__ == "__main__":
         suffix += "_data"
         print("Fitting to data!")
     toy_info = None
+    out_path = user.output_directory
     if args.toyFile:
         with h5py.File(args.toyFile, "r") as _toy_meta_f:
             _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
@@ -2558,12 +2558,18 @@ if __name__ == "__main__":
         toy_info = {"point": _toy_point, "source": _toy_source,
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
+        # storing many toy fit results in their own folder
+        out_path = os.path.join(out_path, f"{base}_{_toy_point}_{_toy_source}_toy_fits")
         print(f"Fitting to toy '{_toy_point}' seed {_toy_seed} from {args.toyFile} (source: {_toy_source})")
 
-    os.makedirs(user.output_directory, exist_ok=True)
-    out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
+    os.makedirs(out_path, exist_ok=True)
+    out_path = os.path.join(out_path, f"{base}_{version}{suffix}_fit.json")
 
-    plot_dir = os.path.join(plot_directory, "likelihood_fit", base, f"{version}{suffix}")
+    plot_dir = os.path.join(user.plot_directory, "likelihood_fit", base)
+    if toy_info:
+        plot_dir = os.path.join(f"{toy_info['point']}_{toy_info['source']}_toy_fits")
+    
+    plot_dir = os.path.join(plot_dir, f"{version}{suffix}")
     os.makedirs(plot_dir, exist_ok=True)
 
     overwrite_fit = args.overwrite in ("fit", "all")
