@@ -372,11 +372,16 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         from common.derivative_providers import build_derivative_provider
         job = _class_bit_job(n2ll, region_id, source.class_id)
         provider = build_derivative_provider(job)
-        expected_poi_order = n2ll._poi_order.get((region_id, source.class_id), [])
-        if expected_poi_order and list(provider.parameters) != list(expected_poi_order):
+        # Set, not order: n2ll._poi_order is the fit's R_A column order (sorted, to match
+        # the BIT's own alphabetized derivative columns -- see Likelihood.py). The truth
+        # route below evaluates make_weight_matrix / expand_pois_linear_quadratic both in
+        # provider.parameters order, so it is internally consistent in any order; only the
+        # operator *set* has to agree with what the fit expects for this class.
+        expected_pois = n2ll._poi_order.get((region_id, source.class_id), [])
+        if expected_pois and set(provider.parameters) != set(expected_pois):
             raise RuntimeError(
-                f"[toy:{region_id}/{source.class_id}] provider POI order {provider.parameters} "
-                f"!= class POI order {expected_poi_order}."
+                f"[toy:{region_id}/{source.class_id}] provider POIs {sorted(provider.parameters)} "
+                f"!= class POIs {sorted(expected_pois)}."
             )
         required_observers = list(provider.required_observers)
 
@@ -648,10 +653,27 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
             )
         binned_counts[rid] = toy["counts"]
 
+    # gen_hypothesis only carries the surrogate-route injection (or nominal, if none was
+    # given). A coefficients-route injection (ProcessSource.coefficients, e.g. a point with
+    # `injection:` and no `hypothesis:`) never touches gen_hypothesis, so on its own the
+    # recorded metadata would read nominal regardless of what was actually injected. Fold
+    # those coefficients in for the record.
+    recorded_hypothesis = {p.name: float(p.val) for p in gen_hypothesis.parameters}
+    if source == "truth" and truth_sources:
+        for region_sources in truth_sources.values():
+            for src in region_sources:
+                for name, val in (src.coefficients or {}).items():
+                    prior = recorded_hypothesis.get(name)
+                    if prior is not None and prior != 0.0 and prior != float(val):
+                        raise RuntimeError(
+                            f"[toy] Conflicting injected value for '{name}': {prior} vs {val}."
+                        )
+                    recorded_hypothesis[name] = float(val)
+
     return {
         "seed": int(seed),
         "source": source,
-        "hypothesis": {p.name: float(p.val) for p in gen_hypothesis.parameters},
+        "hypothesis": recorded_hypothesis,
         "constraint_centers": constraint_centers,
         "unbinned_blocks": unbinned_blocks,
         "binned_counts": binned_counts,
