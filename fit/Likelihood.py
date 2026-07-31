@@ -2197,7 +2197,14 @@ def run_autograd_fit(n2ll, hypothesis, *, step=None, print_every=25,
         jac=jac_best,
     )
 
-def serialize_result(m, base, version, args, out_path ):
+def serialize_result(m, base, version, args, out_path, toy_info=None ):
+    """Write the fit result (values, errors, covariance) to JSON.
+
+    'toy_info' carries the provenance of the toy dataset that was fitted
+    (point, source, seed and the injected hypothesis), so downstream toy
+    studies can compute pulls without reopening the toy HDF5. It is None
+    for fits to data or Asimov.
+    """
 
     result_payload = {
         "config_basename": base,
@@ -2221,6 +2228,8 @@ def serialize_result(m, base, version, args, out_path ):
             "matrix": np.asarray(m.covariance.correlation()).tolist(),
         },
     }
+    if toy_info is not None:
+        result_payload["toy"] = toy_info
     with open(out_path, "w") as f:
         json.dump(result_payload, f, indent=2)
 
@@ -2533,11 +2542,15 @@ if __name__ == "__main__":
     if args.data:
         suffix += "_data"
         print("Fitting to data!")
+    toy_info = None
     if args.toyFile:
         with h5py.File(args.toyFile, "r") as _toy_meta_f:
             _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
             _toy_seed = int(_toy_meta_f["meta"].attrs["seed"])
             _toy_source = str(_toy_meta_f["meta"].attrs.get("source", ""))
+            _toy_hypothesis = json.loads(str(_toy_meta_f["meta"].attrs["hypothesis"]))
+        toy_info = {"point": _toy_point, "source": _toy_source,
+                    "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         print(f"Fitting to toy '{_toy_point}' seed {_toy_seed} from {args.toyFile} (source: {_toy_source})")
 
@@ -2740,7 +2753,7 @@ if __name__ == "__main__":
                     verbosity=args.verbosity,
                 )
 
-                serialize_result(m, base, version, args, out_path)
+                serialize_result(m, base, version, args, out_path, toy_info=toy_info)
                 fit = json.load(open(out_path))
 
             print("Best -2logL =", fit["fval"])
