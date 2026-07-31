@@ -312,5 +312,4 @@ classifier/BIT/PNN predictors, fabricated cache arrays) instead:
   - 2026-07-30:
     - checking/building cache for truth-mode runs to avoid crash when plotting
       due to missing nominal cache weights
-
-
+    - passing weight_rescale in RDataLoader.clone(), noticed when creating EFT toys
