@@ -866,11 +866,8 @@ if __name__ == "__main__":
     spec_allow_negative = bool(spec.get("allow_negative_weights", False))
 
     n2ll.shuffle_features = None
-    if spec_source == "cache":
-        n2ll.build_cache()
-        n2ll.prepare_runtime()
-    else:
-        logger.warning("Running with truth mode, skipping build_cache() and prepare_runtime(). If cache doesn't exist, running with --plot will crash.")
+    n2ll.build_cache()
+    n2ll.prepare_runtime()
 
     n2ll.version = cfg.get("version")
     n2ll._toy_splitting_defaults = (cfg.get("defaults") or {}).get("splitting")

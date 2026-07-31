@@ -309,5 +309,8 @@ classifier/BIT/PNN predictors, fabricated cache arrays) instead:
       or additional weights (e.g. QCD scales). The latter required adding the
       additional weight branches to the list of observers in the toy generator.
     - Minuit fits with truth-mode toys are still crashing. Will debug later.
+  - 2026-07-30:
+    - checking/building cache for truth-mode runs to avoid crash when plotting
+      due to missing nominal cache weights
 
 
