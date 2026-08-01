@@ -839,8 +839,8 @@ if __name__ == "__main__":
     p.add_argument("--toyPoint", required=True, help="Name of the point in the spec to generate")
     p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12'")
     p.add_argument("--outputDir", required=True, help="Directory to write <point>_toy<seed>.h5 files")
-    p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
-                   help="Overwrite the surrogate cache ('all') before generating.")
+    p.add_argument("--overwrite", nargs="?", default=None, choices=["toy", "all"],
+                   help="Overwrite the toys ('toy') and surrogate cache ('all') before generating.")
     p.add_argument("--plot", action="store_true",
                    help="After generating, write per-feature diagnostic plots (config's "
                         "default_features, overlaid across the requested seeds) under "
@@ -907,12 +907,16 @@ if __name__ == "__main__":
     os.makedirs(args.outputDir, exist_ok=True)
     generated_toys = []
     for seed in seeds:
+        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_{spec_source}_toy{seed}.h5")
+        if os.path.exists(out_path) and not args.overwrite:
+            logger.info(f"{out_path} exists and did not ask to overwrite. Skipping generation.")
+            continue
+        
         toy = generate_toy(
             n2ll, seed, source=spec_source, hypothesis=hypothesis, truth_sources=truth_sources,
             split=spec_split, throw_nuisances=spec_throw_nuisances, allow_negative_weights=spec_allow_negative,
         )
         toy["point"] = args.toyPoint
-        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_{spec_source}_toy{seed}.h5")
         save_toy(out_path, toy)
         generated_toys.append(toy)
 
