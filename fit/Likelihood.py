@@ -2567,7 +2567,7 @@ if __name__ == "__main__":
 
     plot_dir = os.path.join(user.plot_directory, "likelihood_fit", base)
     if toy_info:
-        plot_dir = os.path.join(f"{toy_info['point']}_{toy_info['source']}_toy_fits")
+        plot_dir = os.path.join(plot_dir, f"{toy_info['point']}_{toy_info['source']}_toy_fits")
     
     plot_dir = os.path.join(plot_dir, f"{version}{suffix}")
     os.makedirs(plot_dir, exist_ok=True)
