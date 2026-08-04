@@ -125,7 +125,7 @@ def _compute_cache_intensity(n2ll: N2LL, region_id: str, hypothesis) -> np.ndarr
 
 
 def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng: np.random.Generator,
-                                      *, allow_negative_weights: bool = False) -> dict:
+                                      *, allow_negative_weights: bool = False, debug=False) -> dict:
     """Cache-mode unbinned toy: n_i ~ Poisson(w0_i * (1 + T_i(hypothesis))) over the
     whole cached MC (no UID split -- see the plan's "UID splitting" section for why
     cache mode uses everything).
@@ -140,17 +140,20 @@ def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng
 
     Returns row indices and multiplicities for n_i > 0 (not sliced columns -- the
     surrogate columns are verbatim cache slices, rehydrated by `load_toy`).
+
+    With debug=True also return the BIT-reweighted weights before clipping,
+    for inspection as part of diagnostics suite.
     """
     N = n2ll._N_region.get(region_id, 0)
     if N == 0:
         return {"indices": np.empty(0, dtype=np.int64), "n": np.empty(0, dtype=np.float64)}
 
-    lam = _compute_cache_intensity(n2ll, region_id, hypothesis)
+    w_cache_all = w_cache = _compute_cache_intensity(n2ll, region_id, hypothesis)
 
-    neg = lam < 0.0
+    neg = w_cache < 0.0
     n_neg = int(np.sum(neg))
     if n_neg > 0:
-        neg_weight_sum = float(np.sum(lam[neg]))
+        neg_weight_sum = float(np.sum(w_cache[neg]))
         if not allow_negative_weights:
             raise RuntimeError(
                 f"[toy:cache:{region_id}] {n_neg}/{N} events ({n_neg / N:.4%}) have negative intensity "
@@ -159,11 +162,17 @@ def generate_unbinned_toy_from_cache(n2ll: N2LL, region_id: str, hypothesis, rng
             )
         logger.info("[toy:cache:%s] clipping %d/%d negative-intensity events (summed %.4g) to zero.",
                     region_id, n_neg, N, neg_weight_sum)
-        lam = np.where(neg, 0.0, lam)
+        w_cache = np.where(neg, 0.0, w_cache)
 
-    n_i = rng.poisson(lam)
+    n_i = rng.poisson(w_cache)
     keep = n_i > 0
-    return {"indices": np.nonzero(keep)[0].astype(np.int64), "n": n_i[keep].astype(np.float64)}
+
+    # diagnostics similar to what we have in truth mode
+    diagnostics = {}
+    if debug:
+        diagnostics["w_cache_all"] = w_cache_all
+
+    return {"indices": np.nonzero(keep)[0].astype(np.int64), "n": n_i[keep].astype(np.float64), "diagnostics": diagnostics}
 
 
 def _rehydrate_cache_by_class(n2ll: N2LL, region_id: str, indices: np.ndarray) -> dict:
@@ -492,7 +501,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
 def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: np.random.Generator, *,
                                       split: tuple[str] | None = ("c2st_train", "c2st_val"), hypothesis=None,
-                                      allow_negative_weights: bool = False) -> dict:
+                                      allow_negative_weights: bool = False, debug=False) -> dict:
     """Multi-process truth-mode unbinned toy (see module docstring / plan
     "Multi-process handling"). Per source (one per class): reconstruct the truth
     weight, throw n_i ~ Poisson(w_truth_i), keep n_i > 0, record an origin label
@@ -520,7 +529,12 @@ def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: n
             "multiplicity_gt1_yield_share": float(n_kept[dup].sum() / n_kept.sum()) if n_kept.sum() else 0.0,
         })
         diagnostics[cid] = diag
+
         logger.info("[toy:%s/%s] %s", region_id, cid, diag)
+
+        # adding truth weights to toy diagnostics for debug
+        if debug:
+            diagnostics[cid]["w_truth"] = w_truth
 
         Xs.append(X[keep])
         Ns.append(n_kept.astype(np.float64))
@@ -600,13 +614,15 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
 
 def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_sources=None,
                   split: tuple[str] | None = ("c2st_train", "c2st_val"), throw_nuisances: bool = False,
-                  allow_negative_weights: bool = False) -> dict:
+                  allow_negative_weights: bool = False, debug: bool = False) -> dict:
     """Generate one full toy (every unbinned + binned region of n2ll's likelihood).
 
     `source`: "cache" (model is truth) or "truth" (exact reweighting/scale/sample).
     `hypothesis`: the injection point. In cache mode, defaults to nominal
     (build_hypothesis_from_likelihood). In truth mode, None means no surrogate-route
     (1+T) multiplication -- ProcessSource modifiers are still applied.
+
+    debug adds the raw unclipped weights to the "diagnostics" block in the toy dict
     """
     if source not in ("cache", "truth"):
         raise ValueError(f"source must be 'cache' or 'truth', got {source!r}")
@@ -625,7 +641,7 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
         region_rng = _spawn_rng(seed, rid)
         if source == "cache":
             toy = generate_unbinned_toy_from_cache(n2ll, rid, gen_hypothesis, region_rng,
-                                                    allow_negative_weights=allow_negative_weights)
+                                                    allow_negative_weights=allow_negative_weights, debug=debug)
             unbinned_blocks[rid] = {
                 "X": None, "w": toy["n"], "indices": toy["indices"],
                 "by_class": _rehydrate_cache_by_class(n2ll, rid, toy["indices"]),
@@ -634,10 +650,11 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
             sources_for_region = (truth_sources or {}).get(rid, [])
             toy = generate_unbinned_toy_from_truth(
                 n2ll, rid, sources_for_region, region_rng, split=split, hypothesis=hypothesis,
-                allow_negative_weights=allow_negative_weights,
+                allow_negative_weights=allow_negative_weights, debug=debug
             )
             unbinned_blocks[rid] = {"X": toy["X"], "w": toy["w"], "by_class": toy["by_class"], "origin": toy["origin"]}
-            diagnostics["unbinned"][rid] = toy["diagnostics"]
+
+        diagnostics["unbinned"][rid] = toy["diagnostics"]
 
     for region in n2ll.binned:
         rid = region["id"]
