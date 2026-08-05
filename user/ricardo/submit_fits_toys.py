@@ -12,7 +12,7 @@ Script that takes a config and folder with toys as input and prepares n_jobs she
 This can be piped with the output of the `find` command if there are many folders with toys.
 Example:
 
-find output_SBIEFT/ -maxdepth 1 -type d -name "unbinned_2016_eft*toys" -exec python user/ricardo/launch_eft_fits_toys.py -config configs/unbinned_v7_eft/unbinned_2016_eft.yaml -input_dir {} --n_jobs 4 --output_dir user/ricardo/toy_fit_submission_02082026/ \;
+find output_SBIEFT/ -maxdepth 1 -type d -name "unbinned_2016_eft*toys" -exec python user/ricardo/submit_fits_toys.py -config configs/unbinned_v7_eft/unbinned_2016_eft.yaml -input_dir {} --n_jobs 4 --output_dir user/ricardo/toy_fit_submission_02082026/ \;
 
 Each script can then be submitted with the `submit` command as `submit 'source SHELL_SCRIPT'` (notice the single quotes).
 

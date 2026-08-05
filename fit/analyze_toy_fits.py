@@ -35,13 +35,15 @@ from matplotlib.patches import Ellipse
 import mplhep as hep
 
 import common.user as user
-import common.syncer  # noqa: F401  -- import hooks plt.savefig and syncs www/ to EOS on exit
+import common.syncer as syncer # noqa: F401  -- import hooks plt.savefig and syncs www/ to EOS on exit
 from common.helpers import copyIndexPHP
 from common.logger import get_logger
 
 plt.style.use("petroff10")
 hep.style.use("CMS")
 
+# number of decimal places in print scripts
+PRECISION = 4
 
 def load_groups(input_dir: str) -> dict:
     """Load every toy fit JSON under input_dir, grouped by (point, source).
@@ -65,11 +67,11 @@ def stack_group(payloads: list) -> dict:
     """Turn a list of fit payloads into arrays, checking they are commensurate."""
     parameters = payloads[0]["free_parameter_order"]
     truth = payloads[0]["toy"]["hypothesis"]
-    for payload in payloads:
+    for i, payload in enumerate(payloads):
         if payload["free_parameter_order"] != parameters:
             raise RuntimeError("Parameter order differs between toys of the same configuration.")
         if payload["toy"]["hypothesis"] != truth:
-            raise RuntimeError("Injected hypothesis differs between toys of the same configuration.")
+            raise RuntimeError(f"Injected hypothesis {payload['toy']['hypothesis']} differs between toys of the same configuration {truth} for fit number {payload['toy']['seed']}.")
 
     values = np.array([[p["parameters"][i]["value"] for i in range(len(parameters))] for p in payloads])
     errors = np.array([[p["parameters"][i]["error"] for i in range(len(parameters))] for p in payloads])
@@ -158,20 +160,20 @@ def summarize(point, source, stacked) -> list:
         truth = stacked["truth"][index]
         pulls = (values - truth) / errors
         rows.append({
-            "point": point,
-            "source": source,
-            "parameter": parameter,
-            "n_toys": n_toys,
-            "truth": float(truth),
-            "mean": float(values.mean()),
-            "RMS": float(values.std(ddof=1)),
-            "mean_error": float(errors.mean()),
-            "pull_mean": float(pulls.mean()),
-            "pull_mean_uncertainty": float(pulls.std(ddof=1) / np.sqrt(n_toys)),
-            "pull_width": float(pulls.std(ddof=1)),
-            "coverage": float(np.mean(np.abs(values - truth) < errors)),
-            "fval_mean": float(stacked["fval"].mean()),
-            "fval_RMS": float(stacked["fval"].std(ddof=1)),
+            "point": (point),
+            "source": (source),
+            "parameter": (parameter),
+            "n_toys": (n_toys),
+            "truth": round(float(truth),PRECISION),
+            "mean": round(float(values.mean()),PRECISION),
+            "RMS": round(float(values.std(ddof=1)),PRECISION),
+            "mean_error": round(float(errors.mean()),PRECISION),
+            "pull_mean": round(float(pulls.mean()),PRECISION),
+            "pull_mean_uncertainty": round(float(pulls.std(ddof=1) / np.sqrt(n_toys)),PRECISION),
+            "pull_width": round(float(pulls.std(ddof=1)),PRECISION),
+            "coverage": round(float(np.mean(np.abs(values - truth) < errors)),PRECISION),
+            "fval_mean": round(float(stacked["fval"].mean()),PRECISION),
+            "fval_RMS": round(float(stacked["fval"].std(ddof=1)),PRECISION),
         })
     return rows
 
@@ -180,17 +182,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputDir", required=True,
                         help="Directory holding the per-toy fit JSONs (searched recursively).")
-    parser.add_argument("--outputName", default="toy_fits",
-                        help="Subfolder of user.plot_directory to write plots and summary to.")
-    parser.add_argument("--logLevel", default="INFO")
+    parser.add_argument("--outputName", default="",
+                        help="Subfolder of user.plot_directory/toy_fits_summary to write plots and summary to.")
     args = parser.parse_args()
 
-    logger = get_logger(args.logLevel)
+    logger = get_logger("INFO")
 
     groups = load_groups(args.inputDir)
     logger.info("Loaded %d toy fits in %d configurations", sum(map(len, groups.values())), len(groups))
 
-    base_dir = os.path.join(user.plot_directory, args.outputName)
+    base_dir = os.path.join(user.plot_directory, "toy_fits_summary", args.outputName)
     os.makedirs(base_dir, exist_ok=True)
     copyIndexPHP(base_dir)
 
@@ -238,6 +239,9 @@ def main():
         writer.writeheader()
         writer.writerows(summary_rows)
 
+    syncer.file_sync_storage.append(os.path.join(base_dir, "summary.json"))
+    syncer.file_sync_storage.append(os.path.join(base_dir, "summary.csv"))
+
     header = f"{'point':>12} {'source':>7} {'par':>7} {'N':>4} {'truth':>7} {'mean':>9} " \
              f"{'RMS':>9} {'<err>':>9} {'pull mean':>11} {'pull width':>10} {'cover':>6}"
     logger.info(header)
@@ -248,6 +252,7 @@ def main():
                     row["pull_mean_uncertainty"], row["pull_width"], row["coverage"])
     logger.info("Plots and summary written to %s", base_dir)
 
+    syncer.sync()
 
 if __name__ == "__main__":
     main()

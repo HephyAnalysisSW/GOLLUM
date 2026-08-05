@@ -1,16 +1,14 @@
-# Example toy spec for fit/ToyGenerator.py, for configs/unbinned_v6/unbinned_2016.yaml.
+# Toy spec for a cache-based toy study of BIT closure via BIT reweighting
+# at different values of Wilson coefficients.
 #
-#   python fit/ToyGenerator.py configs/unbinned_v6/unbinned_2016.yaml \
-#       --toySpec configs/unbinned_v6/toys_example.yaml --toyPoint c0_0p5_bit \
-#       --seeds 0-499 --outputDir <some output dir>
-#
-# The spec defines the ensemble (source, split, which points); the CLI only
-# selects which point and which seed(s) to generate, and where to write the
-# result. See user/ricardo/claude/plans/toy-generation-for-pseudo-experiments.md
-# for the full design.
+# The goal is to compare with the results of toy study based on exact reweighting
+# and test for BIT non-closures. 
 
-source: cache              # or cache
-split: null # partitions to use, truth mode only; null for the whole dataset
+# Additionally, it can also be used for studying bias and coverage of the entire statistical
+# model (for these points) in an efficient way (as the truth weights don't have to be materialized)
+
+source: cache 
+split: null # null for the whole dataset (fine for bias and coverage studies)
 throw_nuisances: false
 allow_negative_weights: true
 

@@ -1,8 +1,15 @@
 # Toy spec for a truth-based toy study of BIT closure via exact reweighting (injection)
 # at different values of Wilson coefficients.
+# 
+# Injects a scale factor to match the cross-sections obtained by exact reweighting to those from the BIT
+#
+# The goal is to test if the observed bias in the fit MLEs for non-zero Wilson ctGIm comes from
+# a rate effect (which can be easily corrected) or if it comes from poor learning of the
+# XS-normalized DCR (shape).
 
-source: truth              # or cache
-split: [c2st_train, c2st_val] # partitions to use, truth mode only; null for the whole dataset
+
+source: truth
+split: [c2st_train, c2st_val] # partitions to use
 throw_nuisances: false
 allow_negative_weights: true
 
@@ -17,45 +24,53 @@ points:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGRe: 0.5}
- 
+          scale_factor: 1.000446
+
   - name: ctGRe_m0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGRe: -0.5}
+          scale_factor: 0.999738
 
   - name: ctGIm_0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGIm: 0.5}
+          scale_factor: 0.999514
 
   - name: ctGIm_m0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
-          coefficients: {ctGIm: -0.5}   
+          coefficients: {ctGIm: -0.5}
+          scale_factor: 1.000479   
 
   - name: ctGRe_ctGIm_0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
-          coefficients: {ctGRe: 0.5, ctGIm: 0.5}                            
+          coefficients: {ctGRe: 0.5, ctGIm: 0.5}
+          scale_factor: 0.999883                            
 
   - name: ctGRe_ctGIm_m0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGRe: -0.5, ctGIm: -0.5}
+          scale_factor: 1.000157
 
   - name: ctGRe_0p5_ctGIm_m0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGRe: 0.5, ctGIm: -0.5}
+          scale_factor: 1.000986
 
   - name: ctGRe_m0p5_ctGIm_0p5
     injection:
       SR_2016:
         TT01j2l_EFT_2016:
           coefficients: {ctGRe: -0.5, ctGIm: 0.5}
+          scale_factor: 0.999320
