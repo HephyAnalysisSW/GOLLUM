@@ -36,12 +36,13 @@ class ModelParameter:
     Lightweight model parameter representation with convenient helpers.
     """
     def __init__(self, name, val=0.0, *, isPOI=False,
-                 isFrozen=False, isPenalized=False):
-        self.name        = str(name)
-        self.val         = _coerce_parameter_value(val)
-        self.isPOI       = bool(isPOI)
-        self.isFrozen    = bool(isFrozen)
-        self.isPenalized = bool(isPenalized)
+                 isFrozen=False, isPenalized=False, constraint_center=0.0):
+        self.name              = str(name)
+        self.val               = _coerce_parameter_value(val)
+        self.isPOI             = bool(isPOI)
+        self.isFrozen          = bool(isFrozen)
+        self.isPenalized       = bool(isPenalized)
+        self.constraint_center = float(constraint_center)
 
     def __repr__(self):
         tags = []
@@ -49,7 +50,7 @@ class ModelParameter:
         else:                tags.append("Nuis.")
         if self.isFrozen:    tags.append("frozen")
         if self.isPenalized: tags.append("pen.")
-        return f"<{self.name}({','.join(tags)})={self.val:.6e}>"
+        return f"<{self.name}({','.join(tags)})={float(getval(self.val)):.6e}>"
 
     def __str__(self):
         return self.__repr__().lstrip('<').rstrip('>')
@@ -203,8 +204,18 @@ class Hypothesis:
 
     # ---------- penalty ----------
     def penalty(self):
-        """Compute the penalty (sum v**2) from all penalized nuisances."""
-        return sum(p.val**2 for p in self.parameters if p.isPenalized)
+        """Compute the penalty (sum (v - center)**2) from all penalized nuisances."""
+        return sum((p.val - p.constraint_center)**2 for p in self.parameters if p.isPenalized)
+
+    def set_constraint_centers(self, mapping: dict) -> None:
+        """Set constraint centers by parameter name (e.g. a toy's thrown nu_obs)."""
+        for name, center in mapping.items():
+            if name not in self:
+                raise KeyError(f"[Hypothesis.set_constraint_centers] Unknown parameter '{name}'.")
+            p = self[name]
+            if not p.isPenalized:
+                raise RuntimeError(f"[Hypothesis.set_constraint_centers] Parameter '{name}' is not penalized.")
+            p.constraint_center = float(center)
 
     # ---------- mutators ----------
     def modify(self, **kwargs):
@@ -338,7 +349,8 @@ class Rotated(Hypothesis):
             ModelParameter(name=nm,
                            val=float(getattr(self._base, nm).val),
                            isPOI=False,
-                           isPenalized=bool(getattr(self._base, nm).isPenalized))
+                           isPenalized=bool(getattr(self._base, nm).isPenalized),
+                           constraint_center=float(getattr(self._base, nm).constraint_center))
             for nm in self._nuis_names
         ]
         all_params = d_params + nuis_params

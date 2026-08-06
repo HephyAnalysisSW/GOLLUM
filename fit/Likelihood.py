@@ -669,6 +669,12 @@ class N2LL:
                     if poi_type == "bit" and not poi_names:
                         print(f"[N2LL] No POI parameter names for {rid}/{cid}")
 
+                    # The BIT alphabetizes its derivative columns (GpuMultiNode.py:293-297),
+                    # so its R_A order is sorted, not the config order. c_A is built from
+                    # this list and contracted positionally against those columns, so it
+                    # must be sorted too -- otherwise the operators are silently permuted.
+                    poi_names = sorted(poi_names)
+
                 self._poi_order[key] = poi_names
                 self._rate_shift_by_class[key] = rate_shift_param
 
@@ -1339,18 +1345,26 @@ class N2LL:
             nuA_per_group[cid] = groups
         return nuA_per_group
 
-    def _compute_T_chunk(self, rid: str, cA_per_class, nuA_per_group, ln_bias_map, rate_shift_map, start: int, stop: int) -> np.ndarray:
+    def _compute_T_from_columns(self, rid: str, columns_by_class, cA_per_class, nuA_per_group,
+                                 ln_bias_map, rate_shift_map, start: int, stop: int) -> np.ndarray:
         """
-        Compute T(x; c, ν) on [start:stop) for a single region rid, summing over classes.
+        Compute T(x; c, ν) on [start:stop) for a single region rid, summing over classes,
+        from already-materialized per-class columns.
+
+        `columns_by_class[cid]` may be either an open HDF5 group (the cache) or an
+        in-memory dict of numpy arrays (an observed/toy dataset's by-class block) --
+        both support `col[start:stop]` slicing and `dset_name in col`, which is all
+        this needs, so one implementation serves Asimov, observation and toy generation.
+
         T_i = Σ_p g_p(x_i) * [ (c⋅R_p)(x_i) * e^{Σ_s ν_B Δ_{p,B}(x_i)} + (e^{...} - 1) ].
         """
         M = stop - start
         T = np.zeros(M, dtype=np.float64)
 
         for cid in self._class_ids_by_region[rid]:
-            f = self._h5[(rid, cid)]
-            g_slice = f['g'][start:stop]                # (M,)
-            R_slice = f['R'][start:stop, :]                  # (M, nA)
+            f = columns_by_class[cid]
+            g_slice = np.asarray(f['g'][start:stop], dtype=np.float64)          # (M,)
+            R_slice = np.asarray(f['R'][start:stop, :], dtype=np.float64)       # (M, nA)
             cA      = cA_per_class[cid]
 
             if R_slice.shape[1] == 0:
@@ -1370,7 +1384,9 @@ class N2LL:
             expo = np.zeros_like(g_slice)
             for gm, nuA in nuA_per_group[cid]:
                 dset = gm.get("dset", f"Delta::{gm['id']}")
-                dA   = f[dset][start:stop, :]           # (M, nB)
+                if dset not in f:
+                    raise RuntimeError(f"[N2LL] Missing '{dset}' for {rid}/{cid}.")
+                dA = np.asarray(f[dset][start:stop, :], dtype=np.float64)       # (M, nB)
                 if dA.shape[1] != nuA.shape[0]:
                     raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
                 expo = expo + (dA @ nuA)                # (M,)
@@ -1380,6 +1396,91 @@ class N2LL:
             T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
         return T
+
+    def _compute_T_chunk(self, rid: str, cA_per_class, nuA_per_group, ln_bias_map, rate_shift_map, start: int, stop: int) -> np.ndarray:
+        """Compute T(x; c, ν) on [start:stop) for region rid from the cached HDF5 columns."""
+        columns_by_class = {cid: self._h5[(rid, cid)] for cid in self._class_ids_by_region[rid]}
+        return self._compute_T_from_columns(rid, columns_by_class, cA_per_class, nuA_per_group,
+                                             ln_bias_map, rate_shift_map, start, stop)
+
+    def _eval_region_surrogates(self, rid: str, X: np.ndarray, feature_names: list[str]) -> dict:
+        """
+        Compute, in memory, the per-class arrays needed to build T(x; c,nu):
+          - classifier probs g(x) if a classifier is configured (else ones)
+          - BIT basis R_A(x)
+          - each PNN group's Δ_B(x) matrix
+        Returns a by-class dict mirroring the on-disk cache layout:
+          { cid: {'g': (N,), 'R': (N,nA), 'Delta::<sid>': (N,nB), ...}, ... }
+
+        A class with no configured BIT predictor gets `R` of shape (N,0) rather than
+        raising -- needed for classes with no `POI` block at all, and for `rate_shift`
+        POI blocks that carry no `predictor`. This is permissive by necessity for
+        setObservation/toy generation, at a real cost: any *other* caller relying on
+        this method (e.g. evaluate_ratio) that expects a BIT predictor to always be
+        present will now silently get c_dot_R == 0 for such a class instead of a
+        loud failure.
+        """
+        # resolve the region cfg and class list
+        region = next((R for R in self.regions if R['id'] == rid), None)
+        if region is None:
+            raise RuntimeError(f"[_eval_region_surrogates] Unknown region id '{rid}'.")
+        classes = list(region.get('classes', []) or [])
+        n_proc  = len(classes)
+
+        # input features + mask utility
+        feat_names = list(feature_names or [])
+        if not feat_names:
+            raise RuntimeError("[_eval_region_surrogates] feature_names must be provided.")
+        X = np.asarray(X, dtype=np.float64, order='C')
+        if X.ndim != 2:
+            raise RuntimeError(f"[_eval_region_surrogates] X must be 2D, got shape {X.shape}.")
+        N = X.shape[0]
+
+        # classifier g(x)
+        clf = region.get('_classifier_predictor', None)
+        if clf is None or n_proc <= 1:
+            g_all = np.ones((N, n_proc), dtype=np.float64)
+        else:
+            if not hasattr(clf, "feature_names"):
+                raise RuntimeError("[_eval_region_surrogates] classifier predictor lacks feature_names.")
+            mask = self.make_column_mask(feat_names, list(clf.feature_names))
+            g_all = _predict_classifier(clf, X[:, mask])  # (N, n_proc)
+            if g_all.shape[1] != n_proc:
+                raise RuntimeError(f"[_eval_region_surrogates] classifier outputs {g_all.shape[1]} != {n_proc} classes for region '{rid}'.")
+
+        # per-class outputs
+        by_class: dict[str, dict] = {}
+
+        for C in classes:
+            cid = C['id']
+            comp = {}
+
+            # g for this process
+            p_index = class_index(classes, cid)
+            comp['g'] = np.asarray(g_all[:, p_index], dtype=np.float64, order='C')  # (N,)
+
+            # BIT R_A(x); a class with no predictor contributes no POI ratio.
+            poi_predictor = (C.get('POI') or {}).get('predictor')
+            if poi_predictor is None:
+                R_A = np.empty((N, 0), dtype=np.float64)
+            else:
+                mask_bit = self.make_column_mask(feat_names, list(poi_predictor.feature_names))
+                R_A = predict_bit_ratio(poi_predictor, X[:, mask_bit])  # (N, nA)
+            comp['R'] = np.asarray(R_A, dtype=np.float64, order='C')
+
+            # PNN Δ groups
+            for S in C.get('_pnn_systs', []):
+                sid = S['id']
+                pnn = S.get('predictor', None)
+                if pnn is None:
+                    raise RuntimeError(f"[_eval_region_surrogates] Missing PNN predictor for {rid}/{cid}/{sid}.")
+                mask_pnn = self.make_column_mask(feat_names, list(pnn.feature_names))
+                dA = predict_pnn_deltaA(pnn, X[:, mask_pnn])  # (N, nB)
+                comp[f"Delta::{sid}"] = np.asarray(dA, dtype=np.float64, order='C')
+
+            by_class[cid] = comp
+
+        return by_class
 
     def setAsimov(self, hypothesis=None) -> None:
         """
@@ -1484,27 +1585,11 @@ class N2LL:
         if not self._runtime_prepared:
             raise RuntimeError("[N2LL.setObservation] Call prepare_runtime() before setting observation.")
 
-        # You can’t mix observed-data mode with Asimov in the same evaluation flow.
-        # We allow switching, but make it explicit and clear.
-        if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
-            print("[N2LL.setObservation] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
-        
         if not ignore_weights:
             print("[N2LL.setObservation] Using weighted sample in setObservation.")
-        self._asimov_hypothesis_set = False
-        self._asimov_active = False
-        self._asimov_hyp = None
 
-        # hypothesis for non-central Asimov 
-        self._asimov_T.clear()
-        self._binned_asimov_lambda.clear()
-
-        # Reset observation containers
-        self._obs_unbinned = {}
-        self._obs_binned_counts = {}
-
-        # Flag we’re now in observed-data mode
-        self._observation_set = True
+        unbinned_blocks: dict = {}
+        binned_counts: dict = {}
 
         # ------------- UNBINNED OBSERVATION -------------
         if unbinned_loaders:
@@ -1540,80 +1625,18 @@ class N2LL:
                     X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
                     w_all = np.empty((0,), dtype=np.float64)
 
-                self._obs_unbinned[rid] = {'X': X_all, 'w': w_all}
-                
                 # pre-evaluating surrogates on observed events
                 # to avoid evaluating everytime n2ll(hyp) is called
-
                 # NB: in binned, evaluation is done directly in n2ll(hyp),
                 # because ICH and ICPH already give the ratio for nominal vs. alternative
+                by_class = self._eval_region_surrogates(rid, X_all, loader.feature_names)
+                unbinned_blocks[rid] = {'X': X_all, 'w': w_all, 'by_class': by_class}
 
-                self._obs_unbinned[rid]['by_class'] = {}
-                
-                # load region info from likelihood object list
-                # does not protect against two regions with
-                # the same name - is this allowed ?
-                # currently, if there's two regions with the same name,
-                # keeps the last one checked
-                region_info = {}
-                for region in self.regions:
-                    if region['id']==rid:
-                        region_info = region
-
-                if region_info == {}:
-                    raise ValueError(f"Did not find information in config corresponding to region {rid}")
-
+                region_info = next(R for R in self.regions if R['id'] == rid)
                 n_classes = len(region_info['classes'])
-                
-                class_predictor = region_info.get('_classifier_predictor', None)
-                
-                n_classifiers = 0
-                if class_predictor is None or n_classes <= 1:
-                    g_obs = np.ones((len(w_all), n_classes), dtype=np.float64)
-                else:
-                    # in the case where class_predictor uses
-                    # subset of the features in dataloader
-                    class_predictor_column_mask = self.make_column_mask(loader.feature_names, class_predictor.feature_names)
-                    
-                    g_obs = _predict_classifier(class_predictor, X_all[:, class_predictor_column_mask])  # (n_events, n_classes)
-                    if g_obs.shape[1] != n_classes:
-                        raise RuntimeError(f"[N2LL] Classifier outputs {g_obs.shape[1]} != {n_classes} classes in region '{rid}'")
-                    n_classifiers+=1
-
-                n_poi_predictors = 0
-                n_syst_predictors = 0
-                for class_info in region_info['classes']:
-                    cid = class_info['id']
-                    i_class = class_index(region_info['classes'], cid)
-
-                    self._obs_unbinned[rid]['by_class'][cid] = {}
-
-                    # classifier output per classfrom global classifier
-                    self._obs_unbinned[rid]['by_class'][cid]['g'] = g_obs[:,i_class]
-
-                    # POI predictor for each class
-                    poi_predictor = (class_info.get('POI') or {}).get('predictor')
-                    
-                    if poi_predictor is None:
-                        R_A = np.empty((len(w_all), 0), dtype=np.float64)
-                    else:
-                        poi_predictor_column_mask = self.make_column_mask(loader.feature_names, poi_predictor.feature_names)
-                        R_A = predict_bit_ratio(poi_predictor, X_all[:,poi_predictor_column_mask])
-                        n_poi_predictors +=1
-                    
-                    self._obs_unbinned[rid]['by_class'][cid]['R'] = R_A
-                    
-                    # syst predictors for each class
-                    for syst_info in class_info['_pnn_systs']:
-                        
-                        syst_column_mask = self.make_column_mask(loader.feature_names, syst_info['predictor'].feature_names)
-                        pnn = syst_info['predictor']
-                        syst_id = syst_info['id']
-                        dA = predict_pnn_deltaA(pnn, X_all[:, syst_column_mask])  # (N_events, nB)
-                        dset = f'Delta::{syst_id}'           
-
-                        self._obs_unbinned[rid]['by_class'][cid][dset] = dA
-                        n_syst_predictors += 1
+                n_classifiers = 1 if (region_info.get('_classifier_predictor') is not None and n_classes > 1) else 0
+                n_poi_predictors = sum(1 for C in region_info['classes'] if (C.get('POI') or {}).get('predictor') is not None)
+                n_syst_predictors = sum(len(C.get('_pnn_systs', []) or []) for C in region_info['classes'])
 
                 print(f"[setObservation] Unbinned region '{rid}': loaded {X_all.shape[0]:,} events "
                       f"({'unit weights' if ignore_weights else 'with weights'}).")
@@ -1672,9 +1695,86 @@ class N2LL:
                         counts2d += H.astype(np.float64)
 
                 flat_counts = counts if len(edges) == 1 else counts2d.reshape(-1)
-                self._obs_binned_counts[rid] = flat_counts
+                binned_counts[rid] = flat_counts
                 print(f"[setObservation] Binned region '{rid}': filled {flat_counts.size} bins "
                       f"({'unit weights' if ignore_weights else 'with weights'}).")
+
+        self.setObservationArrays(unbinned_blocks=unbinned_blocks or None, binned_counts=binned_counts or None)
+
+    def setObservationArrays(self, unbinned_blocks: dict | None = None, binned_counts: dict | None = None) -> None:
+        """
+        Register an observed/toy dataset from already-evaluated arrays (no loaders).
+
+        Parameters
+        ----------
+        unbinned_blocks : dict or None
+            Mapping {region_id -> {'X': features (N,d) or None, 'w': weights (N,),
+            'by_class': {cid: {'g': (N,), 'R': (N,nA), 'Delta::<sid>': (N,nB), ...}}}}.
+            'X' may be None (e.g. cache-mode toys, which have no materialized X).
+        binned_counts : dict or None
+            Mapping {region_id -> counts_flat (Nflat,)}.
+
+        Effects mirror setObservation: sets `self._observation_set = True`, disables
+        any previously set Asimov bias, and populates `self._obs_unbinned` /
+        `self._obs_binned_counts`. `setObservation` ends by calling this, so this is
+        the single place that owns the observed/Asimov mode switch.
+        """
+        if not self._runtime_prepared:
+            raise RuntimeError("[N2LL.setObservationArrays] Call prepare_runtime() before setting observation.")
+
+        # You can’t mix observed-data mode with Asimov in the same evaluation flow.
+        # We allow switching, but make it explicit and clear.
+        if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
+            print("[N2LL.setObservationArrays] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
+
+        self._asimov_hypothesis_set = False
+        self._asimov_active = False
+        self._asimov_hyp = None
+
+        # hypothesis for non-central Asimov
+        self._asimov_T.clear()
+        self._binned_asimov_lambda.clear()
+
+        # Reset observation containers
+        self._obs_unbinned = {}
+        self._obs_binned_counts = {}
+
+        # Flag we’re now in observed-data mode
+        self._observation_set = True
+
+        known_region_ids = {R['id'] for R in self.regions}
+        if unbinned_blocks:
+            for rid, block in unbinned_blocks.items():
+                if rid not in known_region_ids:
+                    raise RuntimeError(f"[setObservationArrays:unbinned] Unknown region id '{rid}'.")
+                w = np.asarray(block['w'], dtype=np.float64)
+                for cid, comp in block.get('by_class', {}).items():
+                    for col_name, col in comp.items():
+                        if len(col) != len(w):
+                            raise RuntimeError(
+                                f"[setObservationArrays:unbinned:{rid}/{cid}] "
+                                f"len({col_name})={len(col)} != len(w)={len(w)}.")
+                self._obs_unbinned[rid] = block
+
+        if binned_counts:
+            for rid, counts in binned_counts.items():
+                if rid not in self._binned_unroll:
+                    raise RuntimeError(f"[setObservationArrays:binned] Region '{rid}' has no binned definition in current likelihood.")
+                self._obs_binned_counts[rid] = np.asarray(counts, dtype=np.float64)
+
+    def setToy(self, toy: dict, hypothesis) -> None:
+        """
+        Register a toy (from fit/ToyGenerator.py's generate_toy/load_toy) as the
+        observation, and apply its thrown constraint centres to `hypothesis`.
+        """
+        unbinned_blocks = {
+            rid: {'X': block.get('X'), 'w': block['w'], 'by_class': block['by_class']}
+            for rid, block in toy.get('unbinned_blocks', {}).items()
+        }
+        self.setObservationArrays(unbinned_blocks=unbinned_blocks or None,
+                                   binned_counts=toy.get('binned_counts') or None)
+        base = hypothesis._base if hasattr(hypothesis, '_base') else hypothesis
+        base.set_constraint_centers(toy.get('constraint_centers', {}))
 
     def __call__(self, hypothesis) -> float:
         """
@@ -1711,7 +1811,6 @@ class N2LL:
                     byc = block['by_class']
                     W   = np.asarray(block['w'], dtype=np.float64)
                     N   = len(W)
-                    T   = np.zeros(N, dtype=np.float64)
 
                     # current hypothesis A-basis and ν_A groups
                     cA_per_class  = self._assemble_cA_per_class(rid, hypothesis._base)
@@ -1745,32 +1844,7 @@ class N2LL:
                     # 1: get T evaluated on the observed events, summing over predictions of surrogates for each class
                     # 2: make weighted sum of log1p(T), for observed weights can be one or not
                     # depends on whether setObservation was called with ignoreWeights=True
-                    for cid, comp in byc.items():
-                        g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
-                        R_slice = np.asarray(comp['R'], dtype=np.float64)     # (N, nA)
-                        cA      = cA_per_class[cid]                           # (nA,)
-                        if R_slice.shape[1] != cA.shape[0]:
-                            raise RuntimeError(f"[N2LL:obs:unbinned] BIT dim {R_slice.shape[1]} != |A| {cA.shape[0]} for {rid}/{cid}")
-                        c_dot_R = R_slice @ cA                                # (N,)
-
-                        # Adding rate shift
-                        rs = rate_shift.get(cid, 0.0)
-                        if rs != 0.0:
-                            c_dot_R = c_dot_R + rs
-
-                        expo = np.zeros_like(g_slice)
-                        for gm, nuA in nuA_per_group[cid]:
-                            dset = gm.get("dset", f"Delta::{gm['id']}")
-                            if dset not in comp:
-                                raise RuntimeError(f"[N2LL:obs:unbinned] Missing '{dset}' for {rid}/{cid}.")
-                            dA = np.asarray(comp[dset], dtype=np.float64)     # (N, nB)
-                            if dA.shape[1] != nuA.shape[0]:
-                                raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
-                            expo = expo + (dA @ nuA)
-
-                        # include per-class lnN bias additively in exponent
-                        expo += ln_bias[cid] # (M,)
-                        T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
+                    T = self._compute_T_from_columns(rid, byc, cA_per_class, nuA_per_group, ln_bias, rate_shift, 0, N)
 
                     total_unbinned += np.dot(W,np.log1p(T))
 
@@ -2129,7 +2203,14 @@ def run_autograd_fit(n2ll, hypothesis, *, step=None, print_every=25,
         jac=jac_best,
     )
 
-def serialize_result(m, base, version, args, out_path ):
+def serialize_result(m, base, version, args, out_path, toy_info=None ):
+    """Write the fit result (values, errors, covariance) to JSON.
+
+    'toy_info' carries the provenance of the toy dataset that was fitted
+    (point, source, seed and the injected hypothesis), so downstream toy
+    studies can compute pulls without reopening the toy HDF5. It is None
+    for fits to data or Asimov.
+    """
 
     result_payload = {
         "config_basename": base,
@@ -2153,6 +2234,8 @@ def serialize_result(m, base, version, args, out_path ):
             "matrix": np.asarray(m.covariance.correlation()).tolist(),
         },
     }
+    if toy_info is not None:
+        result_payload["toy"] = toy_info
     with open(out_path, "w") as f:
         json.dump(result_payload, f, indent=2)
 
@@ -2353,6 +2436,9 @@ if __name__ == "__main__":
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
     p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
     p.add_argument("--data", action="store_true", help="Fits to data defined in config.")
+    p.add_argument("--toyFile", default=None,
+                   help="Path to a toy HDF5 file generated by fit/ToyGenerator.py; fits to it instead of "
+                        "data/Asimov. Generation-only: no spec parsing, seeding or point selection happens here.")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"),
                    help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2437,7 +2523,6 @@ if __name__ == "__main__":
             )
 
     # -------- paths (fit + plots) --------
-    from common.user import plot_directory
     import common.user as user
     
     # base from mangling together configs or given by user
@@ -2462,11 +2547,29 @@ if __name__ == "__main__":
     if args.data:
         suffix += "_data"
         print("Fitting to data!")
+    toy_info = None
+    out_path = user.output_directory
+    if args.toyFile:
+        with h5py.File(args.toyFile, "r") as _toy_meta_f:
+            _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
+            _toy_seed = int(_toy_meta_f["meta"].attrs["seed"])
+            _toy_source = str(_toy_meta_f["meta"].attrs.get("source", ""))
+            _toy_hypothesis = json.loads(str(_toy_meta_f["meta"].attrs["hypothesis"]))
+        toy_info = {"point": _toy_point, "source": _toy_source,
+                    "seed": _toy_seed, "hypothesis": _toy_hypothesis}
+        suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
+        # storing many toy fit results in their own folder
+        out_path = os.path.join(out_path, f"{base}_{_toy_point}_{_toy_source}_toy_fits")
+        print(f"Fitting to toy '{_toy_point}' seed {_toy_seed} from {args.toyFile} (source: {_toy_source})")
 
-    os.makedirs(user.output_directory, exist_ok=True)
-    out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
+    os.makedirs(out_path, exist_ok=True)
+    out_path = os.path.join(out_path, f"{base}_{version}{suffix}_fit.json")
 
-    plot_dir = os.path.join(plot_directory, "likelihood_fit", base, f"{version}{suffix}")
+    plot_dir = os.path.join(user.plot_directory, "likelihood_fit", base)
+    if toy_info:
+        plot_dir = os.path.join(plot_dir, f"{toy_info['point']}_{toy_info['source']}_toy_fits")
+    
+    plot_dir = os.path.join(plot_dir, f"{version}{suffix}")
     os.makedirs(plot_dir, exist_ok=True)
 
     overwrite_fit = args.overwrite in ("fit", "all")
@@ -2599,8 +2702,16 @@ if __name__ == "__main__":
                         if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
                             ignore_weights = False
 
+                # ---- toy: generated separately by fit/ToyGenerator.py, loaded (never generated) here ----
+                if args.toyFile:
+                    if args.data or args.asimov is not None:
+                        raise RuntimeError("--toyFile cannot be combined with --data or --asimov.")
+                    from fit.ToyGenerator import load_toy
+                    toy = load_toy(args.toyFile, n2ll)
+                    n2ll.setToy(toy, hyp_for_fit)
+
                 # data
-                if args.data:
+                elif args.data:
                     if (not unbinned_dataloaders) and (not binned_dataloaders):
                         raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
                     n2ll.setObservation(unbinned_dataloaders, binned_dataloaders, ignore_weights=ignore_weights)
@@ -2654,7 +2765,7 @@ if __name__ == "__main__":
                     verbosity=args.verbosity,
                 )
 
-                serialize_result(m, base, version, args, out_path)
+                serialize_result(m, base, version, args, out_path, toy_info=toy_info)
                 fit = json.load(open(out_path))
 
             print("Best -2logL =", fit["fval"])

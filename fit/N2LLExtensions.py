@@ -467,86 +467,8 @@ class N2LLExtensions(N2LL):
             out[cid] = groups
         return out
 
-    def _eval_region_surrogates(self, rid: str, X: np.ndarray, feature_names: list[str]) -> dict:
-        """
-        Compute, in memory, the per-class arrays needed to build T(x; c,nu):
-          - classifier probs g(x) if a classifier is configured (else ones)
-          - BIT basis R_A(x)
-          - each PNN group's Δ_B(x) matrix
-        Returns a by-class dict mirroring the shape used elsewhere:
-          { cid: {'g': (N,), 'R': (N,nA), 'Delta::<sid>': (N,nB), ...}, ... }
-        """
-        import numpy as np
-
-        # resolve the region cfg and class list
-        region = next((R for R in self.regions if R['id'] == rid), None)
-        if region is None:
-            raise RuntimeError(f"[evaluate_ratio] Unknown region id '{rid}'.")
-        classes = list(region.get('classes', []) or [])
-        n_proc  = len(classes)
-
-        # input features + mask utility
-        feat_names = list(feature_names or [])
-        if not feat_names:
-            raise RuntimeError("[evaluate_ratio] feature_names must be provided.")
-        X = np.asarray(X, dtype=np.float64, order='C')
-        if X.ndim != 2:
-            raise RuntimeError(f"[evaluate_ratio] X must be 2D, got shape {X.shape}.")
-        N = X.shape[0]
-
-        # classifier g(x)
-        g_all = None
-        clf = region.get('_classifier_predictor', None)
-        if clf is None or n_proc <= 1:
-            g_all = np.ones((N, n_proc), dtype=np.float64)
-        else:
-            if not hasattr(clf, "feature_names"):
-                raise RuntimeError("[evaluate_ratio] classifier predictor lacks feature_names.")
-            mask = self.make_column_mask(feat_names, list(clf.feature_names))
-            g_all = _predict_classifier(clf, X[:, mask])  # (N, n_proc)
-            if g_all.shape[1] != n_proc:
-                raise RuntimeError(f"[evaluate_ratio] classifier outputs {g_all.shape[1]} != {n_proc} classes for region '{rid}'.")
-
-        # per-class outputs
-        by_class: dict[str, dict] = {}
-
-        for C in classes:
-            cid = C['id']
-            comp = {}
-
-            # g for this process
-            p_index = class_index(classes, cid)
-            comp['g'] = np.asarray(g_all[:, p_index], dtype=np.float64, order='C')  # (N,)
-
-            # BIT R_A(x)
-            poi = (C.get('POI') or {})
-            bit = poi.get('predictor', None)
-            if bit is None:
-                raise RuntimeError(f"[evaluate_ratio] Missing BIT predictor for {rid}/{cid}.")
-            if not hasattr(bit, "feature_names"):
-                raise RuntimeError(f"[evaluate_ratio] BIT predictor lacks feature_names for {rid}/{cid}.")
-            mask_bit = self.make_column_mask(feat_names, list(bit.feature_names))
-            R_A = predict_bit_ratio(bit, X[:, mask_bit])  # (N, nA)
-            comp['R'] = np.asarray(R_A, dtype=np.float64, order='C')
-
-            # PNN Δ groups
-            for S in C.get('_pnn_systs', []):
-                sid = S['id']
-                pnn = S.get('predictor', None)
-                if pnn is None:
-                    raise RuntimeError(f"[evaluate_ratio] Missing PNN predictor for {rid}/{cid}/{sid}.")
-                # Feature selection for PNN: prefer predictor.feature_names if present
-                if hasattr(pnn, "feature_names") and pnn.feature_names:
-                    mask_pnn = self.make_column_mask(feat_names, list(pnn.feature_names))
-                    dA = predict_pnn_deltaA(pnn, X[:, mask_pnn])  # (N, nB)
-                else:
-                    # Fallback: assume pnn.deltaA expects the provided X ordering.
-                    dA = predict_pnn_deltaA(pnn, X)
-                comp[f"Delta::{sid}"] = np.asarray(dA, dtype=np.float64, order='C')
-
-            by_class[cid] = comp
-
-        return by_class
+    # _eval_region_surrogates moved to the base N2LL class (fit/Likelihood.py),
+    # since setObservation/toy generation need it too.
 
     def evaluate_ratio(self, rid: str, X: np.ndarray, feature_names: list[str],
                        hypothesis, *, cached: bool = True, return_T: bool = False,

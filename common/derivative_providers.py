@@ -80,3 +80,12 @@ class EFTDerivativeProvider:
 
     def truth_weight_matrix(self, G, w, observer_names):
         return self._eft.make_weight_matrix(G, observer_names, w)
+
+
+def build_derivative_provider(job):
+    """Build the PDF or EFT derivative provider for a BIT job, dispatching on its config block."""
+    if job.get("pdf"):
+        return PDFDerivativeProvider(job["pdf"])
+    if job.get("eft"):
+        return EFTDerivativeProvider(job["eft"].get("parameters", []))
+    raise RuntimeError(f"Job '{job['id']}' has neither a 'pdf' nor an 'eft' block.")

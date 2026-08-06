@@ -1,0 +1,28 @@
+# Example toy spec for fit/ToyGenerator.py, for configs/Eta_unbinned/Eta_unbinned_2016.yaml
+# (the multi-process reference region: SR_2016 classes are TTLep_pow_2016, EtaS_2016,
+# EtaP_2016 -- see the "Multi-process handling" section of
+# user/ricardo/claude/plans/toy-generation-for-pseudo-experiments.md, verification 6-7).
+#
+#   python fit/ToyGenerator.py configs/Eta_unbinned/Eta_unbinned_2016.yaml \
+#       --toySpec configs/Eta_unbinned/toys_example.yaml --toyPoint etaS_up \
+#       --seeds 0-499 --outputDir <some output dir>
+
+source: truth
+split: [c2st_train, c2st_val] # null makes cache-mode-vs-truth-mode pull *widths* comparable (verification 6)
+throw_nuisances: true
+allow_negative_weights: false
+
+points:
+  # nominal truth-mode toy: no modifiers -- the surrogate-correct limit. Every
+  # class gets an implicit ProcessSource at scale_factor=1.0 from its own sample.
+  - name: nominal
+
+  # EtaS_2016 has a rate_shift POI (a model parameter, so this specific case is
+  # also expressible in cache mode via hypothesis: {rate_shift_EtaS: ...}); this
+  # truth-mode version instead probes whether the ICH/ICPH-free unbinned
+  # surrogates absorb a 20% scale mismodelling correctly.
+  - name: etaS_up
+    injection:
+      SR_2016:
+        EtaS_2016:
+          scale_factor: 1.2

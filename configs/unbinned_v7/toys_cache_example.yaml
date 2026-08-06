@@ -1,0 +1,19 @@
+# Cache-mode toy spec for configs/unbinned_v7/unbinned_2018.yaml, used for the
+# first real (non-synthetic) validation of fit/ToyGenerator.py cache-mode
+# generation. See user/ricardo/claude/plans/toy-generation-status.md.
+#
+#   python fit/ToyGenerator.py configs/unbinned_v7/unbinned_2018.yaml \
+#       --toySpec configs/unbinned_v7/toys_cache_example.yaml --toyPoint nominal \
+#       --seeds 0-9 --outputDir <some output dir>
+
+# TTLep_pow_2018/SingleTop_2018/DrellYan_LO_HTbinned_2018/TTSemi_pow_2018 are all
+# NLO-generated samples with ~0.33% negative-weight MC events (routine, not a
+# modelling issue), so allow_negative_weights is needed even at the nominal point.
+source: cache
+throw_nuisances: true
+allow_negative_weights: true
+
+points:
+  - name: nominal
+  - name: c0_0p5
+    hypothesis: {c0: 0.5}
