@@ -26,7 +26,6 @@ import argparse
 import importlib
 import logging
 import math
-from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -38,6 +37,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common.user as user
 import common.yaml_loader as yaml_loader
 from data.UIDSplitter import UIDSplitter
+
+from common.derivative_providers import build_derivative_provider
+from ML.Calibration.binned_calibration import format_derivative
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -140,23 +142,10 @@ def _uid_split_interval(split_cfg: dict, *split_names: str):
     return uid_splitter, list(uid_fields), merged
 
 # --------------------------------------------------------------------------------
-# derivative labels
-# --------------------------------------------------------------------------------
-
-def _format_derivative(der) -> str:
-    """Pretty label for coefficient combinations, e.g. ('c0','c0','c1') -> c0^2 * c1"""
-    if len(der) == 0:
-        return "()"
-    counts = Counter(der)
-    parts = [(v if counts[v] == 1 else f"{v}^{counts[v]}") for v in sorted(counts.keys())]
-    return " * ".join(parts)
-
-
-# --------------------------------------------------------------------------------
 # main entry: materialize + save
 # --------------------------------------------------------------------------------
 
-def run_calibration(cfg, job, samples_mod, args, provider):
+def get_truth_pred_values(cfg, job, samples_mod, args, provider):
     """Materialize truth/prediction matrices for the trained BIT and save them as .npy.
 
     Always draws truth from ``provider``; the trained BIT ('BIT_best.pkl') supplies the
@@ -261,7 +250,7 @@ def run_calibration(cfg, job, samples_mod, args, provider):
     if not ders:
         raise RuntimeError("BIT has no non-trivial derivatives to evaluate.")
 
-    der_labels = np.array([_format_derivative(d) for d in ders], dtype=object)
+    der_labels = np.array([format_derivative(d) for d in ders], dtype=object)
 
     def build_and_save(split_name: str, X: np.ndarray, w: dict):
         if X is None or len(X) == 0:
@@ -327,7 +316,7 @@ def run_calibration(cfg, job, samples_mod, args, provider):
         csv_labels.append("weight")
         csv_data.append(w0_f)
 
-        csv_path = os.path.join(model_dir, f"calib_prediction_{split_name}.csv")
+        csv_path = os.path.join(model_dir, f"calib_values_{split_name}.csv")
         pd.DataFrame(csv_data, index=csv_labels).T.to_csv(csv_path, index=True)
         logger.info("  csv   -> %s", csv_path)
 
@@ -335,3 +324,13 @@ def run_calibration(cfg, job, samples_mod, args, provider):
     build_and_save("_".join(args.partition), X, weights)
 
     logger.info("Done.")
+
+
+if __name__ == "__main__":
+    
+    args = build_arg_parser(__doc__).parse_args()
+    cfg, job, samples_mod = load_cfg_and_job(args)
+
+    provider = build_derivative_provider(job)
+    get_truth_pred_values(cfg, job, samples_mod, args, provider)
+

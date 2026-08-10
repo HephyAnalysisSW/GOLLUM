@@ -11,6 +11,13 @@ panel), and the weighted event yield per bin (bottom panel).
 Works identically for PDF and EFT jobs since it only reads the CSV already saved by
 the calibration scripts; the job's ``pdf``/``eft`` block is irrelevant here.
 
+Also allows deriving binned calibration factors with the --calibrate flag.
+
+These are derived only when running on the c2st_train partition (to avoid data leakage),
+and plots the calibration curves on the same dataset as a cross-check (should be flat at 1, by construction).
+
+These can then be applied to the calibration plots done with the c2st_val partition.
+
 Example
 -------
     python ML/Calibration/calibration_plots.py configs/unbinned_v6/unbinned_2018.yaml \
@@ -41,7 +48,10 @@ import common.user as user
 import common.syncer as syncer
 import common.helpers as helpers
 import common.yaml_loader as yaml_loader
+from ML.Calibration.binned_calibration import calibrate_prediction_binned, sanitize_label
 from collections.abc import Sequence
+
+import pickle as pkl
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -61,6 +71,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--binning", type=str, choices=["equal","quantile"], default="equal", help="Equal-sized or quantile-based binning.")
     p.add_argument("--labels", nargs="+", default=None, help="Restrict to these derivative labels (default: all)")
     p.add_argument("--partition", default=["c2st_train", "c2st_val"], nargs="+", choices=["c2st_train", "c2st_val"], help="Which C2ST sub-partition to use (default: both).")
+    p.add_argument("--calibrate", action="store_true", help="Derive calibration factors (c2st_train) or apply available calibration factors (c2st_val).")
+    return p
 
 
 def load_cfg_and_job(args):
@@ -96,9 +108,6 @@ def weighted_std(array, weight):
     var = weighted_mean((array - mean) ** 2, weight)
     return np.sqrt(np.abs(var))
 
-
-def sanitize_label(label: str) -> str:
-    return label.replace(" * ", "_x_").replace("^", "pow").replace(" ", "")
 
 def get_binning(pred, weight, num_bins, binning):
 
@@ -147,6 +156,36 @@ def bin_calibration(pred, residual, weight, bins):
         paired_count_err += [count_err, count_err]
 
     return tuple(np.array(a) for a in (paired_pred_bins, paired_mean_res, paired_std_res, paired_count, paired_count_err))
+
+# gets binned reweighting factors based on a certain operator
+def get_binned_calib_factors(pred, residual, weight, bins) -> np.ndarray:
+
+    which_bin = (pred > bins[:-1].reshape(-1, 1)) & (pred <= bins[1:].reshape(-1, 1))
+
+    # bin contains upper edge of last bin
+    calib_factors = np.ones(len(bins)-1)
+    mean_res = np.zeros(len(bins)-1)
+    mean_pred = np.zeros(len(bins)-1)
+
+    for i in range(len(bins)-1):
+        if not np.any(which_bin[i]):
+            continue
+        
+        pred_bin = pred[which_bin[i]]
+        res_bin = residual[which_bin[i]]
+        w_bin = weight[which_bin[i]]
+
+        mean_res[i] = weighted_mean(res_bin, w_bin)
+        mean_pred[i] = weighted_mean(pred_bin, w_bin)
+
+    # 'out' is required: without it, bins with mean_pred == 0 (empty bins) keep
+    # whatever uninitialized memory np.divide allocated instead of a ratio of 0.
+    calib_factors = np.divide(mean_res, mean_pred, out=np.zeros(len(bins)-1), where=(mean_pred != 0.0)) + 1.0
+
+    logger.debug(f"{mean_res=}, {mean_pred=}, {calib_factors=}")
+
+    return calib_factors
+
 
 # --------------------------------------------------------------------------------
 # drawing
@@ -236,7 +275,7 @@ def main():
     cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
     model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
 
-    csv_path = os.path.join(model_dir, f"calib_prediction_{'_'.join(args.partition)}.csv")
+    csv_path = os.path.join(model_dir, f"calib_values_{'_'.join(args.partition)}.csv")
     if not os.path.exists(csv_path):
         raise FileNotFoundError(
             f"Missing {csv_path}. Run pdf_calibration.py / eft_calibration.py for job '{job['id']}' first."
@@ -270,18 +309,66 @@ def main():
     logger.info("Output directory: %s", out_dir)
 
     out_of_calibration = {}
+
+    derive_calib = apply_calib = False
+
+    if args.calibrate:
+
+        if "c2st_train" in args.partition and "c2st_val" in args.partition:
+            raise ValueError("Cannot derive/apply calibration factors from both C2ST partitions to avoid data leakage!")
+
+        calib_factors_dict = {}
+        calib_factors_path = os.path.join(model_dir, f"calib_factors_{args.num_bins}_{args.binning}_bins.pkl")
+
+        # deriving calibration on c2st_train
+        if args.partition == ["c2st_train"]:
+            derive_calib = True
+            if not os.path.exists(calib_factors_path):
+                calib_factors_dict["bins"] = {}
+                calib_factors_dict["calib_factors"] = {}
+
+        # checking calibration on c2st_val
+        elif args.partition == ["c2st_val"]:
+            apply_calib = True
+            with open(calib_factors_path, "rb") as f:
+                calib_factors_dict = pkl.load(f)
+
     for label in selected:
         truth = df[f"{label}_truth"].to_numpy()
         pred = df[f"{label}_pred"].to_numpy()
 
         residual = truth - pred
         bins = get_binning(pred, weight, args.num_bins, args.binning)
-        os.path.join(out_dir, f"{sanitize_label(label)}_{'_'.join(args.partition)}")
-        flagged = plot_calibration(label, pred, residual, weight, out_path, bins)
+        pred_for_binning = pred
+
+        if args.calibrate:
+
+            if derive_calib:
+                
+                calib_factors = get_binned_calib_factors(pred, residual, weight, bins)
+
+                calib_factors_dict["calib_factors"][sanitize_label(label)] = calib_factors
+                calib_factors_dict["bins"][sanitize_label(label)] = bins               
+
+            elif apply_calib:
+
+                bins = calib_factors_dict["bins"][sanitize_label(label)]
+                calib_factors = calib_factors_dict["calib_factors"][sanitize_label(label)]
+
+            pred = calibrate_prediction_binned(pred, bins, calib_factors)
+            residual = truth-pred
+
+        out_path = os.path.join(out_dir, f"{sanitize_label(label)}_{'_'.join(args.partition)}{'_calibrated' if args.calibrate else ''}")
+        flagged = plot_calibration(label, pred_for_binning, residual, weight, out_path, bins)
         
         logger.info("Wrote %s.png / .pdf", out_path)
         if flagged is not None:
             out_of_calibration[label] = flagged
+
+    if derive_calib:
+        with open(calib_factors_path, "wb") as f:
+            pkl.dump(calib_factors_dict, f)
+        logger.info(f"Wrote calib_factors and binning (including upper edge of last bin) into {calib_factors_path}.")
 
     flagged_labels = [label for label, flagged in out_of_calibration.items() if flagged]
     if flagged_labels:
