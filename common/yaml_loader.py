@@ -534,8 +534,7 @@ def _load_binned_calibration(job, outdir, jid, derivatives):
         calibration = pickle.load(f)
 
     check_calibration_covers_derivatives(calibration, derivatives, f"BIT {jid} ({path})")
-    print(f"[OK] BIT {jid}  binned calibration -> {path} "
-          f"(caches built without it are stale; rebuild with --overwrite)")
+    print(f"[OK] BIT {jid}  binned calibration -> {path}")
     return calibration
 
 

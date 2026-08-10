@@ -35,14 +35,25 @@ out not to apply.** `predict_bit_ratio` has exactly two call sites,
 `setObservation`. So calibrating at the single choke point where `R` is produced reaches
 everything, with no signature changes anywhere.
 
-### Consequence: cache invalidation
+### Cache invalidation: a non-issue, given the config layout in section 4
 
 `build_cache` skips rebuilding when `<cache_root>/<rid>/<cid>.h5` exists and `--overwrite`
-is not set, and the cache key does **not** include the calibration. A calibrated run over a
-stale uncalibrated cache silently uses raw `R`. Mitigated only by a warning in the loader log
-line; use a separate cache directory or `--overwrite`. Encoding the calibration in the cache
-key would be the robust fix and was deliberately not done -- it is a larger change to the
-cache-path scheme than this feature justifies.
+is not set, and the cache key does not include the calibration. That sounds like a trap --
+a calibrated run reusing an uncalibrated cache would silently fit raw `R`.
+
+It is not one, because the cache path is derived from the **config file name**:
+`cache_subdir = NN2LCache/<base>/<version>` with `base` the config basename, consistently
+across all four fit entry points (`Likelihood.py:2541`, `MultiDimFit.py:105`,
+`RunImpactPlots.py:242`, `ToyGenerator.py:888`). Since the calibrated variant lives in its
+own file, `unbinned_2016_eft_rescale.yaml`, it gets its own cache tree and regenerates on
+first use. This is an additional argument for the separate-config layout over two jobs in
+one config, where both variants would have shared a cache tree *and* a job id.
+
+The one way to defeat this is passing `--base` explicitly with the same value for both
+configs, which forces them into a shared cache directory. Don't.
+
+Encoding the calibration in the cache key would make this robust independent of file naming,
+and was not done -- a larger change to the cache-path scheme than this feature justifies.
 
 ---
 

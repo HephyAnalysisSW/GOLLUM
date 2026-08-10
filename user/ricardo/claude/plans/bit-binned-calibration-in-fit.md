@@ -109,12 +109,9 @@ if calibration is not None:
 Both call sites are covered with no signature change. Import
 `apply_binned_calibration` from `ML.Calibration.binned_calibration`.
 
-**Cache invalidation caveat:** `build_cache` writes `R` to
-`<cache_root>/<rid>/<cid>.h5` and skips rebuilding when the file exists and `--overwrite` is
-not set ([fit/Likelihood.py:806-818](../../../../fit/Likelihood.py#L806)). The cache key does not
-include the calibration, so a calibrated run over a stale uncalibrated cache would silently use
-raw `R`. Use a distinct cache directory (or `--overwrite`) for the calibrated config, and say so
-in the log line from step 2.
+**Cache invalidation:** handled by the config layout in step 4. The cache path is
+`NN2LCache/<config basename>/<version>`, so the separately-named `..._rescale.yaml` gets its
+own cache tree and regenerates on first use. No `--overwrite` needed.
 
 ### 4. `configs/unbinned_v7_eft/unbinned_2016_eft_rescale.yaml`
 
