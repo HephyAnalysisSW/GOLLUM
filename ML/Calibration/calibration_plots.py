@@ -56,7 +56,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--job", default=None, help="BIT job id (omit to list bit jobs)")
-    p.add_argument("--num-bins", type=int, default=25, help="Number of bins in the predicted coefficient")
+    p.add_argument("--num-bins", type=int, default=25, help="Number of bins in the predicted coefficient.")
+    p.add_argument("--binning", type=str, choices=["equal","quantile"], default="equal", help="Equal-sized or quantile-based binning.")
     p.add_argument("--labels", nargs="+", default=None, help="Restrict to these derivative labels (default: all)")
     return p
 
@@ -98,43 +99,59 @@ def weighted_std(array, weight):
 def sanitize_label(label: str) -> str:
     return label.replace(" * ", "_x_").replace("^", "pow").replace(" ", "")
 
+def get_binning(pred, weight, num_bins, binning):
 
-def bin_calibration(pred, residual, weight, num_bins):
+    """Gets binning of based on ``pred`` value.
+
+    Returns array of lower bin edges as well as upper edge of last bin.
+    """
+
+    if binning=="quantile":
+        bins = np.quantile(pred, np.linspace(0., 1., num_bins + 1), method='inverted_cdf', weights=weight)
+    else:
+        bins = np.linspace(pred.min(), pred.max(), num_bins + 1)
+
+    logger.debug(bins)
+
+    return bins
+
+
+def bin_calibration(pred, residual, weight, bins):
     """Bin ``residual`` by ``pred`` value.
 
     Returns paired (left-edge, right-edge) point arrays for each populated bin, ready
     for a stair-style ``plot``/``fill_between``/``step`` call, matching the standalone
     notebook this script replaces.
     """
-    bins = np.linspace(pred.min(), pred.max(), num_bins + 1)
+
     which_bin = (pred > bins[:-1].reshape(-1, 1)) & (pred <= bins[1:].reshape(-1, 1))
 
-    paired_pred, paired_mean, paired_std, paired_count, paired_count_err = [], [], [], [], []
-    for i in range(num_bins):
+    paired_pred_bins, paired_mean_res, paired_std_res, paired_count, paired_count_err = [], [], [], [], []
+    # bin contains upper edge of last bin
+    for i in range(len(bins)-1):
         if not np.any(which_bin[i]):
             continue
         res_bin = residual[which_bin[i]]
         w_bin = weight[which_bin[i]]
 
-        mean_w = weighted_mean(res_bin, w_bin)
-        std_w = weighted_std(res_bin, w_bin)
+        mean_res = weighted_mean(res_bin, w_bin)
+        std_res = weighted_std(res_bin, w_bin)
         count = w_bin.sum()
         count_err = np.sqrt(np.sum(w_bin ** 2))
 
-        paired_pred += [bins[i], bins[i + 1]]
-        paired_mean += [mean_w, mean_w]
-        paired_std += [std_w, std_w]
+        paired_pred_bins += [bins[i], bins[i + 1]]
+        paired_mean_res += [mean_res, mean_res]
+        paired_std_res += [std_res, std_res]
         paired_count += [count, count]
         paired_count_err += [count_err, count_err]
 
-    return tuple(np.array(a) for a in (paired_pred, paired_mean, paired_std, paired_count, paired_count_err))
-
+    return tuple(np.array(a) for a in (paired_pred_bins, paired_mean_res, paired_std_res, paired_count, paired_count_err))
 
 # --------------------------------------------------------------------------------
 # drawing
 # --------------------------------------------------------------------------------
 
-def plot_calibration(label, pred, truth, weight, out_path, num_bins):
+def plot_calibration(label, pred, residual, weight, out_path, bins):
     """Draw the two-panel calibration figure (residual band + weighted yield) for one derivative.
 
     Returns whether any bin is miscalibrated by more than 1 sigma, i.e. the drawn
@@ -145,15 +162,15 @@ def plot_calibration(label, pred, truth, weight, out_path, num_bins):
         logger.warning("Derivative %s: predicted values are degenerate, skipping.", label)
         return None
 
-    residual = truth - pred
-    paired_pred, paired_mean, paired_std, paired_count, paired_count_err = bin_calibration(
-        pred, residual, weight, num_bins
+    paired_pred_bins, paired_mean_res, paired_std_res, paired_count, paired_count_err = bin_calibration(
+        pred, residual, weight, bins
     )
-    if len(paired_pred) == 0:
+
+    if len(paired_pred_bins) == 0:
         logger.warning("Derivative %s: no populated bins, skipping.", label)
         return None
 
-    out_of_calibration = bool(np.any(np.abs(paired_mean) > paired_std))
+    out_of_calibration = bool(np.any(np.abs(paired_mean_res) > paired_std_res))
 
     fig, (ax_top_panel, ax_bottom_panel) = plt.subplots(
         2, 1, sharex=True, figsize=(8, 8),
@@ -167,19 +184,19 @@ def plot_calibration(label, pred, truth, weight, out_path, num_bins):
     if positive_counts.size:
         ax_top_panel.set_ylim(positive_counts.min() * 0.8, positive_counts.max() * 1.6)
     ax_top_panel.fill_between(
-        paired_pred,
+        paired_pred_bins,
         np.clip(paired_count - paired_count_err, 1e-12, None),
         paired_count + paired_count_err,
         step="post", color="#a6c8a6", alpha=0.3, linewidth=0,
     )
-    ax_top_panel.step(paired_pred, paired_count, where="post", color="k", label="Calibration dataset")
+    ax_top_panel.step(paired_pred_bins, paired_count, where="post", color="k", label="Calibration dataset")
     ax_top_panel.legend(frameon=False, fontsize=12, loc="lower right")
     ax_top_panel.tick_params(axis="x", which="both", labelbottom=False)
 
     # ---- bottom panel: residual mean +/- std vs predicted coefficient ----
-    ax_bottom_panel.plot(paired_pred, paired_mean, color="k", label=r"$\langle R - \hat{R} \rangle$")
+    ax_bottom_panel.plot(paired_pred_bins, paired_mean_res, color="k", label=r"$\langle R - \hat{R} \rangle$")
     ax_bottom_panel.fill_between(
-        paired_pred, paired_mean + paired_std, paired_mean - paired_std,
+        paired_pred_bins, paired_mean_res + paired_std_res, paired_mean_res - paired_std_res,
         color="#a6c8a6", alpha=0.3, label=r"$\pm 1\sigma$",
     )
     ax_bottom_panel.axhline(0.0, linestyle="--", color="k")
@@ -187,12 +204,12 @@ def plot_calibration(label, pred, truth, weight, out_path, num_bins):
     ax_bottom_panel.set_xlabel(rf"$\hat{{R}}$ ({label})")
     ax_bottom_panel.legend(frameon=False, fontsize=12, loc="upper right")
 
-    y_max = float(np.max(np.abs(paired_mean) + paired_std))
+    y_max = float(np.max(np.abs(paired_mean_res) + paired_std_res))
     y_pad = 1.2 * max(y_max, 1e-3)
     ax_bottom_panel.set_ylim(-y_pad, y_pad)
 
     for ax in (ax_top_panel, ax_bottom_panel):
-        ax.set_xlim(paired_pred.min(), paired_pred.max())
+        ax.set_xlim(paired_pred_bins.min(), paired_pred_bins.max())
         ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
         ax.tick_params(axis="x", which="both", direction="in", top=True)
         ax.tick_params(axis="both", labelsize=12)
@@ -245,7 +262,7 @@ def main():
         raise RuntimeError(f"Requested labels not found: {sorted(unknown)}. Available: {der_labels_list}")
 
     out_dir = os.path.join(
-        user.plot_directory, "BIT-calibration",
+        user.plot_directory, "BIT-calibration",f"{args.num_bins}_{args.binning}_bins",
         cfg.get("version", "default"), job["region"], job["id"],
     )
     os.makedirs(out_dir, exist_ok=True)
@@ -255,8 +272,12 @@ def main():
     for label in selected:
         truth = df[f"{label}_truth"].to_numpy()
         pred = df[f"{label}_pred"].to_numpy()
+
+        residual = truth - pred
+        bins = get_binning(pred, weight, args.num_bins, args.binning)
         out_path = os.path.join(out_dir, sanitize_label(label))
-        flagged = plot_calibration(label, pred, truth, weight, out_path, args.num_bins)
+        flagged = plot_calibration(label, pred, residual, weight, out_path, bins)
+        
         logger.info("Wrote %s.png / .pdf", out_path)
         if flagged is not None:
             out_of_calibration[label] = flagged
