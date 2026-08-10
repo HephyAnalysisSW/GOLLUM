@@ -195,6 +195,7 @@ These look wrong to a fresh reader but are correct for this codebase — don't "
 - **`combine_configs()` requires identical `version` and `defaults` across all merged configs**: the surrogate loader uses `version` to locate model directories; a mismatch raises immediately.
 - **Region IDs and job IDs must be globally unique** within a merged config. Use era-suffixed IDs everywhere (e.g. `SR_2018`, `pnn_TTLep_pow_2018_PU`).
 - **Wrong statistics code produces plausible output.** A mis-ordered derivative contraction, a dropped Taylor factor, or pseudo-data drawn from the wrong distribution still yields smooth pulls, sensible-looking coverage and publishable plots. No downstream check catches it. When refactoring numerics, capture reference output *before* the change and assert exact equality after. A failing exact-equality check is a hard stop, never a tolerance to loosen.
+- **calls to `common/syncer.py` in autonomous validation sessions will crash the test** since sync to EOS can only be done after initializing Kerberos token, which itself can only be done in an interactive session. Comment out syncer import and calls when testing.
 
 ## Physics and statistical context
 
