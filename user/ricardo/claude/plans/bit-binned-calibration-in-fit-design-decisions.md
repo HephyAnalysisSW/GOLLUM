@@ -4,6 +4,12 @@ Decision record for the feature planned in `bit-binned-calibration-in-fit.md`. T
 goes stale once implemented; this does not. It answers the three questions posed in
 `bit-calibration-binned.md` and records what was rejected and why.
 
+**Scope of validation.** Every decision below is backed by reading the code, and the numerical
+claims by running against the real `bit_TT01j2l_EFT_2016_ctG` model and its stored pkl. **No
+likelihood fit was ever run.** Nothing here establishes that the calibration improves closure,
+or that a calibrated scan differs from an uncalibrated one in any particular direction. The
+per-step breakdown is in the plan's "What was actually verified" section.
+
 ---
 
 ## 1. Where is the rescaling applied?
@@ -70,8 +76,9 @@ names" -- is not quite right. The BIT does not store a POI *list*, but it stores
     predict() column j  ->  bit.derivatives[j]  ->  calibration_key(...)  ->  pkl key
 
 This is self-describing. It needs no POI list from the config, and is immune to the ordering
-trap documented at `fit/Likelihood.py:672` (the BIT alphabetizes its derivative columns, so
-config order and column order differ).
+trap documented in `N2LL._prepare_structure` at the `poi_names = sorted(poi_names)` line
+(`fit/Likelihood.py:686` at time of writing): the BIT alphabetizes its derivative columns, so
+config order and column order differ.
 
 ### Rejected: matching by position, or by the config's `eft.parameters` / `pdf` block
 
@@ -163,9 +170,12 @@ zero crossing sits in bins 17--18:
 
 These bins are populated, so the empty-bin fix below does not touch them; they *will* be
 applied in a fit. A negative factor flips the sign of that event's `R_A` contribution.
-Measured on 20k random-normal feature vectors through the real model, 5.0% of `ctGIm` and
-0.31% of `ctGRe` predictions change sign under calibration. Edge clamping additionally
-extends bin 24's `-4.07` to every event above 0.326.
+Edge clamping additionally extends bin 24's `-4.07` to every event above 0.326.
+
+Pushing 20k random-normal feature vectors through the real model, 5.0% of `ctGIm` and 0.31%
+of `ctGRe` predictions change sign under calibration. **Those inputs are synthetic, not
+physical events, so treat the numbers as evidence that the effect is reachable -- not as a
+rate.** The rate on real events is unmeasured and is the first thing to establish.
 
 Deliberately not mitigated in this change, since the right guard is a physics decision:
 options are a minimum sum-of-weights per bin, leaving bins with `|<pred>|` below a threshold

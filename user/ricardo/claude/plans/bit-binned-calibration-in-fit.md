@@ -10,8 +10,9 @@
 `ML/Calibration/calibration_plots.py --calibrate` already derives per-derivative binned
 calibration factors from a trained BIT (on the `c2st_train` partition) and writes them to
 `<model_dir>/<version>/<region>/BIT/<job_id>/calib_factors_<num_bins>_<binning>_bins.pkl`.
-Nothing consumes them: `configs/unbinned_v7_eft/unbinned_2016_eft_binned_calib.yaml` already
-declares `runtime.binned_calib_factors`, but no code reads that key.
+Nothing consumes them: a draft config already declared `runtime.binned_calib_factors`, but no
+code read that key. (That draft was `unbinned_2016_eft_binned_calib.yaml`; it became
+`unbinned_2016_eft_rescale.yaml` -- see step 4.)
 
 Goal: make a BIT job's declared calibration factors be applied to its predictions when the
 config is used in a likelihood fit, so a calibrated and an uncalibrated fit can be compared.
@@ -128,19 +129,44 @@ would have needed a second, non-existent model directory -- see the design decis
    (`.../SR_2016/BIT/bit_TT01j2l_EFT_2016_ctG/calib_factors_25_equal_bins.pkl`) over the saved
    `calib_pred_c2st_train.npy`, restricted to in-range events. Assert the searchsorted version
    is bit-for-bit identical there. Out-of-range events are expected to differ -- that is the fix.
-2. **Derivation path unchanged.** Re-run
-   `python ML/Calibration/calibration_plots.py configs/unbinned_v7_eft/unbinned_2016_eft_binned_calib.yaml --job bit_TT01j2l_EFT_2016_ctG --partition c2st_train --calibrate`
+2. **Derivation path unchanged.** Re-derive with
+   `python ML/Calibration/calibration_plots.py configs/unbinned_v7_eft/unbinned_2016_eft_rescale.yaml --job bit_TT01j2l_EFT_2016_ctG --partition c2st_train --calibrate`
    and confirm the regenerated pkl matches the existing one except for previously-empty bins
-   (which should now be exactly 1.0 instead of garbage).
-3. **Loader wiring.** `python common/yaml_loader.py configs/unbinned_v7_eft/unbinned_2016_eft_binned_calib.yaml`
-   -- `bit_..._ctG_calib_binned` reports calibration active, `bit_..._ctG` does not.
+   (which should now be exactly 1.0 instead of garbage). Note this script imports
+   `common.syncer`, whose `atexit` EOS upload crashes without an interactive Kerberos token --
+   see the CLAUDE.md note. To check the numerics without running the script, call
+   `get_binned_calib_factors` directly on `calib_values_c2st_train.csv`.
+3. **Loader wiring.** `python common/yaml_loader.py <config>` for both configs:
+   `unbinned_2016_eft_rescale.yaml` reports `binned calibration ->` for
+   `bit_TT01j2l_EFT_2016_ctG`, and `unbinned_2016_eft.yaml` reports nothing for the same job.
    Then point `binned_calib_factors` at a nonexistent file and confirm it crashes rather than
    loading uncalibrated.
-4. **End-to-end fit.** Run `python fit/Likelihood.py` on the config for both jobs, into
-   *separate* cache directories. Confirm the cached `R` matrices differ, that the calibrated
-   `R` equals the uncalibrated one multiplied by the expected per-bin factors on a spot-checked
-   sample of events, and compare the resulting `ctGRe`/`ctGIm` scans.
-5. **Sanity check on the factors themselves.** The real pkl contains negative and
-   wildly-varying factors in sparse tail bins (`calib_factors['ctGRe'][0] = -0.066`,
-   `[2] = 1.38`). With edge clamping these get extrapolated into the tails. Inspect the fitted
-   `R` distribution for sign flips before trusting the calibrated scan.
+4. **End-to-end fit.** Run `python fit/Likelihood.py` on each of the two configs. Caches
+   separate themselves by config name (step 3 above), so no extra flags are needed. Confirm the
+   cached `R` matrices differ, that the calibrated `R` equals the uncalibrated one multiplied by
+   the expected per-bin factors on a spot-checked sample of events, and compare the resulting
+   `ctGRe`/`ctGIm` scans.
+5. **Sanity check on the factors themselves.** The real pkl contains factors that diverge and
+   change sign where the prediction crosses zero -- `calib_factors['ctGRe'][17] = +29.87` and
+   `[18] = -11.16`, both in populated bins. Edge clamping additionally extrapolates
+   `[24] = -4.07` above 0.326. Count sign flips in the fitted `R` distribution on *real* events
+   before trusting the calibrated scan. Full table and candidate mitigations are in the design
+   decisions record.
+
+### What was actually verified
+
+Steps 1, 2 (via the direct-call route) and 3 were executed and passed:
+
+- searchsorted rewrite bit-for-bit identical to the old mask for in-range events, 5 derivatives
+  x 2 partitions, on real saved predictions.
+- Re-derivation reproduces the binning exactly and every populated bin bit-for-bit; exactly 12
+  values change across the 5 derivatives, all empty bins, all now exactly 1.0.
+- Loader attaches for the rescale config only; raises on an absent file and on a calibration
+  missing a derivative key.
+- `predict_bit_ratio` on the real BIT with the real pkl reproduces the expected per-bin
+  products and leaves its input unmutated -- but on *synthetic* feature vectors.
+
+**Steps 4 and 5 were not run.** No fit has been performed, so nothing is established about
+whether the calibrated and uncalibrated scans differ, whether the calibration improves closure,
+or what the sign-flip rate is on real events. The 5.0% / 0.31% figures quoted in the design
+decisions record come from random-normal inputs and are not a physical rate.
