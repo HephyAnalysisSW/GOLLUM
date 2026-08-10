@@ -42,7 +42,8 @@ import sys
 sys.path.insert(0, '..')
 
 from fit.Modeling import ModelParameter, Hypothesis, Rotated
-import common.helpers as helpers 
+from ML.Calibration.binned_calibration import apply_binned_calibration
+import common.helpers as helpers
  
 # ---- Likelihood wiring + model parameter scaffolding -----------------------
 
@@ -531,7 +532,16 @@ def predict_bit_ratio(model, X: np.ndarray) -> np.ndarray:
     Y = np.asarray(Y)
     if Y.ndim == 1:
         Y = Y[:, None]
-    return Y.astype(np.float64, copy=False)
+    Y = Y.astype(np.float64, copy=False)
+
+    # Applied here rather than in BIT.predict(): the calibration is derived from the
+    # raw predictions, so calibrating inside predict() would feed the derivation its
+    # own output. Both callers of this function run before the fit, so the cached R
+    # matrix that N2LL.__call__ contracts is already calibrated.
+    calibration = getattr(model, "binned_calibration", None)
+    if calibration is not None:
+        Y = apply_binned_calibration(Y, model.derivatives, calibration)
+    return Y
 
 
 def predict_pnn_deltaA(model, X: np.ndarray) -> np.ndarray:
