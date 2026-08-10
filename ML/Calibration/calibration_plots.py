@@ -41,6 +41,7 @@ import common.user as user
 import common.syncer as syncer
 import common.helpers as helpers
 import common.yaml_loader as yaml_loader
+from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -59,7 +60,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--num-bins", type=int, default=25, help="Number of bins in the predicted coefficient.")
     p.add_argument("--binning", type=str, choices=["equal","quantile"], default="equal", help="Equal-sized or quantile-based binning.")
     p.add_argument("--labels", nargs="+", default=None, help="Restrict to these derivative labels (default: all)")
-    return p
+    p.add_argument("--partition", default=["c2st_train", "c2st_val"], nargs="+", choices=["c2st_train", "c2st_val"], help="Which C2ST sub-partition to use (default: both).")
 
 
 def load_cfg_and_job(args):
@@ -235,7 +236,7 @@ def main():
     cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
     model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
 
-    csv_path = os.path.join(model_dir, f"calib_prediction.csv")
+    csv_path = os.path.join(model_dir, f"calib_prediction_{'_'.join(args.partition)}.csv")
     if not os.path.exists(csv_path):
         raise FileNotFoundError(
             f"Missing {csv_path}. Run pdf_calibration.py / eft_calibration.py for job '{job['id']}' first."
@@ -275,7 +276,7 @@ def main():
 
         residual = truth - pred
         bins = get_binning(pred, weight, args.num_bins, args.binning)
-        out_path = os.path.join(out_dir, sanitize_label(label))
+        os.path.join(out_dir, f"{sanitize_label(label)}_{'_'.join(args.partition)}")
         flagged = plot_calibration(label, pred, residual, weight, out_path, bins)
         
         logger.info("Wrote %s.png / .pdf", out_path)

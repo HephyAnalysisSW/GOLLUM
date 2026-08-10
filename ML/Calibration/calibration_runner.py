@@ -53,6 +53,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
     p.add_argument("--small", action="store_true", help="Only first shard for debugging")
+    p.add_argument("--partition", default=["c2st_train", "c2st_val"], nargs="+", choices=["c2st_train", "c2st_val"], help="Which C2ST sub-partition to use (default: both).")
     return p
 
 
@@ -138,16 +139,6 @@ def _uid_split_interval(split_cfg: dict, *split_names: str):
 
     return uid_splitter, list(uid_fields), merged
 
-
-def _uid_c2st_intervals(job):
-    """Build the UID splitter and the 'c2st_train'+'c2st_val' bucket interval for a job.
-
-    Calibration always evaluates the split held out from BIT training (the
-    'c2st_train'/'c2st_val' buckets), matching the convention used for C2ST checks.
-    """
-    return _uid_split_interval(job.get("splitting") or {}, "c2st_train", "c2st_val")
-
-
 # --------------------------------------------------------------------------------
 # derivative labels
 # --------------------------------------------------------------------------------
@@ -177,7 +168,7 @@ def run_calibration(cfg, job, samples_mod, args, provider):
         raise RuntimeError(f"Loader/view '{loader_name}' not found in module {samples_mod.__name__}.")
     loader = getattr(samples_mod, loader_name)
 
-    uid_splitter, uid_fields, c2st_interval = _uid_c2st_intervals(job)
+    uid_splitter, uid_fields, partition_interval = _uid_split_interval(job.get("splitting") or {}, *args.partition)
 
     required_observers = list(provider.required_observers)
     required_observers += [f for f in uid_fields if f not in required_observers]
@@ -215,7 +206,7 @@ def run_calibration(cfg, job, samples_mod, args, provider):
         n_shards = 1 if args.small else len(loader)
         on2idx = {n: i for i, n in enumerate(obs_names)}
         uid_idx = [on2idx[f] for f in uid_fields]
-        lo, hi = c2st_interval
+        lo, hi = partition_interval
 
         for shard in range(n_shards):
             X, G, w = loader.materialize(shard=shard, what="fow")
@@ -310,9 +301,9 @@ def run_calibration(cfg, job, samples_mod, args, provider):
         truth_f = truth.astype(np.float32, copy=False)
         w0_f = w0.astype(np.float32, copy=False)
 
-        pred_path = os.path.join(model_dir, f"calib_pred.npy")
-        truth_path = os.path.join(model_dir, f"calib_truth.npy")
-        w0_path = os.path.join(model_dir, f"calib_w0.npy")
+        pred_path = os.path.join(model_dir, f"calib_pred_{split_name}.npy")
+        truth_path = os.path.join(model_dir, f"calib_truth_{split_name}.npy")
+        w0_path = os.path.join(model_dir, f"calib_w0_{split_name}.npy")
         label_path = os.path.join(model_dir, "calib_der_labels.npy")  # shared
 
         np.save(pred_path, pred_f)
@@ -336,11 +327,11 @@ def run_calibration(cfg, job, samples_mod, args, provider):
         csv_labels.append("weight")
         csv_data.append(w0_f)
 
-        csv_path = os.path.join(model_dir, f"calib_prediction.csv")
+        csv_path = os.path.join(model_dir, f"calib_prediction_{split_name}.csv")
         pd.DataFrame(csv_data, index=csv_labels).T.to_csv(csv_path, index=True)
         logger.info("  csv   -> %s", csv_path)
 
     # build + save
-    build_and_save("c2st", X, weights)
+    build_and_save("_".join(args.partition), X, weights)
 
     logger.info("Done.")
