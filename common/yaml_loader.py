@@ -509,6 +509,35 @@ def _normalize_cfg_binning(job_binning):
         edges.append(arr)
     return tuple(axes), edges
 
+def _load_binned_calibration(job, outdir, jid, derivatives):
+    """Load a BIT job's binned calibration factors, or None if the job declares none.
+
+    The file name comes from ``runtime.binned_calib_factors`` and is resolved relative
+    to the job's own model directory, where ``calibration_plots.py --calibrate`` writes it.
+    """
+    import pickle
+
+    fname = (job.get("runtime", {}) or {}).get("binned_calib_factors")
+    if not fname:
+        return None
+
+    from ML.Calibration.binned_calibration import check_calibration_covers_derivatives
+
+    path = os.path.join(outdir, fname)
+    if not os.path.exists(path):
+        raise RuntimeError(
+            f"BIT {jid}: runtime.binned_calib_factors names '{fname}' but {path} does not exist. "
+            f"Derive it with: python ML/Calibration/calibration_plots.py <config> --job {jid} "
+            "--partition c2st_train --calibrate"
+        )
+    with open(path, "rb") as f:
+        calibration = pickle.load(f)
+
+    check_calibration_covers_derivatives(calibration, derivatives, f"BIT {jid} ({path})")
+    print(f"[OK] BIT {jid}  binned calibration -> {path}")
+    return calibration
+
+
 # --- surrogate loader ------------
 def load_surrogates(cfg, config_path, overwrite=False):
     """
@@ -710,7 +739,11 @@ def load_surrogates(cfg, config_path, overwrite=False):
                 print(f"[OK] BIT {jid}  -> {path}")
                 ok.append(jid)
                 cfg['jobs'][i_job]['predictor'] = loaded
-                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features'] 
+                cfg['jobs'][i_job]['predictor'].feature_names = cfg['jobs'][i_job]['features']
+                # Binned calibration factors are optional, but if the job names them they
+                # must load -- silently fitting with uncalibrated predictions is worse
+                # than crashing. Kept outside try_load_bit, which swallows exceptions.
+                loaded.binned_calibration = _load_binned_calibration(job, outdir, jid, loaded.derivatives)
             else:
                 print(f"[MISS] BIT {jid}  (expected at {path})")
                 missing.append(f"python {ml_dir}/BIT/pdf_bit_training.py {cfg_full}{FLAGS} --job {jid}")
