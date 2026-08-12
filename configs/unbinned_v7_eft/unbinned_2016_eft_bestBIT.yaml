@@ -195,7 +195,7 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctG.pkl"
+      filename: "BIT_best.pkl"
 
   - id: bit_TT01j2l_EFT_2016_ctG_sel2
     type: bit
