@@ -521,9 +521,13 @@ def _predict_classifier(model, X: np.ndarray) -> np.ndarray:
     return P.astype(np.float64, copy=False)
 
 
-def predict_bit_ratio(model, X: np.ndarray) -> np.ndarray:
+def predict_bit_ratio(model, X: np.ndarray, max_n_tree: Optional[int] = None) -> np.ndarray:
+
+    if max_n_tree is not None and max_n_tree > len(model.trees):
+        raise ValueError(f"Using model with {len(model.trees)}, but asking prediction from larger number of trees {max_n_tree}. Double-check.")
+
     if hasattr(model, "predict"):
-        Y = model.predict(X)
+        Y = model.predict(X, max_n_tree)
     #elif hasattr(model, "predict_A"):
     #    Y = model.predict_A(X)
     else:
@@ -922,7 +926,8 @@ class N2LL:
                             # Use columns only if a mask was set
                             col_mask = (C.get('POI') or {}).get('column_mask', None)
                             X_in = X[:, col_mask] if col_mask is not None else X
-                            R_A = predict_bit_ratio(poi_pred, X_in)  # (Nb, nA)
+                            max_n_tree = (C.get('POI') or {}).get('max_n_tree', None)
+                            R_A = predict_bit_ratio(poi_pred, X_in, max_n_tree)  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
@@ -1465,7 +1470,8 @@ class N2LL:
                 R_A = np.empty((N, 0), dtype=np.float64)
             else:
                 mask_bit = self.make_column_mask(feat_names, list(poi_predictor.feature_names))
-                R_A = predict_bit_ratio(poi_predictor, X[:, mask_bit])  # (N, nA)
+                max_n_tree = (C.get('POI') or {}).get('max_n_tree', None)
+                R_A = predict_bit_ratio(poi_predictor, X[:, mask_bit], max_n_tree)  # (N, nA)
             comp['R'] = np.asarray(R_A, dtype=np.float64, order='C')
 
             # PNN Δ groups
