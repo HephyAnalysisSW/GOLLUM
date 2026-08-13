@@ -57,7 +57,7 @@ likelihood:
             - id: TT01j2l_EFT_2016
               sample: TT01j2l_EFT_2016 
               POI:
-                job: bit_TT01j2l_EFT_2016_ctG 
+                job: bit_TT01j2l_EFT_RunII_ctG 
                 type: bit
                 parameters: [ctGRe, ctGIm]
 
@@ -123,7 +123,7 @@ jobs:
       loss: MSE
       learn_global_score: true
       split_mode: "binned"
-      n_bins: 256
+      n_bins: 256+
       quantile_bins: true
     runtime:
       training_plots: true
@@ -240,7 +240,7 @@ jobs:
       training_plots: true
       n_split: 9 # nr. of files
     output:
-      filename: "bit_TT01j2l_EFT_RunII_ctG.pkl"
+      filename: "BIT_best.pkl"
 
   - id: bit_TT01j2l_EFT_RunII_ctG_sel2
     type: bit

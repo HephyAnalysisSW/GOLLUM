@@ -532,6 +532,10 @@ cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
 model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
 os.makedirs(model_dir, exist_ok=True)
 
+# loss history and its plot go to the plot directory, not the model directory
+plot_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"])
+os.makedirs(plot_dir, exist_ok=True)
+
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))
 if args.small:
     model_path = model_path[:-4] + "_small.pkl"
@@ -693,13 +697,33 @@ enable_plots = bool(rt.get("training_plots", False))
 plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J) if enable_plots else None
 
 # ---------------- loss history ----------------
-loss_trees = []
-train_losses = []
-valid_losses = []  # if no valid -> store np.nan
+# loss_history.txt is appended to per tree (not batched in memory), so a crash
+# mid-run never loses history, and a resumed run continues the same file
+# instead of overwriting it.
+loss_txt = os.path.join(model_dir, "loss_history.txt")
 best_valid_loss = float("inf")
 best_tree = -1
 best_model_path = os.path.join(model_dir, "BIT_best.pkl")
 best_weights_path = os.path.join(model_dir, "BIT_best.weights.pkl")  # 可选
+best_txt = os.path.join(model_dir, "best_checkpoint.txt")
+
+resuming = start_tree > 0
+
+# resume the historical BEST if one was recorded, so a resumed run does not
+# treat its first (already-trained) tree as automatically the best
+if resuming and os.path.exists(best_txt):
+    with open(best_txt, "r") as f:
+        line = f.read().strip()
+    if line:
+        t, v = line.split()[:2]
+        best_tree = int(t)
+        best_valid_loss = float(v)
+        tqdm.write(f"[RESUME] Found previous BEST: tree={best_tree}, valid_loss={best_valid_loss:.6g} (from {best_txt})")
+
+# start a fresh loss_history.txt only on a fresh run; a resumed run appends
+if not resuming or not os.path.exists(loss_txt):
+    with open(loss_txt, "w") as f:
+        f.write("# tree\ttrain_loss\tvalid_loss\n")
 
 if len(bit.trees) < bit.n_trees:
 
@@ -798,17 +822,16 @@ if len(bit.trees) < bit.n_trees:
                 with open(tmpw, "wb") as f:
                     pickle.dump(boost_weights, f, protocol=pickle.HIGHEST_PROTOCOL)
                 os.replace(tmpw, best_weights_path)
+                with open(best_txt, "w") as f:
+                    f.write(f"{best_tree} {best_valid_loss:.12g}\n")
                 tqdm.write(f"[BEST] tree={best_tree:04d} valid_loss={best_valid_loss:.6g} -> {best_model_path}")
 
-        # ---------------- append loss history ----------------
+        # ---------------- append loss history (write immediately: survives a crash, and a
+        # resumed run continues the same file instead of losing the earlier trees) ----------------
         tree_now = len(bit.trees)
-        loss_trees.append(tree_now)
-        train_losses.append(float(train_loss))
-
-        if X_valid is not None:
-            valid_losses.append(float(valid_loss))
-        else:
-            valid_losses.append(float("nan"))
+        valid_loss_to_write = float(valid_loss) if X_valid is not None else float("nan")
+        with open(loss_txt, "a") as f:
+            f.write(f"{tree_now}\t{float(train_loss):.8e}\t{valid_loss_to_write:.8e}\n")
 
         # update weights
         t1 = time.process_time()
@@ -856,15 +879,19 @@ if len(bit.trees) < bit.n_trees:
                 plot_ctx=plot_ctx,
             )
 
-    # ---------------- save loss history ----------------
-    loss_txt = os.path.join(model_dir, "loss_history.txt")
-    with open(loss_txt, "w") as f:
-        f.write("# tree\ttrain_loss\tvalid_loss\n")
-        for t, tr, va in zip(loss_trees, train_losses, valid_losses):
-            f.write(f"{t}\t{tr:.8e}\t{va:.8e}\n")
-    tqdm.write(f"[LOSS] wrote {loss_txt}")
-
     # ---------------- plot loss curves ----------------
+    # loss_txt already holds the full history (this run plus any resumed runs before
+    # it, since it is appended to per tree, not overwritten). Read it back rather than
+    # keeping a parallel in-memory copy, so the plot always matches the file on disk.
+    loss_trees, train_losses, valid_losses = [], [], []
+    with open(loss_txt, "r") as f:
+        next(f)  # header
+        for line in f:
+            t, tr, va = line.split()
+            loss_trees.append(int(t))
+            train_losses.append(float(tr))
+            valid_losses.append(float(va))
+
     plt.figure()
     plt.plot(loss_trees, train_losses, label="train")
     # only plot valid curve if at least one finite value exists
@@ -876,7 +903,7 @@ if len(bit.trees) < bit.n_trees:
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.legend()
 
-    loss_pdf = os.path.join(model_dir, "loss_history.pdf")
+    loss_pdf = os.path.join(plot_dir, "loss_history.pdf")
     plt.tight_layout()
     plt.savefig(loss_pdf, dpi=500)
     plt.close()
