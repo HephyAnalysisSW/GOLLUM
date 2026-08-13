@@ -16,10 +16,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 # used in EFT sample factory class
+import data.samples_RunII as samples_RunII
 from data.samples_RunII import Factory as Factory_RunII
 from data.samples_RunII import BASE_DIRECTORY as BASE_DIRECTORY_RUNII
+from data.samples_RunII import _parse_name
+from systematics_RunII import SYSTEMATICS
 
 BASE_DIRECTORY_EFT = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2_nJ2p_nB2p_2l"
+
+ERA_LABELS = {"2016APV": "UL16APV", "2016": "UL16", "2018": "UL18"}
+MTT_SLICES = ["mtt_0to700", "mtt_700to900", "mtt_900toInf"]
+RUNII_ERAS = ["2016APV", "2016", "2018"]
 
 # no longer needed since lumi normalization is done at cmgrdf level
 # LUMI = {
@@ -107,87 +114,132 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
     # selection to truncate outliers (see samples_eft_gen) can be added in the config
     return loader
 
-# configs
-TT01j2l_EFT_2016APV_mtt_0to700 = _eft_loader(
-    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
-)
-TT01j2l_EFT_2016APV_mtt_700to900 = _eft_loader(
-    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
-)
-TT01j2l_EFT_2016APV_mtt_900toInf = _eft_loader(
-    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
-)
-
-TT01j2l_EFT_2016_mtt_0to700 = _eft_loader(
-    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
-)
-TT01j2l_EFT_2016_mtt_700to900 = _eft_loader(
-    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
-)
-TT01j2l_EFT_2016_mtt_900toInf = _eft_loader(
-    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
-)
+# ----------------------------------------------------------------------
+# Base sample (nominal) and lazy variation builders
+# ----------------------------------------------------------------------
+_base_eft = None
 
 
-# 2017 files cannot be generated atm, as they're
-# missing some of the branches to make jet corrections
-# TT01j2l_EFT_2017_mtt_0to700 = _eft_loader(
-#     "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
-# )
-# TT01j2l_EFT_2017_mtt_700to900 = _eft_loader(
-#     "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
-# )
-# TT01j2l_EFT_2017_mtt_900toInf = _eft_loader(
-#     "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
-# )
-
-TT01j2l_EFT_2018_mtt_0to700 = _eft_loader(
-    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
-)
-TT01j2l_EFT_2018_mtt_700to900 = _eft_loader(
-    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
-)
-TT01j2l_EFT_2018_mtt_900toInf = _eft_loader(
-    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
-)
+def _get_base() -> RDataLoader:
+    """Return the single nominal EFT loader that every variation clones from."""
+    global _base_eft
+    if _base_eft is None:
+        _base_eft = _eft_loader("2016/TT01j2l_UL16_mtt_0to700_nominal.root")
+    return _base_eft
 
 
-TT01j2l_EFT_2016APV = _eft_loader(
-    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
-    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
-    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
-)
-TT01j2l_EFT_2016 = _eft_loader(
-    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
-    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
-    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
-)
-# TT01j2l_EFT_2017 = _eft_loader(
-#     "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
-#     "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
-#     "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
-# )
+def _split_slice(tag: str) -> tuple[List[str], str]:
+    """
+    Split a tag into the mtt slice(s) it selects and the remaining tag.
 
-TT01j2l_EFT_2018 = _eft_loader(
-    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
-    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
-    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
-)
+    - tag is exactly a slice (e.g. 'mtt_0to700')      -> that slice,  tag 'nominal'
+    - tag starts with '<slice>_' (e.g. 'mtt_0to700_Uncl_up') -> that slice, remainder
+    - otherwise (e.g. 'nominal', 'Uncl_up')           -> all three slices, tag unchanged
+    """
+    if tag in MTT_SLICES:
+        return [tag], "nominal"
+    for mtt_slice in MTT_SLICES:
+        prefix = f"{mtt_slice}_"
+        if tag.startswith(prefix):
+            return [mtt_slice], tag[len(prefix):]
+    return list(MTT_SLICES), tag
 
-TT01j2l_EFT_RunII = _eft_loader(
-    "2016APV/TT01j2l_UL16APV_mtt_0to700_nominal.root",
-    "2016APV/TT01j2l_UL16APV_mtt_700to900_nominal.root",
-    "2016APV/TT01j2l_UL16APV_mtt_900toInf_nominal.root",
-    "2016/TT01j2l_UL16_mtt_0to700_nominal.root",
-    "2016/TT01j2l_UL16_mtt_700to900_nominal.root",
-    "2016/TT01j2l_UL16_mtt_900toInf_nominal.root",
-    # "2017/TT01j2l_UL17_mtt_0to700_nominal.root",
-    # "2017/TT01j2l_UL17_mtt_700to900_nominal.root",
-    # "2017/TT01j2l_UL17_mtt_900toInf_nominal.root",
-    "2018/TT01j2l_UL18_mtt_0to700_nominal.root",
-    "2018/TT01j2l_UL18_mtt_700to900_nominal.root",
-    "2018/TT01j2l_UL18_mtt_900toInf_nominal.root",
-)
+
+def _make_variation(era: str, tag: str) -> RDataLoader:
+    """
+    Construct a TT01j2l_EFT variation from an era and tag, e.g.
+
+        era = "2016", tag = "CMS_res_j_0_2016_up"
+
+    Path(s) on disk:
+        <BASE_DIRECTORY_EFT>/<era>/TT01j2l_<ERA_LABELS[era]>_<slice>_<tag>.root
+
+    for each era (expanded from "RunII") and each mtt slice selected by `tag`.
+    The new loader is cloned from the baseline sample `_get_base()`.
+    """
+    eras = RUNII_ERAS if era == "RunII" else [era]
+    slices, file_tag = _split_slice(tag)
+
+    files = []
+    missing = []
+    for one_era in eras:
+        era_dir = os.path.join(BASE_DIRECTORY_EFT, one_era)
+        if not os.path.isdir(era_dir) or one_era not in ERA_LABELS:
+            missing.append(f"{era_dir} (era directory not available for EFT samples)")
+            continue
+        for mtt_slice in slices:
+            rootfile = os.path.join(
+                era_dir, f"TT01j2l_{ERA_LABELS[one_era]}_{mtt_slice}_{file_tag}.root"
+            )
+            if os.path.isfile(rootfile):
+                files.append(rootfile)
+            else:
+                missing.append(rootfile)
+
+    if missing:
+        raise FileNotFoundError(
+            "Missing EFT ROOT file(s) for era=" + repr(era) + ", tag=" + repr(tag) + ":\n"
+            + "\n".join(f"  - {m}" for m in missing)
+        )
+
+    return _get_base().clone_from_files(files)
+
+
+def __getattr__(name: str):
+    """
+    Lazily construct TT01j2l_EFT RDataLoaders on first access.
+
+    Supported patterns (see _parse_name / _split_slice):
+
+      - TT01j2l_EFT_<era>                       -> tag 'nominal', all mtt slices
+      - TT01j2l_EFT_<era>_<mtt slice>            -> tag 'nominal', one mtt slice
+      - TT01j2l_EFT_<era>_<mtt slice>_<tag>      -> one mtt slice
+      - TT01j2l_EFT_<era>_<tag>                  -> all mtt slices
+
+    <era> may be "RunII" (expands to 2016APV, 2016, 2018).
+
+    Any other process name is delegated to data.samples_RunII, which mirrors
+    the fallback the EFT Factory already performs.
+    """
+    if name.startswith("__") and name.endswith("__"):
+        raise AttributeError(name)
+
+    try:
+        process, era, tag = _parse_name(name)
+    except ValueError as e:
+        raise ImportError(str(e)) from None
+
+    if not tag:
+        tag = "nominal"
+
+    if process != "TT01j2l_EFT":
+        try:
+            loader = getattr(samples_RunII, name)
+        except Exception as e:
+            raise type(e)(
+                f"data.samples_eft does not recognise process {process!r}; delegated "
+                f"lookup of {name!r} to data.samples_RunII, which raised: {e}"
+            ) from e
+        globals()[name] = loader
+        return loader
+
+    try:
+        loader = _make_variation(era, tag)
+    except FileNotFoundError as e:
+        era_dir = Path(BASE_DIRECTORY_EFT) / era
+        prefix = f"TT01j2l_{ERA_LABELS[era]}_" if era in ERA_LABELS else None
+        available = (
+            sorted(f.stem[len(prefix):] for f in era_dir.glob("*.root"))
+            if prefix and era_dir.is_dir() else []
+        )
+        raise ImportError(
+            f"Could not construct EFT sample {name!r} (era={era!r}, tag={tag!r}).\n{e}\n"
+            f"Tags present on disk for era={era!r}: {', '.join(available) if available else '(none)'}\n"
+            f"Known systematic tags for era={era!r}: {', '.join(sorted(SYSTEMATICS.get(era, [])))}"
+        ) from None
+
+    globals()[name] = loader
+    return loader
 
 # Factory class to allow running fits with EFT samples (closure studies) and mixing EFT samples with Run 2 samples
 class Factory:
@@ -214,23 +266,23 @@ class Factory:
     
     def get(self, process: str, era: Optional[str] = None, tag: Optional[str] = None) -> RDataLoader:
 
-        loader = None
         if era is None and tag is None:
             try:
-                loader = globals()[process]
-                if self.features:
-                    loader.setFeatures( self.features )
-                if self.selection:
-                    loader.addSelection( self.selection, required_branches = self.selection_features )
-                return loader             
-            except KeyError:
+                loader = getattr(sys.modules[__name__], process)
+            except (AttributeError, ImportError):
                 logger.debug(f"EFT loader with name {process} not found! Reverting to Run 2 sample module.")
                 loader = self.Factory_RunII.get(process)
-                return loader
+        elif process == "TT01j2l_EFT":
+            loader = _make_variation(era, tag if tag else "nominal")
         else:
-            logger.debug("Asking for era and tag, only available for Run 2 sample module.")
+            logger.debug("era/tag given for a non-EFT process, forwarding to Run 2 sample module.")
             loader = self.Factory_RunII.get(process, era, tag)
-            return loader
+
+        if self.features:
+            loader.setFeatures( self.features )
+        if self.selection:
+            loader.addSelection( self.selection, required_branches = self.selection_features )
+        return loader
 
 
 if __name__ == "__main__":
@@ -238,7 +290,7 @@ if __name__ == "__main__":
     # lower triangular matrix of derivatives
     print(eft_derivatives)
 
-    base_loader = TT01j2l_EFT_2016_mtt_0to700
+    base_loader = _get_base()
     print("Base:_nominal.root", base_loader)
     F, O, W = base_loader.materialize(0, "fow")
     print("Shapes:_nominal.root", F.shape, O.shape, W.shape)
@@ -259,3 +311,9 @@ if __name__ == "__main__":
     print(L_from_samples_RunII)
     print("Shapes:L_from_samples_RunII.root", F.shape, O.shape, W.shape)
     print("w[:5]",W[:5])
+
+    # Real check that the systematic EFT files carry the derivative branches:
+    # _eft_loader sets strict_branches=True, so a missing der_* branch crashes here.
+    L_syst = getattr(sys.modules[__name__], "TT01j2l_EFT_2016_Uncl_up")
+    F, O, W = L_syst.materialize(0, "fow")
+    print("Shapes:TT01j2l_EFT_2016_Uncl_up", F.shape, O.shape, W.shape)
