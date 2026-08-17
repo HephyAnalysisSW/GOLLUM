@@ -54,7 +54,9 @@ from data.RandomSplitter import RandomSplitter
 from data.UIDSplitter import UIDSplitter
 
 from data.plot_options import plot_options as DEFAULT_PLOT_OPTS
-from common.derivative_providers import canonical_combination
+from common.derivative_providers import canonical_combination, build_derivative_provider
+
+import common.syncer as syncer
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -96,7 +98,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--terms", choices=["linear", "quadratic", "both"], default="both", help="Which term orders to draw")
     p.add_argument("--mixed", action="store_true", help="Also draw mixed cross terms (op0, op1)")
     p.add_argument("--operators", nargs="+", default=None, help="Restrict to these operators (default: all in the provider)")
-    p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled). Train: events used in training; valid: events not used in training.")
+    p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled). Train: events used in training (pnn_train+pnn_val); valid: events not used in training (c2st_train+c2st_val).")
     p.add_argument("--small", type=int, default=None, help="Stop after roughly this many selected events")
     return p
 
@@ -325,33 +327,15 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                         args.split, splitter.fraction, splitter.seed)
 
         elif split_type == "uid":
-            uid_seed = int(split_cfg.get("seed", 0))
-            uid_n_buckets = int(split_cfg.get("n_buckets", 10000))
-            uid_scheme = split_cfg.get("scheme") or {}
+            from ML.Calibration.calibration_runner import _uid_split_interval
 
-            splitter = UIDSplitter(uid_fields=uid_fields, seed=uid_seed, n_buckets=uid_n_buckets)
+            if args.split == "train":
+                partition = ["pnn_train", "pnn_val"]
+            else:
+                partition = ["c2st_train", "c2st_val"]
 
-            # build bucket intervals EXACTLY like PNN / eft_bit_training.py
-            keys = list(uid_scheme.keys())
-            fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
-            sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
-            sizes[-1] += uid_n_buckets - sum(sizes)
+            splitter, uid_fields, partition_interval = _uid_split_interval(split_cfg, *partition)
 
-            uid_intervals = {}
-            lo = 0
-            for k, sz in zip(keys, sizes):
-                uid_intervals[k] = (lo, lo + int(sz))
-                lo += int(sz)
-            
-            # either plotting data used in training (pnn...) or data not used in training (c2st...)
-            # keeping the final_eval partition for downstream testing
-            train_interval = (uid_intervals["pnn_train"][0], uid_intervals["pnn_val"][1])
-            val_interval = (uid_intervals["c2st_train"][0], uid_intervals["c2st_val"][1])
-            uid_idx = [obs_names.index(f) for f in uid_fields]
-
-            logger.info("Plotting the '%s' split (uid, fields=%s, seed=%d, n_buckets=%d).",
-                        "pnn (train+val)" if args.split == 'train' else "c2st (train+val)", uid_fields, uid_seed, uid_n_buckets)
-            logger.info("UID scheme intervals: %s", uid_intervals)
         else:
             raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' are implemented.")
     elif args.split != "all":
@@ -388,7 +372,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                     keep = ~keep
             else:  # uid
                 O_uid = G[:, uid_idx]
-                lo, hi = train_interval if args.split == "train" else val_interval
+                lo, hi = partition_interval
                 keep = splitter.mask_from_np(O_uid, list(uid_fields), lo, hi)
             X, G, w = X[keep], G[keep], w[keep]
             if len(X) == 0:
@@ -578,3 +562,15 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
 
     # ---- write textual analysis files ----
     _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, sm_hist, feature_edges, args.value)
+
+if __name__ == "__main__":
+
+    args = build_arg_parser(__doc__).parse_args()
+    cfg, job, samples_mod, _ = load_cfg_and_job(args)
+
+    if not (job.get("pdf") or job.get("eft")):
+        raise RuntimeError(f"Job '{job['id']}' has no 'pdf' or 'eft' block.")
+
+    provider = build_derivative_provider(job)
+    make_modification_plots(cfg, job, samples_mod, args, provider)
+    syncer.sync()
