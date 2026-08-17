@@ -633,6 +633,7 @@ class RDataLoader:
             feature_names=self.feature_names,
             observer_names=self.observer_names,
             weight_branches=self.weight_branches if weight_branches is None else weight_branches,
+            weight_rescale=self.weight_rescale,
         )
 
     def clone(self) -> "RDataLoader":
