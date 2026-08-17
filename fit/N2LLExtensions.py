@@ -45,10 +45,11 @@ class N2LLExtensions(N2LL):
 
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]  # class-specific order
+            reference_point = self._poi_reference[(rid, cid)]
 
             # A-basis vector and Jacobian
-            cA = expand_pois_linear_quadratic(poi_names, poi_vals)
-            C  = pois_jacobian_linear_quadratic(poi_names, poi_vals)
+            cA = expand_pois_linear_quadratic(poi_names, poi_vals, reference_point)
+            C  = pois_jacobian_linear_quadratic(poi_names, poi_vals, reference_point)
 
             class_dict[cid] = {
                 "cA": cA,
@@ -75,9 +76,10 @@ class N2LLExtensions(N2LL):
         out: Dict[str, dict] = {}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
+            reference_point = self._poi_reference[(rid, cid)]
             # A-basis vector and Jacobian in the SAME ordering
-            cA = expand_pois_linear_quadratic(poi_names, c_vals)
-            C  = pois_jacobian_linear_quadratic(poi_names, c_vals)
+            cA = expand_pois_linear_quadratic(poi_names, c_vals, reference_point)
+            C  = pois_jacobian_linear_quadratic(poi_names, c_vals, reference_point)
             out[cid] = {
                 'cA': cA,
                 'C': C,

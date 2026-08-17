@@ -425,8 +425,12 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
         if provider is not None:
             deriv_w = provider.truth_weight_matrix(G, w, observer_names)  # (N, M), col 0 = nominal
+            # Read the reference point off n2ll, not off GENERATION_POINT: this is the
+            # point the BIT was actually trained with (see Likelihood._poi_reference),
+            # so a training/fit mismatch is impossible by construction.
+            reference_point = n2ll._poi_reference.get((region_id, source.class_id), {})
             w_coef = deriv_w[:, 0] + deriv_w[:, 1:] @ expand_pois_linear_quadratic(
-                provider.parameters, source.coefficients
+                provider.parameters, source.coefficients, reference_point
             )
         else:
             w_coef = w

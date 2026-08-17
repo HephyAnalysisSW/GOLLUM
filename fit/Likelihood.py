@@ -128,6 +128,11 @@ def load_likelihood(cfg):
                     poi['predictor'] = _predictor_from_job(bit_job)
                     if poi['predictor'] is None:
                         logger.warning(f"[likelihood] BIT '{poi_job_id}' has no predictor attached yet.")
+                    elif (bit_job or {}).get("eft") and not getattr(poi['predictor'], "expansion_point", None):
+                        raise RuntimeError(
+                            f"[likelihood] BIT '{poi_job_id}' has an 'eft' block but its predictor carries "
+                            "no expansion_point; retrain it so the fit reads the point it was trained at."
+                        )
             elif poi_type == "rate_shift":
                 param_len = len(poi.get("parameters",[]))
                 if len(poi.get("parameters"))!=1:
@@ -381,21 +386,29 @@ else:
         return np.sum(w * y, dtype=np.float64)
 
 
-def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float]) -> np.ndarray:
+def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float],
+                                  reference_point: Dict[str, float]) -> np.ndarray:
+    """Build the c_A vector from the Taylor variable t = c - r, r = reference_point.
+
+    `reference_point` is required, not defaulted: a default of zero would silently
+    return offset-space results at any call site that forgets to pass it, and that
+    result looks like a normal fit. Pass {} explicitly for a POI with no rebase (e.g.
+    the PDF POIs, expanded around zero).
+    """
     N = len(poi_names)
-    c = np.array([poi_values.get(n, 0.0) for n in poi_names])
+    t = np.array([poi_values.get(n, 0.0) - reference_point.get(n, 0.0) for n in poi_names])
     quads = []
 
     #FIXME careful here, double sum
     # This is the logic:
-    # BIT predicts and works with *derivatives*, so R = 1 + c_A R_A = 1 + Sum_a ca Ra + 1/2 Sum_{a, b} ca cb Ra Rb (Taylor expansion)
+    # BIT predicts and works with *derivatives*, so R = 1 + t_A R_A = 1 + Sum_a ta Ra + 1/2 Sum_{a, b} ta tb Ra Rb (Taylor expansion)
     # Now, the double sum is slow so we write
-    # R = 1 + Sum_a ca Ra + Sum_{a, b>=a} factor ca cb Ra Rb where factor = 1/2 if a=b (same factor as before) but factor=1 if b>a (counting twice)
+    # R = 1 + Sum_a ta Ra + Sum_{a, b>=a} factor ta tb Ra Rb where factor = 1/2 if a=b (same factor as before) but factor=1 if b>a (counting twice)
     # My silicon friend didn't see that. (For the PNN I rather work with unique ordered sequences, so no prefactor)
     for i in range(N):
-        for j in range(i,N): 
-            quads.append((0.5 if i==j else 1) * c[i] * c[j])  # 1/2 c_i c_j
-    return np.concatenate([c, np.array(quads)], axis=0) if quads else c
+        for j in range(i,N):
+            quads.append((0.5 if i==j else 1) * t[i] * t[j])  # 1/2 t_i t_j
+    return np.concatenate([t, np.array(quads)], axis=0) if quads else t
 
 
 def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]], values: Dict[str, float]) -> np.ndarray:
@@ -410,10 +423,16 @@ def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]]
     return np.array(out)
 
 def pois_jacobian_linear_quadratic(poi_names: List[str],
-                                    poi_values: Dict[str, float]) -> np.ndarray:
+                                    poi_values: Dict[str, float],
+                                    reference_point: Dict[str, float]) -> np.ndarray:
     """
     Build the Jacobian C_{Aa} = ∂c_A/∂c_a for the same A-basis and ordering
     as `expand_pois_linear_quadratic`.
+
+    `reference_point` (r) is required for the same reason as in
+    `expand_pois_linear_quadratic`; it shifts the Taylor variable t = c - r that the
+    quadratic block is built from, and does not affect the linear block since r is
+    constant in c.
 
     Shape:
       - n_par = len(poi_names)
@@ -424,8 +443,8 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
     if N == 0:
         return np.zeros((0, 0), dtype=np.float64)
 
-    # Base c-vector in the same order as in expand_pois_linear_quadratic
-    c = np.array([poi_values.get(n, 0.0) for n in poi_names],
+    # Taylor variable in the same order as in expand_pois_linear_quadratic
+    t = np.array([poi_values.get(n, 0.0) - reference_point.get(n, 0.0) for n in poi_names],
                  dtype=np.float64)
 
     n_quads = N * (N + 1) // 2
@@ -433,7 +452,7 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
 
     C = np.zeros((nA, N), dtype=np.float64)
 
-    # Linear part: c_A = c_a  ->  ∂c_A/∂c_a = δ_{Aa}
+    # Linear part: c_A = t_a  ->  ∂c_A/∂c_a = δ_{Aa} (∂t_a/∂c_a = 1, r constant)
     # A = 0..N-1 corresponds to the linear pieces
     for a in range(N):
         C[a, a] = 1.0
@@ -444,12 +463,12 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
     for i in range(N):
         for j in range(i, N):
             if i == j:
-                # c_A = 0.5 * c_i^2 -> ∂/∂c_i = c_i
-                C[row, i] = c[i]
+                # c_A = 0.5 * t_i^2 -> ∂/∂c_i = t_i
+                C[row, i] = t[i]
             else:
-                # c_A = c_i * c_j -> ∂/∂c_i = c_j, ∂/∂c_j = c_i
-                C[row, i] = c[j]
-                C[row, j] = c[i]
+                # c_A = t_i * t_j -> ∂/∂c_i = t_j, ∂/∂c_j = t_i
+                C[row, i] = t[j]
+                C[row, j] = t[i]
             row += 1
 
     # Sanity: row should end at nA
@@ -615,6 +634,7 @@ class N2LL:
 
         # in-memory pointers
         self._poi_order: Dict[Tuple[str, str], List[str]] = {}         # (rid,cid) -> POI names order for R_A
+        self._poi_reference: Dict[Tuple[str, str], Dict[str, float]] = {}  # (rid,cid) -> reference point r for c-r
         self._cache_paths: Dict[Tuple[str, str], Tuple[str, str]] = {} # (rid,cid) -> (h5_path, meta_path)
 
         # opened runtime state (filled by prepare_runtime)
@@ -690,6 +710,10 @@ class N2LL:
                     poi_names = sorted(poi_names)
 
                 self._poi_order[key] = poi_names
+                # The point the BIT was trained around; {} for rate_shift/PDF POIs, which
+                # expand around zero. Reading it off the predictor (not GENERATION_POINT)
+                # makes a training/fit mismatch impossible by construction.
+                self._poi_reference[key] = dict(getattr(poi_pred, "expansion_point", {}) or {})
                 self._rate_shift_by_class[key] = rate_shift_param
 
 
@@ -1036,6 +1060,8 @@ class N2LL:
 
                 # keep POI order so we can build c-vectors
                 self._poi_order[(rid, cid)] = poi_params
+                # ICH POIs are PDF coefficients, expanded around zero; {} is correct here.
+                self._poi_reference[(rid, cid)] = dict(getattr(ich, "expansion_point", {}) or {})
 
             self._binned_classes_by_region[rid] = classes
 
@@ -1328,7 +1354,8 @@ class N2LL:
         c_vec = {p.name: p.val for p in getattr(hypothesis, 'POIs', [])}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
-            cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
+            reference_point = self._poi_reference[(rid, cid)]
+            cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec, reference_point)
         return cA_per_class
 
     def _assemble_rate_shift_per_class(self, rid: str, hypothesis) -> Dict[str, float]:
