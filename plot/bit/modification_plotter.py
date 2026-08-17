@@ -5,9 +5,8 @@ This module holds the (long, backend-agnostic) boilerplate shared by the EFT
 and PDF entry scripts: CLI definition, config/job loading, the loader shard
 loop, histogram accumulation, optional BIT overlay, and figure drawing.
 
-The derivative-specific bits live in the entry scripts
-(``eft_modification_plot.py`` / ``pdf_modification_plot.py``). Each passes in a
-lightweight *provider* object exposing:
+The PDF or EFT specific bits are done in the main() function, which fetches the
+specific PDF or EFT derivative *provider* object exposing:
 
   - ``combinations``       : list of canonical derivative tuples, native column
                              order, including the nominal ``()``.
@@ -16,11 +15,16 @@ lightweight *provider* object exposing:
   - ``truth_weight_matrix(G, w, observer_names)`` : returns an ``(N, M)`` matrix
                              of truth weights aligned to ``combinations``
                              (column 0 == nominal weight).
+  - ``expansion_point``    : dict, the point ``parameters`` are expanded around
+                             ({} for PDF; the generation point r for EFT).
 
-For a combination ``der`` at coefficient value ``c`` the bottom panel draws
-    contribution(x) = c**len(der) * (sum_bin w_der) / (sum_bin w_SM),
-i.e. the ratio-to-SM of that term. At ``c = 1`` this equals the raw coefficient
-a BIT learns, so the plot doubles as a BIT closure plot.
+``--delta-c`` is an offset from the expansion point, applied to every selected
+operator: the absolute coefficient is ``expansion_point + delta_c``. For a
+combination ``der`` at ``delta_c`` the bottom panel draws
+    contribution(x) = delta_c**len(der) * (sum_bin w_der) / (sum_bin w_nominal),
+i.e. the ratio to the nominal (column 0) of that term. At ``delta_c = 1`` this
+equals the raw coefficient a BIT learns, so the plot doubles as a BIT closure
+plot.
 """
 
 from __future__ import annotations
@@ -83,6 +87,32 @@ def derivative_label(der) -> str:
     return str(der)
 
 
+def expansion_point_label(expansion_point: dict) -> str:
+    """Human-readable summary of an expansion point, e.g. for the figure annotation.
+
+    Groups operators by shared value so a many-operator EFT job stays on one
+    line: "ctGRe, ctGIm = -0.5, others = 1.5". Returns "" for an empty dict
+    (PDF jobs, which expand around zero and carry no such annotation).
+    """
+    if not expansion_point:
+        return ""
+    groups: dict = {}
+    for name, val in expansion_point.items():
+        groups.setdefault(val, []).append(name)
+    if len(groups) == 1:
+        (val, names), = groups.items()
+        return f"expansion point: {val:g} ({len(names)} operators)"
+    # smallest group(s) named explicitly, the largest becomes "others"
+    ordered = sorted(groups.items(), key=lambda kv: len(kv[1]))
+    parts = []
+    for i, (val, names) in enumerate(ordered):
+        if i == len(ordered) - 1 and len(names) > 1:
+            parts.append(f"others = {val:g}")
+        else:
+            parts.append(f"{', '.join(sorted(names))} = {val:g}")
+    return "expansion point: " + ", ".join(parts)
+
+
 # --------------------------------------------------------------------------------
 # CLI + config/job loading
 # --------------------------------------------------------------------------------
@@ -94,7 +124,9 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--job", default=None, help="BIT job id (omit to list bit jobs)")
     p.add_argument("--with-bit", action="store_true", help="Overlay predictions of the trained BIT model")
     p.add_argument("--max-n-tree", type=int, default=None, help="Use up to this many trees for the BIT prediction")
-    p.add_argument("--value", type=float, default=1.0, help="Coefficient value c used to scale the modification (default 1.0)")
+    p.add_argument("--delta-c", type=float, default=1.0,
+                    help="Offset from the expansion point, applied to every selected operator; "
+                         "the absolute coefficient is expansion_point + delta_c (default 1.0)")
     p.add_argument("--terms", choices=["linear", "quadratic", "both"], default="both", help="Which term orders to draw")
     p.add_argument("--mixed", action="store_true", help="Also draw mixed cross terms (op0, op1)")
     p.add_argument("--operators", nargs="+", default=None, help="Restrict to these operators (default: all in the provider)")
@@ -195,13 +227,13 @@ def _select_combinations(provider, args):
 # textual analysis output
 # --------------------------------------------------------------------------------
 
-def _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, sm_hist, feature_edges, value):
+def _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, nominal_hist, feature_edges, delta_c):
     """Write JSON file with bin contents for each feature and derivative combination.
 
     Each derivative entry is ``{"coeff": [...], "unc": [...]}``: ``coeff`` is the
-    usual ratio-to-SM coefficient, ``unc`` is its per-bin MC-statistical
-    uncertainty from the numerator alone (``sqrt(sum w_der^2)) / sum(w_SM)``,
-    treating the SM denominator as fixed. This is not a full error propagation
+    usual ratio-to-nominal coefficient, ``unc`` is its per-bin MC-statistical
+    uncertainty from the numerator alone (``sqrt(sum w_der^2)) / sum(w_nominal)``,
+    treating the nominal denominator as fixed. This is not a full error propagation
     (numerator and denominator are correlated, sharing the same events) but is
     enough to separate "large because of real structure" from "large because
     the per-event derivative weight is noisy" -- see ``analyze_eft_distributions.py``.
@@ -209,20 +241,20 @@ def _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sum
     analysis = {}
     for feat in plot_feats:
         analysis[feat] = {}
-        sm = sm_hist[feat]
+        nominal = nominal_hist[feat]
         edges = feature_edges[feat]
         bin_centers = (edges[:-1] + edges[1:]) / 2.0
 
         analysis[feat]["bin_centers"] = bin_centers.tolist()
-        analysis[feat]["sm_histogram"] = sm.tolist()
+        analysis[feat]["nominal_histogram"] = nominal.tolist()
 
         for der in selected:
-            scale = value ** len(der)
-            coeff = np.zeros_like(sm)
-            unc = np.zeros_like(sm)
-            nz = sm != 0.0
-            coeff[nz] = scale * truth_num[feat][der][nz] / sm[nz]
-            unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / sm[nz]
+            scale = delta_c ** len(der)
+            coeff = np.zeros_like(nominal)
+            unc = np.zeros_like(nominal)
+            nz = nominal != 0.0
+            coeff[nz] = scale * truth_num[feat][der][nz] / nominal[nz]
+            unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / nominal[nz]
 
             der_label = derivative_label(der)
             analysis[feat][der_label] = {"coeff": coeff.tolist(), "unc": unc.tolist()}
@@ -239,7 +271,7 @@ def _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sum
 # --------------------------------------------------------------------------------
 
 def make_modification_plots(cfg, job, samples_mod, args, provider):
-    """Draw per-feature SM distribution + per-term modification, using ``provider``.
+    """Draw per-feature generated distribution + per-term modification, using ``provider``.
 
     Always draws truth (from the provider); overlays BIT predictions if
     ``args.with_bit`` is set. This is the whole shared pipeline; the entry
@@ -250,6 +282,9 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     if not selected:
         raise RuntimeError("No derivative combinations selected (check --terms / --operators).")
     logger.info("Selected derivatives: %s", [derivative_label(d) for d in selected])
+
+    # Column 0 is k * w(r) for EFT and the plain nominal for PDF; label accordingly.
+    weight_label = "gen" if provider.expansion_point else "nominal"
 
     # ---- loader ----
     loader_name = job.get("process")
@@ -344,16 +379,16 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     # ---- histogram accumulators ----
     feature_columns = {f: feat_names.index(f) for f in plot_feats}
     feature_edges = {}
-    sm_hist = {}
-    sm_sumw2 = {}
+    nominal_hist = {}
+    nominal_sumw2 = {}
     truth_num = {}
     truth_num_sumw2 = {}
     pred_num = {}
     for feat in plot_feats:
         n_bins, x_lo, x_hi = plot_opts[feat]["binning"]
         feature_edges[feat] = np.linspace(x_lo, x_hi, int(n_bins) + 1, dtype=np.float64)
-        sm_hist[feat] = np.zeros(int(n_bins), dtype=np.float64)
-        sm_sumw2[feat] = np.zeros(int(n_bins), dtype=np.float64)
+        nominal_hist[feat] = np.zeros(int(n_bins), dtype=np.float64)
+        nominal_sumw2[feat] = np.zeros(int(n_bins), dtype=np.float64)
         truth_num[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
         truth_num_sumw2[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
         pred_num[feat] = {der: np.zeros(int(n_bins), dtype=np.float64) for der in selected}
@@ -400,8 +435,8 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         for feat in plot_feats:
             xvals = X[:, feature_columns[feat]].astype(np.float64, copy=False)
             edges = feature_edges[feat]
-            sm_hist[feat] += np.histogram(xvals, bins=edges, weights=nominal_w)[0]
-            sm_sumw2[feat] += np.histogram(xvals, bins=edges, weights=nominal_w ** 2)[0]
+            nominal_hist[feat] += np.histogram(xvals, bins=edges, weights=nominal_w)[0]
+            nominal_sumw2[feat] += np.histogram(xvals, bins=edges, weights=nominal_w ** 2)[0]
             for der in selected:
                 der_w = deriv_w[:, combo_to_col[der]]
                 truth_num[feat][der] += np.histogram(xvals, bins=edges, weights=der_w)[0]
@@ -455,29 +490,35 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
 
     colors = {der: COLOR_HEX[i % len(COLOR_HEX)] for i, der in enumerate(selected)}
 
+    annotation_lines = [f"delta c = {args.delta_c:g}"]
+    expansion_label = expansion_point_label(provider.expansion_point)
+    if expansion_label:
+        annotation_lines.append(expansion_label)
+    annotation_text = "\n".join(annotation_lines)
+
     # ---- draw ----
     # Single canvas with a twin y-axis (a la plot/bit/bit_plot.py): the SM
     # distribution is read on the left axis, the derivative coefficients on the
     # right axis. At c = 1 the right-axis curves are the raw derivatives.
     for feat in plot_feats:
         edges = feature_edges[feat]
-        sm = sm_hist[feat]
-        nz = sm != 0.0
+        nominal = nominal_hist[feat]
+        nz = nominal != 0.0
         tex = "$" + plot_opts[feat]["tex"].replace("#", "\\") + "$"
 
-        sm_err = np.sqrt(np.maximum(sm_sumw2[feat], 0.0))
+        nominal_err = np.sqrt(np.maximum(nominal_sumw2[feat], 0.0))
 
         fig, ax_left = plt.subplots(figsize=(9.0, 7.0))
         ax_right = ax_left.twinx()
 
-        # left axis: SM distribution (filled grey), sitting in the lower portion
-        ax_left.stairs(sm, edges, color="0.35", linewidth=1.2, fill=False, zorder=1)
-        ax_left.fill_between(edges[:-1], 0.0, sm, step="post", color="0.88", zorder=0)
-        # MC statistical uncertainty band on the SM distribution
+        # left axis: nominal distribution (filled grey), sitting in the lower portion
+        ax_left.stairs(nominal, edges, color="0.35", linewidth=1.2, fill=False, zorder=1)
+        ax_left.fill_between(edges[:-1], 0.0, nominal, step="post", color="0.88", zorder=0)
+        # MC statistical uncertainty band on the nominal distribution
         ax_left.fill_between(
             edges[:-1],
-            np.maximum(sm - sm_err, 0.0),
-            sm + sm_err,
+            np.maximum(nominal - nominal_err, 0.0),
+            nominal + nominal_err,
             step="post",
             color="0.55",
             alpha=0.45,
@@ -487,9 +528,9 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         if plot_opts[feat].get("logY", False):
             ax_left.set_yscale("log")
         else:
-            top = float(np.max(sm)) if sm.size else 1.0
+            top = float(np.max(nominal)) if nominal.size else 1.0
             ax_left.set_ylim(0.0, (top if top > 0 else 1.0) * 1.5)
-        ax_left.set_ylabel("Number of events (SM)")
+        ax_left.set_ylabel(f"Number of events ({weight_label})")
         ax_left.set_xlabel(tex)
         ax_left.grid(False)
 
@@ -497,15 +538,15 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         ax_right.axhline(0.0, color="0.6", linewidth=0.8, zorder=1)
         coeff_values = []
         for der in selected:
-            scale = args.value ** len(der)
-            coeff_truth = np.zeros_like(sm)
-            coeff_truth[nz] = scale * truth_num[feat][der][nz] / sm[nz]
+            scale = args.delta_c ** len(der)
+            coeff_truth = np.zeros_like(nominal)
+            coeff_truth[nz] = scale * truth_num[feat][der][nz] / nominal[nz]
             # per-bin MC statistical uncertainty on the truth coefficient, from the
-            # derivative weight's own sumw2 (numerator only, SM denominator treated as
-            # fixed -- see _write_analysis_json). Shaded so wildly-fluctuating, poorly
+            # derivative weight's own sumw2 (numerator only, nominal denominator treated
+            # as fixed -- see _write_analysis_json). Shaded so wildly-fluctuating, poorly
             # constrained phase-space regions are visible at a glance.
-            coeff_truth_unc = np.zeros_like(sm)
-            coeff_truth_unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / sm[nz]
+            coeff_truth_unc = np.zeros_like(nominal)
+            coeff_truth_unc[nz] = scale * np.sqrt(truth_num_sumw2[feat][der][nz]) / nominal[nz]
             ax_right.fill_between(
                 edges[:-1], coeff_truth - coeff_truth_unc, coeff_truth + coeff_truth_unc,
                 step="post", color=colors[der], alpha=0.18, linewidth=0.0, zorder=2,
@@ -515,8 +556,8 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             coeff_values.append(coeff_truth[nz] - coeff_truth_unc[nz])
 
             if bit is not None and der in bit.derivatives:
-                coeff_pred = np.zeros_like(sm)
-                coeff_pred[nz] = scale * pred_num[feat][der][nz] / sm[nz]
+                coeff_pred = np.zeros_like(nominal)
+                coeff_pred[nz] = scale * pred_num[feat][der][nz] / nominal[nz]
                 ax_right.stairs(coeff_pred, edges, color=colors[der], linewidth=2.0, linestyle="-", baseline=None, zorder=3)
                 coeff_values.append(coeff_pred[nz])
 
@@ -530,12 +571,12 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             r_max = r_min + 1.0
         pad = 0.20 * (r_max - r_min)
         ax_right.set_ylim(r_min - pad, r_max + pad)
-        coeff_label = "Coefficient" if args.value == 1.0 else r"$c^{k}\times$ coefficient"
+        coeff_label = "Coefficient" if args.delta_c == 1.0 else r"$(\Delta c)^{k}\times$ coefficient"
         ax_right.set_ylabel(coeff_label)
 
-        # legend: SM stat band + operator colors + truth/BIT linestyles
+        # legend: nominal stat band + operator colors + truth/BIT linestyles
         handles = [
-            Patch(facecolor="0.55", alpha=0.45, label="SM stat. unc."),
+            Patch(facecolor="0.55", alpha=0.45, label=f"{weight_label} stat. unc."),
             Patch(facecolor="0.3", alpha=0.18, label="truth stat. unc. (per-operator color)"),
         ]
         handles += [Line2D([0], [0], color=colors[der], linewidth=2.0, label=derivative_label(der)) for der in selected]
@@ -546,7 +587,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         ax_right.legend(handles=handles, frameon=False, fontsize=9, ncol=n_col, loc="upper right")
 
         ax_left.text(
-            0.02, 0.95, f"c = {args.value:g}",
+            0.02, 0.95, annotation_text,
             transform=ax_left.transAxes, va="top", ha="left", fontsize=11,
         )
 
@@ -561,7 +602,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     logger.info("Wrote %d feature plots.", len(plot_feats))
 
     # ---- write textual analysis files ----
-    _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, sm_hist, feature_edges, args.value)
+    _write_analysis_json(out_dir, plot_feats, selected, truth_num, truth_num_sumw2, nominal_hist, feature_edges, args.delta_c)
 
 if __name__ == "__main__":
 

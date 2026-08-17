@@ -93,10 +93,10 @@ def _analyze_file(path: str, min_stat: float, sensitivity_threshold: float, pull
 
     rows = []
     for feature, feat_data in data.items():
-        sm = feat_data["sm_histogram"]
+        sm = feat_data["nominal_histogram"]
         bin_centers = feat_data["bin_centers"]
         for key, values in feat_data.items():
-            if key in ("bin_centers", "sm_histogram"):
+            if key in ("bin_centers", "nominal_histogram"):
                 continue
             derivative = key
             coeff_vals = values["coeff"]
