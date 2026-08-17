@@ -34,9 +34,9 @@ if args.job is None:
     if not jobs:
         print("No ICP jobs found in YAML.")
         sys.exit(0)
-    script = os.path.basename(__file__)
+    #script = os.path.basename(__file__)
     for j in jobs:
-        print(f"python {script} {args.config} --job {j['id']}".strip())
+        print(f"python {__file__} {args.config} --job {j['id']}".strip())
     sys.exit(0)
 
 # ---------------- resolve job ----------------
