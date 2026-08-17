@@ -45,7 +45,7 @@ def list_and_exit():
     if args.small:     flags.append("--small")
     script = os.path.basename(__file__)
     for j in jobs:
-        print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
+        print(f"python {__file__} {args.config} {' '.join(flags)} --job {j['id']}")
     sys.exit(0)
 
 if args.job is None:
