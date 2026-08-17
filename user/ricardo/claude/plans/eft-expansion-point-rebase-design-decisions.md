@@ -144,6 +144,44 @@ percentile, so the residual is not obviously negligible, and 186 retrainings are
 obviously necessary. Retrain one PNN and one ICP, compare against the old artifacts, and
 decide from the deltas.
 
+### Reading `--value` in the modification plotter as an absolute coefficient — rejected
+
+`plot/bit/modification_plotter.py` scales each term by `args.value ** len(der)`, the
+monomial in the expansion variable. That variable is now `c - r`, so `--value` is an
+offset, not a Wilson coefficient. Making it absolute would mean a per-operator factor
+`(value - r[op0]) * (value - r[op1])`.
+
+Rejected for two reasons. A single scalar cannot express an absolute point, because `r`
+differs between the `ctG` pair and the rest. And at `value = 1` the truth curve would
+stop being the quantity the BIT learns, which is exactly what makes `--with-bit` a
+closure test.
+
+**Decision: the flag stays an offset, and is renamed `--delta-c` to say so.** The plot is
+a BIT diagnostic in the derivative basis; absolute coefficients belong in the fit, where
+`expand_pois_linear_quadratic` already applies the shift. The accepted cost is that
+reading `ctGRe = 0.5` off the plot means passing `1.0`, which is why the expansion point
+is printed on the figure.
+
+### Labelling column 0 "gen" everywhere in the plotter — rejected
+
+`plot/bit/modification_plotter.py` and `common/derivative_providers.py` serve both the
+EFT and the PDF providers. For PDF, column 0 is the central PDF member, so "gen" would be
+wrong there, just as "SM" already was.
+
+**Decision: internal names use `nominal`, printed labels derive from the provider** via
+`weight_label = "gen" if provider.expansion_point else "nominal"`. EFT plots read "gen"
+as intended, PDF plots stay correct, and it costs one ternary.
+
+### `expansion_point` on the derivative providers — accepted
+
+An extra attribute, so justified by a concrete failure: without it the plotter cannot
+state what `--delta-c` is an offset from, and a reader takes `delta c = 1` for the SM
+when for `ctGRe` it means `c = 0.5`. A mislabelled physics plot is the kind of silent
+error this whole change is guarding against.
+
+`ML/Calibration/calibration_runner.py` does not need it. It works in the ratio basis and
+never scales by a coefficient value.
+
 ### Giving `data/samples_eft_gen.py` the same treatment — rejected
 
 It carries its own `_derivative_branches` and its own `EFTWeight_SM` in

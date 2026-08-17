@@ -146,8 +146,10 @@ Same pattern, each must pass its reference point explicitly:
   `provider.truth_weight_matrix` and must stay consistent with it
 - `plot/postfitsys/unbinned_fromfit.py:161`
 
-`common/derivative_providers.py` needs no change. `EFTDerivativeProvider` is a thin
-wrapper and the interface handles `r` internally.
+`common/derivative_providers.py` needs no change to its weight path. `EFTDerivativeProvider`
+is a thin wrapper and the interface handles `r` internally. It does gain one attribute,
+for section 7 below: `expansion_point`, set to `self._eft.reference_point` for EFT and to
+`{}` for PDF.
 
 ### 6. Retraining
 
@@ -181,6 +183,58 @@ step 0 first.
 
 Bump `version:` in those configs so the new artifacts land in a new model directory and
 an old one cannot be picked up silently.
+
+### 7. `plot/bit/modification_plotter.py`
+
+The weight path needs nothing. The plotter calls `provider.truth_weight_matrix` at
+line 390, so the rebased columns arrive automatically. `ML/Calibration/calibration_runner.py`
+also needs nothing: it works purely in the ratio basis and never scales by a coefficient
+value. This plotter is the only provider consumer that applies a monomial.
+
+**Rename `--value` to `--delta-c`.** It is an offset from the expansion point, applied to
+every selected operator, not a Wilson coefficient. Hard rename with no alias, per the
+no-backward-compat rule. Help text: *offset from the expansion point, applied to every
+selected operator; the absolute coefficient is expansion_point + delta_c*.
+
+The arithmetic does not change. `scale = args.delta_c ** len(der)` at lines 219 and 499
+is already the correct monomial in `c - r`. At `delta_c = 1` the truth curve stays
+exactly what the BIT learns, which is what makes `--with-bit` a closure test. Do not
+"fix" that line.
+
+**Figure annotation.** Replace the single `c = {value}` line at line 548 with two lines:
+
+```
+delta c = 1
+expansion point: ctGRe, ctGIm = -0.5, others = 1.5
+```
+
+Derive the second line from `provider.expansion_point`, grouping operators by shared
+value so sixteen operators stay on one line. Omit it entirely when the dict is empty, so
+PDF plots are unchanged.
+
+**Labels.** Column 0 is `k * w(r)` for EFT and the nominal for PDF, and this module
+serves both. So:
+
+- Internal names become provider-neutral: `sm_hist` and `sm_sumw2` to `nominal_hist` and
+  `nominal_sumw2`. These are never printed.
+- Printed labels derive from one string set near the top of `make_modification_plots`:
+  `weight_label = "gen" if provider.expansion_point else "nominal"`. EFT plots then read
+  "gen", while PDF plots stay correct, since there column 0 is the central PDF member.
+- Apply `weight_label` to the y-label `"Number of events (SM)"` at line 491 and the
+  legend entry `"SM stat. unc."` at line 537.
+- Update the module docstring: `sum_bin w_SM` becomes `sum_bin w_nominal`, and
+  "ratio-to-SM" becomes ratio to the nominal. State there that `--delta-c` is an offset.
+
+**JSON key.** `analysis[feat]["sm_histogram"]` at line 216 becomes `"nominal_histogram"`.
+This has one consumer that must be updated in the same commit:
+`user/ricardo/analyze_eft_distributions/analyze_eft_distributions.py`, lines 96 and 99.
+A stale key there fails with a `KeyError`, which is loud, but the two changes belong
+together.
+
+**Provider attribute.** Add `expansion_point` to both providers in
+`common/derivative_providers.py`, as noted in section 5, so the plotter can print it.
+Document it in that module's docstring alongside `combinations`, `parameters` and
+`required_observers`.
 
 ## Verification
 
