@@ -509,7 +509,7 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
 
     dy = ROOT.TH1F(f"dy_{t}", "", 1, 0, 1)
     dy.SetLineColor(ROOT.kGray + 2); dy.SetLineWidth(2)
-    leg.AddEntry(dy, "yield (SM, scaled)", "l")
+    leg.AddEntry(dy, "yield (generation point, scaled)", "l")
     keep.append(dy)
 
     leg.Draw()
@@ -686,6 +686,10 @@ if not args.overwrite and os.path.exists(model_path):
 if bit is None:
     bit = MultiBoostedInformationTree(**model_cfg)
     boost_weights = training_weights_train.copy()
+
+# store the point the interface expanded around, so the fit reads the point the
+# BIT was actually trained with rather than re-deriving it from GENERATION_POINT
+bit.expansion_point = eft.reference_point
 
 # If training needed but weights missing, start from truth
 if boost_weights is None and len(bit.trees) < bit.n_trees:
