@@ -23,6 +23,13 @@ These were verified against the code and against 20000 events of
   (`ML/BIT/eft_bit_training.py:841-849`); leaves predict `leaf_value[c+1]/leaf_value[0]`.
 - **No event has `EFTWeight_SM <= 0` or `EFTWeight_gen <= 0`** in the sample checked, so
   no zero-denominator handling is needed.
+- **All nine nominal EFT files carry `EFTWeight_gen` and 152 `der_` branches**, across
+  2016APV, 2016 and 2018. The ~390 systematic-variation files were not checked.
+- **One loader swap reaches every sample.** After the systematics merge (401c40a),
+  `data/samples_eft.py` builds a single loader in `_get_base()`, and every variation is a
+  `clone_from_files` of it through `_make_variation` and the lazy `__getattr__`.
+  `clone_from_files` copies `weight_branches`, `observer_names` and
+  `_requested_branches`, and since that merge also `weight_rescale`.
 
 ## Decisions
 
@@ -108,6 +115,44 @@ operators sitting at 1.5, or -0.5 for the `ctG` pair, not at the SM.
 A hard swap of `weight_branches` was chosen instead, per the no-backward-compat rule in
 `CLAUDE.md`. Every surrogate trained on EFT samples must be retrained, and the config
 `version:` is bumped so a stale artifact cannot be picked up silently.
+
+### Treating the PNN and ICP retraining as mandatory — softened to a measurement
+
+The first reading was that a changed nominal weight invalidates every surrogate equally.
+That is right for the BIT and the scaler, and too strong for the PNN and ICP.
+
+`EFTfitCoefficients` are LHE-level, so the EFT weight of a given generated event is
+identical in the nominal and the varied file. The extra factor `f = w(r)/w(SM)` therefore
+cancels **per event**. It does not cancel per bin of `x`, because the PNN compares
+densities: the learned ratio moves from `E[s | x]` to `E[s * f | x] / E[f | x]`, with `s`
+the event-level variation factor.
+
+Exact cancellation holds only when `s` is a deterministic function of the PNN input
+features. Two residuals survive otherwise:
+
+- weight-only systematics (b-tag, pileup, lepton SF): the correlation of `s` with `f` at
+  fixed `x`. The b-tag SF depends on jet flavour, which is not among the features.
+- kinematic systematics (JES, JER, unclustered): additionally
+  `E[f | x, varied] / E[f | x, nominal]`, from the migration in `x`.
+
+ICP has the same structure with no migration term, so its ratio goes from `E[s]` to
+`E[s * f] / E[f]`. Both `f` and the acceptance systematics depend on the same kinematics,
+so that correlation is real and probably larger than the PNN residual.
+
+**Decision: measure instead of assume.** `f` spans 0.88 to 8.7 across the 1st to 99th
+percentile, so the residual is not obviously negligible, and 186 retrainings are not
+obviously necessary. Retrain one PNN and one ICP, compare against the old artifacts, and
+decide from the deltas.
+
+### Giving `data/samples_eft_gen.py` the same treatment — rejected
+
+It carries its own `_derivative_branches` and its own `EFTWeight_SM` in
+`weight_branches`, so it stays on the SM. No config references it, only a comment in
+`data/samples_eft.py` does. Leaving it alone keeps the change small.
+
+**The hazard, if it is ever revived:** a config pointed at `samples_eft_gen` with a BIT
+trained through the rebased `EFTWeightInterface` reproduces exactly the SM-weight against
+generation-point-denominator mismatch this plan removes, and it fails silently.
 
 ### Closure testing through the BIT toy route — rejected as a test
 

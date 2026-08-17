@@ -34,6 +34,9 @@ Rejected alternatives and their rationale live in
 - `|gen/SM|` quantiles (1/50/99) are 0.88 / 1.22 / 8.7. No event has `SM <= 0` or
   `gen <= 0`, so there is no zero-denominator case to handle.
 
+All nine nominal files, across 2016APV, 2016 and 2018, carry `EFTWeight_gen` and 152
+`der_` branches. The systematic-variation files were not checked.
+
 The failure this change guards against is silent. A mismatched reference point produces
 a smooth, converging, wrong fit. Every step below that says "assert" is load-bearing.
 
@@ -68,6 +71,21 @@ with. A training/fit mismatch is then impossible by construction.
 
 After this, `nominal_weight = k * w(r)`, where `k` is the lumi/xs/sum-of-weights factor
 times the scale factors.
+
+This is a single edit that reaches every sample. The module now builds one loader,
+`_get_base()`, and every systematic variation is a `clone_from_files` of it via
+`_make_variation` and the lazy `__getattr__`. `clone_from_files` copies
+`weight_branches`, `observer_names` and `_requested_branches`, so nothing else needs
+touching.
+
+**Prerequisite.** `_eft_loader` sets `strict_branches=True`, so every variation file must
+also carry `EFTWeight_gen` or the loader raises at construction. This was verified only
+for the nine nominal files. Check the ~390 variation files before running the PNN and ICP
+jobs (verification step 0). The failure is loud, not silent.
+
+`data/samples_eft_gen.py` keeps its own `EFTWeight_SM` in `weight_branches` and is left
+alone: no config references it. If a config is ever pointed at it, it would reintroduce
+the SM/generation-point mismatch this plan removes.
 
 ### 2. `eft/EFTWeightInterface.py`
 
@@ -134,14 +152,45 @@ wrapper and the interface handles `r` internally.
 ### 6. Retraining
 
 The nominal weight changes for every EFT sample, so every surrogate trained on them is
-invalidated: the BIT jobs in `configs/unbinned_v7_eft/**`, plus any TFMC or ICH job on
-the same samples. Bump `version:` in those configs so the new artifacts land in a new
-model directory and an old one cannot be picked up silently.
+invalidated. `configs/unbinned_v7_eft/**` currently holds:
+
+| type | count | effect |
+|---|---|---|
+| `bit` | ~141 | first order; the whole point of this change |
+| `scaler` | 3 | first order; `scaler.accumulate(X, w)` is weighted |
+| `icp` | 93 | second order; see below |
+| `pnn` | 93 | second order; see below |
+
+**The PNN and ICP effects are second order, and worth measuring before committing to 186
+retrainings.** The EFT weight is an LHE-level quantity, identical for a given generated
+event in the nominal and the varied file, so the extra factor `f = w(r)/w(SM)` cancels
+per event. It does not cancel per bin of `x`. The learned ratio goes from `E[s | x]` to
+`E[s * f | x] / E[f | x]`, where `s` is the event-level variation factor. Those agree
+only when `s` is a deterministic function of the PNN input features. The residual is the
+correlation between `s` and `f` for weight-only systematics, plus a migration term
+`E[f | x, varied] / E[f | x, nominal]` for the kinematic ones. ICP has the same structure
+without the migration, so its ratio goes from `E[s]` to `E[s * f] / E[f]`, which is
+likely the larger shift of the two.
+
+`f` runs from 0.88 to 8.7 across the 1st to 99th percentile, so do not assume the
+residual is negligible. Retrain one PNN and one ICP first, compare the deltas against the
+old artifacts, and let that decide whether all 186 need redoing.
+
+The PNN and ICP jobs depend on the ~390 systematic-variation files, so do verification
+step 0 first.
+
+Bump `version:` in those configs so the new artifacts land in a new model directory and
+an old one cannot be picked up silently.
 
 ## Verification
 
 Run in this order. Steps 1 and 2 are cheap and catch the whole class of reference-point
 bugs.
+
+0. **Branch presence.** Open all `*/*.root` under `BASE_DIRECTORY_EFT` and require
+   `EFTWeight_gen` in every one. The nine nominal files pass; the ~390 variation files
+   are unchecked. `strict_branches=True` turns any absence into a `KeyError` at loader
+   construction, so this only decides whether the PNN and ICP campaign can start.
 
 1. **Branch consistency.** Reconstruct `w(r)` from the `der_` branches using
    `GENERATION_POINT` and require agreement with `EFTWeight_gen` event by event. This is
