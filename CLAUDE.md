@@ -175,9 +175,10 @@ cheap to fix; complex and wrong has to be understood before it can be fixed.
 - Don't use shorthand naming for variables that are not auxiliary variables. Be verbose but no more than three words.
 - Use ascii characters only, and e.g. write lambda explicitly instead of the lambda character.
 - Don't give a random name to plan files. The plan file name should be a shorthand for what is being implemented.
-- Plans live in `user/<name>/claude/`.
+- Plans live in `user/<name>/claude/`. These will be executed in Auto mode, so plan accordingly.
 - Keep rejected alternatives and their rationale in a separate `*-design-decisions.md` alongside the plan: the plan goes stale once implemented, the decision record does not, and the implementer doesn't need it.
-- When developing code, use worktrees, putting each individual new functionality or change to pieces of individual functionality into separate commits.
+- When developing code, check if we are in an existing worktree. If not, create a new one.
+- When developing code, put each individual new functionality or change to pieces of individual functionality into separate commits.
 
 ## Non-obvious design decisions
 
