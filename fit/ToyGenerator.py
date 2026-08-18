@@ -75,6 +75,26 @@ class ProcessSource:
 
     w_truth = w_coefficients * scale_factor * prod(weight_branches) * weight_function(X)
     reducing to the nominal event weight when `coefficients` is None.
+
+    `coefficients` sets the absolute injection point, not an offset. Three groups of
+    coefficients exist, and only the first is under the spec file's control:
+
+    - listed in `coefficients`: injected at the value given.
+    - a parameter of the class's BIT job, absent from `coefficients`: injected at the
+      SM (0.0). `expand_pois_linear_quadratic` reads a missing name as 0.0, so the
+      Taylor variable becomes t = -r and the weight lands at the SM for that operator.
+    - not a parameter of the class's BIT job: held at the generation point r. The BIT
+      carries no derivative column for it, so no value can move it. Naming such a
+      coefficient raises rather than being ignored.
+
+    The second and third groups differ only because the expansion is rebased. A PDF BIT
+    expands around zero, so unset and reference coincide there; an EFT BIT expands
+    around GENERATION_POINT, where they are 0.0 and 1.5 (or -0.5) respectively.
+
+    `coefficients=None` (the field absent from the spec) is distinct from
+    `coefficients={}`: None skips the derivative route entirely and keeps the raw
+    nominal weight, which for an EFT sample is the weight at the generation point,
+    while {} injects every one of the job's parameters at the SM.
     """
     class_id: str
     sample_name: Optional[str] = None
@@ -366,6 +386,9 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     kinematics via the same `_eval_region_surrogates`/`_compute_T_from_columns`
     N2LL uses for real data (see the plan's "two POI injection routes").
 
+    A coefficient absent from `source.coefficients` is injected at the SM if the class's
+    BIT fits it, and held at the generation point if it does not; see `ProcessSource`.
+
     Returns (X (M,d), w_truth (M,), diagnostics dict).
     """
     region = _find_region(n2ll, region_id)
@@ -408,6 +431,49 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
             )
         required_observers = list(provider.required_observers)
 
+        # Read the reference point off n2ll, not off GENERATION_POINT: this is the point
+        # the BIT was actually trained with (see Likelihood._poi_reference), so a
+        # training/fit mismatch is impossible by construction. For an EFT BIT it carries
+        # every operator in wc_names, not only this job's parameters, which is what lets
+        # the checks below tell a non-fitted operator apart from a typo.
+        reference_point = n2ll._poi_reference.get((region_id, source.class_id), {})
+
+        fitted = set(provider.parameters)
+        # Neither group below is read by expand_pois_linear_quadratic, which iterates
+        # provider.parameters alone. Without these checks a coefficient the job cannot
+        # move is dropped in silence and the toy lands at a different point than the
+        # spec file asks for, with no downstream symptom.
+        not_fitted = sorted((set(source.coefficients) - fitted) & set(reference_point))
+        if not_fitted:
+            held = {name: float(reference_point[name]) for name in not_fitted}
+            raise RuntimeError(
+                f"[toy:{region_id}/{source.class_id}] coefficient(s) {not_fitted} are known "
+                f"operators, but BIT job '{job['id']}' does not fit them (its parameters are "
+                f"{sorted(fitted)}). This BIT holds them at the generation point {held} and "
+                f"carries no derivative column to move them. Use a BIT job whose parameters "
+                f"include them, or drop them from 'coefficients'."
+            )
+        unknown = sorted(set(source.coefficients) - fitted - set(reference_point))
+        if unknown:
+            raise RuntimeError(
+                f"[toy:{region_id}/{source.class_id}] coefficient(s) {unknown} are neither "
+                f"parameters of BIT job '{job['id']}' ({sorted(fitted)}) nor known coefficients "
+                f"({sorted(reference_point)}). Check the spelling in the toy spec."
+            )
+
+        # State the resolved point for all three groups. The SM group is a correct default,
+        # not a misconfiguration, so it is reported rather than warned about -- but it is no
+        # longer the same as the generation point, so silence would be misleading.
+        at_sm = sorted(fitted - set(source.coefficients))
+        at_generation = {name: float(val) for name, val in reference_point.items() if name not in fitted}
+        logger.info(
+            "[toy:%s/%s] injection point for BIT job '%s': injected %s; at the SM (absent from "
+            "'coefficients') %s; held at the generation point %s.",
+            region_id, source.class_id, job["id"],
+            {name: float(val) for name, val in source.coefficients.items()} or "(none)",
+            at_sm or "(none)", at_generation or "(none)",
+        )
+
     splitting_cfg = getattr(n2ll, "_toy_splitting_defaults", None)
     uid_fields = list((splitting_cfg or {}).get("uid_fields", ["run", "luminosityBlock", "event"]))
     uid_splitter = lo = hi = None
@@ -439,10 +505,6 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
         if provider is not None:
             deriv_w = provider.truth_weight_matrix(G, w, observer_names)  # (N, M), col 0 = nominal
-            # Read the reference point off n2ll, not off GENERATION_POINT: this is the
-            # point the BIT was actually trained with (see Likelihood._poi_reference),
-            # so a training/fit mismatch is impossible by construction.
-            reference_point = n2ll._poi_reference.get((region_id, source.class_id), {})
             w_coef = deriv_w[:, 0] + deriv_w[:, 1:] @ expand_pois_linear_quadratic(
                 provider.parameters, source.coefficients, reference_point
             )
