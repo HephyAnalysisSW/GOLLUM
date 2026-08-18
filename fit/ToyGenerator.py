@@ -13,6 +13,20 @@ untouched here). A toy is a plain dict, produced by `generate_toy`, persisted wi
   still uses the trained surrogates. Probes surrogate mismodelling as a bias in the
   fitted coefficients.
 
+The two sources are stages, not alternatives. Truth mode asks whether the
+surrogates are right: it re-reads ROOT, so it is slow, and it defaults to a 20%
+split, so it is coarse. Cache mode asks whether the statistical model is
+calibrated, given correct surrogates: it is fast, cheap on disk, and uses every
+event. Stage 1 licenses stage 2.
+
+Every toy carries a `/fingerprint` recording what defines the dataset: the
+selection, the Asimov samples, the feature union, and (cache mode) a digest of the
+cache it indexes. `load_toy` compares it against the live config and crashes on any
+mismatch, because a selection change alters *which events are the data* and would
+otherwise bias a refit in silence. The BIT identity is recorded but deliberately
+not compared -- a refit under a retrained or differently-truncated BIT is the
+surrogate-bias study this module exists to serve, not an error.
+
 Known caveat (documented, not fixed): toys are drawn from the same cached/streamed
 MC that supplies the expected-yield term, so toy and template fluctuations are
 correlated. Sub-percent effect on interval widths at current MC statistics; see
@@ -700,7 +714,123 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
         "binned_counts": binned_counts,
         "diagnostics": diagnostics,
         "config_version": getattr(n2ll, "version", None),
+        "fingerprint": dataset_fingerprint(n2ll, source),
     }
+
+
+# ============================================================================
+# dataset fingerprint
+# ============================================================================
+
+def _normalize_selection(selection) -> str:
+    """Collapse whitespace so a YAML folded block compares equal to a one-liner."""
+    return " ".join((selection or "").split())
+
+
+def _cache_digest(n2ll: N2LL, region_id: str, class_id: str) -> tuple:
+    """Row count and blake2b digest of one class's live cache `w0` column.
+
+    The row count alone is not enough: a cache rebuilt with the same number of rows
+    in a different order misaligns a toy's indices without changing any length.
+    """
+    w0 = np.asarray(n2ll._h5[(region_id, class_id)]["w0"])
+    payload = np.ascontiguousarray(w0, dtype="<f8").tobytes()
+    return int(w0.shape[0]), hashlib.blake2b(payload, digest_size=8).hexdigest()
+
+
+def dataset_fingerprint(n2ll: N2LL, source: str) -> dict:
+    """Record what defines the dataset a toy was drawn from.
+
+    Compared fields describe the *events*: the selection, the Asimov samples, the
+    feature union, the class ids, and for cache mode the identity of the cache the
+    toy indexes. `generating_bit` is recorded for the reader but never compared,
+    because refitting under a retrained BIT is a study, not a mistake.
+    """
+    fingerprint = {
+        "selection": _normalize_selection(getattr(n2ll.factory, "selection", None)),
+        "selection_features": sorted(getattr(n2ll.factory, "selection_features", None) or []),
+        "regions": {},
+        "binned": {},
+    }
+    for region in n2ll.regions:
+        region_id = region["id"]
+        class_ids = [C["id"] for C in region.get("classes", []) or []]
+        entry = {
+            "feature_names": _region_feature_union(region),
+            "asimov_samples": list(region.get("_asimov_samples", []) or []),
+            "class_ids": class_ids,
+            # informational only, never compared:
+            "generating_bit": {
+                C["id"]: {
+                    "job": (C.get("POI") or {}).get("job"),
+                    "parameters": list(((C.get("POI") or {}).get("parameters") or [])),
+                }
+                for C in region.get("classes", []) or []
+            },
+        }
+        if source == "cache":
+            entry["cache"] = {}
+            for class_id in class_ids:
+                rows, digest = _cache_digest(n2ll, region_id, class_id)
+                entry["cache"][class_id] = {"rows": rows, "w0_digest": digest}
+        fingerprint["regions"][region_id] = entry
+
+    # binned counts are a flat vector bound to the current unrolling; a rebinning
+    # changes its length, which setObservationArrays does not check.
+    for region_id, unroll in (getattr(n2ll, "_binned_unroll", None) or {}).items():
+        fingerprint["binned"][region_id] = {"n_flat_bins": len(unroll.get("flat_bins", []) or [])}
+
+    return fingerprint
+
+
+def _check_fingerprint(stored: dict, live: dict, path: str) -> None:
+    """Crash on any dataset-definition mismatch, naming the field and both values.
+
+    Fields are compared one at a time rather than as a single combined digest: a
+    combined digest reports only that something differs, which is barely better than
+    the downstream shape error it is meant to replace.
+    """
+    def fail(field, toy_value, config_value):
+        raise RuntimeError(
+            f"[toy] Dataset fingerprint mismatch on '{field}' for {path}.\n"
+            f"         toy    : {toy_value!r}\n"
+            f"         config : {config_value!r}\n"
+            f"       The toy was drawn from a different dataset. Refitting it against "
+            f"this config would compare unlike event sets and bias the result silently."
+        )
+
+    for field in ("selection", "selection_features"):
+        if stored.get(field) != live.get(field):
+            fail(field, stored.get(field), live.get(field))
+
+    stored_regions = stored.get("regions", {}) or {}
+    live_regions = live.get("regions", {}) or {}
+    if set(stored_regions) != set(live_regions):
+        fail("region ids", sorted(stored_regions), sorted(live_regions))
+
+    for region_id in sorted(stored_regions):
+        stored_region, live_region = stored_regions[region_id], live_regions[region_id]
+        for field in ("feature_names", "asimov_samples", "class_ids"):
+            if stored_region.get(field) != live_region.get(field):
+                fail(f"{region_id}.{field}", stored_region.get(field), live_region.get(field))
+
+        stored_cache = stored_region.get("cache") or {}
+        live_cache = live_region.get("cache") or {}
+        if set(stored_cache) != set(live_cache):
+            fail(f"{region_id}.cache classes", sorted(stored_cache), sorted(live_cache))
+        for class_id in sorted(stored_cache):
+            for field in ("rows", "w0_digest"):
+                if stored_cache[class_id][field] != live_cache[class_id][field]:
+                    fail(f"{region_id}/{class_id}.cache {field}",
+                         stored_cache[class_id][field], live_cache[class_id][field])
+
+    stored_binned = stored.get("binned", {}) or {}
+    live_binned = live.get("binned", {}) or {}
+    if set(stored_binned) != set(live_binned):
+        fail("binned region ids", sorted(stored_binned), sorted(live_binned))
+    for region_id in sorted(stored_binned):
+        if stored_binned[region_id] != live_binned[region_id]:
+            fail(f"{region_id}.binned", stored_binned[region_id], live_binned[region_id])
 
 
 # ============================================================================
@@ -708,9 +838,14 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
 # ============================================================================
 
 def save_toy(path: str, toy: dict) -> None:
-    """Persist a toy to HDF5. Cache-mode regions store only (indices, n) -- the
-    surrogate columns are verbatim cache slices, rehydrated by load_toy rather than
-    duplicated on disk. Truth-mode regions store the materialized X/by_class/origin.
+    """Persist a toy to HDF5, with the dataset fingerprint that binds it.
+
+    Cache-mode regions store only (indices, n): the surrogate columns are verbatim
+    cache slices, rehydrated by load_toy rather than duplicated on disk. Truth-mode
+    regions store (X, n, origin) and *not* the evaluated surrogate columns -- load_toy
+    re-evaluates them, so a toy records the pseudo-data alone and never one BIT's view
+    of it. That costs one forward pass per fit and keeps the toy refittable under a
+    retrained or differently-truncated BIT.
     """
     out_dir = os.path.dirname(os.path.abspath(path))
     os.makedirs(out_dir, exist_ok=True)
@@ -721,6 +856,9 @@ def save_toy(path: str, toy: dict) -> None:
         meta.attrs["hypothesis"] = json.dumps(toy["hypothesis"])
         meta.attrs["config_version"] = str(toy.get("config_version") or "")
         meta.attrs["point"] = toy.get("point", "")
+
+        fp = f.create_group("fingerprint")
+        fp.attrs["json"] = json.dumps(toy["fingerprint"], sort_keys=True)
 
         cc = f.create_group("constraint_centers")
         for name, val in (toy.get("constraint_centers") or {}).items():
@@ -735,11 +873,6 @@ def save_toy(path: str, toy: dict) -> None:
             else:
                 g.create_dataset("X", data=np.asarray(block["X"], dtype=np.float64))
                 g.create_dataset("origin", data=np.asarray(block["origin"], dtype=np.int64))
-                bc = g.create_group("by_class")
-                for cid, comp in block["by_class"].items():
-                    cg = bc.create_group(cid)
-                    for col_name, col in comp.items():
-                        cg.create_dataset(col_name, data=np.asarray(col, dtype=np.float64))
 
         bn = f.create_group("binned")
         for rid, counts in toy["binned_counts"].items():
@@ -749,10 +882,16 @@ def save_toy(path: str, toy: dict) -> None:
 
 
 def load_toy(path: str, n2ll: N2LL) -> dict:
-    """Load a toy saved by save_toy. Cache-mode regions are rehydrated by indexing
-    n2ll's live cache -- a shrunk/retrained cache raises IndexError (or a
-    _rehydrate_cache_by_class KeyError for a missing class) rather than silently
-    misaligning columns."""
+    """Load a toy saved by save_toy, after verifying its dataset fingerprint.
+
+    The fingerprint check comes first and crashes on any mismatch: a toy drawn under a
+    different selection describes different events, and refitting it here would bias
+    the result with no downstream symptom.
+
+    Cache-mode regions are then rehydrated by indexing n2ll's live cache. Truth-mode
+    regions re-evaluate the surrogates from the stored X, so the toy binds to the
+    dataset it was drawn from and not to the BIT that happened to be trained then.
+    """
     with h5py.File(path, "r") as f:
         meta = f["meta"]
         seed = int(meta.attrs["seed"])
@@ -760,6 +899,16 @@ def load_toy(path: str, n2ll: N2LL) -> dict:
         hypothesis = json.loads(meta.attrs["hypothesis"])
         config_version = str(meta.attrs.get("config_version", ""))
         point = str(meta.attrs.get("point", ""))
+
+        if "fingerprint" not in f:
+            raise RuntimeError(
+                f"[toy] {path} carries no /fingerprint, so the dataset it was drawn from "
+                f"cannot be verified against this config. Such a toy also froze the BIT "
+                f"columns on disk, which bind it to the operator set it was generated "
+                f"with. Regenerate it."
+            )
+        _check_fingerprint(json.loads(f["fingerprint"].attrs["json"]),
+                           dataset_fingerprint(n2ll, source), path)
 
         constraint_centers = {name: float(val) for name, val in f["constraint_centers"].attrs.items()}
 
@@ -774,12 +923,11 @@ def load_toy(path: str, n2ll: N2LL) -> dict:
                     "by_class": _rehydrate_cache_by_class(n2ll, rid, indices),
                 }
             else:
-                by_class = {}
-                for cid in g["by_class"]:
-                    cg = g["by_class"][cid]
-                    by_class[cid] = {col_name: np.asarray(cg[col_name]) for col_name in cg}
+                X = np.asarray(g["X"])
+                region = _find_region(n2ll, rid)
+                by_class = n2ll._eval_region_surrogates(rid, X, _region_feature_union(region))
                 unbinned_blocks[rid] = {
-                    "X": np.asarray(g["X"]), "w": n, "by_class": by_class,
+                    "X": X, "w": n, "by_class": by_class,
                     "origin": np.asarray(g["origin"]),
                 }
 
