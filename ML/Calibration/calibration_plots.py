@@ -68,10 +68,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--job", default=None, help="BIT job id (omit to list bit jobs)")
     p.add_argument("--num-bins", type=int, default=25, help="Number of bins in the predicted coefficient.")
-    p.add_argument("--binning", type=str, choices=["equal","quantile"], default="equal", help="Equal-sized or quantile-based binning.")
+    p.add_argument("--binning", type=str, choices=["equal","quantile"], default="quantile", help="Equal-sized or quantile-based binning.")
     p.add_argument("--labels", nargs="+", default=None, help="Restrict to these derivative labels (default: all)")
     p.add_argument("--partition", default=["c2st_train", "c2st_val"], nargs="+", choices=["c2st_train", "c2st_val"], help="Which C2ST sub-partition to use (default: both).")
     p.add_argument("--calibrate", action="store_true", help="Derive calibration factors (c2st_train) or apply available calibration factors (c2st_val).")
+    p.add_argument("--last", action="store_true", help="Loads BIT with all trees. If not set, uses number of trees with minimum validation loss.")
     return p
 
 
@@ -275,7 +276,7 @@ def main():
     cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
     model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
 
-    csv_path = os.path.join(model_dir, f"calib_values_{'_'.join(args.partition)}.csv")
+    csv_path = os.path.join(model_dir, f"calib_values_{'_'.join(args.partition)}_{'last' if args.last else 'best'}.csv")
     if not os.path.exists(csv_path):
         raise FileNotFoundError(
             f"Missing {csv_path}. Run pdf_calibration.py / eft_calibration.py for job '{job['id']}' first."
@@ -302,8 +303,8 @@ def main():
         raise RuntimeError(f"Requested labels not found: {sorted(unknown)}. Available: {der_labels_list}")
 
     out_dir = os.path.join(
-        user.plot_directory, "BIT-calibration",f"{args.num_bins}_{args.binning}_bins",
-        cfg.get("version", "default"), job["region"], job["id"],
+        user.plot_directory, "BIT-calibration",
+        cfg.get("version", "default"), job["region"], job["id"], "last" if args.last else "best",f"{args.num_bins}_{args.binning}_bins",
     )
     os.makedirs(out_dir, exist_ok=True)
     logger.info("Output directory: %s", out_dir)

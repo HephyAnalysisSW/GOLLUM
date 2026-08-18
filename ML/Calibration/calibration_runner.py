@@ -6,9 +6,8 @@ train/valid materialization of truth-weight matrices via a *provider*, loading t
 trained BIT, and saving prediction/truth/labels to .npy files for downstream
 calibration plotting.
 
-The derivative-specific bits live in the entry scripts (``pdf_calibration.py`` /
-``eft_calibration.py``). Each builds a provider (see
-``common/derivative_providers.py``) exposing:
+The PDF or EFT specific bits are done in the main() function, which fetches the
+specific PDF or EFT derivative *provider* object exposing:
 
   - ``combinations``       : list of canonical derivative tuples, native column
                              order, including the nominal ``()``.
@@ -56,6 +55,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--job", default=None, help="BIT job id to run (omit to list)")
     p.add_argument("--small", action="store_true", help="Only first shard for debugging")
     p.add_argument("--partition", default=["c2st_train", "c2st_val"], nargs="+", choices=["c2st_train", "c2st_val"], help="Which C2ST sub-partition to use (default: both).")
+    p.add_argument("--last", action="store_true", help="Loads BIT with all trees. If not set, uses number of trees with minimum validation loss.")
     return p
 
 
@@ -236,7 +236,13 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
     cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
     model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
     os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, "BIT_best.pkl")
+    # using BIT at lowest validation loss
+    if args.last:
+        output_name = job["output"]["filename"]
+    else:
+        output_name = "BIT_best.pkl"
+
+    model_path = os.path.join(model_dir, output_name)
 
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"BIT model file not found: {model_path}")
@@ -290,9 +296,9 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
         truth_f = truth.astype(np.float32, copy=False)
         w0_f = w0.astype(np.float32, copy=False)
 
-        pred_path = os.path.join(model_dir, f"calib_pred_{split_name}.npy")
-        truth_path = os.path.join(model_dir, f"calib_truth_{split_name}.npy")
-        w0_path = os.path.join(model_dir, f"calib_w0_{split_name}.npy")
+        pred_path = os.path.join(model_dir, f"calib_pred_{split_name}_{'last' if args.last else 'best'}.npy")
+        truth_path = os.path.join(model_dir, f"calib_truth_{split_name}_{'last' if args.last else 'best'}.npy")
+        w0_path = os.path.join(model_dir, f"calib_w0_{split_name}_{'last' if args.last else 'best'}.npy")
         label_path = os.path.join(model_dir, "calib_der_labels.npy")  # shared
 
         np.save(pred_path, pred_f)
@@ -316,7 +322,7 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
         csv_labels.append("weight")
         csv_data.append(w0_f)
 
-        csv_path = os.path.join(model_dir, f"calib_values_{split_name}.csv")
+        csv_path = os.path.join(model_dir, f"calib_values_{split_name}_{'last' if args.last else 'best'}.csv")
         pd.DataFrame(csv_data, index=csv_labels).T.to_csv(csv_path, index=True)
         logger.info("  csv   -> %s", csv_path)
 

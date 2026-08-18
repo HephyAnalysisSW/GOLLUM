@@ -101,7 +101,7 @@ def expansion_point_label(expansion_point: dict) -> str:
         groups.setdefault(val, []).append(name)
     if len(groups) == 1:
         (val, names), = groups.items()
-        return f"expansion point: {val:g} ({len(names)} operators)"
+        return f"expansion point: \n {val:g} ({len(names)} operators)"
     # smallest group(s) named explicitly, the largest becomes "others"
     ordered = sorted(groups.items(), key=lambda kv: len(kv[1]))
     parts = []
@@ -110,7 +110,7 @@ def expansion_point_label(expansion_point: dict) -> str:
             parts.append(f"others = {val:g}")
         else:
             parts.append(f"{', '.join(sorted(names))} = {val:g}")
-    return "expansion point: " + ", ".join(parts)
+    return "expansion point: \n " + ", \n ".join(parts)
 
 
 # --------------------------------------------------------------------------------
@@ -351,7 +351,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     # ---- event split ----
     splitter = None
     uid_idx = None
-    train_interval = val_interval = None
+    partition_interval = None
     if split_enabled:
         if split_type == "random":
             splitter = RandomSplitter(
@@ -370,6 +370,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                 partition = ["c2st_train", "c2st_val"]
 
             splitter, uid_fields, partition_interval = _uid_split_interval(split_cfg, *partition)
+            uid_idx = [obs_names.index(f) for f in uid_fields]
 
         else:
             raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' are implemented.")
