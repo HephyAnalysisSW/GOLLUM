@@ -222,3 +222,66 @@ matches.* It doubles the read paths to save one forward pass per fit, and the fa
 path is the one that rots silently, because nobody exercises it after the BIT
 changes. Measured: the BIT costs 69 ms on 57,512 events, against a minimization in
 minutes. One path -- `X` in, surrogates evaluated at load, always.
+
+**The operator span of a truth-mode injection, 2026-08-18**
+
+Added after a session asked why `coefficients` cannot reach all 16 operators,
+given that the ROOT samples carry the full lower-triangular derivative set over
+`wc_names` and the EFT weight is exactly quadratic. The question is sound: the
+data does determine `w(c)` at any point in the full 16-dimensional space,
+without a BIT. A search of both toy documents found the alternative nowhere.
+The bullet above rejecting a `derivative_job` override covers a different
+axis -- which job supplies the parametrization, not how many operators it spans.
+
+*Decided: an unnamed coefficient stays at the generation point, and the truth
+provider keeps coming from the class's BIT job.* Four reasons, the first
+decisive.
+
+- The fit already uses this convention. A subset job holds unfitted operators
+  at `r`, not at the SM, and that is recorded and accepted in
+  `eft-expansion-point-rebase-design-decisions.md:102-111`. Toy and fit
+  therefore condition on the same point. Widening the toy alone would break an
+  agreement that is currently exact.
+- Widening the provider silently changes every spec already written.
+  `expand_pois_linear_quadratic` builds `t = c - r` for every name in
+  `poi_names`, reading an absent name as `0.0`. Add the other operators to
+  `poi_names` and each one moves from `r` to the SM. The file does not change;
+  its meaning does.
+- The full-16 SM point is a long extrapolation. It sets `t = -1.5` in fourteen
+  directions and `t = +0.5` in two, simultaneously. No events were generated
+  there, which is the same objection that killed the hybrid reference point for
+  the fit. Expect a wide weight spread and a large negative fraction.
+- A closure test needs the truth point inside the model's span. Under the
+  current default it is, and the only difference left between the two routes is
+  BIT approximation error, which is what the test measures. Under a widened
+  default a subset job would see linear and cross terms it has no columns for,
+  and a *perfect* BIT would still show a bias.
+
+*Deferred, not rejected: a truth provider spanning all of `wc_names`,
+independent of the BIT job.* It has a namable study behind it -- displace an
+operator the BIT does not fit, refit, and measure the induced bias -- which is
+why it is not filed with the hypotheticals above. It stays out for now because
+no verification item needs it, and because it must not arrive as a change of
+default. It needs its own spelling in the spec, so that a point written today
+keeps its meaning.
+
+*Acknowledged tension.* "Real data is not bound to which BIT was trained, or to
+how many operators the fit floats", above, is applied in this document only to
+what a toy stores and to what the fingerprint checks. It arguably also applies
+to what a toy spans, and the current design binds generation to a BIT job's
+operator list. The decision above stands on the fit-conditioning argument, not
+on a claim that the tension is resolved.
+
+*Decided: naming a coefficient the class's BIT cannot move is a crash.* Two
+cases, separated because the causes differ. A known operator outside the job's
+parameters cannot be moved at all, so the message names the generation point it
+is held at and suggests a job that fits it. Anything else is a spelling
+mistake, reported against the known-coefficient list. Neither group was read by
+`expand_pois_linear_quadratic`, which iterates `provider.parameters` alone, so
+before the guard both were dropped in silence and the toy landed at a different
+point than the spec asked for. Implemented in `99c7976`, together with an INFO
+line stating the resolved point in three groups: injected, at the SM, held at
+the generation point. The middle group is a correct default rather than a
+misconfiguration, so it is reported and not warned about -- but since the
+rebase it no longer coincides with the generation point, and silence about
+which unset operators sit where would mislead.
