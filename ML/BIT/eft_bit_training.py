@@ -904,6 +904,7 @@ if len(bit.trees) < bit.n_trees:
         plt.plot(loss_trees, valid_losses, label="valid")
     plt.xlabel("n_trees")
     plt.ylabel("ratio_mse_loss")
+    plt.axvline(best_tree, color='r', label="best epoch")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.legend()
 
