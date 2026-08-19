@@ -16,8 +16,8 @@ untouched here). A toy is a plain dict, produced by `generate_toy`, persisted wi
 A POI reaches its injected value through one of two routes, never both, since each
 expresses the point as a ratio anchored at the generation point (see `generate_toy`):
 the surrogate's `(1 + T(hypothesis))`, or the exact truth's `ProcessSource.coefficients`.
-"Nominal" for a POI therefore means its generation point, not zero -- see
-`nominal_hypothesis`.
+A toy records which route it used. "Nominal" for a POI therefore means its generation
+point, not zero -- see `nominal_hypothesis`.
 
 The two sources are stages, not alternatives. Truth mode asks whether the
 surrogates are right: it re-reads ROOT, so it is slow, and it defaults to a 20%
@@ -747,8 +747,8 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
 
     A POI moves through one route only: `hypothesis` (the surrogate's ratio) or
     ProcessSource.coefficients (the exact truth's ratio). Both anchor at the generation
-    point, so their product is not the weight at the combined point. Nuisances always
-    travel through `hypothesis`.
+    point, so their product is not the weight at the combined point. The returned "route"
+    field records which one was used. Nuisances always travel through `hypothesis`.
 
     debug adds the raw unclipped weights to the "diagnostics" block in the toy dict
     """
@@ -853,6 +853,7 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     return {
         "seed": int(seed),
         "source": source,
+        "route": "exact" if exact_classes else "surrogate",
         "hypothesis": recorded_hypothesis,
         "constraint_centers": constraint_centers,
         "unbinned_blocks": unbinned_blocks,
@@ -998,6 +999,7 @@ def save_toy(path: str, toy: dict) -> None:
         meta = f.create_group("meta")
         meta.attrs["seed"] = int(toy["seed"])
         meta.attrs["source"] = toy["source"]
+        meta.attrs["route"] = toy["route"]
         meta.attrs["hypothesis"] = json.dumps(toy["hypothesis"])
         meta.attrs["config_version"] = str(toy.get("config_version") or "")
         meta.attrs["point"] = toy.get("point", "")
@@ -1041,6 +1043,7 @@ def load_toy(path: str, n2ll: N2LL) -> dict:
         meta = f["meta"]
         seed = int(meta.attrs["seed"])
         source = str(meta.attrs["source"])
+        route = str(meta.attrs["route"])
         hypothesis = json.loads(meta.attrs["hypothesis"])
         config_version = str(meta.attrs.get("config_version", ""))
         point = str(meta.attrs.get("point", ""))
@@ -1079,7 +1082,7 @@ def load_toy(path: str, n2ll: N2LL) -> dict:
         binned_counts = {rid: np.asarray(f["binned"][rid]) for rid in f["binned"]}
 
     return {
-        "seed": seed, "source": source, "hypothesis": hypothesis,
+        "seed": seed, "source": source, "route": route, "hypothesis": hypothesis,
         "constraint_centers": constraint_centers,
         "unbinned_blocks": unbinned_blocks, "binned_counts": binned_counts,
         "config_version": config_version, "point": point,

@@ -2250,9 +2250,10 @@ def serialize_result(m, base, version, args, out_path, toy_info=None ):
     """Write the fit result (values, errors, covariance) to JSON.
 
     'toy_info' carries the provenance of the toy dataset that was fitted
-    (point, source, seed and the injected hypothesis), so downstream toy
-    studies can compute pulls without reopening the toy HDF5. It is None
-    for fits to data or Asimov.
+    (point, source, route, seed and the injected hypothesis), so downstream
+    toy studies can compute pulls without reopening the toy HDF5. It is None
+    for fits to data or Asimov. The hypothesis names every coefficient the
+    toy's BITs know, so it is a superset of 'free_parameter_order'.
     """
 
     result_payload = {
@@ -2597,8 +2598,9 @@ if __name__ == "__main__":
             _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
             _toy_seed = int(_toy_meta_f["meta"].attrs["seed"])
             _toy_source = str(_toy_meta_f["meta"].attrs.get("source", ""))
+            _toy_route = str(_toy_meta_f["meta"].attrs["route"])
             _toy_hypothesis = json.loads(str(_toy_meta_f["meta"].attrs["hypothesis"]))
-        toy_info = {"point": _toy_point, "source": _toy_source,
+        toy_info = {"point": _toy_point, "source": _toy_source, "route": _toy_route,
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         # storing many toy fit results in their own folder
