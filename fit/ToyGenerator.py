@@ -13,6 +13,12 @@ untouched here). A toy is a plain dict, produced by `generate_toy`, persisted wi
   still uses the trained surrogates. Probes surrogate mismodelling as a bias in the
   fitted coefficients.
 
+A POI reaches its injected value through one of two routes, never both, since each
+expresses the point as a ratio anchored at the generation point (see `generate_toy`):
+the surrogate's `(1 + T(hypothesis))`, or the exact truth's `ProcessSource.coefficients`.
+"Nominal" for a POI therefore means its generation point, not zero -- see
+`nominal_hypothesis`.
+
 The two sources are stages, not alternatives. Truth mode asks whether the
 surrogates are right: it re-reads ROOT, so it is slow, and it defaults to a 20%
 split, so it is coarse. Cache mode asks whether the statistical model is
@@ -407,14 +413,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     provider = None
     required_observers: list = []
     if source.coefficients is not None:
-        if hypothesis is not None:
-            poi_vals = {p.name: p.val for p in getattr(hypothesis, "POIs", [])}
-            overlap = [k for k in source.coefficients if poi_vals.get(k, 0.0) != 0.0]
-            if overlap:
-                raise ValueError(
-                    f"[toy:{region_id}/{source.class_id}] POI(s) {overlap} injected via both "
-                    f"'coefficients' and a nonzero hypothesis value; pick one route."
-                )
+        # generate_toy rejects a POI that `hypothesis` moves off its generation point while
+        # any source uses this route, so the two routes never compose on the same weight.
         from common.derivative_providers import build_derivative_provider
         job = _class_bit_job(n2ll, region_id, source.class_id)
         provider = build_derivative_provider(job)
@@ -689,6 +689,49 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
 
 
 # ============================================================================
+# generation point / nominal hypothesis
+# ============================================================================
+
+def likelihood_generation_point(n2ll: N2LL) -> dict:
+    """{coefficient: value} the samples were generated at, over every class of every
+    region: each class's BIT reference point (GENERATION_POINT in data/samples_eft.py
+    for an EFT BIT, {} for a PDF BIT, which expands around zero).
+
+    Covers every operator the BIT knows, not only this likelihood's active POIs.
+    A coefficient absent here expands around zero, so 0.0 leaves it untouched.
+    """
+    generation_point = {}
+    for region in list(n2ll.regions) + list(n2ll.binned):
+        for cls in region.get("classes", []) or []:
+            for name, val in n2ll._poi_reference.get((region["id"], cls["id"]), {}).items():
+                val = float(val)
+                prior = generation_point.get(name)
+                if prior is not None and prior != val:
+                    raise RuntimeError(
+                        f"[toy] Generation point for '{name}' differs between classes: "
+                        f"{prior} vs {val}. Every BIT must expand around the same point."
+                    )
+                generation_point[name] = val
+    return generation_point
+
+
+def nominal_hypothesis(n2ll: N2LL, name: str = "toy") -> Hypothesis:
+    """The hypothesis that leaves the weights untouched: every POI at its generation
+    point, every nuisance at zero.
+
+    build_hypothesis_from_likelihood defaults POIs to 0.0. That is right for the fit's
+    start point but wrong for a toy: a BIT rebased at the generation point reads 0.0 as
+    the SM, so an unnamed coefficient would be dragged off the point the samples were
+    drawn from, and the weights multiplied by that ratio.
+    """
+    hypothesis = build_hypothesis_from_likelihood(n2ll.lk, name=name)
+    for poi_name, val in likelihood_generation_point(n2ll).items():
+        if poi_name in hypothesis:
+            hypothesis[poi_name].val = float(val)
+    return hypothesis
+
+
+# ============================================================================
 # top-level
 # ============================================================================
 
@@ -698,9 +741,14 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     """Generate one full toy (every unbinned + binned region of n2ll's likelihood).
 
     `source`: "cache" (model is truth) or "truth" (exact reweighting/scale/sample).
-    `hypothesis`: the injection point. In cache mode, defaults to nominal
-    (build_hypothesis_from_likelihood). In truth mode, None means no surrogate-route
-    (1+T) multiplication -- ProcessSource modifiers are still applied.
+    `hypothesis`: the surrogate route's injection point, defaulting to `nominal_hypothesis`
+    (every POI at its generation point, so the weights are left untouched). In truth mode,
+    None additionally skips the (1+T) multiplication -- ProcessSource modifiers still apply.
+
+    A POI moves through one route only: `hypothesis` (the surrogate's ratio) or
+    ProcessSource.coefficients (the exact truth's ratio). Both anchor at the generation
+    point, so their product is not the weight at the combined point. Nuisances always
+    travel through `hypothesis`.
 
     debug adds the raw unclipped weights to the "diagnostics" block in the toy dict
     """
@@ -709,7 +757,29 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     if source == "cache" and truth_sources:
         raise ValueError("truth_sources is only valid with source='truth'.")
 
-    gen_hypothesis = hypothesis if hypothesis is not None else build_hypothesis_from_likelihood(n2ll.lk, name="toy")
+    generation_point = likelihood_generation_point(n2ll)
+    gen_hypothesis = hypothesis if hypothesis is not None else nominal_hypothesis(n2ll)
+
+    # The two POI injection routes both express their point as a ratio anchored at the
+    # generation point, so multiplying them does not land at the combined point -- it
+    # applies the generation-point rebasing twice. Allow at most one to move a POI.
+    # A nuisance stays free: (1+T) is the only route to a systematic shift.
+    exact_classes = [
+        f"{region_id}/{src.class_id}"
+        for region_id, region_sources in (truth_sources or {}).items()
+        for src in region_sources if src.coefficients is not None
+    ]
+    if exact_classes and hypothesis is not None:
+        moved = sorted(p.name for p in getattr(hypothesis, "POIs", [])
+                       if float(p.val) != generation_point.get(p.name, 0.0))
+        if moved:
+            raise ValueError(
+                f"[toy] POI(s) {moved} are moved off the generation point by 'hypothesis', "
+                f"while class(es) {exact_classes} inject through 'coefficients'. Pick one "
+                f"route: 'hypothesis' reweights through the surrogate, 'coefficients' "
+                f"reweights the exact truth. Nuisances may still be set in 'hypothesis'."
+            )
+
     constraint_centers = throw_constraint_centers(gen_hypothesis, _spawn_rng(seed, "__constraints__")) if throw_nuisances else {}
 
     unbinned_blocks: dict = {}
@@ -750,22 +820,35 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
             )
         binned_counts[rid] = toy["counts"]
 
-    # gen_hypothesis only carries the surrogate-route injection (or nominal, if none was
-    # given). A coefficients-route injection (ProcessSource.coefficients, e.g. a point with
-    # `injection:` and no `hypothesis:`) never touches gen_hypothesis, so on its own the
-    # recorded metadata would read nominal regardless of what was actually injected. Fold
-    # those coefficients in for the record.
+    # gen_hypothesis holds the surrogate route's point, already correct: every POI it does
+    # not name sits at its generation point, so an untouched coefficient records as the
+    # point the samples were drawn from rather than as the SM.
     recorded_hypothesis = {p.name: float(p.val) for p in gen_hypothesis.parameters}
-    if source == "truth" and truth_sources:
-        for region_sources in truth_sources.values():
-            for src in region_sources:
-                for name, val in (src.coefficients or {}).items():
-                    prior = recorded_hypothesis.get(name)
-                    if prior is not None and prior != 0.0 and prior != float(val):
-                        raise RuntimeError(
-                            f"[toy] Conflicting injected value for '{name}': {prior} vs {val}."
-                        )
-                    recorded_hypothesis[name] = float(val)
+
+    # The coefficients route bypasses gen_hypothesis, so fold its point in. Every POI of
+    # the class's BIT is set: to the value given, or to the SM if absent from
+    # `coefficients` (see _materialize_truth_weights's "at_sm" group). The route ban above
+    # guarantees gen_hypothesis did not also move these, so only two classes disagreeing
+    # with each other is a conflict.
+    exact_point = {}
+    for region_id, region_sources in (truth_sources or {}).items():
+        for src in region_sources:
+            if src.coefficients is None:
+                continue
+            for name in n2ll._poi_order.get((region_id, src.class_id), []):
+                val = float(src.coefficients.get(name, 0.0))
+                prior = exact_point.get(name)
+                if prior is not None and prior != val:
+                    raise RuntimeError(
+                        f"[toy] Classes disagree on the injected value for '{name}': {prior} vs {val}."
+                    )
+                exact_point[name] = val
+    recorded_hypothesis.update(exact_point)
+
+    # A coefficient no class fits stays at its generation point, and a coefficient that is
+    # not an active POI of this likelihood never reaches gen_hypothesis at all. Record both.
+    for name, val in generation_point.items():
+        recorded_hypothesis.setdefault(name, val)
 
     return {
         "seed": int(seed),
@@ -1035,9 +1118,12 @@ def _parse_injection(injection: dict) -> dict:
 
 
 def _hypothesis_from_point(n2ll: N2LL, point_hyp) -> Optional[Hypothesis]:
+    """The spec's `hypothesis:` block, on top of the nominal point. A POI the block does
+    not name stays at its generation point, so it is left untouched rather than moved to
+    the SM."""
     if not point_hyp:
         return None
-    base = build_hypothesis_from_likelihood(n2ll.lk, name="toy_point")
+    base = nominal_hypothesis(n2ll, name="toy_point")
     for name, val in point_hyp.items():
         if name not in base:
             raise KeyError(f"Unknown parameter '{name}' in point hypothesis.")
