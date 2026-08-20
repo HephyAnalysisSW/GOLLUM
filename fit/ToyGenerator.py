@@ -82,25 +82,26 @@ class ProcessSource:
     w_truth = w_coefficients * scale_factor * prod(weight_branches) * weight_function(X)
     reducing to the nominal event weight when `coefficients` is None.
 
-    `coefficients` sets the absolute injection point, not an offset. Three groups of
-    coefficients exist, and only the first is under the spec file's control:
+    `coefficients` sets the absolute injection point, not an offset. A coefficient the
+    spec does not name is held at the generation point, whether or not the class's BIT
+    fits it:
 
     - listed in `coefficients`: injected at the value given.
-    - a parameter of the class's BIT job, absent from `coefficients`: injected at the
-      SM (0.0). `expand_pois_linear_quadratic` reads a missing name as 0.0, so the
-      Taylor variable becomes t = -r and the weight lands at the SM for that operator.
-    - not a parameter of the class's BIT job: held at the generation point r. The BIT
-      carries no derivative column for it, so no value can move it. Naming such a
-      coefficient raises rather than being ignored.
+    - absent from `coefficients`: held at the generation point r, so the Taylor variable
+      t = c - r is zero and that operator does not move the weight.
 
-    The second and third groups differ only because the expansion is rebased. A PDF BIT
-    expands around zero, so unset and reference coincide there; an EFT BIT expands
-    around GENERATION_POINT, where they are 0.0 and 1.5 (or -0.5) respectively.
+    Naming a coefficient the BIT does not fit still raises: the BIT carries no derivative
+    column for it, so the spec would be asking for a point it cannot reach.
 
-    `coefficients=None` (the field absent from the spec) is distinct from
-    `coefficients={}`: None skips the derivative route entirely and keeps the raw
-    nominal weight, which for an EFT sample is the weight at the generation point,
-    while {} injects every one of the job's parameters at the SM.
+    One convention throughout, which is why this is not the SM: `coefficients=None`, a
+    `nominal` point with no injection at all, and an omitted coefficient all leave the
+    weight where the samples were generated. It also generalizes to a sample generated at
+    the SM, whose reference point is empty, so an omitted coefficient reads 0.0 -- that
+    sample's own generation point.
+
+    `coefficients=None` (the field absent from the spec) is therefore equivalent to
+    `coefficients={}` in the point they select; None additionally skips the derivative
+    route, keeping the raw nominal weight rather than reconstructing it.
     """
     class_id: str
     sample_name: Optional[str] = None
@@ -392,8 +393,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     kinematics via the same `_eval_region_surrogates`/`_compute_T_from_columns`
     N2LL uses for real data (see the plan's "two POI injection routes").
 
-    A coefficient absent from `source.coefficients` is injected at the SM if the class's
-    BIT fits it, and held at the generation point if it does not; see `ProcessSource`.
+    A coefficient absent from `source.coefficients` is held at the generation point,
+    whether or not the class's BIT fits it; see `ProcessSource`.
 
     Returns (X (M,d), w_truth (M,), diagnostics dict).
     """
@@ -461,17 +462,21 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
                 f"({sorted(reference_point)}). Check the spelling in the toy spec."
             )
 
-        # State the resolved point for all three groups. The SM group is a correct default,
-        # not a misconfiguration, so it is reported rather than warned about -- but it is no
-        # longer the same as the generation point, so silence would be misleading.
-        at_sm = sorted(fitted - set(source.coefficients))
-        at_generation = {name: float(val) for name, val in reference_point.items() if name not in fitted}
+        # The absolute point to inject: the generation point, overlaid with whatever the
+        # spec names. An omitted coefficient therefore gives t = c - r = 0 and does not move
+        # the weight, instead of t = -r, which would have dragged it to the SM.
+        injection_point = {**reference_point, **source.coefficients}
+
+        # State the resolved point. Both groups are correct defaults rather than
+        # misconfigurations, so they are reported rather than warned about.
+        at_generation = {name: float(injection_point.get(name, 0.0)) for name in
+                         sorted((fitted | set(reference_point)) - set(source.coefficients))}
         logger.info(
-            "[toy:%s/%s] injection point for BIT job '%s': injected %s; at the SM (absent from "
-            "'coefficients') %s; held at the generation point %s.",
+            "[toy:%s/%s] injection point for BIT job '%s': injected %s; held at the "
+            "generation point %s.",
             region_id, source.class_id, job["id"],
             {name: float(val) for name, val in source.coefficients.items()} or "(none)",
-            at_sm or "(none)", at_generation or "(none)",
+            at_generation or "(none)",
         )
 
     splitting_cfg = getattr(n2ll, "_toy_splitting_defaults", None)
@@ -506,7 +511,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         if provider is not None:
             deriv_w = provider.truth_weight_matrix(G, w, observer_names)  # (N, M), col 0 = nominal
             w_coef = deriv_w[:, 0] + deriv_w[:, 1:] @ expand_pois_linear_quadratic(
-                provider.parameters, source.coefficients, reference_point
+                provider.parameters, injection_point, reference_point
             )
         else:
             w_coef = w
@@ -826,17 +831,17 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     recorded_hypothesis = {p.name: float(p.val) for p in gen_hypothesis.parameters}
 
     # The coefficients route bypasses gen_hypothesis, so fold its point in. Every POI of
-    # the class's BIT is set: to the value given, or to the SM if absent from
-    # `coefficients` (see _materialize_truth_weights's "at_sm" group). The route ban above
-    # guarantees gen_hypothesis did not also move these, so only two classes disagreeing
-    # with each other is a conflict.
+    # the class's BIT is set: to the value given, or to the generation point if absent from
+    # `coefficients` (the same default _materialize_truth_weights injects). The route ban
+    # above guarantees gen_hypothesis did not also move these, so only two classes
+    # disagreeing with each other is a conflict.
     exact_point = {}
     for region_id, region_sources in (truth_sources or {}).items():
         for src in region_sources:
             if src.coefficients is None:
                 continue
             for name in n2ll._poi_order.get((region_id, src.class_id), []):
-                val = float(src.coefficients.get(name, 0.0))
+                val = float(src.coefficients.get(name, generation_point.get(name, 0.0)))
                 prior = exact_point.get(name)
                 if prior is not None and prior != val:
                     raise RuntimeError(
