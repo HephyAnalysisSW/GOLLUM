@@ -70,6 +70,7 @@ import calibration_runner as cr  # _uid_split_interval
 
 logger = logging.getLogger(__name__)
 
+from common import user
 
 # ============================================================================
 # Multi-process truth sources
@@ -1161,9 +1162,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Toy dataset generation for pseudo-experiments.")
     p.add_argument("configs", nargs="+", help="Path to one or more global YAML configs")
     p.add_argument("--toySpec", required=True, help="Path to the toy spec YAML")
-    p.add_argument("--toyPoint", required=True, help="Name of the point in the spec to generate")
-    p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12'")
-    p.add_argument("--outputDir", required=True, help="Directory to write <point>_toy<seed>.h5 files")
+    p.add_argument("--toyPoint", default=None, help="Name of the point in the spec to generate (omit to list)")
+    p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12' (required unless listing points)")
+    p.add_argument("--outputDir", help="Directory to write <point>_toy<seed>.h5 files")
     p.add_argument("--overwrite", nargs="?", default=None, choices=["toy", "all"],
                    help="Overwrite the toys ('toy') and surrogate cache ('all') before generating.")
     p.add_argument("--plot", action="store_true",
@@ -1172,6 +1173,17 @@ if __name__ == "__main__":
                         "<plot_directory>/toys/<version>/<point>/. Cache-mode toys pay the "
                         "cost of re-streaming the raw samples once to recover kinematics.")
     args = p.parse_args()
+
+    if args.toyPoint is None:
+        spec_preview = yaml_loader.load_yaml(args.toySpec)
+        names = [pt.get("name") for pt in (spec_preview.get("points") or [])]
+        if not names:
+            print(f"No points found in {args.toySpec}.")
+            sys.exit(0)
+        #print(f"No specific point given, run all available points with:")
+        for name in names:
+            print(f"python {__file__} {' '.join(args.configs)} --toySpec {args.toySpec} --seeds {args.seeds} --toyPoint {name}")
+        sys.exit(0)
 
     list_configs = []
     for config_path in args.configs:
@@ -1229,10 +1241,13 @@ if __name__ == "__main__":
     hypothesis = _hypothesis_from_point(n2ll, point.get("hypothesis"))
 
     seeds = _parse_seeds(args.seeds)
-    os.makedirs(args.outputDir, exist_ok=True)
+    outputDir = args.outputDir
+    if outputDir is None:
+        outputDir = os.path.join(user.output_directory,f"{base}_{args.toyPoint}_{spec_source}_toys")
+    os.makedirs(outputDir, exist_ok=True)
     generated_toys = []
     for seed in seeds:
-        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_{spec_source}_toy{seed}.h5")
+        out_path = os.path.join(outputDir, f"toy{seed}.h5")
         if os.path.exists(out_path) and not args.overwrite:
             logger.info(f"{out_path} exists and did not ask to overwrite. Skipping generation.")
             continue
@@ -1248,7 +1263,6 @@ if __name__ == "__main__":
     if args.plot:
         if not features:
             raise RuntimeError("--plot requires defaults.default_features to be set in the config.")
-        import common.user as user
         import common.syncer as syncer
         from plot.toys.toy_diagnostic_plots import plot_toy_feature_distributions
 
