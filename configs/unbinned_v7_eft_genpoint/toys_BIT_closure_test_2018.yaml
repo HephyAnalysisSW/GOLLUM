@@ -1,0 +1,148 @@
+# Toy spec for a truth-based toy study of BIT closure via exact reweighting (injection)
+# at different values of Wilson coefficients.
+
+source: truth              # or cache
+split: [c2st_train, c2st_val] # partitions to use, truth mode only; null for the whole dataset
+throw_nuisances: false
+allow_negative_weights: true
+# generation_point: {'cQd1': 1.5, 'ctj1': 1.5, 'cQj31': 1.5, 'ctj8': 1.5, 'ctd1': 1.5, 'ctd8': 1.5, 'ctGRe': -0.5, 'ctGIm': -0.5, 'cQj11': 1.5, 'cQj18': 1.5, 'ctu8': 1.5, 'cQd8': 1.5, 'ctu1': 1.5, 'cQu1': 1.5, 'cQj38': 1.5, 'cQu8': 1.5}
+
+points:
+
+  # all coefficients at generation point, ctG(...) = -0.5, others = 1.5
+  - name: nominal
+
+  # all of the coefficients in the POI configs not provided are kept at the generation point
+  - name: ctGRe_sm
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.0}
+
+  - name: ctGRe_0p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.5}
+
+  - name: ctGRe_1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 1.0}
+
+  - name: ctGRe_1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 1.5}
+
+  - name: ctGRe_m1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: -1.0}
+
+  - name: ctGRe_m1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: -1.5}
+  
+  - name: ctGIm_sm
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: 0.0}
+
+  - name: ctGIm_0p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: 0.5}
+
+  - name: ctGIm_1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: 1.0}
+
+  - name: ctGIm_1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: 1.5}
+
+  - name: ctGIm_m1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: -1.0}
+
+  - name: ctGIm_m1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGIm: -1.5}
+
+  - name: ctGRe_ctGIm_sm
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.0, ctGIm: 0.0}
+
+  - name: ctGRe_ctGIm_0p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.5, ctGIm: 0.5}
+
+# cQj18
+
+  - name: cQj18_sm
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: 0.0}
+
+  - name: cQj18_0p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: 0.5}
+
+  - name: cQj18_1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: 1.0}
+
+  - name: cQj18_1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: 1.5}
+
+  - name: cQj18_m1p0
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: -1.0}
+
+  - name: cQj18_m1p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {cQj18: -1.5}
+
+  - name: ctGRe_ctGIm_cQj18_sm
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0}
+
+  - name: ctGRe_ctGIm_cQj18_0p5
+    injection:
+      SR_2018:
+        TT01j2l_EFT_2018:
+          coefficients: {ctGRe: 0.5, cQj18: 0.5}

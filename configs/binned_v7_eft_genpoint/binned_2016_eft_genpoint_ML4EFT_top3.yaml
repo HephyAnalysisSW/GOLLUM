@@ -1,0 +1,34 @@
+version: binned_v7_eft_genpoint
+
+defaults:
+  module_samples: "data.samples_eft"
+
+  default_binning:
+    - ["tr_ttbar_mass", [300, 400, 500, 650, 1500]]
+    - ["tr_ttbar_y", [-2.5, -1.2, -0.8, -0.4, 0.4, 0.8, 1.2, 2.5]]
+
+  default_selection: tr_ttbar_pt < 1500
+
+  default_selection_features:
+    - tr_ttbar_pt    
+        
+likelihood:
+    binned:
+        - id: SR_2016
+          classes:
+            - id: TT01j2l_EFT_2016 
+              sample: TT01j2l_EFT_2016
+              POI:
+                job: ich_TT01j2l_EFT_2016_ML4EFT_top3 
+                type: ich
+                parameters: [ctGRe, ctGIm, cQj18]
+
+
+jobs:
+
+  - id: ich_TT01j2l_EFT_2016_ML4EFT_top3
+    type: ich
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    eft:
+      parameters: [ctGRe, ctGIm, cQj18]       
