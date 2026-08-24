@@ -101,6 +101,7 @@ def load_cfg_and_job(args):
 # --------------------------------------------------------------------------------
 
 def weighted_mean(array, weight):
+
     return (array * weight).sum() / weight.sum()
 
 
@@ -120,7 +121,8 @@ def get_binning(pred, weight, num_bins, binning):
     if binning=="quantile":
         bins = np.quantile(pred, np.linspace(0., 1., num_bins + 1), method='inverted_cdf', weights=weight)
     else:
-        bins = np.linspace(pred.min(), pred.max(), num_bins + 1)
+        bins, step = np.linspace(pred.min(), pred.max(), num_bins + 1, retstep=True)
+        bins = np.concatenate(([pred.min() - step], bins, [pred.max() + step] ))
 
     logger.debug(bins)
 
@@ -141,14 +143,19 @@ def bin_calibration(pred, residual, weight, bins):
     # bin contains upper edge of last bin
     for i in range(len(bins)-1):
         if not np.any(which_bin[i]):
-            continue
-        res_bin = residual[which_bin[i]]
-        w_bin = weight[which_bin[i]]
+            logger.warning(f"no events in bin {i}")
+            mean_res = 0.0
+            std_res = 0.0
+            count = 0.0
+            count_err = 0.0
+        else:
+            res_bin = residual[which_bin[i]]
+            w_bin = weight[which_bin[i]]
 
-        mean_res = weighted_mean(res_bin, w_bin)
-        std_res = weighted_std(res_bin, w_bin)
-        count = w_bin.sum()
-        count_err = np.sqrt(np.sum(w_bin ** 2))
+            mean_res = weighted_mean(res_bin, w_bin)
+            std_res = weighted_std(res_bin, w_bin)
+            count = w_bin.sum()
+            count_err = np.sqrt(np.sum(w_bin ** 2))
 
         paired_pred_bins += [bins[i], bins[i + 1]]
         paired_mean_res += [mean_res, mean_res]
