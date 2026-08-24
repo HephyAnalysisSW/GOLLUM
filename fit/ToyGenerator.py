@@ -13,6 +13,26 @@ untouched here). A toy is a plain dict, produced by `generate_toy`, persisted wi
   still uses the trained surrogates. Probes surrogate mismodelling as a bias in the
   fitted coefficients.
 
+A POI reaches its injected value through one of two routes, never both, since each
+expresses the point as a ratio anchored at the generation point (see `generate_toy`):
+the surrogate's `(1 + T(hypothesis))`, or the exact truth's `ProcessSource.coefficients`.
+A toy records which route it used. "Nominal" for a POI therefore means its generation
+point, not zero -- see `nominal_hypothesis`.
+
+The two sources are stages, not alternatives. Truth mode asks whether the
+surrogates are right: it re-reads ROOT, so it is slow, and it defaults to a 20%
+split, so it is coarse. Cache mode asks whether the statistical model is
+calibrated, given correct surrogates: it is fast, cheap on disk, and uses every
+event. Stage 1 licenses stage 2.
+
+Every toy carries a `/fingerprint` recording what defines the dataset: the
+selection, the Asimov samples, the feature union, and (cache mode) a digest of the
+cache it indexes. `load_toy` compares it against the live config and crashes on any
+mismatch, because a selection change alters *which events are the data* and would
+otherwise bias a refit in silence. The BIT identity is recorded but deliberately
+not compared -- a refit under a retrained or differently-truncated BIT is the
+surrogate-bias study this module exists to serve, not an error.
+
 Known caveat (documented, not fixed): toys are drawn from the same cached/streamed
 MC that supplies the expected-yield term, so toy and template fluctuations are
 correlated. Sub-percent effect on interval widths at current MC statistics; see
@@ -50,6 +70,7 @@ import calibration_runner as cr  # _uid_split_interval
 
 logger = logging.getLogger(__name__)
 
+from common import user
 
 # ============================================================================
 # Multi-process truth sources
@@ -61,6 +82,27 @@ class ProcessSource:
 
     w_truth = w_coefficients * scale_factor * prod(weight_branches) * weight_function(X)
     reducing to the nominal event weight when `coefficients` is None.
+
+    `coefficients` sets the absolute injection point, not an offset. A coefficient the
+    spec does not name is held at the generation point, whether or not the class's BIT
+    fits it:
+
+    - listed in `coefficients`: injected at the value given.
+    - absent from `coefficients`: held at the generation point r, so the Taylor variable
+      t = c - r is zero and that operator does not move the weight.
+
+    Naming a coefficient the BIT does not fit still raises: the BIT carries no derivative
+    column for it, so the spec would be asking for a point it cannot reach.
+
+    One convention throughout, which is why this is not the SM: `coefficients=None`, a
+    `nominal` point with no injection at all, and an omitted coefficient all leave the
+    weight where the samples were generated. It also generalizes to a sample generated at
+    the SM, whose reference point is empty, so an omitted coefficient reads 0.0 -- that
+    sample's own generation point.
+
+    `coefficients=None` (the field absent from the spec) is therefore equivalent to
+    `coefficients={}` in the point they select; None additionally skips the derivative
+    route, keeping the raw nominal weight rather than reconstructing it.
     """
     class_id: str
     sample_name: Optional[str] = None
@@ -352,6 +394,9 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     kinematics via the same `_eval_region_surrogates`/`_compute_T_from_columns`
     N2LL uses for real data (see the plan's "two POI injection routes").
 
+    A coefficient absent from `source.coefficients` is held at the generation point,
+    whether or not the class's BIT fits it; see `ProcessSource`.
+
     Returns (X (M,d), w_truth (M,), diagnostics dict).
     """
     region = _find_region(n2ll, region_id)
@@ -370,14 +415,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     provider = None
     required_observers: list = []
     if source.coefficients is not None:
-        if hypothesis is not None:
-            poi_vals = {p.name: p.val for p in getattr(hypothesis, "POIs", [])}
-            overlap = [k for k in source.coefficients if poi_vals.get(k, 0.0) != 0.0]
-            if overlap:
-                raise ValueError(
-                    f"[toy:{region_id}/{source.class_id}] POI(s) {overlap} injected via both "
-                    f"'coefficients' and a nonzero hypothesis value; pick one route."
-                )
+        # generate_toy rejects a POI that `hypothesis` moves off its generation point while
+        # any source uses this route, so the two routes never compose on the same weight.
         from common.derivative_providers import build_derivative_provider
         job = _class_bit_job(n2ll, region_id, source.class_id)
         provider = build_derivative_provider(job)
@@ -393,6 +432,53 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
                 f"!= class POIs {sorted(expected_pois)}."
             )
         required_observers = list(provider.required_observers)
+
+        # Read the reference point off n2ll, not off GENERATION_POINT: this is the point
+        # the BIT was actually trained with (see Likelihood._poi_reference), so a
+        # training/fit mismatch is impossible by construction. For an EFT BIT it carries
+        # every operator in wc_names, not only this job's parameters, which is what lets
+        # the checks below tell a non-fitted operator apart from a typo.
+        reference_point = n2ll._poi_reference.get((region_id, source.class_id), {})
+
+        fitted = set(provider.parameters)
+        # Neither group below is read by expand_pois_linear_quadratic, which iterates
+        # provider.parameters alone. Without these checks a coefficient the job cannot
+        # move is dropped in silence and the toy lands at a different point than the
+        # spec file asks for, with no downstream symptom.
+        not_fitted = sorted((set(source.coefficients) - fitted) & set(reference_point))
+        if not_fitted:
+            held = {name: float(reference_point[name]) for name in not_fitted}
+            raise RuntimeError(
+                f"[toy:{region_id}/{source.class_id}] coefficient(s) {not_fitted} are known "
+                f"operators, but BIT job '{job['id']}' does not fit them (its parameters are "
+                f"{sorted(fitted)}). This BIT holds them at the generation point {held} and "
+                f"carries no derivative column to move them. Use a BIT job whose parameters "
+                f"include them, or drop them from 'coefficients'."
+            )
+        unknown = sorted(set(source.coefficients) - fitted - set(reference_point))
+        if unknown:
+            raise RuntimeError(
+                f"[toy:{region_id}/{source.class_id}] coefficient(s) {unknown} are neither "
+                f"parameters of BIT job '{job['id']}' ({sorted(fitted)}) nor known coefficients "
+                f"({sorted(reference_point)}). Check the spelling in the toy spec."
+            )
+
+        # The absolute point to inject: the generation point, overlaid with whatever the
+        # spec names. An omitted coefficient therefore gives t = c - r = 0 and does not move
+        # the weight, instead of t = -r, which would have dragged it to the SM.
+        injection_point = {**reference_point, **source.coefficients}
+
+        # State the resolved point. Both groups are correct defaults rather than
+        # misconfigurations, so they are reported rather than warned about.
+        at_generation = {name: float(injection_point.get(name, 0.0)) for name in
+                         sorted((fitted | set(reference_point)) - set(source.coefficients))}
+        logger.info(
+            "[toy:%s/%s] injection point for BIT job '%s': injected %s; held at the "
+            "generation point %s.",
+            region_id, source.class_id, job["id"],
+            {name: float(val) for name, val in source.coefficients.items()} or "(none)",
+            at_generation or "(none)",
+        )
 
     splitting_cfg = getattr(n2ll, "_toy_splitting_defaults", None)
     uid_fields = list((splitting_cfg or {}).get("uid_fields", ["run", "luminosityBlock", "event"]))
@@ -426,7 +512,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         if provider is not None:
             deriv_w = provider.truth_weight_matrix(G, w, observer_names)  # (N, M), col 0 = nominal
             w_coef = deriv_w[:, 0] + deriv_w[:, 1:] @ expand_pois_linear_quadratic(
-                provider.parameters, source.coefficients
+                provider.parameters, injection_point, reference_point
             )
         else:
             w_coef = w
@@ -609,6 +695,49 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
 
 
 # ============================================================================
+# generation point / nominal hypothesis
+# ============================================================================
+
+def likelihood_generation_point(n2ll: N2LL) -> dict:
+    """{coefficient: value} the samples were generated at, over every class of every
+    region: each class's BIT reference point (GENERATION_POINT in data/samples_eft.py
+    for an EFT BIT, {} for a PDF BIT, which expands around zero).
+
+    Covers every operator the BIT knows, not only this likelihood's active POIs.
+    A coefficient absent here expands around zero, so 0.0 leaves it untouched.
+    """
+    generation_point = {}
+    for region in list(n2ll.regions) + list(n2ll.binned):
+        for cls in region.get("classes", []) or []:
+            for name, val in n2ll._poi_reference.get((region["id"], cls["id"]), {}).items():
+                val = float(val)
+                prior = generation_point.get(name)
+                if prior is not None and prior != val:
+                    raise RuntimeError(
+                        f"[toy] Generation point for '{name}' differs between classes: "
+                        f"{prior} vs {val}. Every BIT must expand around the same point."
+                    )
+                generation_point[name] = val
+    return generation_point
+
+
+def nominal_hypothesis(n2ll: N2LL, name: str = "toy") -> Hypothesis:
+    """The hypothesis that leaves the weights untouched: every POI at its generation
+    point, every nuisance at zero.
+
+    build_hypothesis_from_likelihood defaults POIs to 0.0. That is right for the fit's
+    start point but wrong for a toy: a BIT rebased at the generation point reads 0.0 as
+    the SM, so an unnamed coefficient would be dragged off the point the samples were
+    drawn from, and the weights multiplied by that ratio.
+    """
+    hypothesis = build_hypothesis_from_likelihood(n2ll.lk, name=name)
+    for poi_name, val in likelihood_generation_point(n2ll).items():
+        if poi_name in hypothesis:
+            hypothesis[poi_name].val = float(val)
+    return hypothesis
+
+
+# ============================================================================
 # top-level
 # ============================================================================
 
@@ -618,9 +747,14 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     """Generate one full toy (every unbinned + binned region of n2ll's likelihood).
 
     `source`: "cache" (model is truth) or "truth" (exact reweighting/scale/sample).
-    `hypothesis`: the injection point. In cache mode, defaults to nominal
-    (build_hypothesis_from_likelihood). In truth mode, None means no surrogate-route
-    (1+T) multiplication -- ProcessSource modifiers are still applied.
+    `hypothesis`: the surrogate route's injection point, defaulting to `nominal_hypothesis`
+    (every POI at its generation point, so the weights are left untouched). In truth mode,
+    None additionally skips the (1+T) multiplication -- ProcessSource modifiers still apply.
+
+    A POI moves through one route only: `hypothesis` (the surrogate's ratio) or
+    ProcessSource.coefficients (the exact truth's ratio). Both anchor at the generation
+    point, so their product is not the weight at the combined point. The returned "route"
+    field records which one was used. Nuisances always travel through `hypothesis`.
 
     debug adds the raw unclipped weights to the "diagnostics" block in the toy dict
     """
@@ -629,7 +763,29 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
     if source == "cache" and truth_sources:
         raise ValueError("truth_sources is only valid with source='truth'.")
 
-    gen_hypothesis = hypothesis if hypothesis is not None else build_hypothesis_from_likelihood(n2ll.lk, name="toy")
+    generation_point = likelihood_generation_point(n2ll)
+    gen_hypothesis = hypothesis if hypothesis is not None else nominal_hypothesis(n2ll)
+
+    # The two POI injection routes both express their point as a ratio anchored at the
+    # generation point, so multiplying them does not land at the combined point -- it
+    # applies the generation-point rebasing twice. Allow at most one to move a POI.
+    # A nuisance stays free: (1+T) is the only route to a systematic shift.
+    exact_classes = [
+        f"{region_id}/{src.class_id}"
+        for region_id, region_sources in (truth_sources or {}).items()
+        for src in region_sources if src.coefficients is not None
+    ]
+    if exact_classes and hypothesis is not None:
+        moved = sorted(p.name for p in getattr(hypothesis, "POIs", [])
+                       if float(p.val) != generation_point.get(p.name, 0.0))
+        if moved:
+            raise ValueError(
+                f"[toy] POI(s) {moved} are moved off the generation point by 'hypothesis', "
+                f"while class(es) {exact_classes} inject through 'coefficients'. Pick one "
+                f"route: 'hypothesis' reweights through the surrogate, 'coefficients' "
+                f"reweights the exact truth. Nuisances may still be set in 'hypothesis'."
+            )
+
     constraint_centers = throw_constraint_centers(gen_hypothesis, _spawn_rng(seed, "__constraints__")) if throw_nuisances else {}
 
     unbinned_blocks: dict = {}
@@ -670,33 +826,163 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
             )
         binned_counts[rid] = toy["counts"]
 
-    # gen_hypothesis only carries the surrogate-route injection (or nominal, if none was
-    # given). A coefficients-route injection (ProcessSource.coefficients, e.g. a point with
-    # `injection:` and no `hypothesis:`) never touches gen_hypothesis, so on its own the
-    # recorded metadata would read nominal regardless of what was actually injected. Fold
-    # those coefficients in for the record.
+    # gen_hypothesis holds the surrogate route's point, already correct: every POI it does
+    # not name sits at its generation point, so an untouched coefficient records as the
+    # point the samples were drawn from rather than as the SM.
     recorded_hypothesis = {p.name: float(p.val) for p in gen_hypothesis.parameters}
-    if source == "truth" and truth_sources:
-        for region_sources in truth_sources.values():
-            for src in region_sources:
-                for name, val in (src.coefficients or {}).items():
-                    prior = recorded_hypothesis.get(name)
-                    if prior is not None and prior != 0.0 and prior != float(val):
-                        raise RuntimeError(
-                            f"[toy] Conflicting injected value for '{name}': {prior} vs {val}."
-                        )
-                    recorded_hypothesis[name] = float(val)
+
+    # The coefficients route bypasses gen_hypothesis, so fold its point in. Every POI of
+    # the class's BIT is set: to the value given, or to the generation point if absent from
+    # `coefficients` (the same default _materialize_truth_weights injects). The route ban
+    # above guarantees gen_hypothesis did not also move these, so only two classes
+    # disagreeing with each other is a conflict.
+    exact_point = {}
+    for region_id, region_sources in (truth_sources or {}).items():
+        for src in region_sources:
+            if src.coefficients is None:
+                continue
+            for name in n2ll._poi_order.get((region_id, src.class_id), []):
+                val = float(src.coefficients.get(name, generation_point.get(name, 0.0)))
+                prior = exact_point.get(name)
+                if prior is not None and prior != val:
+                    raise RuntimeError(
+                        f"[toy] Classes disagree on the injected value for '{name}': {prior} vs {val}."
+                    )
+                exact_point[name] = val
+    recorded_hypothesis.update(exact_point)
+
+    # A coefficient no class fits stays at its generation point, and a coefficient that is
+    # not an active POI of this likelihood never reaches gen_hypothesis at all. Record both.
+    for name, val in generation_point.items():
+        recorded_hypothesis.setdefault(name, val)
 
     return {
         "seed": int(seed),
         "source": source,
+        "route": "exact" if exact_classes else "surrogate",
         "hypothesis": recorded_hypothesis,
         "constraint_centers": constraint_centers,
         "unbinned_blocks": unbinned_blocks,
         "binned_counts": binned_counts,
         "diagnostics": diagnostics,
         "config_version": getattr(n2ll, "version", None),
+        "fingerprint": dataset_fingerprint(n2ll, source),
     }
+
+
+# ============================================================================
+# dataset fingerprint
+# ============================================================================
+
+def _normalize_selection(selection) -> str:
+    """Collapse whitespace so a YAML folded block compares equal to a one-liner."""
+    return " ".join((selection or "").split())
+
+
+def _cache_digest(n2ll: N2LL, region_id: str, class_id: str) -> tuple:
+    """Row count and blake2b digest of one class's live cache `w0` column.
+
+    The row count alone is not enough: a cache rebuilt with the same number of rows
+    in a different order misaligns a toy's indices without changing any length.
+    """
+    w0 = np.asarray(n2ll._h5[(region_id, class_id)]["w0"])
+    payload = np.ascontiguousarray(w0, dtype="<f8").tobytes()
+    return int(w0.shape[0]), hashlib.blake2b(payload, digest_size=8).hexdigest()
+
+
+def dataset_fingerprint(n2ll: N2LL, source: str) -> dict:
+    """Record what defines the dataset a toy was drawn from.
+
+    Compared fields describe the *events*: the selection, the Asimov samples, the
+    feature union, the class ids, and for cache mode the identity of the cache the
+    toy indexes. `generating_bit` is recorded for the reader but never compared,
+    because refitting under a retrained BIT is a study, not a mistake.
+    """
+    fingerprint = {
+        "selection": _normalize_selection(getattr(n2ll.factory, "selection", None)),
+        "selection_features": sorted(getattr(n2ll.factory, "selection_features", None) or []),
+        "regions": {},
+        "binned": {},
+    }
+    for region in n2ll.regions:
+        region_id = region["id"]
+        class_ids = [C["id"] for C in region.get("classes", []) or []]
+        entry = {
+            "feature_names": _region_feature_union(region),
+            "asimov_samples": list(region.get("_asimov_samples", []) or []),
+            "class_ids": class_ids,
+            # informational only, never compared:
+            "generating_bit": {
+                C["id"]: {
+                    "job": (C.get("POI") or {}).get("job"),
+                    "parameters": list(((C.get("POI") or {}).get("parameters") or [])),
+                }
+                for C in region.get("classes", []) or []
+            },
+        }
+        if source == "cache":
+            entry["cache"] = {}
+            for class_id in class_ids:
+                rows, digest = _cache_digest(n2ll, region_id, class_id)
+                entry["cache"][class_id] = {"rows": rows, "w0_digest": digest}
+        fingerprint["regions"][region_id] = entry
+
+    # binned counts are a flat vector bound to the current unrolling; a rebinning
+    # changes its length, which setObservationArrays does not check.
+    for region_id, unroll in (getattr(n2ll, "_binned_unroll", None) or {}).items():
+        fingerprint["binned"][region_id] = {"n_flat_bins": len(unroll.get("flat_bins", []) or [])}
+
+    return fingerprint
+
+
+def _check_fingerprint(stored: dict, live: dict, path: str) -> None:
+    """Crash on any dataset-definition mismatch, naming the field and both values.
+
+    Fields are compared one at a time rather than as a single combined digest: a
+    combined digest reports only that something differs, which is barely better than
+    the downstream shape error it is meant to replace.
+    """
+    def fail(field, toy_value, config_value):
+        raise RuntimeError(
+            f"[toy] Dataset fingerprint mismatch on '{field}' for {path}.\n"
+            f"         toy    : {toy_value!r}\n"
+            f"         config : {config_value!r}\n"
+            f"       The toy was drawn from a different dataset. Refitting it against "
+            f"this config would compare unlike event sets and bias the result silently."
+        )
+
+    for field in ("selection", "selection_features"):
+        if stored.get(field) != live.get(field):
+            fail(field, stored.get(field), live.get(field))
+
+    stored_regions = stored.get("regions", {}) or {}
+    live_regions = live.get("regions", {}) or {}
+    if set(stored_regions) != set(live_regions):
+        fail("region ids", sorted(stored_regions), sorted(live_regions))
+
+    for region_id in sorted(stored_regions):
+        stored_region, live_region = stored_regions[region_id], live_regions[region_id]
+        for field in ("feature_names", "asimov_samples", "class_ids"):
+            if stored_region.get(field) != live_region.get(field):
+                fail(f"{region_id}.{field}", stored_region.get(field), live_region.get(field))
+
+        stored_cache = stored_region.get("cache") or {}
+        live_cache = live_region.get("cache") or {}
+        if set(stored_cache) != set(live_cache):
+            fail(f"{region_id}.cache classes", sorted(stored_cache), sorted(live_cache))
+        for class_id in sorted(stored_cache):
+            for field in ("rows", "w0_digest"):
+                if stored_cache[class_id][field] != live_cache[class_id][field]:
+                    fail(f"{region_id}/{class_id}.cache {field}",
+                         stored_cache[class_id][field], live_cache[class_id][field])
+
+    stored_binned = stored.get("binned", {}) or {}
+    live_binned = live.get("binned", {}) or {}
+    if set(stored_binned) != set(live_binned):
+        fail("binned region ids", sorted(stored_binned), sorted(live_binned))
+    for region_id in sorted(stored_binned):
+        if stored_binned[region_id] != live_binned[region_id]:
+            fail(f"{region_id}.binned", stored_binned[region_id], live_binned[region_id])
 
 
 # ============================================================================
@@ -704,9 +990,14 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
 # ============================================================================
 
 def save_toy(path: str, toy: dict) -> None:
-    """Persist a toy to HDF5. Cache-mode regions store only (indices, n) -- the
-    surrogate columns are verbatim cache slices, rehydrated by load_toy rather than
-    duplicated on disk. Truth-mode regions store the materialized X/by_class/origin.
+    """Persist a toy to HDF5, with the dataset fingerprint that binds it.
+
+    Cache-mode regions store only (indices, n): the surrogate columns are verbatim
+    cache slices, rehydrated by load_toy rather than duplicated on disk. Truth-mode
+    regions store (X, n, origin) and *not* the evaluated surrogate columns -- load_toy
+    re-evaluates them, so a toy records the pseudo-data alone and never one BIT's view
+    of it. That costs one forward pass per fit and keeps the toy refittable under a
+    retrained or differently-truncated BIT.
     """
     out_dir = os.path.dirname(os.path.abspath(path))
     os.makedirs(out_dir, exist_ok=True)
@@ -714,9 +1005,13 @@ def save_toy(path: str, toy: dict) -> None:
         meta = f.create_group("meta")
         meta.attrs["seed"] = int(toy["seed"])
         meta.attrs["source"] = toy["source"]
+        meta.attrs["route"] = toy["route"]
         meta.attrs["hypothesis"] = json.dumps(toy["hypothesis"])
         meta.attrs["config_version"] = str(toy.get("config_version") or "")
         meta.attrs["point"] = toy.get("point", "")
+
+        fp = f.create_group("fingerprint")
+        fp.attrs["json"] = json.dumps(toy["fingerprint"], sort_keys=True)
 
         cc = f.create_group("constraint_centers")
         for name, val in (toy.get("constraint_centers") or {}).items():
@@ -731,11 +1026,6 @@ def save_toy(path: str, toy: dict) -> None:
             else:
                 g.create_dataset("X", data=np.asarray(block["X"], dtype=np.float64))
                 g.create_dataset("origin", data=np.asarray(block["origin"], dtype=np.int64))
-                bc = g.create_group("by_class")
-                for cid, comp in block["by_class"].items():
-                    cg = bc.create_group(cid)
-                    for col_name, col in comp.items():
-                        cg.create_dataset(col_name, data=np.asarray(col, dtype=np.float64))
 
         bn = f.create_group("binned")
         for rid, counts in toy["binned_counts"].items():
@@ -745,17 +1035,34 @@ def save_toy(path: str, toy: dict) -> None:
 
 
 def load_toy(path: str, n2ll: N2LL) -> dict:
-    """Load a toy saved by save_toy. Cache-mode regions are rehydrated by indexing
-    n2ll's live cache -- a shrunk/retrained cache raises IndexError (or a
-    _rehydrate_cache_by_class KeyError for a missing class) rather than silently
-    misaligning columns."""
+    """Load a toy saved by save_toy, after verifying its dataset fingerprint.
+
+    The fingerprint check comes first and crashes on any mismatch: a toy drawn under a
+    different selection describes different events, and refitting it here would bias
+    the result with no downstream symptom.
+
+    Cache-mode regions are then rehydrated by indexing n2ll's live cache. Truth-mode
+    regions re-evaluate the surrogates from the stored X, so the toy binds to the
+    dataset it was drawn from and not to the BIT that happened to be trained then.
+    """
     with h5py.File(path, "r") as f:
         meta = f["meta"]
         seed = int(meta.attrs["seed"])
         source = str(meta.attrs["source"])
+        route = str(meta.attrs["route"])
         hypothesis = json.loads(meta.attrs["hypothesis"])
         config_version = str(meta.attrs.get("config_version", ""))
         point = str(meta.attrs.get("point", ""))
+
+        if "fingerprint" not in f:
+            raise RuntimeError(
+                f"[toy] {path} carries no /fingerprint, so the dataset it was drawn from "
+                f"cannot be verified against this config. Such a toy also froze the BIT "
+                f"columns on disk, which bind it to the operator set it was generated "
+                f"with. Regenerate it."
+            )
+        _check_fingerprint(json.loads(f["fingerprint"].attrs["json"]),
+                           dataset_fingerprint(n2ll, source), path)
 
         constraint_centers = {name: float(val) for name, val in f["constraint_centers"].attrs.items()}
 
@@ -770,19 +1077,18 @@ def load_toy(path: str, n2ll: N2LL) -> dict:
                     "by_class": _rehydrate_cache_by_class(n2ll, rid, indices),
                 }
             else:
-                by_class = {}
-                for cid in g["by_class"]:
-                    cg = g["by_class"][cid]
-                    by_class[cid] = {col_name: np.asarray(cg[col_name]) for col_name in cg}
+                X = np.asarray(g["X"])
+                region = _find_region(n2ll, rid)
+                by_class = n2ll._eval_region_surrogates(rid, X, _region_feature_union(region))
                 unbinned_blocks[rid] = {
-                    "X": np.asarray(g["X"]), "w": n, "by_class": by_class,
+                    "X": X, "w": n, "by_class": by_class,
                     "origin": np.asarray(g["origin"]),
                 }
 
         binned_counts = {rid: np.asarray(f["binned"][rid]) for rid in f["binned"]}
 
     return {
-        "seed": seed, "source": source, "hypothesis": hypothesis,
+        "seed": seed, "source": source, "route": route, "hypothesis": hypothesis,
         "constraint_centers": constraint_centers,
         "unbinned_blocks": unbinned_blocks, "binned_counts": binned_counts,
         "config_version": config_version, "point": point,
@@ -821,9 +1127,12 @@ def _parse_injection(injection: dict) -> dict:
 
 
 def _hypothesis_from_point(n2ll: N2LL, point_hyp) -> Optional[Hypothesis]:
+    """The spec's `hypothesis:` block, on top of the nominal point. A POI the block does
+    not name stays at its generation point, so it is left untouched rather than moved to
+    the SM."""
     if not point_hyp:
         return None
-    base = build_hypothesis_from_likelihood(n2ll.lk, name="toy_point")
+    base = nominal_hypothesis(n2ll, name="toy_point")
     for name, val in point_hyp.items():
         if name not in base:
             raise KeyError(f"Unknown parameter '{name}' in point hypothesis.")
@@ -853,9 +1162,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Toy dataset generation for pseudo-experiments.")
     p.add_argument("configs", nargs="+", help="Path to one or more global YAML configs")
     p.add_argument("--toySpec", required=True, help="Path to the toy spec YAML")
-    p.add_argument("--toyPoint", required=True, help="Name of the point in the spec to generate")
-    p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12'")
-    p.add_argument("--outputDir", required=True, help="Directory to write <point>_toy<seed>.h5 files")
+    p.add_argument("--toyPoint", default=None, help="Name of the point in the spec to generate (omit to list)")
+    p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12' (required unless listing points)")
+    p.add_argument("--outputDir", help="Directory to write <point>_toy<seed>.h5 files")
     p.add_argument("--overwrite", nargs="?", default=None, choices=["toy", "all"],
                    help="Overwrite the toys ('toy') and surrogate cache ('all') before generating.")
     p.add_argument("--plot", action="store_true",
@@ -864,6 +1173,17 @@ if __name__ == "__main__":
                         "<plot_directory>/toys/<version>/<point>/. Cache-mode toys pay the "
                         "cost of re-streaming the raw samples once to recover kinematics.")
     args = p.parse_args()
+
+    if args.toyPoint is None:
+        spec_preview = yaml_loader.load_yaml(args.toySpec)
+        names = [pt.get("name") for pt in (spec_preview.get("points") or [])]
+        if not names:
+            print(f"No points found in {args.toySpec}.")
+            sys.exit(0)
+        #print(f"No specific point given, run all available points with:")
+        for name in names:
+            print(f"python {__file__} {' '.join(args.configs)} --toySpec {args.toySpec} --seeds {args.seeds} --toyPoint {name}")
+        sys.exit(0)
 
     list_configs = []
     for config_path in args.configs:
@@ -921,10 +1241,13 @@ if __name__ == "__main__":
     hypothesis = _hypothesis_from_point(n2ll, point.get("hypothesis"))
 
     seeds = _parse_seeds(args.seeds)
-    os.makedirs(args.outputDir, exist_ok=True)
+    outputDir = args.outputDir
+    if outputDir is None:
+        outputDir = os.path.join(user.output_directory,f"{base}_{args.toyPoint}_{spec_source}_toys")
+    os.makedirs(outputDir, exist_ok=True)
     generated_toys = []
     for seed in seeds:
-        out_path = os.path.join(args.outputDir, f"{args.toyPoint}_{spec_source}_toy{seed}.h5")
+        out_path = os.path.join(outputDir, f"toy{seed}.h5")
         if os.path.exists(out_path) and not args.overwrite:
             logger.info(f"{out_path} exists and did not ask to overwrite. Skipping generation.")
             continue
@@ -940,7 +1263,6 @@ if __name__ == "__main__":
     if args.plot:
         if not features:
             raise RuntimeError("--plot requires defaults.default_features to be set in the config.")
-        import common.user as user
         import common.syncer as syncer
         from plot.toys.toy_diagnostic_plots import plot_toy_feature_distributions
 

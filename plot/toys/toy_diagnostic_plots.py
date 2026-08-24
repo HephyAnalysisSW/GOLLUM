@@ -38,8 +38,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import common.user as user
 from data.plot_options import plot_options as DEFAULT_PLOT_OPTS
-from fit.Likelihood import build_hypothesis_from_likelihood
-from fit.ToyGenerator import _find_region, _region_feature_union, materialize_cache_region_diagnostics
+from fit.ToyGenerator import (_find_region, _region_feature_union,
+                              materialize_cache_region_diagnostics, nominal_hypothesis)
 
 # Same as data.colors.cmap_petroff10_mpl, inlined to avoid importing that module's
 # ROOT dependency here -- ROOT's cling JIT has been observed to segfault when
@@ -57,10 +57,15 @@ from common.helpers import copyIndexPHP
 
 def _hypothesis_from_toy(n2ll, toy: dict):
     """Rebuild the generation Hypothesis from a toy's stored {name: value} dict
-    (all parameters, not just nonzero ones -- see `generate_toy`'s return)."""
-    hyp = build_hypothesis_from_likelihood(n2ll.lk, name="toy_diagnostics")
+    (all parameters, not just nonzero ones -- see `generate_toy`'s return).
+
+    The stored dict also names coefficients that are not parameters of this likelihood
+    (every operator a class's BIT knows, held at the generation point), so skip those.
+    """
+    hyp = nominal_hypothesis(n2ll, name="toy_diagnostics")
     for name, val in toy["hypothesis"].items():
-        hyp[name].val = float(val)
+        if name in hyp:
+            hyp[name].val = float(val)
     return hyp
 
 

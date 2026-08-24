@@ -13,6 +13,9 @@ A provider exposes:
   - ``truth_weight_matrix(G, w, observer_names)`` : returns an ``(N, M)`` matrix of
                              truth weights aligned to ``combinations`` (column 0 ==
                              nominal weight).
+  - ``expansion_point``    : dict, the point the coefficients in ``parameters`` are
+                             expanded around ({} for PDF, which expands around zero;
+                             the generation point r for EFT, see EFTWeightInterface).
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ class PDFDerivativeProvider:
         self.combinations = [canonical_combination(c) for c in self._pdf.combinations]
         self.parameters = [c[0] for c in self.combinations if len(c) == 1]
         self.required_observers = list(self.GEN_OBSERVERS)
+        self.expansion_point = {}
 
     def truth_weight_matrix(self, G, w, observer_names):
         idx = {name: i for i, name in enumerate(observer_names)}
@@ -77,6 +81,7 @@ class EFTDerivativeProvider:
         self.parameters = list(parameters)
         self.combinations = [canonical_combination(c) for c in self._eft.combinations]
         self.required_observers = list(self._eft.required_observers)
+        self.expansion_point = self._eft.reference_point
 
     def truth_weight_matrix(self, G, w, observer_names):
         return self._eft.make_weight_matrix(G, observer_names, w)
@@ -88,4 +93,5 @@ def build_derivative_provider(job):
         return PDFDerivativeProvider(job["pdf"])
     if job.get("eft"):
         return EFTDerivativeProvider(job["eft"].get("parameters", []))
-    raise RuntimeError(f"Job '{job['id']}' has neither a 'pdf' nor an 'eft' block.")
+
+    RuntimeWarning(f"Job '{job['id']}' has neither a 'pdf' nor an 'eft' block. Returning None.")

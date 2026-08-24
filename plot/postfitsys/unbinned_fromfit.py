@@ -143,6 +143,7 @@ def build_class_shard_cache(
         "features": np.asarray(event_features, dtype=np.float64),
         "weights": np.asarray(nominal_weights, dtype=np.float64),
         "poi_params": poi_params,
+        "reference_point": dict(getattr(poi_predictor, "expansion_point", {}) or {}),
         "r_a": r_a,
         "syst_caches": syst_caches,
         "lnN_terms": lnN_terms,
@@ -155,10 +156,11 @@ def evaluate_class_cached(shard_cache: dict[str, Any], h_base: Any) -> np.ndarra
     n_events = len(event_weights)
 
     poi_params = shard_cache["poi_params"]
+    reference_point = shard_cache["reference_point"]
     r_a = shard_cache["r_a"]
     if r_a.shape[1] > 0:
         poi_values = {name: float(h_base[name].val) for name in poi_params}
-        c_a = expand_pois_linear_quadratic(poi_params, poi_values)
+        c_a = expand_pois_linear_quadratic(poi_params, poi_values, reference_point)
         if r_a.shape[1] != len(c_a):
             raise RuntimeError(
                 f"POI basis mismatch: predictor columns {r_a.shape[1]} != c_A length {len(c_a)}"

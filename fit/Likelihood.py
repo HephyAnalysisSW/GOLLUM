@@ -128,6 +128,11 @@ def load_likelihood(cfg):
                     poi['predictor'] = _predictor_from_job(bit_job)
                     if poi['predictor'] is None:
                         logger.warning(f"[likelihood] BIT '{poi_job_id}' has no predictor attached yet.")
+                    elif (bit_job or {}).get("eft") and not getattr(poi['predictor'], "expansion_point", None):
+                        raise RuntimeError(
+                            f"[likelihood] BIT '{poi_job_id}' has an 'eft' block but its predictor carries "
+                            "no expansion_point; retrain it so the fit reads the point it was trained at."
+                        )
             elif poi_type == "rate_shift":
                 param_len = len(poi.get("parameters",[]))
                 if len(poi.get("parameters"))!=1:
@@ -381,21 +386,29 @@ else:
         return np.sum(w * y, dtype=np.float64)
 
 
-def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float]) -> np.ndarray:
+def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float],
+                                  reference_point: Dict[str, float]) -> np.ndarray:
+    """Build the c_A vector from the Taylor variable t = c - r, r = reference_point.
+
+    `reference_point` is required, not defaulted: a default of zero would silently
+    return offset-space results at any call site that forgets to pass it, and that
+    result looks like a normal fit. Pass {} explicitly for a POI with no rebase (e.g.
+    the PDF POIs, expanded around zero).
+    """
     N = len(poi_names)
-    c = np.array([poi_values.get(n, 0.0) for n in poi_names])
+    t = np.array([poi_values.get(n, 0.0) - reference_point.get(n, 0.0) for n in poi_names])
     quads = []
 
     #FIXME careful here, double sum
     # This is the logic:
-    # BIT predicts and works with *derivatives*, so R = 1 + c_A R_A = 1 + Sum_a ca Ra + 1/2 Sum_{a, b} ca cb Ra Rb (Taylor expansion)
+    # BIT predicts and works with *derivatives*, so R = 1 + t_A R_A = 1 + Sum_a ta Ra + 1/2 Sum_{a, b} ta tb Ra Rb (Taylor expansion)
     # Now, the double sum is slow so we write
-    # R = 1 + Sum_a ca Ra + Sum_{a, b>=a} factor ca cb Ra Rb where factor = 1/2 if a=b (same factor as before) but factor=1 if b>a (counting twice)
+    # R = 1 + Sum_a ta Ra + Sum_{a, b>=a} factor ta tb Ra Rb where factor = 1/2 if a=b (same factor as before) but factor=1 if b>a (counting twice)
     # My silicon friend didn't see that. (For the PNN I rather work with unique ordered sequences, so no prefactor)
     for i in range(N):
-        for j in range(i,N): 
-            quads.append((0.5 if i==j else 1) * c[i] * c[j])  # 1/2 c_i c_j
-    return np.concatenate([c, np.array(quads)], axis=0) if quads else c
+        for j in range(i,N):
+            quads.append((0.5 if i==j else 1) * t[i] * t[j])  # 1/2 t_i t_j
+    return np.concatenate([t, np.array(quads)], axis=0) if quads else t
 
 
 def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]], values: Dict[str, float]) -> np.ndarray:
@@ -410,10 +423,16 @@ def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]]
     return np.array(out)
 
 def pois_jacobian_linear_quadratic(poi_names: List[str],
-                                    poi_values: Dict[str, float]) -> np.ndarray:
+                                    poi_values: Dict[str, float],
+                                    reference_point: Dict[str, float]) -> np.ndarray:
     """
     Build the Jacobian C_{Aa} = ∂c_A/∂c_a for the same A-basis and ordering
     as `expand_pois_linear_quadratic`.
+
+    `reference_point` (r) is required for the same reason as in
+    `expand_pois_linear_quadratic`; it shifts the Taylor variable t = c - r that the
+    quadratic block is built from, and does not affect the linear block since r is
+    constant in c.
 
     Shape:
       - n_par = len(poi_names)
@@ -424,8 +443,8 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
     if N == 0:
         return np.zeros((0, 0), dtype=np.float64)
 
-    # Base c-vector in the same order as in expand_pois_linear_quadratic
-    c = np.array([poi_values.get(n, 0.0) for n in poi_names],
+    # Taylor variable in the same order as in expand_pois_linear_quadratic
+    t = np.array([poi_values.get(n, 0.0) - reference_point.get(n, 0.0) for n in poi_names],
                  dtype=np.float64)
 
     n_quads = N * (N + 1) // 2
@@ -433,7 +452,7 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
 
     C = np.zeros((nA, N), dtype=np.float64)
 
-    # Linear part: c_A = c_a  ->  ∂c_A/∂c_a = δ_{Aa}
+    # Linear part: c_A = t_a  ->  ∂c_A/∂c_a = δ_{Aa} (∂t_a/∂c_a = 1, r constant)
     # A = 0..N-1 corresponds to the linear pieces
     for a in range(N):
         C[a, a] = 1.0
@@ -444,12 +463,12 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
     for i in range(N):
         for j in range(i, N):
             if i == j:
-                # c_A = 0.5 * c_i^2 -> ∂/∂c_i = c_i
-                C[row, i] = c[i]
+                # c_A = 0.5 * t_i^2 -> ∂/∂c_i = t_i
+                C[row, i] = t[i]
             else:
-                # c_A = c_i * c_j -> ∂/∂c_i = c_j, ∂/∂c_j = c_i
-                C[row, i] = c[j]
-                C[row, j] = c[i]
+                # c_A = t_i * t_j -> ∂/∂c_i = t_j, ∂/∂c_j = t_i
+                C[row, i] = t[j]
+                C[row, j] = t[i]
             row += 1
 
     # Sanity: row should end at nA
@@ -596,7 +615,7 @@ class N2LL:
         self._binned_regions_ids: list[str] = []
         self._binned_classes_by_region: dict[str, list[dict]] = {}   # rid -> [class dicts]
         self._binned_unroll: dict[str, dict] = {}  # rid -> { 'shape':(nb1[,nb2]), 'flat_bins':[( (xlo,xhi), (ylo,yhi)|None )], 'axes':[...], 'edges':[...]}
-        self._binned_lambda0: dict[str, np.ndarray] = {}  # rid -> (Nflat,) nominal λ at (0,0)
+        self._binned_lambda_ref: dict[str, np.ndarray] = {}  # rid -> (Nflat,) nominal λ at the reference point
         self._binned_asimov_lambda: dict[str, np.ndarray] = {}  # rid -> (Nflat,) λ' if setAsimov used
 
         # ----- Asimov (off-nominal) support -----
@@ -615,6 +634,7 @@ class N2LL:
 
         # in-memory pointers
         self._poi_order: Dict[Tuple[str, str], List[str]] = {}         # (rid,cid) -> POI names order for R_A
+        self._poi_reference: Dict[Tuple[str, str], Dict[str, float]] = {}  # (rid,cid) -> reference point r for c-r
         self._cache_paths: Dict[Tuple[str, str], Tuple[str, str]] = {} # (rid,cid) -> (h5_path, meta_path)
 
         # opened runtime state (filled by prepare_runtime)
@@ -690,6 +710,10 @@ class N2LL:
                     poi_names = sorted(poi_names)
 
                 self._poi_order[key] = poi_names
+                # The point the BIT was trained around; {} for rate_shift/PDF POIs, which
+                # expand around zero. Reading it off the predictor (not GENERATION_POINT)
+                # makes a training/fit mismatch impossible by construction.
+                self._poi_reference[key] = dict(getattr(poi_pred, "expansion_point", {}) or {})
                 self._rate_shift_by_class[key] = rate_shift_param
 
 
@@ -1036,6 +1060,7 @@ class N2LL:
 
                 # keep POI order so we can build c-vectors
                 self._poi_order[(rid, cid)] = poi_params
+                self._poi_reference[(rid, cid)] = dict(getattr(ich, "expansion_point", {}) or {})
 
             self._binned_classes_by_region[rid] = classes
 
@@ -1050,13 +1075,14 @@ class N2LL:
                 def __init__(self, names): self.POIs=[type('P',(),{'name':n,'val':0.0})() for n in names]
                 def __contains__(self, k): return False
             # assemble per-class zero vector in compute; simpler: pass zeros to ICH
-            lam0 = np.zeros(Nflat, dtype=np.float64)
+            lam_ref = np.zeros(Nflat, dtype=np.float64)
             for C in classes:
                 ich = C['_ich']
-                cvec0 = np.zeros(len(C['_poi_params']), dtype=np.float64)
-                sig0 = ich.predict(cvec0)  # (nb1,) or (nb1,nb2)
-                lam0 += sig0.reshape(-1)   # ν=0 → exp(0)=1; lnN at ν=0 adds nothing
-            self._binned_lambda0[rid] = lam0
+                cvec_ref = np.zeros(len(C['_poi_params']), dtype=np.float64)
+                # ich.predict receives as input (c-r), where r is the reference point
+                sig_ref = ich.predict(cvec_ref)  # (nb1,) or (nb1,nb2)
+                lam_ref += sig_ref.reshape(-1)   # ν=0 → exp(0)=1; lnN at ν=0 adds nothing
+            self._binned_lambda_ref[rid] = lam_ref
 
             # Debug print
             print(f"[binned] Region '{rid}': bins={Nflat}, axes={un['axes']}, shape={un['shape']}")
@@ -1233,7 +1259,10 @@ class N2LL:
                 f"Expected order: {poi_names}"
             )
 
-        return np.array([h[name].val for name in poi_names], dtype=np.float64)
+        if self._poi_reference[(rid, cid)] == {}:
+            return np.array([h[name].val for name in poi_names], dtype=np.float64)
+        else:
+            return np.array([h[name].val - self._poi_reference[(rid, cid)][name] for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
@@ -1280,6 +1309,7 @@ class N2LL:
             ich = C['_ich']
             cvec = np.array([p.val for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
+            # subtraction of reference point of expansion done in _assemble_c_vector_for_ich
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
@@ -1328,7 +1358,8 @@ class N2LL:
         c_vec = {p.name: p.val for p in getattr(hypothesis, 'POIs', [])}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
-            cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
+            reference_point = self._poi_reference[(rid, cid)]
+            cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec, reference_point)
         return cA_per_class
 
     def _assemble_rate_shift_per_class(self, rid: str, hypothesis) -> Dict[str, float]:
@@ -1869,12 +1900,12 @@ class N2LL:
                 for rid in self._binned_regions_ids:
                     if rid not in self._obs_binned_counts:
                         continue  # region not histogrammed (e.g. missing axis columns)
-                    lam0 = self._binned_lambda0[rid]                    # (Nflat,)
+                    lam_ref = self._binned_lambda_ref[rid]                    # (Nflat,)
                     lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
                     Nobs = self._obs_binned_counts[rid]                        # (Nflat,)
 
-                    log_ratio = self._safe_log_ratio(lam, lam0)         # stable
-                    total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
+                    log_ratio = self._safe_log_ratio(lam, lam_ref)         # stable
+                    total_binned += np.sum( -(lam - lam_ref) + Nobs * log_ratio, dtype=np.float64 )
 
             n2ll = -2.0 * (total_unbinned + total_binned)
             n2ll += hypothesis._base.penalty()
@@ -1927,12 +1958,12 @@ class N2LL:
         total_binned = 0.0
         if getattr(self, "_binned_regions_ids", None):
             for rid in self._binned_regions_ids:
-                lam0 = self._binned_lambda0[rid]
+                lam_ref = self._binned_lambda_ref[rid]
                 lam  = self._compute_lambda_binned(rid, hypothesis._base)
-                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)
+                lam_asimov = self._binned_asimov_lambda.get(rid, lam_ref)
 
-                log_ratio = self._safe_log_ratio(lam, lam0)
-                total_binned += np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
+                log_ratio = self._safe_log_ratio(lam, lam_ref)
+                total_binned += np.sum( -(lam - lam_ref) + lam_asimov * log_ratio, dtype=np.float64 )
 
         n2ll = -2.0 * (total_unbinned + total_binned)
         n2ll += hypothesis._base.penalty()
@@ -2223,9 +2254,10 @@ def serialize_result(m, base, version, args, out_path, toy_info=None ):
     """Write the fit result (values, errors, covariance) to JSON.
 
     'toy_info' carries the provenance of the toy dataset that was fitted
-    (point, source, seed and the injected hypothesis), so downstream toy
-    studies can compute pulls without reopening the toy HDF5. It is None
-    for fits to data or Asimov.
+    (point, source, route, seed and the injected hypothesis), so downstream
+    toy studies can compute pulls without reopening the toy HDF5. It is None
+    for fits to data or Asimov. The hypothesis names every coefficient the
+    toy's BITs know, so it is a superset of 'free_parameter_order'.
     """
 
     result_payload = {
@@ -2570,8 +2602,9 @@ if __name__ == "__main__":
             _toy_point = str(_toy_meta_f["meta"].attrs.get("point", "")) or "toy"
             _toy_seed = int(_toy_meta_f["meta"].attrs["seed"])
             _toy_source = str(_toy_meta_f["meta"].attrs.get("source", ""))
+            _toy_route = str(_toy_meta_f["meta"].attrs["route"])
             _toy_hypothesis = json.loads(str(_toy_meta_f["meta"].attrs["hypothesis"]))
-        toy_info = {"point": _toy_point, "source": _toy_source,
+        toy_info = {"point": _toy_point, "source": _toy_source, "route": _toy_route,
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         # storing many toy fit results in their own folder

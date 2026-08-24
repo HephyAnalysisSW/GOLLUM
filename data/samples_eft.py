@@ -47,13 +47,18 @@ wc_names = [
     "ctGIm", # ML4EFT
     "cQj11",
     "cQj18", # ML4EFT
-    "ctu8", # ML4EFT 
+    "ctu8", # ML4EFT
     "cQd8", # ML4EFT
     "ctu1",
     "cQu1",
     "cQj38", # ML4EFT
     "cQu8", # ML4EFT
 ]
+
+# Point around which the EFT samples were generated (make_ntuple.py, cmgrdf-GluonPDF).
+# The expansion in EFTWeightInterface is rebased here instead of at the SM, since this
+# is the density the events were actually drawn from.
+GENERATION_POINT = {w: (-0.5 if "ctG" in w else 1.5) for w in wc_names}
 
 
 # lower triangular matrix in coefficients
@@ -70,13 +75,14 @@ def _derivative_branches(wcs):
 eft_derivatives = _derivative_branches(wc_names)
 
 observers = [
-    "weight", # lumi*xs/sumw factor (from CMGRDF) 
+    "weight", # lumi*xs/sumw factor (from CMGRDF)
     "Generator_weight", # 1.0 for all samples
     "LHEWeight_originalXWGTUP",
     "nEFTfitCoefficients",
     "run",
     "luminosityBlock",
     "event",
+    "EFTWeight_gen", # weight at GENERATION_POINT; the expansion is rebased here
 ] + eft_derivatives
 
 
@@ -93,7 +99,7 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
         strict_branches=True,
         weight_branches=[
             "weight", # weight contains lumi*xs/sumw normalization from CMGRDF
-            "EFTWeight_SM", # SM weight, since Generator_weight is one for all the generated samples
+            "EFTWeight_gen", # weight at GENERATION_POINT, the point the events were drawn from
             "L1PreFiringWeight_Nom",
             "JetPUID_SF",
             "Pileup_SF",
