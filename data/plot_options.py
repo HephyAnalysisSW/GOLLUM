@@ -265,6 +265,7 @@ plot_options = {
     "dibjet_mass":       {"binning": [30, 0, 1000],    "tex": "M(bb)",                  "logY": True},         
     "pseudo_mtt":       {"binning": [30, 300, 1500],  "tex": "M(llbb)",                "logY": True},
     "max_obj_pair_pt":  {"binning": [30, 0, 800],     "tex": "max p_{T}(obj pair)",    "logY": True},
+    "era":              {"binning": [5, 0, 5],     "tex": "int(era)",    "logY": False},
 }
 
 def get_sample_legend(sample_id: str) -> str:
