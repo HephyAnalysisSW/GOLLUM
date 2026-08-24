@@ -615,7 +615,7 @@ class N2LL:
         self._binned_regions_ids: list[str] = []
         self._binned_classes_by_region: dict[str, list[dict]] = {}   # rid -> [class dicts]
         self._binned_unroll: dict[str, dict] = {}  # rid -> { 'shape':(nb1[,nb2]), 'flat_bins':[( (xlo,xhi), (ylo,yhi)|None )], 'axes':[...], 'edges':[...]}
-        self._binned_lambda0: dict[str, np.ndarray] = {}  # rid -> (Nflat,) nominal λ at (0,0)
+        self._binned_lambda_ref: dict[str, np.ndarray] = {}  # rid -> (Nflat,) nominal λ at the reference point
         self._binned_asimov_lambda: dict[str, np.ndarray] = {}  # rid -> (Nflat,) λ' if setAsimov used
 
         # ----- Asimov (off-nominal) support -----
@@ -1060,7 +1060,6 @@ class N2LL:
 
                 # keep POI order so we can build c-vectors
                 self._poi_order[(rid, cid)] = poi_params
-                # ICH POIs are PDF coefficients, expanded around zero; {} is correct here.
                 self._poi_reference[(rid, cid)] = dict(getattr(ich, "expansion_point", {}) or {})
 
             self._binned_classes_by_region[rid] = classes
@@ -1076,13 +1075,14 @@ class N2LL:
                 def __init__(self, names): self.POIs=[type('P',(),{'name':n,'val':0.0})() for n in names]
                 def __contains__(self, k): return False
             # assemble per-class zero vector in compute; simpler: pass zeros to ICH
-            lam0 = np.zeros(Nflat, dtype=np.float64)
+            lam_ref = np.zeros(Nflat, dtype=np.float64)
             for C in classes:
                 ich = C['_ich']
-                cvec0 = np.zeros(len(C['_poi_params']), dtype=np.float64)
-                sig0 = ich.predict(cvec0)  # (nb1,) or (nb1,nb2)
-                lam0 += sig0.reshape(-1)   # ν=0 → exp(0)=1; lnN at ν=0 adds nothing
-            self._binned_lambda0[rid] = lam0
+                cvec_ref = np.zeros(len(C['_poi_params']), dtype=np.float64)
+                # ich.predict receives as input (c-r), where r is the reference point
+                sig_ref = ich.predict(cvec_ref)  # (nb1,) or (nb1,nb2)
+                lam_ref += sig_ref.reshape(-1)   # ν=0 → exp(0)=1; lnN at ν=0 adds nothing
+            self._binned_lambda_ref[rid] = lam_ref
 
             # Debug print
             print(f"[binned] Region '{rid}': bins={Nflat}, axes={un['axes']}, shape={un['shape']}")
@@ -1259,7 +1259,10 @@ class N2LL:
                 f"Expected order: {poi_names}"
             )
 
-        return np.array([h[name].val for name in poi_names], dtype=np.float64)
+        if self._poi_reference[(rid, cid)] == {}:
+            return np.array([h[name].val for name in poi_names], dtype=np.float64)
+        else:
+            return np.array([h[name].val - self._poi_reference[(rid, cid)][name] for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
@@ -1306,6 +1309,7 @@ class N2LL:
             ich = C['_ich']
             cvec = np.array([p.val for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
+            # subtraction of reference point of expansion done in _assemble_c_vector_for_ich
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
             sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
 
@@ -1896,12 +1900,12 @@ class N2LL:
                 for rid in self._binned_regions_ids:
                     if rid not in self._obs_binned_counts:
                         continue  # region not histogrammed (e.g. missing axis columns)
-                    lam0 = self._binned_lambda0[rid]                    # (Nflat,)
+                    lam_ref = self._binned_lambda_ref[rid]                    # (Nflat,)
                     lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
                     Nobs = self._obs_binned_counts[rid]                        # (Nflat,)
 
-                    log_ratio = self._safe_log_ratio(lam, lam0)         # stable
-                    total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
+                    log_ratio = self._safe_log_ratio(lam, lam_ref)         # stable
+                    total_binned += np.sum( -(lam - lam_ref) + Nobs * log_ratio, dtype=np.float64 )
 
             n2ll = -2.0 * (total_unbinned + total_binned)
             n2ll += hypothesis._base.penalty()
@@ -1954,12 +1958,12 @@ class N2LL:
         total_binned = 0.0
         if getattr(self, "_binned_regions_ids", None):
             for rid in self._binned_regions_ids:
-                lam0 = self._binned_lambda0[rid]
+                lam_ref = self._binned_lambda_ref[rid]
                 lam  = self._compute_lambda_binned(rid, hypothesis._base)
-                lam_asimov = self._binned_asimov_lambda.get(rid, lam0)
+                lam_asimov = self._binned_asimov_lambda.get(rid, lam_ref)
 
-                log_ratio = self._safe_log_ratio(lam, lam0)
-                total_binned += np.sum( -(lam - lam0) + lam_asimov * log_ratio, dtype=np.float64 )
+                log_ratio = self._safe_log_ratio(lam, lam_ref)
+                total_binned += np.sum( -(lam - lam_ref) + lam_asimov * log_ratio, dtype=np.float64 )
 
         n2ll = -2.0 * (total_unbinned + total_binned)
         n2ll += hypothesis._base.penalty()
