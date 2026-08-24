@@ -498,6 +498,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
             observer_names.append(weight_branch)
     loader = n2ll.factory.get(sample_name).clone()
     loader.setFeatures(feature_names, observer_names=observer_names)
+    if args.n_split:
+        loader.set_n_split(args.n_split)
 
     Xs, Ws = [], []
     sum_w_all = 0.0
@@ -1164,6 +1166,7 @@ if __name__ == "__main__":
     p.add_argument("--toySpec", required=True, help="Path to the toy spec YAML")
     p.add_argument("--toyPoint", default=None, help="Name of the point in the spec to generate (omit to list)")
     p.add_argument("--seeds", required=True, help="Seed or range, e.g. '0-499' or '3,7,12' (required unless listing points)")
+    p.add_argument("--n_split", type=int)    
     p.add_argument("--outputDir", help="Directory to write <point>_toy<seed>.h5 files")
     p.add_argument("--overwrite", nargs="?", default=None, choices=["toy", "all"],
                    help="Overwrite the toys ('toy') and surrogate cache ('all') before generating.")
