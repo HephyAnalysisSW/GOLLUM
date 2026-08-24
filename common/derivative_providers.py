@@ -93,4 +93,5 @@ def build_derivative_provider(job):
         return PDFDerivativeProvider(job["pdf"])
     if job.get("eft"):
         return EFTDerivativeProvider(job["eft"].get("parameters", []))
-    raise RuntimeError(f"Job '{job['id']}' has neither a 'pdf' nor an 'eft' block.")
+
+    RuntimeWarning(f"Job '{job['id']}' has neither a 'pdf' nor an 'eft' block. Returning None.")
