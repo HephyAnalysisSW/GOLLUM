@@ -57,9 +57,8 @@ def list_and_exit():
     if args.overwrite: flags.append("--overwrite")
     if args.small:     flags.append("--small")
     if args.every is not None: flags.append(f"--every {args.every}")
-    script = os.path.basename(__file__)
     for j in jobs:
-        print(f"python {script} {args.config} {' '.join(flags)} --job {j['id']}")
+        print(f"python {__file__} {args.config} {' '.join(flags)} --job {j['id']}")
     sys.exit(0)
 
 if args.job is None:
@@ -623,11 +622,18 @@ bins_train = None
 if model_cfg.get("split_mode") == "binned":
     cut_sample_rows = int(model_cfg.get("cut_sample_rows", len(X_train)))
     cut_sample_rows = max(1, min(cut_sample_rows, len(X_train)))
-    global_cuts = NumbaMultiNode._compute_global_quantile_cuts(
-        X_train,
-        int(model_cfg.get("n_bins", 256)),
-        cut_sample_rows=cut_sample_rows,
-    )
+    if model_cfg.get("quantile_bins", False):
+        global_cuts = NumbaMultiNode._compute_global_quantile_cuts(
+            X_train,
+            int(model_cfg.get("n_bins", 256)),
+            cut_sample_rows=cut_sample_rows,
+        )
+    else:
+        global_cuts = NumbaMultiNode._compute_global_uniform_cuts(
+            X_train,
+            int(model_cfg.get("n_bins", 256)),
+            cut_sample_rows=cut_sample_rows,
+        )
     bins_train = NumbaMultiNode._quantize_feature_matrix(X_train, global_cuts)
     tqdm.write(
         f"[BINS] built global cuts once: rows={cut_sample_rows} "

@@ -49,6 +49,13 @@ def _compute_global_quantile_cuts(feature_matrix, n_bins, cut_sample_rows=None):
         return np.zeros((feature_matrix.shape[1], 0), dtype=np.float32)
     return np.quantile(sample, quantile_levels, axis=0).T.astype(np.float32)
 
+def _compute_global_uniform_cuts(feature_matrix, n_bins, cut_sample_rows=None):
+    if cut_sample_rows is None or cut_sample_rows <= 0 or cut_sample_rows >= feature_matrix.shape[0]:
+        sample = feature_matrix
+    else:
+        sample = feature_matrix[:cut_sample_rows]
+    # removing edges as this is the inner candidate splits
+    return np.linspace(sample.min(axis=0), sample.max(axis=0), int(n_bins)+1, axis=1)[:,1:-1].astype(np.float32)
 
 def _quantize_feature_matrix(feature_matrix, cuts):
     bins = np.empty(feature_matrix.shape, dtype=np.uint16 if cuts.shape[1] + 1 > 256 else np.uint8)
@@ -101,7 +108,6 @@ def _crossentropy_neg_loss_gains(sorted_weight_sums, sorted_weight_sums_right, b
     n = sorted_weight_sums.shape[0]
     d = sorted_weight_sums.shape[1]
     k = base_point_const_T.shape[1]
-
     gains = np.empty(n, dtype=np.float64)
 
     # avoid divide-by-zero by tiny eps (keeps parity with numpy nan_to_num behavior)
