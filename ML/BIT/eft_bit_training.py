@@ -30,6 +30,7 @@ p.add_argument("--max_n_files", action="store",type=int, default=None, help="Onl
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
+p.add_argument("--debug", action="store_true", help="Plot training and validation loss for individual terms.")
 args = p.parse_args()
 
 
@@ -548,7 +549,7 @@ bit = None
 start_tree = 0
 boost_weights = None
 
-def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
+def bit_ratio_mse_losses(bit, X, truth_weights, max_n_tree: int) -> float:
     """
     Loss in ratio space:
       r_true(der) = w_der / w0
@@ -600,7 +601,7 @@ def bit_ratio_mse_loss(bit, X, truth_weights, max_n_tree: int) -> float:
         mse = np.average((r_pred - r_true) ** 2, weights=w_abs)
         losses.append(mse)
 
-    return float(np.mean(losses))
+    return losses
 
 
 def _tree_summary(root, feat_names):
@@ -711,6 +712,7 @@ plot_ctx = _build_plot_context(X_train, training_weights_train, feat_names, cfg_
 # mid-run never loses history, and a resumed run continues the same file
 # instead of overwriting it.
 loss_txt = os.path.join(model_dir, "loss_history.txt")
+loss_txt_all_terms = os.path.join(model_dir, "loss_history_all_terms.txt")
 best_valid_loss = float("inf")
 best_tree = -1
 best_model_path = os.path.join(model_dir, "BIT_best.pkl")
@@ -806,18 +808,29 @@ if len(bit.trees) < bit.n_trees:
 
         # ---------------- TRAIN LOSS (metric) ----------------
         # Disabled to avoid a full extra predict(X_train) pass every epoch.
-        train_loss = float("nan")
+        if args.debug and X_train is not None:
+            train_losses = bit_ratio_mse_losses(
+                bit=bit,
+                X=X_train,
+                truth_weights=training_weights_train,
+                max_n_tree=len(bit.trees),   # == n_tree + 1
+            )
+        else:
+            train_losses = float("nan")
 
         # ---------------- VALID LOSS (metric) ----------------
         if X_valid is not None:
-            valid_loss = bit_ratio_mse_loss(
+            valid_losses = bit_ratio_mse_losses(
                 bit=bit,
                 X=X_valid,
                 truth_weights=training_weights_valid,
                 max_n_tree=len(bit.trees),   # == n_tree + 1
             )
-            tqdm.write(f"[LOSS] tree={len(bit.trees):04d} valid_loss={valid_loss:.6g}")
-
+           
+            # track largest validation loss
+            valid_loss = np.mean(valid_losses)
+            tqdm.write(f"[LOSS] tree={len(bit.trees):04d} mean valid_loss={valid_loss:.6g}")
+            
             # ---------------- save BEST on valid ----------------
             if np.isfinite(valid_loss) and (valid_loss < best_valid_loss):
                 best_valid_loss = float(valid_loss)
@@ -839,9 +852,27 @@ if len(bit.trees) < bit.n_trees:
         # ---------------- append loss history (write immediately: survives a crash, and a
         # resumed run continues the same file instead of losing the earlier trees) ----------------
         tree_now = len(bit.trees)
-        valid_loss_to_write = float(valid_loss) if X_valid is not None else float("nan")
+        
+        if args.debug:
+            train_loss = np.mean(train_losses)
+        else:
+            train_loss = float("nan")
+        
         with open(loss_txt, "a") as f:
-            f.write(f"{tree_now}\t{float(train_loss):.8e}\t{valid_loss_to_write:.8e}\n")
+            f.write(f"{tree_now}\t{float(train_loss):.8e}\t{valid_loss:.8e}\n")
+        
+        if args.debug:
+            with open(loss_txt_all_terms, "a") as f:
+                if not resuming and n_tree == 0:
+                    
+                    header ="\t".join(f"train_loss_{tuple(sorted(der))}\tvalid_loss_{tuple(sorted(der))}" for der in bit.derivatives)                    
+                    f.write(f"#tree \t{header}\n")
+                
+                line=f"{tree_now}\t"
+                for i_der, _ in enumerate(bit.derivatives):
+                    line += f"{train_losses[i_der]:.6g}\t{valid_losses[i_der]:.6g}\t"
+
+                f.write(f"{line}\n")
 
         # update weights
         t1 = time.process_time()
