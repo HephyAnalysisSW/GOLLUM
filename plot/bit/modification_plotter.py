@@ -130,7 +130,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--terms", choices=["linear", "quadratic", "both"], default="both", help="Which term orders to draw")
     p.add_argument("--mixed", action="store_true", help="Also draw mixed cross terms (op0, op1)")
     p.add_argument("--operators", nargs="+", default=None, help="Restrict to these operators (default: all in the provider)")
-    p.add_argument("--split", choices=["all", "train", "valid"], default="all", help="Event split to plot (uses job splitting if enabled). Train: events used in training (pnn_train+pnn_val); valid: events not used in training (c2st_train+c2st_val).")
+    p.add_argument("--split", choices=["all", "train", "valid","eval"], default="all", help="Event split to plot (uses job splitting if enabled). Train: events used in training (pnn_train+pnn_val); valid: events not used in training (c2st_train+c2st_val); eval: final_eval.")
     p.add_argument("--small", type=int, default=None, help="Stop after roughly this many selected events")
     return p
 
@@ -366,8 +366,10 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
 
             if args.split == "train":
                 partition = ["pnn_train", "pnn_val"]
-            else:
+            elif args.split == "valid":
                 partition = ["c2st_train", "c2st_val"]
+            elif args.split == "eval":
+                partition = ["final_eval"]
 
             splitter, uid_fields, partition_interval = _uid_split_interval(split_cfg, *partition)
             uid_idx = [obs_names.index(f) for f in uid_fields]

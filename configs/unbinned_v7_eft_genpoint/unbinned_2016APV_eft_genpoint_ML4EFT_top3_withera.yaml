@@ -38,14 +38,14 @@ defaults:
 
 likelihood:
     regions:
-        - id: SR_2016 
+        - id: SR_2016APV 
           classifier:
             type: null
             id: null    # no classifier needed for a single process
-            asimov: [TT01j2l_EFT_2016]
+            asimov: [TT01j2l_EFT_2016APV]
           classes: 
-            - id: TT01j2l_EFT_2016
-              sample: TT01j2l_EFT_2016 
+            - id: TT01j2l_EFT_2016APV
+              sample: TT01j2l_EFT_2016APV 
               POI:
                 job: bit_TT01j2l_EFT_RunII_ML4EFT_top3 
                 type: bit
@@ -53,10 +53,10 @@ likelihood:
 
 jobs: 
 
-  - id: bit_TT01j2l_EFT_2016_ML4EFT_top3
+  - id: bit_TT01j2l_EFT_2016APV_ML4EFT_top3
     type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
+    region: SR_2016APV
+    process: TT01j2l_EFT_2016APV
     selection: null
     numba: True
     eft:
@@ -72,11 +72,11 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ML4EFT_top3.pkl"
+      filename: "bit_TT01j2l_EFT_2016APV_ML4EFT_top3.pkl"
 
   - id: bit_TT01j2l_EFT_RunII_ML4EFT_top3
     type: bit
-    region: SR_2016
+    region: SR_2016APV
     process: TT01j2l_EFT_RunII
     selection: null
     numba: True

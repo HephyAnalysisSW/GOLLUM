@@ -1,4 +1,5 @@
-version: unbinned_v7_eft_genpoint_withera
+version: unbinned_v7_eft_genpoint_wider_training_tighter_selection
+# uses models symlink from unbinned_v7_eft_genpoint
 
 defaults:
   module_samples: "data.samples_eft"
@@ -7,12 +8,12 @@ defaults:
     - LEPTON_KINEMATICS
     - ASYMMETRY
     - SPIN_CORRELATION
-    - era
   
-  default_selection: tr_ttbar_pt < 1500
+  default_selection: (tr_ttbar_pt < 1500) & (tr_ttbar_mass < 1000)
 
   default_selection_features:
     - tr_ttbar_pt
+    - tr_ttbar_mass
 
   splitting:
     enabled: true
@@ -47,7 +48,7 @@ likelihood:
             - id: TT01j2l_EFT_2016
               sample: TT01j2l_EFT_2016 
               POI:
-                job: bit_TT01j2l_EFT_RunII_ML4EFT_top3 
+                job: bit_TT01j2l_EFT_2016_ML4EFT_top3 
                 type: bit
                 parameters: [ctGRe, ctGIm, cQj18]
 
@@ -83,7 +84,7 @@ jobs:
     eft:
         parameters: [ctGRe, ctGIm, cQj18]
     model:
-      n_trees: 800
+      n_trees: 400
       learning_rate: 0.2
       loss: MSE
       learn_global_score: true
@@ -92,6 +93,5 @@ jobs:
       quantile_bins: true
     runtime:
       training_plots: true
-      n_split: 9
     output:
       filename: "bit_TT01j2l_EFT_RunII_ML4EFT_top3.pkl"    

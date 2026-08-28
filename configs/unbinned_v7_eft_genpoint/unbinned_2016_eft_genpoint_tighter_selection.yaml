@@ -1,4 +1,4 @@
-version: unbinned_v7_eft_genpoint
+version: unbinned_v7_eft_genpoint_tighter_selection
 
 defaults:
   module_samples: "data.samples_eft"
@@ -8,10 +8,11 @@ defaults:
     - ASYMMETRY
     - SPIN_CORRELATION
   
-  default_selection: tr_ttbar_pt < 1500
+  default_selection: (tr_ttbar_pt < 1000) & (tr_ttbar_mass < 1500)
 
   default_selection_features:
     - tr_ttbar_pt
+    - tr_ttbar_mass
 
   splitting:
     enabled: true
@@ -274,95 +275,6 @@ jobs:
     output:
       filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize1
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: false
-      min_size: 1
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize1.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize5
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: false
-      min_size: 5
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize5.pkl"  
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize10
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: false
-      min_size: 10
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize10.pkl"  
-
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize25
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: false
-      min_size: 25
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize25.pkl"  
-
   - id: bit_TT01j2l_EFT_2016_ctGRe_exact_split
     type: bit
     region: SR_2016
@@ -384,89 +296,4 @@ jobs:
     output:
       filename: "bit_TT01j2l_EFT_2016_ctGRe_exact_split.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize100
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-      min_size: 100
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize100.pkl"
-     
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_64bins
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 64
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_64bins.pkl"
-   
-  - id: bit_TT01j2l_EFT_2016_ctGRe_128bins
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 128
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_128bins.pkl"
- 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_512bins
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 512
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_512bins.pkl"
- 
+      

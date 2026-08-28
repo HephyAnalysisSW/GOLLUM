@@ -19,7 +19,7 @@ defaults:
     uid_fields: ["run", "luminosityBlock", "event"]
     seed: 42
     n_buckets: 10000 
-
+# NumbaWarning: Cannot cache compiled function "_bin_sums_parallel" as it uses dynamic globals (such as ctypes pointers and large global arrays)
     scheme:
       pnn_train:     { fraction: 0.50 }
       pnn_val:       { fraction: 0.10 }
@@ -46,83 +46,20 @@ likelihood:
             - id: TT01j2l_EFT_2016
               sample: TT01j2l_EFT_2016 
               POI:
-                job: bit_TT01j2l_EFT_2016_ctGRe 
+                job: bit_TT01j2l_EFT_2016_cQj18
                 type: bit
-                parameters: [ctGRe]
+                parameters: [cQj18]
 
 jobs:
 
-  - id: bit_TT01j2l_EFT_2016_allWC
+  - id: bit_TT01j2l_EFT_2016_cQj18
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_allWC.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ML4EFTWC
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctj8, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, cQj38, cQu8]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ML4EFTWC.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_nonML4EFTWC
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [cQd1, cQj31, ctu1, ctd1, cQu1, cQj11, ctj1]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_nonML4EFTWC.pkl" 
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -142,125 +79,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctG
+      filename: "bit_TT01j2l_EFT_2016_cQj18.pkl"
+ 
+  - id: bit_TT01j2l_EFT_2016_cQj18_uniform_bins
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe, ctGIm]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctG.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize10
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-      min_size: 10
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize10.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize20
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-      min_size: 20
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize20.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize30
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-      min_size: 30
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize30.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize40
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
-    model:
-      n_trees: 400
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-      min_size: 40
-    runtime:
-      training_plots: true
-    output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize40.pkl"
-
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -272,16 +100,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins.pkl"
+      filename: "bit_TT01j2l_EFT_2016_cQj18_uniform_bins.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize1
+  - id: bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize1
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -294,16 +122,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize1.pkl"
+      filename: "bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize1.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize5
+  - id: bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize5
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -316,16 +144,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize5.pkl"  
+      filename: "bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize5.pkl"  
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize10
+  - id: bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize10
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -338,17 +166,17 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize10.pkl"  
+      filename: "bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize10.pkl"  
 
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize25
+  - id: bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize25
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -361,16 +189,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_uniform_bins_minsize25.pkl"  
+      filename: "bit_TT01j2l_EFT_2016_cQj18_uniform_bins_minsize25.pkl"  
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_exact_split
+  - id: bit_TT01j2l_EFT_2016_cQj18_exact_split
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -382,16 +210,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_exact_split.pkl"
+      filename: "bit_TT01j2l_EFT_2016_cQj18_exact_split.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_minsize100
+  - id: bit_TT01j2l_EFT_2016_cQj18_minsize100
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -404,17 +232,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_minsize100.pkl"
-     
+      filename: "bit_TT01j2l_EFT_2016_cQj18_minsize100.pkl"
 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_64bins
+  - id: bit_TT01j2l_EFT_2016_cQj18_64bins
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -426,16 +253,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_64bins.pkl"
+      filename: "bit_TT01j2l_EFT_2016_cQj18_64bins.pkl"
    
-  - id: bit_TT01j2l_EFT_2016_ctGRe_128bins
+  - id: bit_TT01j2l_EFT_2016_cQj18_128bins
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -447,16 +274,16 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_128bins.pkl"
- 
-  - id: bit_TT01j2l_EFT_2016_ctGRe_512bins
+      filename: "bit_TT01j2l_EFT_2016_cQj18_128bins.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQj18_512bins
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe]
+        parameters: [cQj18]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -468,5 +295,92 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ctGRe_512bins.pkl"
- 
+      filename: "bit_TT01j2l_EFT_2016_cQj18_512bins.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQj18_max_depth_6
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQj18]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+      max_depth: 6
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQj18_max_depth_6.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQj18_max_depth_8
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQj18]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+      max_depth: 8
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQj18_max_depth_8.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQj18_max_depth_10
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQj18]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+      max_depth: 10
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQj18_max_depth_10.pkl"
+
+  - id: bit_TT01j2l_EFT_2016_cQj18_max_depth_15
+    type: bit
+    region: SR_2016
+    process: TT01j2l_EFT_2016
+    selection: null
+    numba: True
+    eft:
+        parameters: [cQj18]
+    model:
+      n_trees: 400
+      learning_rate: 0.2
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+      max_depth: 15
+    runtime:
+      training_plots: true
+    output:
+      filename: "bit_TT01j2l_EFT_2016_cQj18_max_depth_15.pkl"

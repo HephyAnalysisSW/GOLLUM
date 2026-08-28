@@ -1,4 +1,4 @@
-version: unbinned_v7_eft_genpoint_withera
+version: unbinned_v7_eft_genpoint
 
 defaults:
   module_samples: "data.samples_eft"
@@ -7,8 +7,7 @@ defaults:
     - LEPTON_KINEMATICS
     - ASYMMETRY
     - SPIN_CORRELATION
-    - era
-  
+
   default_selection: tr_ttbar_pt < 1500
 
   default_selection_features:
@@ -38,29 +37,29 @@ defaults:
 
 likelihood:
     regions:
-        - id: SR_2016 
+        - id: SR_2018 
           classifier:
             type: null
             id: null    # no classifier needed for a single process
-            asimov: [TT01j2l_EFT_2016]
+            asimov: [TT01j2l_EFT_2018]
           classes: 
-            - id: TT01j2l_EFT_2016
-              sample: TT01j2l_EFT_2016 
+            - id: TT01j2l_EFT_2018
+              sample: TT01j2l_EFT_2018 
               POI:
-                job: bit_TT01j2l_EFT_RunII_ML4EFT_top3 
+                job: bit_TT01j2l_EFT_2018_allWC 
                 type: bit
-                parameters: [ctGRe, ctGIm, cQj18]
+                parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
 
-jobs: 
+jobs:
 
-  - id: bit_TT01j2l_EFT_2016_ML4EFT_top3
+  - id: bit_TT01j2l_EFT_2018_allWC
     type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_2016
+    region: SR_2018
+    process: TT01j2l_EFT_2018
     selection: null
     numba: True
     eft:
-        parameters: [ctGRe, ctGIm, cQj18]
+        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -72,26 +71,4 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_ML4EFT_top3.pkl"
-
-  - id: bit_TT01j2l_EFT_RunII_ML4EFT_top3
-    type: bit
-    region: SR_2016
-    process: TT01j2l_EFT_RunII
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe, ctGIm, cQj18]
-    model:
-      n_trees: 800
-      learning_rate: 0.2
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-      n_split: 9
-    output:
-      filename: "bit_TT01j2l_EFT_RunII_ML4EFT_top3.pkl"    
+      filename: "bit_TT01j2l_EFT_2018_allWC.pkl"
