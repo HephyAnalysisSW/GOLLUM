@@ -2606,6 +2606,8 @@ if __name__ == "__main__":
             _toy_hypothesis = json.loads(str(_toy_meta_f["meta"].attrs["hypothesis"]))
         toy_info = {"point": _toy_point, "source": _toy_source, "route": _toy_route,
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
+        if "no_poisson" in args.toyFile:
+            _toy_source += "_no_poisson"
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         # storing many toy fit results in their own folder
         out_path = os.path.join(out_path, f"{base}_{_toy_point}_{_toy_source}_toy_fits")

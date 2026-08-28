@@ -386,7 +386,8 @@ def _class_bit_job(n2ll: N2LL, region_id: str, class_id: str) -> dict:
 
 
 def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource, feature_names: list,
-                                split: Optional[str], hypothesis, allow_negative_weights: bool):
+                                split: Optional[str], hypothesis, allow_negative_weights: bool,
+                                debug: bool = False):
     """Stream one ProcessSource's sample, reconstruct the exact truth weight,
     restrict to `split`, rescale by the retained *weight* fraction, and (if
     `hypothesis` is given) multiply by the model's region-level (1+T) at that
@@ -397,7 +398,14 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     A coefficient absent from `source.coefficients` is held at the generation point,
     whether or not the class's BIT fits it; see `ProcessSource`.
 
-    Returns (X (M,d), w_truth (M,), diagnostics dict).
+    Returns (X (M,d), w_truth (M,), diagnostics dict, truth_R (M,nA) or None).
+
+    ``truth_R`` is only built when ``debug`` and the source uses the derivative route
+    (``coefficients`` given). It is the per-event truth derivative ratio
+    ``deriv_w[:,1:]/deriv_w[:,0]``, column-aligned to the fit's ``by_class['R']`` basis
+    (both are indexed by ``expand_pois_linear_quadratic(provider.parameters, ...)``), so
+    a downstream scan can splice it into ``by_class['R']`` event-by-event. It is a pure
+    ratio: unlike ``w_truth`` it is not rescaled by ``f_weight`` nor multiplied by (1+T).
     """
     region = _find_region(n2ll, region_id)
     C = _find_class(region, source.class_id)
@@ -501,7 +509,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
     if args.n_split:
         loader.set_n_split(args.n_split)
 
-    Xs, Ws = [], []
+    Xs, Ws, truth_Rs = [], [], []
     sum_w_all = 0.0
     sum_w_split = 0.0
     for shard in range(int(getattr(loader, "n_split", 1))):
@@ -511,11 +519,15 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         w = np.asarray(w, dtype=np.float64)
         sum_w_all += float(np.sum(w))
 
+        truth_R = None
         if provider is not None:
             deriv_w = provider.truth_weight_matrix(G, w, observer_names)  # (N, M), col 0 = nominal
             w_coef = deriv_w[:, 0] + deriv_w[:, 1:] @ expand_pois_linear_quadratic(
                 provider.parameters, injection_point, reference_point
             )
+            if debug:
+                # per-event truth derivative ratio, same column basis as by_class['R']
+                truth_R = deriv_w[:, 1:] / deriv_w[:, 0:1]
         else:
             w_coef = w
 
@@ -536,6 +548,8 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
         Xs.append(X[m_keep])
         Ws.append(w_truth[m_keep])
+        if truth_R is not None:
+            truth_Rs.append(truth_R[m_keep])
 
     if sum_w_all <= 0:
         raise RuntimeError(f"[toy:{region_id}/{source.class_id}] sample has zero total weight.")
@@ -545,6 +559,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
     X_all = np.concatenate(Xs, axis=0) if Xs else np.empty((0, len(feature_names)), dtype=np.float64)
     w_truth_all = (np.concatenate(Ws, axis=0) if Ws else np.empty(0, dtype=np.float64)) / f_weight
+    truth_R_all = np.concatenate(truth_Rs, axis=0) if truth_Rs else None
 
     nominal_yield = sum_w_all
     if hypothesis is not None and len(X_all):
@@ -580,7 +595,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
         "nominal_yield": nominal_yield, "truth_yield": truth_yield,
         "n_negative": n_neg, "negative_yield_share": neg_yield_share,
     }
-    return X_all, w_truth_all, diag
+    return X_all, w_truth_all, diag, truth_R_all
 
 
 # ============================================================================
@@ -589,7 +604,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
 
 def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: np.random.Generator, *,
                                       split: tuple[str] | None = ("c2st_train", "c2st_val"), hypothesis=None,
-                                      allow_negative_weights: bool = False, debug=False) -> dict:
+                                      allow_negative_weights: bool = False, debug=False, no_poisson=False) -> dict:
     """Multi-process truth-mode unbinned toy (see module docstring / plan
     "Multi-process handling"). Per source (one per class): reconstruct the truth
     weight, throw n_i ~ Poisson(w_truth_i), keep n_i > 0, record an origin label
@@ -604,29 +619,47 @@ def generate_unbinned_toy_from_truth(n2ll: N2LL, region_id: str, sources, rng: n
 
     Xs, Ns, origins, diagnostics = [], [], [], {}
     for i_class, (cid, source) in enumerate(by_cid.items()):
-        X, w_truth, diag = _materialize_truth_weights(
-            n2ll, region_id, source, feature_names, split, hypothesis, allow_negative_weights
+        X, w_truth, diag, truth_R = _materialize_truth_weights(
+            n2ll, region_id, source, feature_names, split, hypothesis, allow_negative_weights, debug=debug
         )
-        n_i = rng.poisson(np.clip(w_truth, 0.0, None))
-        keep = n_i > 0
-        n_kept = n_i[keep]
-        dup = n_kept > 1
-        diag.update({
-            "drawn_yield": float(n_kept.sum()),
-            "n_multiplicity_gt1": int(dup.sum()),
-            "multiplicity_gt1_yield_share": float(n_kept[dup].sum() / n_kept.sum()) if n_kept.sum() else 0.0,
-        })
-        diagnostics[cid] = diag
+        if no_poisson:
 
-        logger.info("[toy:%s/%s] %s", region_id, cid, diag)
+            Xs.append(X)
+            Ns.append(w_truth)
+            diag.update({
+                "no_poisson": True
+            })
+            diagnostics[cid] = diag
+            truth_R_kept = truth_R
 
-        # adding truth weights to toy diagnostics for debug
+        else:
+            n_i = rng.poisson(np.clip(w_truth, 0.0, None))
+            keep = n_i > 0
+            n_kept = n_i[keep]
+            dup = n_kept > 1
+            diag.update({
+                "drawn_yield": float(n_kept.sum()),
+                "n_multiplicity_gt1": int(dup.sum()),
+                "multiplicity_gt1_yield_share": float(n_kept[dup].sum() / n_kept.sum()) if n_kept.sum() else 0.0,
+                "no_poisson": False
+            })
+            diagnostics[cid] = diag
+
+            Xs.append(X[keep])
+            Ns.append(n_kept.astype(np.float64))
+            origins.append(np.full(int(keep.sum()), i_class, dtype=np.int64))
+            truth_R_kept = truth_R[keep] if truth_R is not None else None
+
+        # debug: keep the per-event truth quantities in diagnostics only (never persisted,
+        # never stored for a non-debug toy). w_truth is the per-event truth weight; truth_R
+        # is the truth derivative ratio, column-aligned to this class's by_class['R'] and to
+        # the events this class contributed (== X_toy for a single-class region, which is the
+        # only case the downstream splice supports).
         if debug:
             diagnostics[cid]["w_truth"] = w_truth
-
-        Xs.append(X[keep])
-        Ns.append(n_kept.astype(np.float64))
-        origins.append(np.full(int(keep.sum()), i_class, dtype=np.int64))
+            if truth_R_kept is not None:
+                diagnostics[cid]["truth_R"] = truth_R_kept
+        logger.info("[toy:%s/%s] %s", region_id, cid, diag)
 
     X_toy = np.concatenate(Xs, axis=0) if Xs else np.empty((0, len(feature_names)), dtype=np.float64)
     n_toy = np.concatenate(Ns, axis=0) if Ns else np.empty(0, dtype=np.float64)
@@ -672,7 +705,7 @@ def generate_binned_toy(n2ll: N2LL, region_id: str, rng: np.random.Generator, *,
         axes = un["axes"]
         lam = np.zeros(Nflat, dtype=np.float64)
         for cid, source in by_cid.items():
-            X, w_truth, diag = _materialize_truth_weights(
+            X, w_truth, diag, _ = _materialize_truth_weights(
                 n2ll, region_id, source, axes, split, hypothesis, allow_negative_weights
             )
             logger.info("[toy:%s/%s] %s", region_id, cid, diag)
@@ -745,7 +778,7 @@ def nominal_hypothesis(n2ll: N2LL, name: str = "toy") -> Hypothesis:
 
 def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_sources=None,
                   split: tuple[str] | None = ("c2st_train", "c2st_val"), throw_nuisances: bool = False,
-                  allow_negative_weights: bool = False, debug: bool = False) -> dict:
+                  allow_negative_weights: bool = False, debug: bool = False, no_poisson=False) -> dict:
     """Generate one full toy (every unbinned + binned region of n2ll's likelihood).
 
     `source`: "cache" (model is truth) or "truth" (exact reweighting/scale/sample).
@@ -808,7 +841,7 @@ def generate_toy(n2ll: N2LL, seed: int, *, source: str, hypothesis=None, truth_s
             sources_for_region = (truth_sources or {}).get(rid, [])
             toy = generate_unbinned_toy_from_truth(
                 n2ll, rid, sources_for_region, region_rng, split=split, hypothesis=hypothesis,
-                allow_negative_weights=allow_negative_weights, debug=debug
+                allow_negative_weights=allow_negative_weights, debug=debug, no_poisson=no_poisson
             )
             unbinned_blocks[rid] = {"X": toy["X"], "w": toy["w"], "by_class": toy["by_class"], "origin": toy["origin"]}
 
@@ -1170,6 +1203,11 @@ if __name__ == "__main__":
     p.add_argument("--outputDir", help="Directory to write <point>_toy<seed>.h5 files")
     p.add_argument("--overwrite", nargs="?", default=None, choices=["toy", "all"],
                    help="Overwrite the toys ('toy') and surrogate cache ('all') before generating.")
+    p.add_argument("--no_poisson", action="store_true", help="Don't do Poisson sampling and just return the desired weighted dataset." \
+                                                            "NB: will crash for cache mode toys.")
+    p.add_argument("--debug", action="store_true", help="Truth mode: also store per-event truth derivative ratios "
+                                                        "(truth_R) in the toy, aligned to by_class['R'], for a "
+                                                        "downstream splice/localization scan. Single-class regions only.")
     p.add_argument("--plot", action="store_true",
                    help="After generating, write per-feature diagnostic plots (config's "
                         "default_features, overlaid across the requested seeds) under "
@@ -1218,6 +1256,8 @@ if __name__ == "__main__":
 
     spec = yaml_loader.load_yaml(args.toySpec)
     spec_source = spec.get("source", "cache")
+    if args.no_poisson and spec_source=="cache":
+        raise RuntimeError("Running without Poisson sampling in cache mode doesn't make sense (equivalent to running fit).")
     spec_split = spec.get("split", ("c2st_train","c2st_val"))
     if isinstance(spec_split, str):
         logger.info("spec_split is a string")
@@ -1247,8 +1287,17 @@ if __name__ == "__main__":
     outputDir = args.outputDir
     if outputDir is None:
         outputDir = os.path.join(user.output_directory,f"{base}_{args.toyPoint}_{spec_source}_toys")
+
+    if args.no_poisson:
+        outputDir += "_no_poisson"
+
     os.makedirs(outputDir, exist_ok=True)
     generated_toys = []
+
+    if args.no_poisson:
+        logger.warning("Not sampling, using seed 0")
+        seeds = [0]
+
     for seed in seeds:
         out_path = os.path.join(outputDir, f"toy{seed}.h5")
         if os.path.exists(out_path) and not args.overwrite:
@@ -1258,6 +1307,7 @@ if __name__ == "__main__":
         toy = generate_toy(
             n2ll, seed, source=spec_source, hypothesis=hypothesis, truth_sources=truth_sources,
             split=spec_split, throw_nuisances=spec_throw_nuisances, allow_negative_weights=spec_allow_negative,
+            no_poisson=args.no_poisson, debug=args.debug
         )
         toy["point"] = args.toyPoint
         save_toy(out_path, toy)
