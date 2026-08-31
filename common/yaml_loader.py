@@ -732,9 +732,26 @@ def load_surrogates(cfg, config_path, overwrite=False):
 
         elif jtyp == "bit":
             outdir = os.path.join(user.model_directory, base, "BIT", jid)
-            fname  = (job.get("output", {}) or {}).get("filename", "BIT.pkl")
-            path   = os.path.join(outdir, fname)
-            loaded = try_load_bit(path)
+
+            if cfg['jobs'][i_job].get('use_last', False):
+                fname  = (job.get("output", {}) or {}).get("filename", "BIT.pkl")
+            else:
+                fname = "BIT_best.pkl"
+
+            n_ensemble = cfg['jobs'][i_job].get('n_ensemble')
+            if n_ensemble:
+                paths = [os.path.join(outdir, f"ensemble_{i}", fname) for i in range(n_ensemble)]
+                missing_members = [i for i, p in enumerate(paths) if not os.path.exists(p)]
+                if not missing_members:
+                    from ML.BIT.NumbaBIT import MultiBITEnsemble
+                    loaded = MultiBITEnsemble(paths)
+                else:
+                    loaded = None
+                path = paths
+            else:
+                path   = os.path.join(outdir, fname)
+                loaded = try_load_bit(path)
+
             if loaded is not None:
                 print(f"[OK] BIT {jid}  -> {path}")
                 ok.append(jid)
@@ -743,10 +760,19 @@ def load_surrogates(cfg, config_path, overwrite=False):
                 # Binned calibration factors are optional, but if the job names them they
                 # must load -- silently fitting with uncalibrated predictions is worse
                 # than crashing. Kept outside try_load_bit, which swallows exceptions.
-                loaded.binned_calibration = _load_binned_calibration(job, outdir, jid, loaded.derivatives)
+                if n_ensemble is None:
+                    loaded.binned_calibration = _load_binned_calibration(job, outdir, jid, loaded.derivatives)
+                elif (job.get("runtime", {}) or {}).get("binned_calib_factors"):
+                    raise RuntimeError(
+                        f"BIT {jid}: binned calibration is not implemented for ensembles (n_ensemble={n_ensemble})."
+                    )
             else:
                 print(f"[MISS] BIT {jid}  (expected at {path})")
-                missing.append(f"python {ml_dir}/BIT/pdf_bit_training.py {cfg_full}{FLAGS} --job {jid}")
+                if n_ensemble:
+                    for i in missing_members:
+                        missing.append(f"python {ml_dir}/BIT/eft_bit_training.py {cfg_full}{FLAGS} --job {jid} --i_ensemble {i}")
+                else:
+                    missing.append(f"python {ml_dir}/BIT/pdf_bit_training.py {cfg_full}{FLAGS} --job {jid}")
 
         # ICH/ICPH binning consistency
         if jtyp in {"ich", "icph"} and cfg['jobs'][i_job].get("predictor") is not None:
