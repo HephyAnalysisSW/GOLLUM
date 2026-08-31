@@ -38,11 +38,7 @@ defaults:
 
 
 likelihood:
-   default_selection: (tr_ttbar_pt < 1500) & (tr_ttbar_mass < 1000)
-
-  default_selection_features:
-    - tr_ttbar_pt
-    - tr_ttbar_mass   regions:
+    regions:
         - id: SR_2018 
           classifier:
             type: null

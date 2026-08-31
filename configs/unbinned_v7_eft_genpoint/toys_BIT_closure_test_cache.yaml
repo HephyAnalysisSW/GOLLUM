@@ -1,0 +1,50 @@
+# Toy spec for a cache-based toy study of BIT closure via BIT reweighting
+# at different values of Wilson coefficients.
+#
+# The goal is to compare with the results of toy study based on exact reweighting
+# and test for BIT non-closures. 
+
+# Additionally, it can also be used for studying bias and coverage of the entire statistical
+# model (for these points) in an efficient way (as the truth weights don't have to be materialized)
+
+source: cache 
+split: null # null for the whole dataset (fine for bias and coverage studies)
+throw_nuisances: false
+allow_negative_weights: true
+
+points:
+  # nominal cache-mode toy
+  - name: nominal
+
+  - name: ctGRe_0p5
+    hypothesis: {ctGRe: 0.5}
+
+  - name: ctGRe_m0p5
+    hypothesis: {ctGRe: -0.5}
+
+  - name: ctGRe_0p5
+    hypothesis: {ctGRe: 0.5}
+ 
+  - name: ctGRe_m0p5
+    hypothesis: {ctGRe: -0.5}
+
+  - name: ctGIm_0p5
+    hypothesis: {ctGIm: 0.5}
+
+  - name: ctGIm_m0p5
+    hypothesis: {ctGIm: -0.5}   
+
+  - name: ctGRe_ctGIm_0p5
+    hypothesis: {ctGRe: 0.5, ctGIm: 0.5}                            
+
+  - name: ctGRe_ctGIm_m0p5
+    hypothesis: {ctGRe: -0.5, ctGIm: -0.5}
+
+  - name: ctGRe_0p5_ctGIm_m0p5
+    hypothesis: {ctGRe: 0.5, ctGIm: -0.5}
+
+  - name: ctGRe_m0p5_ctGIm_0p5
+    hypothesis: {ctGRe: -0.5, ctGIm: 0.5}
+  
+  - name: cQj18_sm
+    hypothesis: {cQj18: 0.0}

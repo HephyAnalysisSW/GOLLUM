@@ -24,6 +24,8 @@ Run from the repo root:
     python ML/BIT/bias_localization_scan.py configs/unbinned_v7_eft_genpoint/unbinned_2016_eft_genpoint_cQj18.yaml \
         --toySpec configs/unbinned_v7_eft_genpoint/toys_BIT_closure_test_2016APV.yaml \
         --toyPoint cQj18_sm --var tr_ttbar_mass
+
+NB: this only makes sense for 1D scans.
 """
 from __future__ import annotations
 
@@ -48,7 +50,7 @@ import common.syncer as syncer
 import common.helpers as helpers
 import common.yaml_loader as yaml_loader
 from common.yaml_loader import _resolve_features_list
-from fit.Likelihood import load_likelihood, N2LL
+from fit.Likelihood import load_likelihood, N2LL, build_hypothesis_from_likelihood
 from fit.ToyGenerator import (
     generate_toy, nominal_hypothesis, _parse_injection, _hypothesis_from_point,
     _region_feature_union, _find_region,
@@ -94,7 +96,7 @@ def build_n2ll(config_paths: list[str]):
     n2ll.version = cfg.get("version")
     n2ll._toy_splitting_defaults = (cfg.get("defaults") or {}).get("splitting")
     n2ll._toy_jobs_by_id = {j["id"]: j for j in (cfg.get("jobs") or []) if j.get("id")}
-    return cfg, n2ll
+    return cfg, n2ll, base
 
 
 def splice_ratio(bit_R: np.ndarray, truth_R: np.ndarray, var: np.ndarray, threshold: float) -> np.ndarray:
@@ -114,19 +116,30 @@ def scan_one_threshold(n2ll, toy, rid, cid, hyp, poi_name, bit_R, truth_R, var, 
     toy["unbinned_blocks"][rid]["by_class"][cid]["R"] = splice_ratio(bit_R, truth_R, var, threshold)
     n2ll.setToy(toy, hyp)
 
-    def objective(coeff: float) -> float:
-        hyp[poi_name].val = float(coeff)
-        val = n2ll(hyp)
-        # High-weight tail events can drive the model intensity 1+T negative at some c,
-        # giving log1p(T<-1) = nan; an unguarded nan poisons minimize_scalar (it returns a
-        # degenerate constant). Penalize so the minimizer stays in the finite-NLL region.
-        return val if np.isfinite(val) else 1e12
+    from fit.Likelihood import run_autograd_fit, run_iminuit_fit
 
-    result = minimize_scalar(objective, bounds=bounds, method="bounded")
-    if result.fun >= 1e12:
-        logger.warning("threshold=%g: no finite NLL minimum inside bounds %s; c_hat unreliable.",
-                       threshold, bounds)
-    return float(result.x)
+    # freezing POIs when given
+    if poi_name:
+        for poi in hyp.POIs:
+            if poi.name != poi_name:
+                poi.isFrozen = True
+        bounds = bounds[0:]
+
+    try:
+        result = run_autograd_fit(
+            n2ll,
+            hyp,
+            print_every=1,
+            do_migrad=True,
+            bounds=bounds
+        )
+
+        return result.values
+
+    except RuntimeError:
+        logger.warning("threshold=%g: no finite NLL minimum inside bounds; c_hat unreliable.",
+                       threshold)
+        return [float("nan") for poi in hyp.POIs]        
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -144,7 +157,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main():
     args = build_arg_parser().parse_args()
-    cfg, n2ll = build_n2ll(args.configs)
+    cfg, n2ll, base = build_n2ll(args.configs)
 
     # --- generate one debug truth-mode Asimov toy in-process ---
     spec = yaml_loader.load_yaml(args.toySpec)
@@ -197,44 +210,44 @@ def main():
     var = np.asarray(block["X"], dtype=np.float64)[:, feature_names.index(args.var)]
 
     # --- POI and fit hypothesis ---
+    #hyp = build_hypothesis_from_likelihood(n2ll.lk, name="scan")
     hyp = nominal_hypothesis(n2ll, name="scan")
-    poi_names = [p.name for p in hyp.POIs]
-    poi_name = args.poi or (poi_names[0] if len(poi_names) == 1 else None)
-    if poi_name is None:
-        raise RuntimeError(f"Multiple POIs {poi_names}; pass --poi.")
 
     # --- threshold grid: quantiles of var, bracketed by the all-BIT / all-truth anchors ---
     finite_thresholds = np.quantile(var, np.linspace(0.0, 1.0, args.n_thresholds))
     thresholds = np.concatenate(([-np.inf], finite_thresholds, [np.inf]))
 
-    bounds = tuple(args.poi_bounds)
+    bounds = [tuple(args.poi_bounds)]
     c_hat = np.array([
-        scan_one_threshold(n2ll, toy, rid, cid, hyp, poi_name, bit_R, truth_R, var, float(thr), bounds)
+        scan_one_threshold(n2ll, toy, rid, cid, nominal_hypothesis(n2ll, name="scan"),  args.poi, bit_R, truth_R, var, float(thr), bounds)
         for thr in thresholds
     ])
     for thr, chat in zip(thresholds, c_hat):
-        logger.info("threshold(%s) = %+.6g -> c_hat = %+.6f", args.var, thr, chat)
+        logger.info(f"threshold({args.var}) = {thr:.6g} -> c_hat = {chat}")
 
     # --- plot ---
-    out_dir = os.path.join(user.plot_directory, "BIT-localization", cfg.get("version", "default"), cfg.get("base"),rid, args.toyPoint)
+    out_dir = os.path.join(user.plot_directory, "BIT-localization", base, cfg.get("version", "default"), rid, args.toyPoint)
     os.makedirs(out_dir, exist_ok=True)
 
-    finite = np.isfinite(thresholds)
-    fig, ax = plt.subplots(figsize=(9, 6))
-    ax.plot(thresholds[finite], c_hat[finite], marker="o", color="k", label=r"$\hat{c}(\mathrm{threshold})$")
-    ax.axhline(c_hat[thresholds == np.inf][0], ls="--", color="tab:red", label="all-BIT (thr $\\to +\\infty$)")
-    ax.axhline(c_hat[thresholds == -np.inf][0], ls="--", color="tab:blue", label="all-truth (thr $\\to -\\infty$)")
-    ax.axhline(0.0, ls=":", color="0.5")
-    ax.set_xlabel(f"{args.var} threshold (truth used above, BIT below)")
-    ax.set_ylabel(rf"$\hat{{{poi_name}}}$")
-    ax.legend(frameon=False, fontsize=12)
-    hep.cms.label("Internal", data=False, ax=ax, loc=0)
-    out_path = os.path.join(out_dir, f"localization_{poi_name}_{args.var}")
-    plt.savefig(out_path + ".png", bbox_inches="tight", dpi=200)
-    plt.savefig(out_path + ".pdf", bbox_inches="tight")
-    logger.info("Wrote %s.png / .pdf", out_path)
+    for i_poi, poi in enumerate([poi for poi in hyp.POIs if not poi.isFrozen]):
+        
+        finite = np.isfinite(thresholds)
+        c_hat_poi = c_hat[:,i_poi]
+        fig, ax = plt.subplots(figsize=(9, 6))
+        ax.plot(thresholds[finite], c_hat_poi[finite], marker="o", color="k", label=r"$\hat{c}(\mathrm{threshold})$")
+        ax.axhline(c_hat_poi[thresholds == np.inf][0], ls="--", color="tab:red", label="all-BIT (thr $\\to +\\infty$)")
+        ax.axhline(c_hat_poi[thresholds == -np.inf][0], ls="--", color="tab:blue", label="all-truth (thr $\\to -\\infty$)")
+        ax.axhline(0.0, ls=":", color="0.5")
+        ax.set_xlabel(f"{args.var} threshold (truth used above, BIT below)")
+        ax.set_ylabel(rf"$\hat{{{poi.name}}}$")
+        ax.legend(frameon=False, fontsize=12)
+        hep.cms.label("Internal", data=False, ax=ax, loc=0)
+        out_path = os.path.join(out_dir, f"localization_{poi.name}_{args.var}")
+        plt.savefig(out_path + ".png", bbox_inches="tight", dpi=200)
+        plt.savefig(out_path + ".pdf", bbox_inches="tight")
+        logger.info("Wrote %s.png / .pdf", out_path)
 
-    np.savez(out_path + ".npz", thresholds=thresholds, c_hat=c_hat, var=args.var, poi=poi_name)
+        np.savez(out_path + ".npz", thresholds=thresholds, c_hat=c_hat_poi, var=args.var, poi=poi.name)
     helpers.copyIndexPHP(out_dir)
 
 
