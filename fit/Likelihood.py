@@ -543,8 +543,8 @@ def _predict_classifier(model, X: np.ndarray) -> np.ndarray:
 
 def predict_bit_ratio(model, X: np.ndarray, max_n_tree: Optional[int] = None) -> np.ndarray:
 
-    if max_n_tree is not None and max_n_tree > len(model.trees):
-        raise ValueError(f"Using model with {len(model.trees)}, but asking prediction from larger number of trees {max_n_tree}. Double-check.")
+    if max_n_tree is not None and max_n_tree > model.n_trees_trained:
+        raise ValueError(f"Using model with {model.n_trees_trained}, but asking prediction from larger number of trees {max_n_tree}. Double-check.")
 
     if hasattr(model, "predict"):
         Y = model.predict(X, max_n_tree)

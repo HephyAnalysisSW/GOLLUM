@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Standard imports
-import sys
+import sys, os
 import pickle
 import numpy as np
 import operator
@@ -15,6 +15,51 @@ default_cfg = {
     "loss" : "MSE",  # or "CrossEntropy"
     "learn_global_score": False,
 }
+
+class MultiBITEnsemble:
+    """
+    Evaluation-only container for an ensemble of BITs trained on different
+    train/valid splits of the same events. Combines member predictions by
+    an unweighted mean. Training is done per-member by eft_bit_training.py.
+    """
+    def __init__(self, paths):
+
+        self.members = [MultiBoostedInformationTree.load(path) for path in paths]
+
+        first = self.members[0]
+        self.derivatives = first.derivatives
+        for member, path in zip(self.members[1:], paths[1:]):
+            if member.derivatives != self.derivatives:
+                raise RuntimeError(
+                    f"Ensemble member {path} has derivatives {member.derivatives}, "
+                    f"expected {self.derivatives}."
+                )
+
+        self.expansion_point = getattr(first, "expansion_point", None)
+        for member, path in zip(self.members[1:], paths[1:]):
+            member_expansion_point = getattr(member, "expansion_point", None)
+            if not np.array_equal(member_expansion_point, self.expansion_point):
+                raise RuntimeError(
+                    f"Ensemble member {path} has expansion_point {member_expansion_point}, "
+                    f"expected {self.expansion_point}."
+                )
+
+        # not implemented: yaml_loader raises if a binned calibration is configured
+        # for an ensemble job, so this stays None.
+        self.binned_calibration = None
+
+    @property
+    def n_trees_trained(self) -> int:
+        """Number of trees usable across all members (members can stop at different best trees)."""
+        return min(member.n_trees_trained for member in self.members)
+
+    def predict(self, feature_array, max_n_tree=None, summed=True, last_tree_counts_full=False):
+        predictions = np.stack([
+            member.predict(feature_array, max_n_tree, summed, last_tree_counts_full)
+            for member in self.members
+        ])
+        return np.mean(predictions, axis=0)
+
 
 class MultiBoostedInformationTree:
     """
@@ -105,6 +150,10 @@ class MultiBoostedInformationTree:
     def save(self, filename):
         with open(filename, 'wb') as file_:
             pickle.dump(self, file_, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @property
+    def n_trees_trained(self) -> int:
+        return len(self.trees)
 
     def _build_prediction_cache(self):
         split_feature_parts = []
