@@ -8,10 +8,11 @@ defaults:
     - ASYMMETRY
     - SPIN_CORRELATION
   
-  default_selection: tr_ttbar_pt < 1500
+  default_selection: (tr_ttbar_pt < 1500) & (tr_ttbar_mass < 1000)
 
   default_selection_features:
     - tr_ttbar_pt
+    - tr_ttbar_mass
 
   splitting:
     enabled: true
@@ -37,25 +38,25 @@ defaults:
 
 likelihood:
     regions:
-        - id: SR_2018 
+        - id: SR_2016APV 
           classifier:
             type: null
             id: null    # no classifier needed for a single process
-            asimov: [TT01j2l_EFT_2018]
+            asimov: [TT01j2l_EFT_2016APV]
           classes: 
-            - id: TT01j2l_EFT_2018
-              sample: TT01j2l_EFT_2018 
+            - id: TT01j2l_EFT_2016APV
+              sample: TT01j2l_EFT_2016APV 
               POI:
-                job: bit_TT01j2l_EFT_2018_ML4EFT_top3 
+                job: bit_TT01j2l_EFT_2016APV_ML4EFT_top3 
                 type: bit
                 parameters: [ctGRe, ctGIm, cQj18]
 
 jobs: 
 
-  - id: bit_TT01j2l_EFT_2018_ML4EFT_top3
+  - id: bit_TT01j2l_EFT_2016APV_ML4EFT_top3
     type: bit
-    region: SR_2018
-    process: TT01j2l_EFT_2018
+    region: SR_2016APV
+    process: TT01j2l_EFT_2016APV
     selection: null
     numba: True
     eft:
@@ -70,28 +71,5 @@ jobs:
       quantile_bins: true
     runtime:
       training_plots: true
-      n_split: 3
     output:
-      filename: "bit_TT01j2l_EFT_2018_ML4EFT_top3.pkl"
-
-  - id: bit_TT01j2l_EFT_2018_ML4EFT_top3_lr0p3
-    type: bit
-    region: SR_2018
-    process: TT01j2l_EFT_2018
-    selection: null
-    numba: True
-    eft:
-        parameters: [ctGRe, ctGIm, cQj18]
-    model:
-      n_trees: 400
-      learning_rate: 0.3
-      loss: MSE
-      learn_global_score: true
-      split_mode: "binned"
-      n_bins: 256
-      quantile_bins: true
-    runtime:
-      training_plots: true
-      n_split: 3
-    output:
-      filename: "bit_TT01j2l_EFT_2018_ML4EFT_top3_lr0p3.pkl"      
+      filename: "bit_TT01j2l_EFT_2016APV_ML4EFT_top3.pkl"
