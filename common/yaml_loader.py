@@ -732,7 +732,12 @@ def load_surrogates(cfg, config_path, overwrite=False):
 
         elif jtyp == "bit":
             outdir = os.path.join(user.model_directory, base, "BIT", jid)
-            fname  = (job.get("output", {}) or {}).get("filename", "BIT.pkl")
+
+            if cfg['jobs'][i_job].get('use_last', False):
+                fname  = (job.get("output", {}) or {}).get("filename", "BIT.pkl")
+            else:
+                fname = "BIT_best.pkl"
+
             path   = os.path.join(outdir, fname)
             loaded = try_load_bit(path)
             if loaded is not None:

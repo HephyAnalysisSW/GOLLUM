@@ -555,7 +555,7 @@ def bit_ratio_mse_losses(bit, X, truth_weights, max_n_tree: int) -> float:
       r_true(der) = w_der / w0
       r_pred(der) = bit.predict(...)
 
-    Return: average over derivatives of weighted MSE in ratio space.
+    Return: weighted MSE for each of the derivatives in ratio space.
     Event weight for averaging: |w0|.
     Uses truth_weights keys to define the derivative list, then aligns to bit.predict columns.
     """
@@ -863,7 +863,7 @@ if len(bit.trees) < bit.n_trees:
         
         if args.debug:
             with open(loss_txt_all_terms, "a") as f:
-                if not resuming and n_tree == 0:
+                if tree_now == 0:
                     
                     header ="\t".join(f"train_loss_{tuple(sorted(der))}\tvalid_loss_{tuple(sorted(der))}" for der in bit.derivatives)                    
                     f.write(f"#tree \t{header}\n")
@@ -924,32 +924,12 @@ if len(bit.trees) < bit.n_trees:
     # loss_txt already holds the full history (this run plus any resumed runs before
     # it, since it is appended to per tree, not overwritten). Read it back rather than
     # keeping a parallel in-memory copy, so the plot always matches the file on disk.
-    loss_trees, train_losses, valid_losses = [], [], []
-    with open(loss_txt, "r") as f:
-        next(f)  # header
-        for line in f:
-            t, tr, va = line.split()
-            loss_trees.append(int(t))
-            train_losses.append(float(tr))
-            valid_losses.append(float(va))
+    from ML.BIT.plot_bit_losses import plot_bit_losses, plot_bit_losses_all_terms
+    plot_bit_losses(plot_dir, loss_txt)
+    if args.debug:
+        plot_bit_losses_all_terms(plot_dir, loss_txt_all_terms)
 
-    plt.figure()
-    plt.plot(loss_trees, train_losses, label="train")
-    # only plot valid curve if at least one finite value exists
-    va_arr = np.array(valid_losses, dtype=float)
-    if np.isfinite(va_arr).any():
-        plt.plot(loss_trees, valid_losses, label="valid")
-    plt.xlabel("n_trees")
-    plt.ylabel("ratio_mse_loss")
-    plt.axvline(best_tree, color='r', label="best epoch")
-    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
-
-    loss_pdf = os.path.join(plot_dir, "loss_history.pdf")
-    plt.tight_layout()
-    plt.savefig(loss_pdf, dpi=500)
-    plt.close()
-    tqdm.write(f"[LOSS] wrote {loss_pdf}")
+    tqdm.write(f"[LOSS] wrote loss PDFs")
 
     # After last training: keep weights file, print filename
     szz = os.path.getsize(weights_path) / (1024.0 * 1024.0)
