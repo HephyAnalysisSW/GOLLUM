@@ -75,6 +75,8 @@ def _derivative_branches(wcs):
 eft_derivatives = _derivative_branches(wc_names)
 
 observers = [
+    # for UID splitting
+    "run", "luminosityBlock", "event",
     # Madgraph weight at the GENERATION_POINT; the expansion is rebased at the latter
     "Generator_weight", 
 ] + eft_derivatives
