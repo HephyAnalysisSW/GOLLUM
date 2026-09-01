@@ -25,6 +25,7 @@ class MultiBITEnsemble:
     def __init__(self, paths):
 
         self.members = [MultiBoostedInformationTree.load(path) for path in paths]
+        self.n_ensemble = len(paths)
 
         first = self.members[0]
         self.derivatives = first.derivatives
@@ -53,12 +54,20 @@ class MultiBITEnsemble:
         """Number of trees usable across all members (members can stop at different best trees)."""
         return min(member.n_trees_trained for member in self.members)
 
-    def predict(self, feature_array, max_n_tree=None, summed=True, last_tree_counts_full=False):
-        predictions = np.stack([
-            member.predict(feature_array, max_n_tree, summed, last_tree_counts_full)
-            for member in self.members
-        ])
-        return np.mean(predictions, axis=0)
+    def predict(self, feature_array, max_n_tree=None, summed=True, last_tree_counts_full=False, i_ensemble=None):
+        
+        if i_ensemble is not None:
+            assert i_ensemble < len(self.members)
+            return self.members[i_ensemble].predict(feature_array, max_n_tree, summed, last_tree_counts_full)
+
+        else:
+
+            predictions = np.stack([
+                member.predict(feature_array, max_n_tree, summed, last_tree_counts_full)
+                for member in self.members
+            ])
+
+            return np.mean(predictions, axis=0)
 
 
 class MultiBoostedInformationTree:

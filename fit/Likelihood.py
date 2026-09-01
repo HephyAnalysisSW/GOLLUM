@@ -541,17 +541,23 @@ def _predict_classifier(model, X: np.ndarray) -> np.ndarray:
     return P.astype(np.float64, copy=False)
 
 
-def predict_bit_ratio(model, X: np.ndarray, max_n_tree: Optional[int] = None) -> np.ndarray:
+def predict_bit_ratio(model, X: np.ndarray, max_n_tree: Optional[int] = None, i_ensemble: Optional[int] = None) -> np.ndarray:
 
     if max_n_tree is not None and max_n_tree > model.n_trees_trained:
         raise ValueError(f"Using model with {model.n_trees_trained}, but asking prediction from larger number of trees {max_n_tree}. Double-check.")
 
-    if hasattr(model, "predict"):
+    if not hasattr(model, "predict"):
+        raise RuntimeError("BIT predictor lacks predict.")
+
+    # allow fitting with individual ensemble members
+    # if None, uses the entire ensemble
+    if hasattr(model, "n_ensemble"):
+        Y = model.predict(X, max_n_tree, i_ensemble=i_ensemble)
+    else:    
         Y = model.predict(X, max_n_tree)
     #elif hasattr(model, "predict_A"):
     #    Y = model.predict_A(X)
-    else:
-        raise RuntimeError("BIT predictor lacks predict.")
+    #else:
     Y = np.asarray(Y)
     if Y.ndim == 1:
         Y = Y[:, None]
@@ -961,7 +967,9 @@ class N2LL:
                             col_mask = (C.get('POI') or {}).get('column_mask', None)
                             X_in = X[:, col_mask] if col_mask is not None else X
                             max_n_tree = (C.get('POI') or {}).get('max_n_tree', None)
-                            R_A = predict_bit_ratio(poi_pred, X_in, max_n_tree)  # (Nb, nA)
+                            # allow fitting with individual ensemble members
+                            i_ensemble = (C.get('POI') or {}).get('i_ensemble', None)
+                            R_A = predict_bit_ratio(poi_pred, X_in, max_n_tree, i_ensemble)  # (Nb, nA)
 
                         if writer["R"] is None:
                             nA = R_A.shape[1]
