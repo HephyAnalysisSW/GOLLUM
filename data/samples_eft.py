@@ -22,11 +22,11 @@ from data.samples_RunII import BASE_DIRECTORY as BASE_DIRECTORY_RUNII
 from data.samples_RunII import _parse_name
 from systematics_RunII import SYSTEMATICS
 
-BASE_DIRECTORY_EFT = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v3-2_nJ2p_nB2p_2l"
+BASE_DIRECTORY_EFT = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v4_nJ2p_nB2p_2l"
 
-ERA_LABELS = {"2016APV": "UL16APV", "2016": "UL16", "2018": "UL18"}
-MTT_SLICES = ["mtt_0to700", "mtt_700to900", "mtt_900toInf"]
-RUNII_ERAS = ["2016APV", "2016", "2018"]
+ERA_LABELS = {"2016APV": "UL16APV", "2016": "UL16", "2017": "UL17","2018": "UL18"}
+MTT_SLICES = ["mtt0to700", "mtt700to900", "mtt900toInf"]
+RUNII_ERAS = ["2016APV", "2016", "2017", "2018"]
 
 # no longer needed since lumi normalization is done at cmgrdf level
 # LUMI = {
@@ -64,7 +64,7 @@ GENERATION_POINT = {w: (-0.5 if "ctG" in w else 1.5) for w in wc_names}
 # lower triangular matrix in coefficients
 # same as in postprocessing script (make_ntuple)
 def _derivative_branches(wcs):
-    out = ["EFTWeight_SM"]
+    out = []
     for j, wc_j in enumerate(wcs):
         out.append(f"der_{wc_j}")
         for k in range(j + 1):
@@ -75,14 +75,8 @@ def _derivative_branches(wcs):
 eft_derivatives = _derivative_branches(wc_names)
 
 observers = [
-    "weight", # lumi*xs/sumw factor (from CMGRDF)
-    "Generator_weight", # 1.0 for all samples
-    "LHEWeight_originalXWGTUP",
-    "nEFTfitCoefficients",
-    "run",
-    "luminosityBlock",
-    "event",
-    "EFTWeight_gen", # weight at GENERATION_POINT; the expansion is rebased here
+    # Madgraph weight at the GENERATION_POINT; the expansion is rebased at the latter
+    "Generator_weight", 
 ] + eft_derivatives
 
 
@@ -98,8 +92,7 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
         splitting_strategy="files",
         strict_branches=True,
         weight_branches=[
-            "weight", # weight contains lumi*xs/sumw normalization from CMGRDF
-            "EFTWeight_gen", # weight at GENERATION_POINT, the point the events were drawn from
+            "weight", # lumi*xs/sumw*Generator_weight
             "L1PreFiringWeight_Nom",
             "JetPUID_SF",
             "Pileup_SF",
@@ -109,7 +102,6 @@ def _eft_loader(*relpaths: str) -> RDataLoader:
         ],
         feature_names=observables.ALL_FEATURES,
         observer_names=observers,
-        weight_rescale=1000.0 # forgot to convert the cross-section to fb when processing the samples
     )
 
     # matching the selection in samples_RunII.py
@@ -130,7 +122,7 @@ def _get_base() -> RDataLoader:
     """Return the single nominal EFT loader that every variation clones from."""
     global _base_eft
     if _base_eft is None:
-        _base_eft = _eft_loader("2016/TT01j2l_UL16_mtt_0to700_nominal.root")
+        _base_eft = _eft_loader("2016/TT01j2lmtt0to700_UL16_nominal.root")
     return _base_eft
 
 
@@ -138,8 +130,8 @@ def _split_slice(tag: str) -> tuple[List[str], str]:
     """
     Split a tag into the mtt slice(s) it selects and the remaining tag.
 
-    - tag is exactly a slice (e.g. 'mtt_0to700')      -> that slice,  tag 'nominal'
-    - tag starts with '<slice>_' (e.g. 'mtt_0to700_Uncl_up') -> that slice, remainder
+    - tag is exactly a slice (e.g. 'mtt0to700')      -> that slice,  tag 'nominal'
+    - tag starts with '<slice>_' (e.g. 'mtt0to700_Uncl_up') -> that slice, remainder
     - otherwise (e.g. 'nominal', 'Uncl_up')           -> all three slices, tag unchanged
     """
     if tag in MTT_SLICES:
@@ -158,7 +150,7 @@ def _make_variation(era: str, tag: str) -> RDataLoader:
         era = "2016", tag = "CMS_res_j_0_2016_up"
 
     Path(s) on disk:
-        <BASE_DIRECTORY_EFT>/<era>/TT01j2l_<ERA_LABELS[era]>_<slice>_<tag>.root
+        <BASE_DIRECTORY_EFT>/<era>/TT01j2l<slice>_<ERA_LABELS[era]>_<tag>.root
 
     for each era (expanded from "RunII") and each mtt slice selected by `tag`.
     The new loader is cloned from the baseline sample `_get_base()`.
@@ -175,7 +167,7 @@ def _make_variation(era: str, tag: str) -> RDataLoader:
             continue
         for mtt_slice in slices:
             rootfile = os.path.join(
-                era_dir, f"TT01j2l_{ERA_LABELS[one_era]}_{mtt_slice}_{file_tag}.root"
+                era_dir, f"TT01j2l{mtt_slice}_{ERA_LABELS[one_era]}_{file_tag}.root"
             )
             if os.path.isfile(rootfile):
                 files.append(rootfile)
