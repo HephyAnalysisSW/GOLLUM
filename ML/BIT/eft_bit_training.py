@@ -31,6 +31,7 @@ p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
 p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
 p.add_argument("--debug", action="store_true", help="Plot training and validation loss for individual terms.")
+p.add_argument("--i_ensemble", type=int, default=None, help="Which ensemble member to train (requires n_ensemble in the job).")
 args = p.parse_args()
 
 
@@ -59,7 +60,12 @@ def list_and_exit():
     if args.small:     flags.append("--small")
     if args.every is not None: flags.append(f"--every {args.every}")
     for j in jobs:
-        print(f"python {__file__} {args.config} {' '.join(flags)} --job {j['id']}")
+        n_ensemble = j.get("n_ensemble")
+        if n_ensemble:
+            for i_ensemble in range(n_ensemble):
+                print(f"python {__file__} {args.config} {' '.join(flags)} --job {j['id']} --i_ensemble {i_ensemble}")
+        else:
+            print(f"python {__file__} {args.config} {' '.join(flags)} --job {j['id']}")
     sys.exit(0)
 
 if args.job is None:
@@ -68,6 +74,14 @@ if args.job is None:
 J = next((j for j in (CFG.get("jobs") or []) if j.get("id") == args.job), None)
 if J is None or J.get("type") != "bit":
     raise RuntimeError(f"Job '{args.job}' not found or not type 'bit'.")
+
+n_ensemble = J.get("n_ensemble")
+if args.i_ensemble is not None and not n_ensemble:
+    raise RuntimeError(f"--i_ensemble given but job '{args.job}' has no n_ensemble.")
+if n_ensemble and args.i_ensemble is None:
+    raise RuntimeError(f"Job '{args.job}' has n_ensemble={n_ensemble}; pass --i_ensemble to select a member.")
+if n_ensemble and not (0 <= args.i_ensemble < n_ensemble):
+    raise RuntimeError(f"--i_ensemble={args.i_ensemble} out of range for n_ensemble={n_ensemble}.")
 
 # ---------------- resolve loader ----------------
 samples_mod = importlib.import_module(module_samples)
@@ -172,7 +186,29 @@ if split_enabled:
         print(f"[SPLIT] BIT val   split '{bit_val_key}' -> {val_interval}")
     else:
         raise RuntimeError(f"Unsupported splitting.type='{split_type}'. Only 'random' and 'uid' is implemented.")
-    
+
+if args.i_ensemble is not None and split_type != "uid":
+    raise RuntimeError(
+        f"--i_ensemble requires splitting.type='uid' (ensemble members reshuffle the "
+        f"pnn_train/pnn_val pool), got '{split_type}'."
+    )
+
+# ---------------- ensemble member reshuffling ----------------
+# Each ensemble member gets its own random partition of the pnn_train+pnn_val pool,
+# using a member-dependent seed. c2st_*/final_eval buckets are untouched: the pool
+# (m_tr | m_va) is preserved event-for-event, only re-split within itself.
+member_splitter = None
+member_val_hi = None
+if args.i_ensemble is not None:
+    member_splitter = UIDSplitter(
+        uid_fields=tuple(uid_fields),
+        seed=split_seed + 1000 * (args.i_ensemble + 1),
+        n_buckets=uid_n_buckets,
+    )
+    n_train_buckets = train_interval[1] - train_interval[0]
+    n_val_buckets   = val_interval[1] - val_interval[0]
+    member_val_hi   = int(round(uid_n_buckets * n_val_buckets / (n_train_buckets + n_val_buckets)))
+    print(f"[ENSEMBLE] member={args.i_ensemble} seed={member_splitter.seed} val_hi={member_val_hi}")
 
 # ---------------- EFT target interface ----------------
 eft = EFTWeightInterface(J.get("eft", {}).get("parameters", []))
@@ -235,6 +271,10 @@ def iterate_all(shard_limit=None):
                 O_uid = G[:, uid_idx]  # shape (N, len(uid_fields))
                 m_tr = splitter.mask_from_np(O_uid, list(uid_fields), lo_tr, hi_tr)
                 m_va = splitter.mask_from_np(O_uid, list(uid_fields), lo_va, hi_va)
+                if member_splitter is not None:
+                    pool = m_tr | m_va
+                    m_va = pool & member_splitter.mask_from_np(O_uid, list(uid_fields), 0, member_val_hi)
+                    m_tr = pool & ~m_va
                 yield (
                         X.astype(np.float32, copy=False),
                         G.astype(np.float32, copy=False),
@@ -335,7 +375,10 @@ def _build_plot_context(X_train, training_weights_train, feat_names, cfg_base, J
     if args.postfix is not None:
         train += ("_" + args.postfix)
 
-    out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], train)
+    if args.i_ensemble is not None:
+        out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], f"ensemble_{args.i_ensemble}", train)
+    else:
+        out_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"], train)
     os.makedirs(out_dir, exist_ok=True)
 
     feat_cfgs = []
@@ -530,10 +573,14 @@ def plot_bit_training_root(bit, t, X_train, training_weights_train, feat_names, 
 # ---------------- build & train BIT ----------------
 cfg_base = os.path.join(CFG.get("version", "default"), J['region'])
 model_dir = os.path.join(user.model_directory, cfg_base, "BIT", J["id"])
+plot_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"])
+if args.i_ensemble is not None:
+    member = f"ensemble_{args.i_ensemble}"
+    model_dir = os.path.join(model_dir, member)
+    plot_dir = os.path.join(plot_dir, member)
 os.makedirs(model_dir, exist_ok=True)
 
 # loss history and its plot go to the plot directory, not the model directory
-plot_dir = os.path.join(user.plot_directory, "BIT", cfg_base, J["id"])
 os.makedirs(plot_dir, exist_ok=True)
 
 model_path = os.path.join(model_dir, J.get("output", {}).get("filename", "BIT.pkl"))

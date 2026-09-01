@@ -231,7 +231,7 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
         weights = {k: v[:n_max] for k, v in weights.items()}
 
     # ---------------- load BIT model (no training) ----------------
-    from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+    from ML.BIT.NumbaBIT import MultiBoostedInformationTree, MultiBITEnsemble
 
     cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
     model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
@@ -242,14 +242,25 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
     else:
         output_name = "BIT_best.pkl"
 
-    model_path = os.path.join(model_dir, output_name)
+    n_ensemble = job.get("n_ensemble")
+    if n_ensemble:
+        member_paths = [os.path.join(model_dir, f"ensemble_{i}", output_name) for i in range(n_ensemble)]
+        missing_paths = [p for p in member_paths if not os.path.exists(p)]
+        if missing_paths:
+            raise FileNotFoundError(f"BIT ensemble member file(s) not found: {missing_paths}")
 
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"BIT model file not found: {model_path}")
+        logger.info("Loading BIT ensemble (%d members) from %s", n_ensemble, model_dir)
+        bit = MultiBITEnsemble(member_paths)
+        logger.info("Loaded BIT ensemble.")
+    else:
+        model_path = os.path.join(model_dir, output_name)
 
-    logger.info("Loading BIT from %s", model_path)
-    bit = MultiBoostedInformationTree.load(model_path)
-    logger.info("Loaded BIT.")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"BIT model file not found: {model_path}")
+
+        logger.info("Loading BIT from %s", model_path)
+        bit = MultiBoostedInformationTree.load(model_path)
+        logger.info("Loaded BIT.")
 
     ders_all = list(getattr(bit, "derivatives", []))
     ders = [d for d in ders_all if len(d) > 0]

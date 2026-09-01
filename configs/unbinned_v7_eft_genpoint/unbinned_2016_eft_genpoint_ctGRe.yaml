@@ -121,6 +121,7 @@ jobs:
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
+    n_ensemble: 2   # BIT ensembling test: train members with --i_ensemble 0,1
     eft:
         parameters: [ctGRe]
     model:
