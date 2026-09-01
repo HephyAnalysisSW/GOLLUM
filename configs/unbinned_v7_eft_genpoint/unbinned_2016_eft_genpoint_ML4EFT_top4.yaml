@@ -7,7 +7,7 @@ defaults:
     - LEPTON_KINEMATICS
     - ASYMMETRY
     - SPIN_CORRELATION
-
+  
   default_selection: tr_ttbar_pt < 1500
 
   default_selection_features:
@@ -46,20 +46,20 @@ likelihood:
             - id: TT01j2l_EFT_2016
               sample: TT01j2l_EFT_2016 
               POI:
-                job: bit_TT01j2l_EFT_2016_allWC 
+                job: bit_TT01j2l_EFT_2016_ML4EFT_top4 
                 type: bit
-                parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+                parameters: [ctGRe, ctGIm, cQj18, ctj8]
 
-jobs:
+jobs: 
 
-  - id: bit_TT01j2l_EFT_2016_allWC
+  - id: bit_TT01j2l_EFT_2016_ML4EFT_top4
     type: bit
     region: SR_2016
     process: TT01j2l_EFT_2016
     selection: null
     numba: True
     eft:
-        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+        parameters: [ctGRe, ctGIm, cQj18, ctj8]
     model:
       n_trees: 400
       learning_rate: 0.2
@@ -71,4 +71,4 @@ jobs:
     runtime:
       training_plots: true
     output:
-      filename: "bit_TT01j2l_EFT_2016_allWC.pkl"
+      filename: "bit_TT01j2l_EFT_2016_ML4EFT_top4.pkl"

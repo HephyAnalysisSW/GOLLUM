@@ -123,6 +123,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--job", default=None, help="BIT job id (omit to list bit jobs)")
     p.add_argument("--with-bit", action="store_true", help="Overlay predictions of the trained BIT model")
+    p.add_argument("--use-last", action="store_true", help="Use BIT with all trees (default: load BIT with trees at minimum of validation loss.)")
     p.add_argument("--max-n-tree", type=int, default=None, help="Use up to this many trees for the BIT prediction")
     p.add_argument("--delta-c", type=float, default=1.0,
                     help="Offset from the expansion point, applied to every selected operator; "
@@ -175,12 +176,21 @@ def _list_jobs_and_exit(cfg, config_path):
 class _BITPrediction:
     """Wrapper around a trained BIT: predict(X) -> (N, K) aligned to self.derivatives."""
 
-    def __init__(self, model_path, max_n_tree=None):
-        from ML.BIT.NumbaBIT import MultiBoostedInformationTree
+    def __init__(self, model_dir, fname, max_n_tree=None, n_ensemble=None):        
+        
+        from ML.BIT.NumbaBIT import MultiBoostedInformationTree, MultiBITEnsemble
 
-        self._bit = MultiBoostedInformationTree.load(model_path)
-        self.n_trees = len(getattr(self._bit, "trees", []) or [])
-        self.max_n_tree = self.n_trees if max_n_tree is None else min(int(max_n_tree), self.n_trees)
+        if n_ensemble is not None:
+            model_paths = [os.path.join(model_dir, f"ensemble_{i}", fname) for i in range(n_ensemble)]
+            self._bit = MultiBITEnsemble(model_paths)
+        else:
+            model_path = os.path.join(model_dir, fname)
+            self._bit = MultiBoostedInformationTree.load(model_path)
+        
+        # number of trees in single BIT, minimum number of trained trees in ensemble
+        self.n_trees = self._bit.n_trees_trained
+        self.max_n_tree = self.n_trees if max_n_tree is None else min(int(max_n_tree), self.n_trees_trained)
+
         raw = list(getattr(self._bit, "derivatives", []) or [])
         if not raw:
             raise RuntimeError(f"BIT model '{model_path}' has no derivatives; nothing to predict.")
@@ -331,9 +341,18 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
     if args.with_bit:
         cfg_base = os.path.join(cfg.get("version", "default"), job["region"])
         model_dir = os.path.join(user.model_directory, cfg_base, "BIT", job["id"])
-        model_path = os.path.join(model_dir, "BIT_best.pkl")
-        logger.info("Loading BIT model from %s", model_path)
-        bit = _BITPrediction(model_path, max_n_tree=args.max_n_tree)
+        
+        # ensembling
+        if args.use_last:
+            fname = job.get("filename")
+        else:
+            fname = "BIT_best.pkl"
+
+        n_ensemble = job.get("n_ensemble")
+        logger.info("Loading BIT %s from %s", fname, model_dir)
+
+        bit = _BITPrediction(model_dir, fname, max_n_tree=args.max_n_tree, n_ensemble=n_ensemble)
+        
         logger.info("Loaded BIT: %d trees (using %d)", bit.n_trees, bit.max_n_tree)
         drop = [d for d in selected if d not in set(bit.derivatives)]
         if drop:
