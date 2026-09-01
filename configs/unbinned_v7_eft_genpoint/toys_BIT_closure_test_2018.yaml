@@ -146,3 +146,94 @@ points:
       SR_2018:
         TT01j2l_EFT_2018:
           coefficients: {ctGRe: 0.5, cQj18: 0.5}
+
+# ctj1 + others (ML4EFT_top4)
+
+  - name: ctj1_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctj1: 0.0}
+
+  - name: ML4EFT_top4_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0}
+
+# cQu8 + others (ML4EFT_top5)
+
+  - name: cQu8_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {cQu8: 0.0}
+
+  - name: ML4EFT_top5_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0}
+
+# ctu8 + others (ML4EFT_top6)
+
+  - name: ctu8_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctu8: 0.0}
+
+  - name: ML4EFT_top6_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0, ctu8: 0.0}
+
+# cQd8 + others (ML4EFT_top7)
+
+  - name: cQd8_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {cQd8: 0.0}
+
+  - name: ML4EFT_top7_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0}
+
+  # ctd8 + others (ML4EFT_top8)
+
+  - name: ctd8_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctd8: 0.0}
+
+  - name: ML4EFT_top8_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0, ctd8: 0.0}
+
+  # cQj38 + others (ML4EFT_top9)
+
+  - name: cQj38_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {cQj38: 0.0}
+
+  - name: ML4EFT_top9_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0, ctd8: 0.0, cQj38: 0.0}
+
+  # all WC
+  - name: allWC_sm
+    injection:
+    SR_2018:
+      TT01j2l_EFT_2018:
+        coefficients: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj1: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0, ctd8: 0.0, cQj38: 0.0, cQd1: 0.0, ctj1: 0.0, cQj31: 0.0, cQj11: 0.0, ctu1: 0.0, cQu1: 0.0}
