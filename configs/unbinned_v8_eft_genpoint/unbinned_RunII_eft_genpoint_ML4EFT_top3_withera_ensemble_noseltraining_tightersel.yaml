@@ -1,4 +1,4 @@
-version: unbinned_v8_eft_genpoint_withera
+version: unbinned_v8_eft_genpoint_withera_noselection
 
 defaults:
   module_samples: "data.samples_eft"
@@ -9,12 +9,13 @@ defaults:
     - SPIN_CORRELATION
     - era
 
-  default_selection: tr_ttbar_pt < 1500
+  default_selection: (tr_ttbar_pt < 800) & (tr_ttbar_mass < 2000)
 
   default_selection_features:
     - tr_ttbar_pt
+    - tr_ttbar_mass
 
-  splitting:
+  splitting:    
     enabled: true
     type: uid
     uid_fields: ["run", "luminosityBlock", "event"]

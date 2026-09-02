@@ -33,14 +33,14 @@ defaults:
 
 likelihood:
     regions:
-        - id: SR_2016 
+        - id: SR_RunII 
           classifier:
             type: null
             id: null    # no classifier needed for a single process
-            asimov: [TT01j2l_EFT_2016]
+            asimov: [TT01j2l_EFT_RunII]
           classes: 
-            - id: TT01j2l_EFT_2016
-              sample: TT01j2l_EFT_2016 
+            - id: TT01j2l_EFT_RunII
+              sample: TT01j2l_EFT_RunII 
               POI:
                 job: bit_TT01j2l_EFT_RunII_ML4EFT_top3_ensemble 
                 type: bit
@@ -50,7 +50,7 @@ jobs:
 
   - id: bit_TT01j2l_EFT_RunII_ML4EFT_top3_ensemble
     type: bit
-    region: SR_2016
+    region: SR_RunII
     process: TT01j2l_EFT_RunII
     selection: null
     numba: True
