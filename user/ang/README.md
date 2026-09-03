@@ -5,14 +5,36 @@ extracted spin coefficients `B1+B2` and `C` per (m_tt, y_p) bin, and (2) plot
 them against the NLO+ theory predictions of arXiv:2403.04371.
 
 ```
+samples.py                       registry of all samples (paths, labels, styles)
 gen_top/make_gen_top_ntuple.py   NanoAOD  ->  parton-level gen ntuples (ROOT)
-accumulate_BC_sumw2.py           ntuples  ->  ttlep_SC_sumw2.json   <- the JSON
-compare_BC_theory_sim.py         JSON     ->  BC_theory_vs_sim.png / .pdf
+accumulate_BC_sumw2.py           ntuples  ->  BC_<sample>.json      <- the JSON
+compare_BC_theory_sim.py         JSONs    ->  BC_theory_vs_sim_<energy>TeV.png / .pdf
 ```
+
+Everything is driven off the sample keys defined in `samples.py`:
+
+| energy | key | sample |
+|---|---|---|
+| 13.6 TeV | `nom_13p6`  | POWHEG hvq (nominal) |
+| 13.6 TeV | `fxfx_13p6` | MG5 NLO + FxFx (2 jets) |
+| 13.6 TeV | `mlm_13p6`  | MG5 LO + MLM (3 jets) |
+| 13.6 TeV | `noSC_13p6` | POWHEG, spin correlations off |
+| 13 TeV   | `nom_13`    | POWHEG hvq (nominal) |
+| 13 TeV   | `bb4l_13`   | POWHEG bb4l (also covers tW) |
+| 13 TeV   | `noSC_13`   | POWHEG, spin correlations off |
+
+`python samples.py` prints the table with, per sample, whether the ntuple
+directory and the accumulated JSON are present.
 
 ## 0. Prerequisites
 
-Python 3 with `numpy`, `uproot`, `tqdm`, `matplotlib`. Step 1 additionally
+Use the shared group environment (do not modify it -- it is public):
+
+```bash
+source /software/2020/software/mamba/22.11.1-4/etc/profile.d/conda.sh && conda activate /groups/hephy/cms/robert.schoefbeck/conda/envs/hephy-ml-gpu-2
+```
+
+It provides `numpy`, `uproot`, `tqdm` and `matplotlib`. Step 1 additionally
 needs `ROOT` and a valid grid proxy (it reads NanoAOD over xrootd).
 
 ## 1. (Only if the ntuples do not exist yet) produce the gen ntuples
@@ -56,13 +78,24 @@ so step 1 can normally be skipped.
 
 ## 2. Produce the JSON with the B and C coefficients
 
+One JSON per sample, named by the key in `samples.py`:
+
 ```bash
-./accumulate_BC_sumw2.py
+./accumulate_BC_sumw2.py --sample nom_13p6 --jobs 12
 ```
 
-This loops over all ROOT files in `INPUT_DIR` (top of the script, currently the
-SC sample) and writes **`ttlep_SC_sumw2.json`**. To run on the noSC sample,
-edit `INPUT_DIR` and `OUTPUT` at the top of the script.
+All seven at once:
+
+```bash
+for k in nom_13p6 fxfx_13p6 mlm_13p6 noSC_13p6 nom_13 bb4l_13 noSC_13; do ./accumulate_BC_sumw2.py --sample $k --jobs 12; done
+```
+
+`--jobs N` spreads the input files over N worker processes (per-file partial
+sums are simply added, so the result is independent of N); `--max-files N`
+reads only the first N files for a quick test. Any directory not in the
+registry can be run with `--input-dir <dir> --output <file.json>`; with no
+arguments the script keeps its old behaviour (13 TeV nominal ->
+`ttlep_SC_sumw2.json`). Each sample takes O(1 min) with `--jobs 12`.
 
 Binning: `Mtt_cut = [345, 450, 600, 800, inf]`, `y_cut = [-1, -0.5, 0, 0.5, 1]`
 -> 4 x 4 = 16 bins, m_tt outer, y_p inner.
@@ -99,14 +132,25 @@ B1(r)+B2(r)  B1(k)+B2(k)  B1(r*)+B2(r*)  B1(k*)+B2(k*)  B1(n)+B2(n)
 
 ## 3. Make the comparison plots
 
+One plot per collision energy, overlaying every sample of that energy:
+
 ```bash
-./compare_BC_theory_sim.py
+./compare_BC_theory_sim.py --energy 13p6
 ```
 
-Writes **`BC_theory_vs_sim.png`** and **`BC_theory_vs_sim.pdf`** in this
-directory. It picks up `ttlep_SC_sumw2.json` if present (points with SumW2
-error bars), otherwise falls back to `ttlep_SC.json` (points without errors);
-either way it prints which one it used.
+```bash
+./compare_BC_theory_sim.py --energy 13
+```
+
+Writes **`BC_theory_vs_sim_13p6TeV.png/.pdf`** and
+**`BC_theory_vs_sim_13TeV.png/.pdf`**. `--samples KEY [KEY ...]` overlays an
+arbitrary subset instead and `--output` sets the basename. One of
+`--energy`/`--samples` is required; the samples are read from the
+`BC_<key>.json` files written in step 2, so nothing but `numpy` and
+`matplotlib` is needed to remake the plots.
+
+Samples are offset horizontally inside each bin so their error bars stay
+separable; colours and markers come from `samples.py`.
 
 The theory numbers are hard-coded in the script from arXiv:2403.04371
 (13.6 TeV): Table 9 for sigma_0/sigma_1, Tables 11-21 for the numerators
@@ -123,13 +167,35 @@ Layout: 4 x 3 panels, one per observable, 12th panel used for the legend.
 The 16 x-points per panel are the 16 bins, m_tt bin outer (labelled ticks),
 y_p bin inner.
 
-Finally the script prints a numeric summary per observable:
+Finally the script prints, for each sample, a numeric summary per observable:
 `max|sim - theory|`, median |pull| and max |pull|, with
 pull = (sim - theory) / (MC statistical error).
 
-## Note
+## What the plots show
 
-Errors on the simulation points are **MC statistical only**. The theory band is
-a scale envelope, not an uncertainty in the statistical sense, and the theory
-is quoted at 13.6 TeV while the simulation is 13 TeV -- so the pulls printed at
-the end are indicative, not a goodness-of-fit.
+- The four diagonal/off-diagonal C observables of the nominal, FxFx and MLM
+  samples track the theory bands closely; the residual pulls are large only
+  because the MC statistical errors are tiny (millions of effective events per
+  bin), not because the values differ much -- `max|sim - theory|` stays below
+  ~0.06 in absolute value for all of them.
+- The spin-correlation-off samples sit at zero for `C(n,n)`, `C(r,r)`,
+  `C(k,k)` and `C(r,k)+C(k,r)` in every bin, which is the intended behaviour
+  and a good closure test of the whole extraction chain.
+- The observables that vanish at LO (`C(k,k*)`, `C(r*,k)+C(r,k*)`, and all the
+  `B1+B2`) are small everywhere and consistent between samples within their
+  errors, except `B1(r)+B2(r)` and `B1(k)+B2(k)`, where bb4l differs clearly
+  from the nominal.
+
+## Caveats
+
+- Errors on the simulation points are **MC statistical only**; the theory band
+  is a scale envelope, not a statistical uncertainty. The printed pulls are
+  therefore indicative, not a goodness-of-fit.
+- The theory tables are 13.6 TeV. On the 13 TeV plot the bands are drawn
+  unchanged, so part of any offset there is the energy difference.
+- bb4l also contains tW (total cross section 95.57 pb instead of 87.98 pb), so
+  it is not a pure tt-bar prediction and is not expected to match the tt-bar
+  theory bands exactly.
+- The cross sections in `samples.py` are only bookkeeping: every observable is
+  a ratio of weighted sums within a sample, so no cross-section normalisation
+  enters the plotted values.

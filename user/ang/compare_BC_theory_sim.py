@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
 Compare spin observables B and C from arXiv:2403.04371 (Tables 9, 11-21)
-with the values extracted from the TTTo2L2Nu simulation (ttlep_SC.json).
+with the values extracted from simulation (BC_<sample>.json).
 
 Theory: X = (N0 + N1) / (sigma0 + sigma1) per bin (the unexpanded ratio,
 eq. (42) of the paper; the expanded alternative is eq. (43)), evaluated for
 mu = mt/2, mt, 2mt. The mu = mt value is the central prediction; the
 envelope of the three scales is drawn as a band.
 
-Simulation: the JSON files store, per (Mtt, y_p) bin,
-  B1[axis]     = sum_w 3*cosThetaPlus_axis
-  B2[axis]     = sum_w 3*cosThetaMinus_axis
-  C[a_b]       = sum_w -9*cosThetaPlus_a*cosThetaMinus_b
-  W            = sum_w
+Simulation: the BC_<sample>.json files written by accumulate_BC_sumw2.py store,
+per (Mtt, y_p) bin, the weighted sums sum_w, sum_w2, sum_wa, sum_w2a, sum_w2a2
+of the per-event quantities, from which the value and its SumW2 statistical
+error are reconstructed (see sim_values_sumw2 below). One sample per file;
+which ones are plotted comes from samples.py via --energy or --samples.
 
 SIGN CONVENTION.  The ntuple projects BOTH leptons on the same (top-side)
 axis a_hat -- gen_top/make_gen_top_ntuple.py lines 222-228 -- whereas the
@@ -29,8 +29,8 @@ Feeding that into the paper's eq. (29),
 gives B1 = 3<cos(theta_+)>, B2 = 3<cos(theta_-)>, C = -9<cos(theta_+)cos(theta_-)>,
 and hence
 
-    C_paper(a,b)        = -C[a_b] / W
-    B1_paper + B2_paper = (B1[axis] - B2[axis]) / W
+    C_paper(a,b)        = +9 <cosThetaPlus_a cosThetaMinus_b>
+    B1_paper + B2_paper = 3 <cosThetaPlus_axis - cosThetaMinus_axis>
 
 verify_axis_convention.py checks the axis identification to machine
 precision by re-running the ntuple's rotation logic against the paper's
@@ -38,12 +38,20 @@ eq. (35) + Table 1 on random events.  Consistency checks on the SC sample:
 C(n,n) ~ +0.43 near threshold, C(k,k) < 0 at high Mtt in the central
 region, and B1 ~ -B2 bin by bin as CP invariance requires (paper eq. (34)).
 """
+import argparse
 import json
 import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+from samples import SAMPLES, ORDER, ENERGY_LABEL
+
+OBSERVABLES = ['C(n,n)', 'C(r,r)', 'C(k,k)', 'C(r,k)+C(k,r)',
+               'C(k,k*)', 'C(r*,k)+C(r,k*)',
+               'B1(r)+B2(r)', 'B1(k)+B2(k)',
+               'B1(r*)+B2(r*)', 'B1(k*)+B2(k*)', 'B1(n)+B2(n)']
 
 # ----------------------------------------------------------------------
 # Theory tables from arXiv:2403.04371 (13.6 TeV), bins:
@@ -251,30 +259,6 @@ def theory_values(name):
 # ----------------------------------------------------------------------
 # Simulation values from the saved JSON (see module docstring for signs)
 # ----------------------------------------------------------------------
-def sim_values(jsonfile):
-    with open(jsonfile) as f:
-        d = json.load(f)
-    out = {name: [] for name in NUMERATORS}
-    for iM in range(4):
-        for iy in range(4):
-            C = d['C'][str(iM)][str(iy)]
-            B1 = d['B1'][str(iM)][str(iy)]
-            B2 = d['B2'][str(iM)][str(iy)]
-            W = d['W'][str(iM)][str(iy)]
-            out['C(n,n)'].append(-C['n_n'] / W)
-            out['C(r,r)'].append(-C['r_r'] / W)
-            out['C(k,k)'].append(-C['k_k'] / W)
-            out['C(r,k)+C(k,r)'].append(-(C['r_k'] + C['k_r']) / W)
-            out['C(k,k*)'].append(-C['k_k_star'] / W)
-            out['C(r*,k)+C(r,k*)'].append(-(C['r_star_k'] + C['r_k_star']) / W)
-            out['B1(r)+B2(r)'].append((B1['r'] - B2['r']) / W)
-            out['B1(k)+B2(k)'].append((B1['k'] - B2['k']) / W)
-            out['B1(r*)+B2(r*)'].append((B1['r_star'] - B2['r_star']) / W)
-            out['B1(k*)+B2(k*)'].append((B1['k_star'] - B2['k_star']) / W)
-            out['B1(n)+B2(n)'].append((B1['n'] - B2['n']) / W)
-    return {k: np.asarray(v) for k, v in out.items()}, None
-
-
 def sim_values_sumw2(jsonfile):
     """Values and SumW2 statistical errors from accumulate_BC_sumw2.py.
 
@@ -303,38 +287,64 @@ def sim_values_sumw2(jsonfile):
 # ----------------------------------------------------------------------
 # Plot
 # ----------------------------------------------------------------------
-def main():
-    # prefer the accumulation that carries squared-weight sums
-    if os.path.exists('ttlep_SC_sumw2.json'):
-        sim, sim_err = sim_values_sumw2('ttlep_SC_sumw2.json')
-        print('using ttlep_SC_sumw2.json (with SumW2 errors)')
-    else:
-        sim, sim_err = sim_values('ttlep_SC.json')
-        print('using ttlep_SC.json (no errors available -- run '
-              'accumulate_BC_sumw2.py to get them)')
+def draw_theory(ax, name, band_col, line_col):
+    cen, lo, hi = theory_values(name)
+    for i in range(16):
+        ax.fill_between([i - 0.42, i + 0.42], lo[i], hi[i],
+                        color=band_col, lw=0, zorder=1)
+        ax.hlines(cen[i], i - 0.42, i + 0.42, color=line_col,
+                  lw=1.6, zorder=2)
+    return cen
 
-    observables = ['C(n,n)', 'C(r,r)', 'C(k,k)', 'C(r,k)+C(k,r)',
-                   'C(k,k*)', 'C(r*,k)+C(r,k*)',
-                   'B1(r)+B2(r)', 'B1(k)+B2(k)',
-                   'B1(r*)+B2(r*)', 'B1(k*)+B2(k*)', 'B1(n)+B2(n)']
+
+def parse_args():
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[1])
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--energy', choices=sorted(ORDER),
+                      help='overlay every sample of this energy (samples.py)')
+    mode.add_argument('--samples', nargs='+', metavar='KEY',
+                      help='explicit sample keys to overlay instead')
+    p.add_argument('--output', help='output basename (default from --energy)')
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    keys = args.samples or ORDER[args.energy]
+    entries = []
+    for k in keys:
+        s = SAMPLES[k]
+        if not os.path.exists(s.json):
+            raise SystemExit(f'{s.json} missing -- run '
+                             f'./accumulate_BC_sumw2.py --sample {k}')
+        vals, errs = sim_values_sumw2(s.json)
+        entries.append((f'{s.label} [{s.ref}]',
+                        s.color, s.marker, vals, errs))
+        print(f'{k:<11} {s.json}')
+    energy = args.energy or SAMPLES[keys[0]].energy
+    out = args.output or f'BC_theory_vs_sim_{energy}TeV'
+    header = f'{ENERGY_LABEL[energy]} simulations'
 
     mtt_labels = [r'$345-450$', r'$450-600$', r'$600-800$', r'$>800$']
-    band_col, line_col, sim_col = '#a8c6e8', '#2d6ca2', '#1a1a1a'
+    # theory drawn in neutral grey so it never collides with a sample colour
+    band_col, line_col = '#dcdce0', '#9c9ca1'
+
+    # spread the samples inside each bin so the error bars stay readable
+    n = len(entries)
+    offsets = (np.arange(n) - (n - 1) / 2) * (0.5 / max(n, 2))
 
     fig, axes = plt.subplots(4, 3, figsize=(13.5, 14), sharex=True)
     axes = axes.ravel()
     x = np.arange(16)
 
-    for ax, name in zip(axes, observables):
-        cen, lo, hi = theory_values(name)
-        for i in range(16):
-            ax.fill_between([i - 0.42, i + 0.42], lo[i], hi[i],
-                            color=band_col, lw=0, zorder=1)
-            ax.hlines(cen[i], i - 0.42, i + 0.42, color=line_col,
-                      lw=1.6, zorder=2)
-        yerr = sim_err[name] if sim_err is not None else None
-        ax.errorbar(x, sim[name], yerr=yerr, fmt='o', ms=4.5, color=sim_col,
-                    ecolor=sim_col, elinewidth=1.2, capsize=2.5, zorder=3)
+    for ax, name in zip(axes, OBSERVABLES):
+        draw_theory(ax, name, band_col, line_col)
+        for (label, col, marker, vals, errs), dx in zip(entries, offsets):
+            ax.errorbar(x + dx, vals[name],
+                        yerr=errs[name],
+                        fmt=marker, ms=4.0, color=col, ecolor=col,
+                        elinewidth=1.1, capsize=2.0, zorder=3)
 
         for xsep in (3.5, 7.5, 11.5):
             ax.axvline(xsep, color='0.75', lw=0.8)
@@ -351,49 +361,45 @@ def main():
     # legend in the unused 12th panel
     axl = axes[11]
     axl.axis('off')
-    axl.fill_between([], [], [])
-    handles = [
-        plt.Rectangle((0, 0), 1, 1, color=band_col),
-        plt.Line2D([], [], color=line_col, lw=1.6),
-        plt.Line2D([], [], color=sim_col, marker='o', ls='', ms=4.5),
-    ]
-    errlabel = ('simulation (POWHEG TTTo2L2Nu, SC, 13 TeV)'
-                + (', SumW2 stat. err.' if sim_err is not None else ''))
-    axl.legend(handles,
-               ['theory scale envelope ($\\mu = m_t/2,\\ m_t,\\ 2m_t$)',
-                'theory, $\\mu = m_t$ (arXiv:2403.04371, 13.6 TeV)',
-                errlabel],
-               loc='upper left', fontsize=10, frameon=False)
-    axl.text(0.03, 0.45,
+    handles = [plt.Rectangle((0, 0), 1, 1, color=band_col),
+               plt.Line2D([], [], color=line_col, lw=1.6)]
+    labels = ['theory scale envelope ($\\mu = m_t/2,\\ m_t,\\ 2m_t$)',
+              'theory, $\\mu = m_t$ (arXiv:2403.04371, 13.6 TeV)']
+    for label, col, marker, _, errs in entries:
+        handles.append(plt.Line2D([], [], color=col, marker=marker, ls='',
+                                  ms=4.5))
+        labels.append(label)
+    axl.legend(handles, labels, loc='upper left', fontsize=9.5, frameon=False)
+    axl.text(0.03, 0.92 - 0.075 * len(handles),
              'Within each $m_{t\\bar{t}}$ bin, the 4 points are the\n'
              '$y_p=\\cos\\theta_t^*$ bins: $(-1,-0.5)$, $(-0.5,0)$,\n'
-             '$(0,0.5)$, $(0.5,1)$.\n\n'
+             '$(0,0.5)$, $(0.5,1)$; samples are offset horizontally.\n\n'
              'Theory: unexpanded ratio $(N_0+N_1)/(\\sigma_0+\\sigma_1)$\n'
              'from Tables 11$-$21 over Table 9.\n\n'
-             'Simulation errors are MC statistical only\n'
+             'Error bars are MC statistical only\n'
              '($\\sqrt{\\Sigma w^2}$-type, correlations between\n'
              'numerator and denominator kept).',
              transform=axl.transAxes, fontsize=9.5, va='top')
 
-    fig.suptitle(r'$t\bar{t}$ spin observables: NLOW theory vs simulation',
+    fig.suptitle(r'$t\bar{t}$ spin observables: NLOW theory vs ' + header,
                  fontsize=14, y=0.995)
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     for ext in ('png', 'pdf'):
-        fig.savefig(f'BC_theory_vs_sim.{ext}', dpi=150)
-    print('saved BC_theory_vs_sim.png / .pdf')
+        fig.savefig(f'{out}.{ext}', dpi=150)
+    print(f'saved {out}.png / .pdf')
 
-    # numeric summary: deviation in units of the MC statistical error
-    print(f"\n{'observable':<18}{'max|sim-thy|':>13}{'median pull':>13}"
-          f"{'max |pull|':>12}")
-    for name in observables:
-        cen, lo, hi = theory_values(name)
-        diff = sim[name] - cen
-        if sim_err is not None:
-            pull = diff / sim_err[name]
+    # numeric summary: deviation from theory in units of the MC stat. error
+    for label, col, marker, vals, errs in entries:
+        print(f'\n{label}')
+        print(f"{'observable':<18}{'max|sim-thy|':>13}{'median pull':>13}"
+              f"{'max |pull|':>12}")
+        for name in OBSERVABLES:
+            cen, lo, hi = theory_values(name)
+            diff = vals[name] - cen
+            pull = diff / errs[name]
             print(f'{name:<18}{np.abs(diff).max():>13.4f}'
-                  f'{np.median(np.abs(pull)):>13.1f}{np.abs(pull).max():>12.1f}')
-        else:
-            print(f'{name:<18}{np.abs(diff).max():>13.4f}')
+                  f'{np.median(np.abs(pull)):>13.1f}'
+                  f'{np.abs(pull).max():>12.1f}')
 
 
 if __name__ == '__main__':
