@@ -21,6 +21,7 @@ from data.samples_RunII import Factory as Factory_RunII
 from data.samples_RunII import BASE_DIRECTORY as BASE_DIRECTORY_RUNII
 from data.samples_RunII import _parse_name
 from systematics_RunII import SYSTEMATICS
+import numpy as np
 
 BASE_DIRECTORY_EFT = "/groups/hephy/cms/ricardo.barrue/CMGRDF_ntuples_ttbar_EFT/v4_nJ2p_nB2p_2l"
 
@@ -79,7 +80,7 @@ observers = [
     "run", "luminosityBlock", "event",
     # Madgraph weight at the GENERATION_POINT; the expansion is rebased at the latter
     "Generator_weight", 
-] + eft_derivatives
+]
 
 
 
@@ -301,10 +302,13 @@ if __name__ == "__main__":
         selection_features=base_loader.feature_names
     )
 
-    L_EFT = factory.get("TT01j2l_EFT_2016")
-    F, O, W = L_EFT.materialize(0, "fow")
-    print("Shapes:L_EFT.root", F.shape, O.shape, W.shape)
-    print("w[:5]",W[:5])
+    L_EFT = factory.get("TT01j2l_EFT_RunII")
+    L_EFT.set_n_split(12)
+    for i in range(12):
+        print("shard: ", i, " file: ", L_EFT.files[i])
+        F, O, W = L_EFT.materialize(i, "fow")
+        print("Shapes:L_EFT.root", F.shape, O.shape, W.shape)
+        print("w[:5]",W[:5], np.max(W))
 
     L_from_samples_RunII = factory.get("TTLep_pow_2016")
     F, O, W = L_from_samples_RunII.materialize(0, "fow")

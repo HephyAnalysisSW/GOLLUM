@@ -29,8 +29,8 @@ p.add_argument("--small", action="store_true", help="Only first shard for debugg
 p.add_argument("--max_n_files", action="store",type=int, default=None, help="Only this numbe of files.")
 p.add_argument("--profile", action="store_true", help="Do CPU profiling?")
 p.add_argument("--gpu", action="store_true", help="Use GPU-accelerated binned split training backend.")
-p.add_argument("--every", default=5, type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
-p.add_argument("--debug", action="store_true", help="Plot training and validation loss for individual terms.")
+p.add_argument("--every", type=int, help="When to plot (plot if tree_index % every == 0). Set <=0 to disable.")
+p.add_argument("--debug", action="store_true", help="Plot training loss for individual terms.")
 p.add_argument("--i_ensemble", type=int, default=None, help="Which ensemble member to train (requires n_ensemble in the job).")
 args = p.parse_args()
 
@@ -213,8 +213,23 @@ if args.i_ensemble is not None:
 # ---------------- EFT target interface ----------------
 eft = EFTWeightInterface(J.get("eft", {}).get("parameters", []))
 combos = list(eft.combinations)
-base_points = list(eft.base_points)
 combo_to_col = {tuple(sorted(comb)): i for i, comb in enumerate(combos)}
+
+base_point_choice = J.get("base_point_choice")
+if base_point_choice:
+    # standard base points + SM
+    if base_point_choice == "sm":
+        base_points = list(eft.base_points_sm)
+    # modified list of base points (inc. SM)
+    elif base_point_choice == "alt":
+        base_points = list(eft.base_points_alt)
+    # standard base points + modified list of basis points (inc. SM)
+    elif base_point_choice == "all":
+        base_points =  list(eft.base_points) + list(eft.base_points_alt)
+    else:
+        raise RuntimeError(f"Basepoint definition in config {base_point_choice} not available")
+else:
+    base_points = list(eft.base_points)
 
 
 def weight_views(weight_matrix):
@@ -688,6 +703,8 @@ if model_cfg.get("split_mode") == "binned":
         f"features={global_cuts.shape[0]} bins={global_cuts.shape[1] + 1}"
     )
 
+print(f"{model_cfg.get('learning_rate')=}")
+
 # ---- load / resume from model_path directly ----
 if not args.overwrite and os.path.exists(model_path):
     try:
@@ -908,18 +925,26 @@ if len(bit.trees) < bit.n_trees:
         with open(loss_txt, "a") as f:
             f.write(f"{tree_now}\t{float(train_loss):.8e}\t{valid_loss:.8e}\n")
         
-        if args.debug:
-            with open(loss_txt_all_terms, "a") as f:
-                if tree_now == 0:
-                    
-                    header ="\t".join(f"train_loss_{tuple(sorted(der))}\tvalid_loss_{tuple(sorted(der))}" for der in bit.derivatives)                    
-                    f.write(f"#tree \t{header}\n")
+        with open(loss_txt_all_terms, "a") as f:
+            if tree_now == 1:
                 
-                line=f"{tree_now}\t"
-                for i_der, _ in enumerate(bit.derivatives):
+                if args.debug:
+                    header ="\t".join(f"train_loss_{tuple(sorted(der))}\tvalid_loss_{tuple(sorted(der))}" for der in bit.derivatives)
+                else:
+                    header ="train_loss\t"+"\t".join(f"valid_loss_{tuple(sorted(der))}" for der in bit.derivatives)
+                    
+                f.write(f"#tree\t{header}\n")
+            
+            line=f"{tree_now}\t"
+            for i_der, _ in enumerate(bit.derivatives):
+                if args.debug:
                     line += f"{train_losses[i_der]:.6g}\t{valid_losses[i_der]:.6g}\t"
+                else:
+                    if i_der == 0:
+                        line += "nan\t"
+                    line += f"{valid_losses[i_der]:.6g}\t"
 
-                f.write(f"{line}\n")
+            f.write(f"{line}\n")
 
         # update weights
         t1 = time.process_time()
