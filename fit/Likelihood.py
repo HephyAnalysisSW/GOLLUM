@@ -2731,6 +2731,12 @@ if __name__ == "__main__":
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
+                # # setting starting point at generation point
+                from fit.ToyGenerator import likelihood_generation_point
+                for poi_name, val in likelihood_generation_point(n2ll).items():
+                    if poi_name in hyp_for_fit:
+                        hyp_for_fit[poi_name].val = float(val)
+
                 # allow unbinned and binned regions simultaneously
                 # they should have different names
                 # e.g. SR_2016 (unbinned) and CR_2016 (binned)
