@@ -792,7 +792,12 @@ class N2LL:
                 except Exception:
                     reset_split = False
 
-            n_shards = len(getattr(L, "base", L))
+            n_shards = 1
+            if hasattr(L,"_all_files"):
+                n_shards = len(L._all_files)
+            
+            L.set_n_split(n_shards)
+                
             for shard in range(n_shards):
                 X, w0 = L.materialize(shard=shard, what="fw", n=None)
                 X = np.asarray(X, dtype=np.float64)      # allow copy if needed (NumPy 2.x safe)

@@ -24,7 +24,7 @@ p.add_argument("--overwrite", action="store_true", help="Overwrite model directo
 p.add_argument("--small", action="store_true", help="Only first shard for debugging")
 p.add_argument("--for_debug", action="store_true", help="Fit, but don't overwrite the nominal version")
 p.add_argument("--n_split", default=None, help="Set sample split")
-p.add_argument("--every", default=5, type=int, help="When to plot")
+p.add_argument("--every", type=int, help="When to plot")
 args = p.parse_args()
 
 # ---------------- cfg ----------------
@@ -701,7 +701,7 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
     vars_ = pnn.model.trainable_variables
     grad_sums = [None] * len(vars_)
 
-    do_plot = (epoch % args.every == 0)
+    do_plot = (args.every is not None) and (epoch % args.every == 0)
     plot_feats = [f for f in feat_names if f in PLOT_OPTS]
     if do_plot:
         true_h_tr, pred_h_tr, bins_tr = init_histograms(plot_feats, n_bp=len(base_points), rebin=rebin)

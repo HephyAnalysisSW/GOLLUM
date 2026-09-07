@@ -188,8 +188,11 @@ class _BITPrediction:
             self._bit = MultiBoostedInformationTree.load(model_path)
         
         # number of trees in single BIT, minimum number of trained trees in ensemble
-        self.n_trees = self._bit.n_trees_trained
-        self.max_n_tree = self.n_trees if max_n_tree is None else min(int(max_n_tree), self.n_trees_trained)
+        if max_n_tree:
+            assert max_n_tree <= self._bit.n_trees_trained
+            self.max_n_tree = min(max_n_tree, self._bit.n_trees_trained)
+        else:
+            self.max_n_tree = None
 
         raw = list(getattr(self._bit, "derivatives", []) or [])
         if not raw:
@@ -344,16 +347,17 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
         
         # ensembling
         if args.use_last:
-            fname = job.get("filename")
+            fname = job.get("output").get("filename")
         else:
             fname = "BIT_best.pkl"
 
-        n_ensemble = job.get("n_ensemble")
         logger.info("Loading BIT %s from %s", fname, model_dir)
 
+        n_ensemble = job.get("n_ensemble")
         bit = _BITPrediction(model_dir, fname, max_n_tree=args.max_n_tree, n_ensemble=n_ensemble)
-        
-        logger.info("Loaded BIT: %d trees (using %d)", bit.n_trees, bit.max_n_tree)
+
+        logger.info("Loaded BIT")
+
         drop = [d for d in selected if d not in set(bit.derivatives)]
         if drop:
             logger.warning("BIT model does not predict %s; drawing truth only for those.",
@@ -417,6 +421,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
 
     # ---- event loop ----
     selected_events = 0
+    selected_events_weighted = 0.0
     for shard in tqdm(range(len(loader)), desc="Shards", unit="shard"):
         X, G, w = loader.materialize(shard=shard, what="fow")
         if len(X) == 0:
@@ -469,10 +474,11 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                     )[0]
 
         selected_events += len(X)
+        selected_events_weighted += np.sum(nominal_w)
 
     if selected_events == 0:
         raise RuntimeError("No events passed selection / split; nothing to plot.")
-    logger.info("Processed %d selected events.", selected_events)
+    logger.info("Processed %d (%d) selected nominal-weighted (unweighted) events", selected_events_weighted, selected_events)
 
     # ---- output directory ----
     if args.with_bit:
@@ -480,6 +486,11 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             user.plot_directory, "BIT-closure",
             cfg.get("version", "default"), job["region"], job["id"],
         )
+        if args.use_last:
+            out_dir = os.path.join(
+                user.plot_directory, "BIT-closure",
+                cfg.get("version", "default"), job["region"], job["id"]+"_lasttree",
+            )            
     else:
         out_dir = os.path.join(
             user.plot_directory, "BIT-modification",

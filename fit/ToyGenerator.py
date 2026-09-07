@@ -1286,7 +1286,7 @@ if __name__ == "__main__":
     seeds = _parse_seeds(args.seeds)
     outputDir = args.outputDir
     if outputDir is None:
-        outputDir = os.path.join(user.output_directory,f"{base}_{args.toyPoint}_{spec_source}_toys")
+        outputDir = os.path.join(user.output_directory, n2ll.version, f"{base}_{args.toyPoint}_{spec_source}_toys")
 
     if args.no_poisson:
         outputDir += "_no_poisson"
@@ -1319,6 +1319,6 @@ if __name__ == "__main__":
         import common.syncer as syncer
         from plot.toys.toy_diagnostic_plots import plot_toy_feature_distributions
 
-        plot_dir = os.path.join(user.plot_directory, "toys", str(cfg.get("version")), args.toyPoint)
+        plot_dir = os.path.join(user.plot_directory, "toys", str(cfg.get("version")),f"{base}_{args.toyPoint}")
         plot_toy_feature_distributions(n2ll, generated_toys, features, plot_dir)
         syncer.sync()
