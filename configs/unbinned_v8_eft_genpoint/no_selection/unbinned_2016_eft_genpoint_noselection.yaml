@@ -708,7 +708,7 @@ jobs:
     type: pnn
     region: SR_2016
     parameters: [nu_showerFSR]
-    combinations: [[nu_showerFSR]]
+    combinations: [[nu_showerFSR], [nu_showerFSR, nu_showerFSR]]
     base_points:
       - coords: [-1.0]
         loader: TT01j2l_EFT_2016
