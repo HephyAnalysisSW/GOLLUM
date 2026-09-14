@@ -1559,14 +1559,22 @@ class N2LL:
             return
 
         # quick check: any parameter nonzero?
+        self._asimov_active = False
+        from fit.ToyGenerator import likelihood_generation_point
+        gen_point_dict = likelihood_generation_point(self)
+        for poi in hypothesis.POIs:
+            if poi.name in gen_point_dict and gen_point_dict[poi.name] != poi.val:
+                self._asimov_active = True
+
         any_nonzero = any(abs(getval(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
-        # _asimov_active controls whether we have (c',nu')!=(0,0). If that's false, we need not evaluate T(x;c',nu')
-        self._asimov_active = bool(any_nonzero)
+        # _asimov_active controls whether we have (c',nu')!=(gen_point,0).
+        # If that's false but the user gave an hypothesis, crash to let him know
+        self._asimov_active |= bool(any_nonzero) 
         self._asimov_hyp = hypothesis if self._asimov_active else None
         self._asimov_T.clear()
 
         if not self._asimov_active:
-            return  # nothing to cache; bias term will be skipped
+            raise RuntimeError("You've provided an Asimov hypothesis, but it's the same as the generation point.")
 
         # Precompute per region
         for R in self.regions:
@@ -2075,7 +2083,9 @@ def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                 print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
                 h_eval.print()  # print the actually evaluated point
         if math.isnan(f):
-            raise RuntimeError("NaN likelihood!")
+            #raise RuntimeError("NaN likelihood!")
+            f = 1e12
+            print("NaN likelihood !")
         return f
 
     # ---- Minuit with positional args and explicit names ----
@@ -2509,6 +2519,7 @@ if __name__ == "__main__":
     p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos. 'all' runs MINOS for all NPs.")
     p.add_argument("--minuit", action="store_true", default=False,
                    help="Use the original iminuit/MIGRAD backend instead of the autograd+SciPy backend.")
+    p.add_argument("--init_gen", action="store_true", help="initialize fit at generation hypothesis for POIs. if not set, initializes all at 0.0")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2731,11 +2742,11 @@ if __name__ == "__main__":
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
-                # # setting starting point at generation point
-                from fit.ToyGenerator import likelihood_generation_point
-                for poi_name, val in likelihood_generation_point(n2ll).items():
-                    if poi_name in hyp_for_fit:
-                        hyp_for_fit[poi_name].val = float(val)
+                if args.init_gen is True:
+                    from fit.ToyGenerator import likelihood_generation_point
+                    for poi_name, val in likelihood_generation_point(n2ll).items():
+                        if poi_name in hyp_for_fit:
+                            hyp_for_fit[poi_name].val = float(val)
 
                 # allow unbinned and binned regions simultaneously
                 # they should have different names
@@ -2795,21 +2806,27 @@ if __name__ == "__main__":
                     if rotated:
                         raise NotImplementedError
 
-                    if len(args.asimov) % 2 != 0:
-                        raise RuntimeError(
-                            f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}"
-                        )
-
                     asimov_kwargs = {}
-                    for i in range(0, len(args.asimov), 2):
-                        par = args.asimov[i]
-                        try:
-                            val = float(args.asimov[i + 1])
-                        except ValueError as e:
+                    # express declaration of all POIs set to 0.0
+                    if args.asimov and args.asimov[0] == "sm":
+                        print("setting Asimov for all POIs to 0 (SM)")
+                        for param in hyp.POIs:
+                            asimov_kwargs[param.name] = 0.0
+                    else:
+                        if len(args.asimov) % 2 != 0:
                             raise RuntimeError(
-                                f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'"
-                            ) from e
-                        asimov_kwargs[par] = val
+                                f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}"
+                            )
+
+                        for i in range(0, len(args.asimov), 2):
+                            par = args.asimov[i]
+                            try:
+                                val = float(args.asimov[i + 1])
+                            except ValueError as e:
+                                raise RuntimeError(
+                                    f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'"
+                                ) from e
+                            asimov_kwargs[par] = val
 
                     asimov_h = hyp.cloneModify(**asimov_kwargs)
                     print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")
