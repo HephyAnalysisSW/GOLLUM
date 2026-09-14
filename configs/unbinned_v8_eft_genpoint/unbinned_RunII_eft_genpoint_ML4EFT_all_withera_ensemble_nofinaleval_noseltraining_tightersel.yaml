@@ -9,6 +9,12 @@ defaults:
     - SPIN_CORRELATION
     - era
 
+  default_selection: (tr_ttbar_pt < 800) & (tr_ttbar_mass < 2000)
+
+  default_selection_features:
+    - tr_ttbar_pt
+    - tr_ttbar_mass
+
   splitting:
     enabled: true
     type: uid
@@ -21,7 +27,7 @@ defaults:
       pnn_val:       { fraction: 0.14 }
       c2st_train:    { fraction: 0.15 }
       c2st_val:      { fraction: 0.05 }
-      final_eval:    { fraction: 0.0 }
+      final_eval:    { fraction: 0.00 } # using c2st_train and c2st_eval to do the final evals
 
   early_stopping:
     enabled: true
@@ -30,10 +36,6 @@ defaults:
     mode: "min"         # val_loss should decrease
     warmup_epochs: 0    # optional: do not early-stop before this epoch
 
-
-# descending order of FI from ML4EFT:
-# ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38,
-# not in ML4EFT# cQd1, ctj1, cQj31, ctd1,  cQj11,  ctu1, cQu1,
 
 likelihood:
     regions:
@@ -46,20 +48,20 @@ likelihood:
             - id: TT01j2l_EFT_RunII
               sample: TT01j2l_EFT_RunII 
               POI:
-                job: bit_TT01j2l_EFT_RunII_allWC_except_cQj11_ensemble 
+                job: bit_TT01j2l_EFT_RunII_ML4EFT_all_ensemble 
                 type: bit
-                parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+                parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38]
 
-jobs:
+jobs: 
 
-  - id: bit_TT01j2l_EFT_RunII_allWC_except_cQj11_ensemble
+  - id: bit_TT01j2l_EFT_RunII_ML4EFT_all_ensemble
     type: bit
     region: SR_RunII
     process: TT01j2l_EFT_RunII
     selection: null
     numba: True
     eft:
-        parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+        parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38]
     model:
       n_trees: 800
       learning_rate: 0.6
@@ -68,10 +70,32 @@ jobs:
       split_mode: "binned"
       n_bins: 256
       quantile_bins: true
-    n_ensemble: 5
+    base_point_choice: "sm" # standard basis points + SM
     runtime:
       n_split: 12
-    base_point_choice: "sm" # standard + SM 
+    n_ensemble: 5
     output:
-      filename: "bit_TT01j2l_EFT_RunII_allWC_except_cQj11.pkl"
+      filename: "bit_TT01j2l_EFT_RunII_ML4EFT_all.pkl"
 
+  - id: bit_TT01j2l_EFT_RunII_ML4EFT_all_alt_basepoints_ensemble
+    type: bit
+    region: SR_RunII
+    process: TT01j2l_EFT_RunII
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38]
+    model:
+      n_trees: 800
+      learning_rate: 0.6
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    base_point_choice: "alt" # alternative basis points to cover more ground close to SM (including SM) 
+    runtime:
+      n_split: 12
+    n_ensemble: 5
+    output:
+      filename: "bit_TT01j2l_EFT_RunII_ML4EFT_all_alt_basepoints.pkl"

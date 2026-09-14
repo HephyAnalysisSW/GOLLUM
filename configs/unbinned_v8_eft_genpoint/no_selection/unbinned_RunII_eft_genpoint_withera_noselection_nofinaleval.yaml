@@ -46,9 +46,9 @@ likelihood:
             - id: TT01j2l_EFT_RunII
               sample: TT01j2l_EFT_RunII 
               POI:
-                job: bit_TT01j2l_EFT_RunII_allWC_ensemble 
+                job: bit_TT01j2l_EFT_RunII_ML4EFT_all_ensemble 
                 type: bit
-                parameters: [cQd1, ctj1, cQj31, ctj8, ctd1, ctd8, ctGRe, ctGIm, cQj11, cQj18, ctu8, cQd8, ctu1, cQu1, cQj38, cQu8]
+                parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38]
 
 jobs:
 
@@ -141,6 +141,29 @@ jobs:
       n_split: 3
     output:
       filename: "bit_TT01j2l_EFT_RunII_allWC_128bins.pkl"
+
+  - id: bit_TT01j2l_EFT_RunII_ML4EFT_all_ensemble
+    type: bit
+    region: SR_RunII
+    process: TT01j2l_EFT_RunII
+    selection: null
+    numba: True
+    eft:
+        parameters: [ctGRe, ctGIm, ctj8, cQj18, cQu8, ctu8, cQd8, ctd8, cQj38]
+    model:
+      n_trees: 800
+      learning_rate: 0.6
+      loss: MSE
+      learn_global_score: true
+      split_mode: "binned"
+      n_bins: 256
+      quantile_bins: true
+    base_point_choice: "sm" # standard basis points + SM
+    runtime:
+      n_split: 12
+    n_ensemble: 5
+    output:
+      filename: "bit_TT01j2l_EFT_RunII_ML4EFT_all.pkl"
 
   - id: scaler_TT01j2l_EFT_RunII
     type: scaler

@@ -48,3 +48,10 @@ points:
   
   - name: cQj18_sm
     hypothesis: {cQj18: 0.0}
+
+  - name: ML4EFT_sm_BIT
+    hypothesis: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj8: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0, ctd8: 0.0, cQj38: 0.0}
+
+  - name: allWC_sm_BIT
+    hypothesis: {ctGRe: 0.0, ctGIm: 0.0, cQj18: 0.0, ctj8: 0.0, cQu8: 0.0, ctu8: 0.0, cQd8: 0.0, ctd8: 0.0, cQj38: 0.0, cQd1: 0.0, ctj1: 0.0, cQj31: 0.0, cQj11: 0.0, ctu1: 0.0, cQu1: 0.0, ctd1: 0.0}
+    

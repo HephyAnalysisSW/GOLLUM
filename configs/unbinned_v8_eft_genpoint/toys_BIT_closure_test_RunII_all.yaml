@@ -2,7 +2,7 @@
 # at different values of Wilson coefficients.
 
 source: truth              # or cache
-split: [c2st_train, c2st_val] # partitions to use, truth mode only; null for the whole dataset
+split: null # partitions to use, truth mode only; null for the whole dataset
 throw_nuisances: false
 allow_negative_weights: true
 # generation_point: {'cQd1': 1.5, 'ctj1': 1.5, 'cQj31': 1.5, 'ctj8': 1.5, 'ctd1': 1.5, 'ctd8': 1.5, 'ctGRe': -0.5, 'ctGIm': -0.5, 'cQj11': 1.5, 'cQj18': 1.5, 'ctu8': 1.5, 'cQd8': 1.5, 'ctu1': 1.5, 'cQu1': 1.5, 'cQj38': 1.5, 'cQu8': 1.5}
