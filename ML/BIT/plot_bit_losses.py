@@ -132,9 +132,16 @@ if __name__ == "__main__":
     plot_dir = os.path.join(user.plot_directory,"BIT", cfg.get("version"), job["region"], job["id"])
     
     n_ensemble = job.get("n_ensemble")
+    logger.info(f"plotting losses for {job['id']=}")
     if n_ensemble:
         for i_ensemble in range(n_ensemble):
+            print(f"{i_ensemble=}")
             best_epoch_average = plot_bit_losses(os.path.join(plot_dir,f"ensemble_{i_ensemble}"),
                             os.path.join(model_dir,f"ensemble_{i_ensemble}","loss_history.txt")) 
             plot_bit_losses_all_terms(os.path.join(plot_dir,f"ensemble_{i_ensemble}"),
                             os.path.join(model_dir,f"ensemble_{i_ensemble}","loss_history_all_terms.txt"), best_epoch_average=best_epoch_average)
+    else:
+        best_epoch_average = plot_bit_losses(plot_dir,
+                        os.path.join(model_dir,"loss_history.txt")) 
+        plot_bit_losses_all_terms(plot_dir,
+                        os.path.join(model_dir,"loss_history_all_terms.txt"), best_epoch_average=best_epoch_average)        

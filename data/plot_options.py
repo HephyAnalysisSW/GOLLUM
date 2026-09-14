@@ -276,6 +276,9 @@ def get_sample_legend(sample_id: str) -> str:
     if "TTLep" in sample_id:
         return r"t#bar{t} (2l)"
     
+    if "TT01j2l_EFT" in sample_id:
+        return r"t#bar{t} (2l)"
+    
     if "SingleTop" in sample_id:
         return "Single top"
     
