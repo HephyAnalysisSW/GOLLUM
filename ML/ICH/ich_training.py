@@ -87,24 +87,12 @@ if sel:
     L.addSelection( sel, sel_f)
     print("Added selection to loader: {sel} and selection_features {sel_f}")
 
-print(L)
-
 # feature & observer names
 feat_names = list(getattr(L, "feature_names", []) or [])
 obs_names  = list(getattr(L, "observer_names", []) or [])
 
-if not feat_names and not obs_names:
-    raise RuntimeError(f"Loader '{loader_name}' has neither feature_names nor observer_names.")
-
-
-# Map observable name -> (source, index)
-# source is "feature" or "observer"
-name2loc: Dict[str, Tuple[str, int]] = {}
-for i, n in enumerate(feat_names):
-    name2loc.setdefault(n, ("feature", i))
-for i, n in enumerate(obs_names):
-    # don't override features if overlap
-    name2loc.setdefault(n, ("observer", i))
+if not feat_names:
+    raise RuntimeError(f"Loader '{loader_name}' doesn't have feature_names!")
 
 # ---------------- parse binning ----------------
 
@@ -137,14 +125,31 @@ if dims == 1:
 else:
     hist_shape = (bin_edges[0].size - 1, bin_edges[1].size - 1)
 
+# ---------------- PDF & combinations ----------------
+
+job_cfg = J.get("pdf", {}) or J.get("eft", {}) or {}
+derivative_provider = derivative_providers.build_derivative_provider(J)
+
+# features / observers
+obs_names += list(derivative_provider.required_observers)
+
+L.setFeatures(feat_names, observer_names=obs_names)
+
+print(L)
+
+# ---------- Map observable name -> (source, index) --------------------
+
+# source is "feature" or "observer"
+name2loc: Dict[str, Tuple[str, int]] = {}
+for i, n in enumerate(feat_names):
+    name2loc.setdefault(n, ("feature", i))
+for i, n in enumerate(obs_names):
+    # don't override features if overlap
+    name2loc.setdefault(n, ("observer", i))
+
 for name in axis_names:
     if name not in name2loc:
         raise RuntimeError(f"Axis variable '{name}' not found in features nor observers of loader '{loader_name}'.")
-
-# ---------------- PDF & combinations ----------------
-
-cfg = J.get("pdf", {}) or J.get("eft", {}) or {}
-derivative_provider = derivative_providers.build_derivative_provider(J)
 
 # ---------------- build ICH object ----------------
 
@@ -154,7 +159,7 @@ region = J.get("region", None)
 if region:
     cfg_base = os.path.join(cfg_base, region)
 
-filename = cfg.get("filename", f"ICH_{J.get('id')}.pkl")
+filename = job_cfg.get("filename", f"ICH_{J.get('id')}.pkl")
 model_dir = os.path.join(user.model_directory, cfg_base, "ICH")
 os.makedirs(model_dir, exist_ok=True)
 out_path = os.path.join(model_dir, filename)
