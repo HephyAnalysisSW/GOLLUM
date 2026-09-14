@@ -326,7 +326,7 @@ def _apply_defaults_and_checks(cfg: dict):
             if "binning" not in j:
                 j["binning"] = default_binning
 
-        if jtyp not in {"scaler", "pnn", "bit", "classifier"}:
+        if jtyp not in {"scaler", "pnn", "dnn_c2st", "bit", "classifier"}:
             continue
         
         # removing this will allow e.g. classifiers with BDT

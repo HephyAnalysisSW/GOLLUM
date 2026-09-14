@@ -1,6 +1,7 @@
 import argparse
+import glob
 import os
-import re
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import mplhep as hep
@@ -10,34 +11,57 @@ import common.user as user
 import common.syncer as syncer
 from common.helpers import copyIndexPHP
 
+
+def read_auc_from_pkl(path: str) -> float:
+    """Read the final validation weighted AUC from a meta.pkl written by dnn_training.py."""
+    with open(path, "rb") as f:
+        meta = pickle.load(f)
+    return float(meta["final_val_weighted_auc"])
+
+
+def resolve_run_dir_to_pkl(path: str) -> str:
+    """Accept either a meta.pkl path directly or its containing run directory."""
+    if os.path.isdir(path):
+        return os.path.join(path, "main","meta.pkl")
+    return path
+
+
+def collect_test2_aucs(path: str) -> list[float]:
+    """Collect weighted AUCs from test2 trial meta.pkl files.
+
+    `path` is either the base model directory containing '<job_id>_trial####/main/'
+    subdirectories, or a glob pattern matching meta.pkl files directly.
+    """
+    pattern = os.path.join(path, "*", "main", "meta.pkl") if os.path.isdir(path) else path
+    files = sorted(glob.glob(pattern))
+    if not files:
+        raise RuntimeError(f"No meta.pkl files found for pattern: {pattern}")
+    return [read_auc_from_pkl(f) for f in files]
+
+
 MAKE_PUBLIC_PLOTS = False
 
 parser = argparse.ArgumentParser(description="Plot the AUC distributions from C2ST.")
 # passing test1 and test3
-parser.add_argument("--test1", required=True, type=float, help="AUC of test 1 - nominal vs. varied")
-parser.add_argument("--test2", required=True, help="Path to the file containing AUC values for test 2 - nominal+varied w/ shuffled labels")
-parser.add_argument("--test3", required=True, type=float, help="AUC of test 3 - nominal vs. reweighted using surrogate")
+parser.add_argument("--test1", required=True, help="Path to meta.pkl (or its run dir) for test 1 - nominal vs. varied")
+parser.add_argument("--test2", required=True, help="Base model dir (or glob pattern) for test 2 trial meta.pkl files - nominal+varied w/ shuffled labels")
+parser.add_argument("--test3", required=True, help="Path to meta.pkl (or its run dir) for test 3 - nominal vs. reweighted using surrogate")
 parser.add_argument("--label", help="Plot label, i.e. to identify which NP is being plotted")
-parser.add_argument("--output-folder", help="Folder added on top of user.plot_directory/c2st. If not given stores in folder derived from test 2 file name")
+parser.add_argument("--output-folder", help="Folder added on top of user.plot_directory/c2st. If not given stores in folder derived from test 2 path")
 args = parser.parse_args()
 
 plt.style.use("petroff10")
 hep.style.use("CMS")
 colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
-input_file_test2 = args.test2
-acc_values = []
-
-with open(input_file_test2, "r") as f:
-    for line in f:
-        match = re.search(r"weighted_auc=([0-9.]+)", line)
-        if match:
-            acc_values.append(float(match.group(1)))
+test1_auc = read_auc_from_pkl(resolve_run_dir_to_pkl(args.test1))
+test3_auc = read_auc_from_pkl(resolve_run_dir_to_pkl(args.test3))
+acc_values = collect_test2_aucs(args.test2)
 
 if args.output_folder:
     output_dir = os.path.join(user.plot_directory, "c2st", args.output_folder)
 else:
-    output_folder_stem = os.path.basename(input_file_test2).replace("test2_","").removesuffix(".txt")
+    output_folder_stem = os.path.basename(args.test2.rstrip("/"))
     output_dir = os.path.join(user.plot_directory, "c2st", output_folder_stem)
 
 os.makedirs(output_dir, exist_ok=True)
@@ -54,21 +78,21 @@ ax.hist(
 )
 
 ax.axvline(
-    x=args.test3,
+    x=test3_auc,
     color="#ffa90e",
     linestyle="-",
     linewidth=1.5
 )
 
 ax.axvline(
-    x=args.test1,
+    x=test1_auc,
     color="#ffa90e",
     linestyle="--",
     linewidth=1.5
 )
 
-min_x = min(args.test1, args.test3, min(acc_values))*0.999
-max_x = max(args.test1, args.test3, max(acc_values))*1.002
+min_x = min(test1_auc, test3_auc, min(acc_values))*0.999
+max_x = max(test1_auc, test3_auc, max(acc_values))*1.002
 ax.set_xlim(min_x, max_x)
 
 # 所有 tick 位置：间隔 0.0002
@@ -166,7 +190,7 @@ lumi_era = "Run 2"
 for era in lumi_by_era:
     # relies on input files being labelled with the era
     # which they should be anyway
-    if era in input_file_test2:
+    if era in args.test2:
         lumi_era = era
         break
 
