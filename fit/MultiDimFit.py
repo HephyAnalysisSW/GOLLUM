@@ -22,6 +22,7 @@ from fit.Modeling import Rotated
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import importlib
 
 
 def parse_ranges(s: str) -> dict:
@@ -77,10 +78,10 @@ if __name__ == "__main__":
     p.add_argument("config", help="Path to global YAML config")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--algo", default="grid", choices=["grid"], help="Set type of likelihood scans to be done. For the time being, only grid is allowed")
-    p.add_argument("--freezeParameters", default="", help="Parameters to freeze. Otherwise they float")
+    p.add_argument("--freezeParameters", default="", help="Parameters to freeze. Otherwise they float. Provide set of comma-separated parameters or set as 'otherPOI' to freeze the non-floating POIs.")
     p.add_argument("--POIs", default="", help="Set of POIs that are considered as signal")
     p.add_argument("--setParameterRanges", default="", help="Set parameter ranges. Only acting on the POIs we are floating")
-    p.add_argument("--pointRange", default=None, nargs=2, type=int, help="Range of points to ran on, for batch submission")
+    p.add_argument("--pointRange", default=None, nargs=2, type=int, help="Range of points to run on, for batch submission")
     p.add_argument("--name", default="", help="Name to add to the base name")
     p.add_argument("--npoints", default=100, type=int, help="Number of scan points per dimension")
     p.add_argument(
@@ -91,6 +92,9 @@ if __name__ == "__main__":
         choices=["fit", "all"],
         help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.",
     )
+    p.add_argument("--minuit", action="store_true", help="Use minuit for fitting (necessary for binned).")
+    p.add_argument("--verbosity", type=int, default=1, help="Verbosity passed to the fitter")
+    p.add_argument("--no_syst", action="store_true", help="Freeze systematics.")
 
     args = p.parse_args()
 
@@ -98,7 +102,7 @@ if __name__ == "__main__":
 
     cfg = yaml_loader.load_yaml(args.config)
     yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False, prefer_numba=False)
+    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
 
     like_info = lh.load_likelihood(cfg)
 
@@ -112,16 +116,39 @@ if __name__ == "__main__":
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
     step = 1.0 if rotated else 0.1
 
+    POIs_scan = args.POIs.split(",")
 
-    if args.freezeParameters != '': 
-        for poi in args.freezeParameters.split("," ):
-            #hyp_for_fit.set_nuisance_frozen(poi, True)
-            getattr(hyp_for_fit, poi).isFrozen = True
+    if args.freezeParameters != '':
+        
+        # express handle to freeze non-scanned POIs
+        if args.freezeParameters == "otherPOI":
+            for poi in hyp_for_fit.POIs:
+                if poi.name not in POIs_scan:
+                    poi.freeze()
+        else:
+            for poi in args.freezeParameters.split("," ):
+                #hyp_for_fit.set_nuisance_frozen(poi, True)
+                getattr(hyp_for_fit, poi).isFrozen = True
+    
+    if args.no_syst:
+        print("Freezing nuisances")
+        [param.freeze() for param in hyp_for_fit.nuisances]
+        
+    # Make sample loader factory from default cfg
+    samples_mod = importlib.import_module(cfg["defaults"]["module_samples"])
 
+    from common.yaml_loader import _resolve_features_list
+    default_features = cfg["defaults"].get("default_features", None)
+    features = _resolve_features_list(default_features) if default_features else None
+    factory = samples_mod.Factory(
+        features=features,
+        selection=cfg["defaults"].get("default_selection", None),
+        selection_features=cfg["defaults"].get("default_selection_features", None),
+    )
 
     n2ll = lh.N2LL(
         like_info,
-        cfg["defaults"]["module_samples"],
+        factory=factory,
         cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
         cache_root=None,
         overwrite=overwrite_cache,
@@ -129,7 +156,7 @@ if __name__ == "__main__":
     n2ll.build_cache()
     print("Preparing runtime")
     n2ll.prepare_runtime()
-    print("Done with runtime. setting asimov") 
+    print("Done with runtime. setting asimov")
     n2ll.setAsimov(hyp_for_fit)
     print("Done asimov. Al turron")
 
@@ -137,19 +164,19 @@ if __name__ == "__main__":
     print(args.algo)
     if args.algo == 'grid':
         print("Check 1") 
-        POIs = args.POIs.split(",")
-        ranges_arrays = [parameterRanges[poi] for poi in POIs]
+        ranges_arrays = [parameterRanges[poi] for poi in POIs_scan]
         grid_arrays   = [np.linspace(x[0], x[1], args.npoints) for x in ranges_arrays]
         mesh = np.meshgrid(*grid_arrays, indexing="ij")
         mesh = np.stack(mesh, axis=-1).reshape(-1, len(ranges_arrays))
 
         # printing lengths
-        name_w = max(len(str(p)) for p in POIs)
+        name_w = max(len(str(p)) for p in POIs_scan)
         val_w  = 8  # numeric field width
 
 
-        # we are going to scan over these, so we freeze them 
-
+        # we are going to scan over these, so we freeze them
+        outdir = os.path.join(user.output_directory,f"{base}_{version}_{args.name}_scan")
+        os.makedirs(outdir, exist_ok=True)
         for i, scan_point in enumerate(mesh):
             print(i)
             if args.pointRange is not None:
@@ -157,24 +184,29 @@ if __name__ == "__main__":
                 if i>=args.pointRange[1]: continue
 
             fields = [
-                f"{POIs[j]:<{name_w}} = {float(scan_point[j]):{val_w}f}"
-                for j in range(len(POIs))
+                f"{POIs_scan[j]:<{name_w}} = {float(scan_point[j]):{val_w}f}"
+                for j in range(len(POIs_scan))
             ]
             print(f"Point {i} / {len(mesh)}: " + "   ".join(fields), end="  =>  ")
 
             hyp_point = hyp_for_fit.clone()
 
-            hyp_point.modify(**dict([ (poi,scan_point[j]) for j, poi in enumerate(POIs)]))
+            hyp_point.modify(**dict([ (poi,scan_point[j]) for j, poi in enumerate(POIs_scan)]))
 
-            for poi in POIs:
+            for poi in POIs_scan:
                 getattr(hyp_point, poi).isFrozen = True
                 print(f"Freezing {poi}")
 
+            if args.minuit:
+                m = lh.run_iminuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=False, do_minos=False,verbosity=args.verbosity)
+            else:
+                if not "unbinned" in args.config:
+                    raise NotImplementedError("Currently binned fits with autograd are crashing, use Minuit with the --minuit flag.")
+                m = lh.run_autograd_fit(n2ll, hyp_point, step=step, do_migrad=True, do_hesse=False, verbosity=args.verbosity)
+            
 
-            m = lh.run_minuit_fit(n2ll, hyp_point, step=step, print_every=-1, do_migrad=True, do_hesse=False, do_minos=False,verbosity=1)
             print(f"-2logL =  {m.fval:{val_w}f}")
-            np.save(f'{base}_{version}_{args.name}_scan_{i}', np.rec.fromarrays(list(scan_point) + [m.fval], names=POIs + ['-2logL']))
-
+            np.save(os.path.join(outdir,f'{i}.npy') , np.rec.fromarrays(list(scan_point) + [m.fval], names=POIs_scan + ['-2logL']))
 
 
             
