@@ -2632,6 +2632,10 @@ if __name__ == "__main__":
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         if "no_poisson" in args.toyFile:
             _toy_source += "_no_poisson"
+
+        if "allevents" in args.toyFile:
+            _toy_source += "_allevents"     
+
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         # storing many toy fit results in their own folder
         out_path = os.path.join(out_path, f"{base}_{_toy_point}_{_toy_source}_toy_fits")

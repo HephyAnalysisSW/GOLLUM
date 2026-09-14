@@ -1297,6 +1297,9 @@ if __name__ == "__main__":
     if args.no_poisson:
         logger.warning("Not sampling, using seed 0")
         seeds = [0]
+    
+    if spec_split is None:
+        outputDir += "_allevents"
 
     for seed in seeds:
         out_path = os.path.join(outputDir, f"toy{seed}.h5")
