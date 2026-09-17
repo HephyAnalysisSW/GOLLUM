@@ -61,7 +61,7 @@ def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path:
     """Plot a 1D profile likelihood scan: delta -2logL vs POI value."""
 
     fig, ax = plt.subplots()
-    
+    bounds_plot = []
     for i_p, points in enumerate(points_list):
         order = np.argsort(points[poi_name])
         poi_values = points[poi_name][order]
@@ -85,13 +85,15 @@ def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path:
         if len(bounds_68cl) >= 6:
             raise NotImplementedError("More than two 68% CL bounds, not implemented.")
 
-        ax.plot(poi_values, delta_nll, marker="o", label=label)
-        
+        ax.plot(poi_values, delta_nll, marker="o", label=label,fillstyle='none')
+        bounds_plot += find_nll_bounds(poi_values, delta_nll, 4.2)
+
     ax.axhline(1.0, color="gray", linestyle="--")
     ax.axhline(3.84, color="gray", linestyle=":")
     ax.set_xlabel(poi_name)
     ax.set_ylabel(r"$-2\Delta\ln L$")
     ax.set_ylim(0.0, 6.0)
+    ax.set_xlim(np.min(bounds_plot),np.max(bounds_plot))
     ax.legend(frameon=True, title="68%CL", framealpha=1.0)
     hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, ax=ax, loc=0, fontsize=14)
     plt.savefig(out_path+".png")
