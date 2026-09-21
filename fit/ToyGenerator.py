@@ -1272,7 +1272,9 @@ if __name__ == "__main__":
     n2ll.build_cache()
     n2ll.prepare_runtime()
 
-    if n2ll.asimov_split and set(spec_split or []) != set(n2ll.asimov_split):
+    # Only truth-mode toys read `split` themselves; cache-mode toys need none (the
+    # cache itself is already the subset, see generate_unbinned_toy_from_cache).
+    if spec_source == "truth" and n2ll.asimov_split and set(spec_split or []) != set(n2ll.asimov_split):
         raise RuntimeError(
             f"Toy spec split {spec_split} does not match the cache's asimov_split "
             f"{n2ll.asimov_split}: a truth-mode toy on a different split than the cache "
