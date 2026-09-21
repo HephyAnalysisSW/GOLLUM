@@ -60,7 +60,7 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "ML", "Calibration"))
 
 from fit.Likelihood import N2LL, expand_pois_linear_quadratic, build_hypothesis_from_likelihood
 from fit.Modeling import Hypothesis
-import calibration_runner as cr  # _uid_split_interval
+from data.UIDSplitter import uid_split_interval
 
 # common.derivative_providers is imported lazily inside _materialize_truth_weights
 # (see below): it pulls in data/samples_eft.py, which eagerly constructs RDataLoaders
@@ -498,7 +498,7 @@ def _materialize_truth_weights(n2ll: N2LL, region_id: str, source: ProcessSource
                 f"splitting config (ToyGenerator.__main__ sets n2ll._toy_splitting_defaults)."
             )
         split_names = [split] if isinstance(split, str) else list(split)
-        uid_splitter, uid_fields, (lo, hi) = cr._uid_split_interval(splitting_cfg, *split_names)
+        uid_splitter, uid_fields, (lo, hi) = uid_split_interval(splitting_cfg, *split_names)
 
     observer_names = list(dict.fromkeys(required_observers + uid_fields))
     if source.weight_branches:
@@ -1252,6 +1252,7 @@ if __name__ == "__main__":
         cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
         cache_root=None,
         overwrite=(args.overwrite == "all"),
+        splitting_cfg=(cfg.get("defaults") or {}).get("splitting"),
     )
 
     spec = yaml_loader.load_yaml(args.toySpec)
@@ -1270,6 +1271,13 @@ if __name__ == "__main__":
     n2ll.shuffle_features = None
     n2ll.build_cache()
     n2ll.prepare_runtime()
+
+    if n2ll.asimov_split and set(spec_split or []) != set(n2ll.asimov_split):
+        raise RuntimeError(
+            f"Toy spec split {spec_split} does not match the cache's asimov_split "
+            f"{n2ll.asimov_split}: a truth-mode toy on a different split than the cache "
+            f"would fit against an expected-yield term built from a different event set."
+        )
 
     n2ll.version = cfg.get("version")
     n2ll._toy_splitting_defaults = (cfg.get("defaults") or {}).get("splitting")

@@ -158,6 +158,7 @@ if __name__ == "__main__":
         cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
         cache_root=None,
         overwrite=overwrite_cache,
+        splitting_cfg=(cfg.get("defaults") or {}).get("splitting"),
     )
     n2ll.build_cache()
     print("Preparing runtime")
