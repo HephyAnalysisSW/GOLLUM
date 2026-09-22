@@ -57,6 +57,9 @@ colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 test1_auc = read_auc_from_pkl(resolve_run_dir_to_pkl(args.test1))
 test3_auc = read_auc_from_pkl(resolve_run_dir_to_pkl(args.test3))
 acc_values = collect_test2_aucs(args.test2)
+mean_test2 = np.mean(acc_values)
+quantile_68_test2 = np.quantile(acc_values,(0.16, 0.84))
+sigma_68_test2 = quantile_68_test2[1]-quantile_68_test2[0]
 
 if args.output_folder:
     output_dir = os.path.join(user.plot_directory, "c2st", args.output_folder)
@@ -162,20 +165,21 @@ for tick, loc in zip(ax.yaxis.get_major_ticks(), yticks):
         tick.tick2line.set_markeredgewidth(0.8)
 
 handles = [
-    Line2D([0], [0], color="black", lw=1.5, linestyle="-", label="randomized"),
-    Line2D([0], [0], color="orange", lw=1.5, linestyle="-", label="reweighted"),
-    Line2D([0], [0], color="orange", lw=1.5, linestyle="--", label="not reweighted"),
+    Line2D([0], [0], color="black", lw=1.5, linestyle="-", label=f"randomized: {mean_test2:.5f} $\\pm$ {sigma_68_test2:.5f} "),
+    Line2D([0], [0], color="orange", lw=1.5, linestyle="-", label=f"reweighted: {test3_auc:.5f}"),
+    Line2D([0], [0], color="orange", lw=1.5, linestyle="--", label=f"not reweighted: {test1_auc:.5f}"),
 ]
 
 legend = ax.legend(
     handles=handles,
     loc="best",
     # bbox_to_anchor=(0.56, 0.95),
-    frameon=False,
+    frameon=True,
     fontsize=20,
     labelspacing=1.2,
     title=args.label, # can receive None (no title)
     title_fontsize = 16,
+    framealpha=0.8    
 )
 
 lumi_by_era = {

@@ -199,7 +199,7 @@ def get_binned_calib_factors(pred, residual, weight, bins) -> np.ndarray:
 # drawing
 # --------------------------------------------------------------------------------
 
-def plot_calibration(label, pred, residual, weight, out_path, bins):
+def plot_calibration(label, pred, residual, weight, out_path, bins, remove_top_pad = False):
     """Draw the two-panel calibration figure (residual band + weighted yield) for one derivative.
 
     Returns whether any bin is miscalibrated by more than 1 sigma, i.e. the drawn
@@ -220,26 +220,32 @@ def plot_calibration(label, pred, residual, weight, out_path, bins):
 
     out_of_calibration = bool(np.any(np.abs(paired_mean_res) > paired_std_res))
 
-    fig, (ax_top_panel, ax_bottom_panel) = plt.subplots(
-        2, 1, sharex=True, figsize=(8, 8),
-        gridspec_kw={"hspace": 0.0, "height_ratios": [1, 1]},
-    )
-
+    if remove_top_pad:
+        fig, (ax_top_panel, ax_bottom_panel) = plt.subplots(
+            2, 1, sharex=True, figsize=(8, 8),
+            gridspec_kw={"hspace": 0.0, "height_ratios": [0, 1]},
+        )
+    else:
+        fig, (ax_top_panel, ax_bottom_panel) = plt.subplots(
+            2, 1, sharex=True, figsize=(8, 8),
+            gridspec_kw={"hspace": 0.0, "height_ratios": [1, 1]},
+        )
     # ---- top panel: weighted event yield (log scale) ----
-    ax_top_panel.set_yscale("log")
-    ax_top_panel.set_ylabel("Weighted events")
-    positive_counts = paired_count[paired_count > 0]
-    if positive_counts.size:
-        ax_top_panel.set_ylim(positive_counts.min() * 0.8, positive_counts.max() * 1.6)
-    ax_top_panel.fill_between(
-        paired_pred_bins,
-        np.clip(paired_count - paired_count_err, 1e-12, None),
-        paired_count + paired_count_err,
-        step="post", color="#a6c8a6", alpha=0.3, linewidth=0,
-    )
-    ax_top_panel.step(paired_pred_bins, paired_count, where="post", color="k", label="Calibration dataset")
-    ax_top_panel.legend(frameon=False, fontsize=12, loc="lower right")
-    ax_top_panel.tick_params(axis="x", which="both", labelbottom=False)
+    if not remove_top_pad:
+        ax_top_panel.set_yscale("log")
+        ax_top_panel.set_ylabel("Weighted events")
+        positive_counts = paired_count[paired_count > 0]
+        if positive_counts.size:
+            ax_top_panel.set_ylim(positive_counts.min() * 0.8, positive_counts.max() * 1.6)
+        ax_top_panel.fill_between(
+            paired_pred_bins,
+            np.clip(paired_count - paired_count_err, 1e-12, None),
+            paired_count + paired_count_err,
+            step="post", color="#a6c8a6", alpha=0.3, linewidth=0,
+        )
+        ax_top_panel.step(paired_pred_bins, paired_count, where="post", color="k", label="Calibration dataset")
+        ax_top_panel.legend(frameon=False, fontsize=12, loc="lower right")
+        ax_top_panel.tick_params(axis="x", which="both", labelbottom=False)
 
     # ---- bottom panel: residual mean +/- std vs predicted coefficient ----
     ax_bottom_panel.plot(paired_pred_bins, paired_mean_res, color="k", label=r"$\langle R - \hat{R} \rangle$")
@@ -367,7 +373,7 @@ def main():
             residual = truth-pred
 
         out_path = os.path.join(out_dir, f"{sanitize_label(label)}_{'_'.join(args.partition)}{'_calibrated' if args.calibrate else ''}")
-        flagged = plot_calibration(label, pred_for_binning, residual, weight, out_path, bins)
+        flagged = plot_calibration(label, pred_for_binning, residual, weight, out_path, bins, remove_top_pad=(args.binning=="quantile"))
         
         logger.info("Wrote %s.png / .pdf", out_path)
         if flagged is not None:

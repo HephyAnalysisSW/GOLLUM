@@ -57,8 +57,10 @@ def load_scan_points(pattern: str) -> np.ndarray:
     return np.array(records, dtype=records[0].dtype)
 
 
-def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path: str) -> None:
-    """Plot a 1D profile likelihood scan: delta -2logL vs POI value."""
+def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path: str, threshold: float) -> None:
+    """Plot a 1D profile likelihood scan: delta -2logL vs POI value.
+    Puts limits for a certain n2ll threshold (given by user) in legend
+    """
 
     fig, ax = plt.subplots()
     bounds_plot = []
@@ -68,21 +70,18 @@ def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path:
         nll_values = points["-2logL"][order]
         delta_nll = nll_values - nll_values.min()
 
-        bounds_68cl = find_nll_bounds(poi_values, delta_nll, 1.0)
+        bounds = find_nll_bounds(poi_values, delta_nll, threshold)
         label = f"{labels[i_p]}: "
 
-        #print(f"{labels[i_p]=}, {bounds_68cl=}")
-        # if len(bounds_68cl) % 2 == 1:
-        #     raise NotImplementedError("Intervals open-ended on one side not implemented yet.")
-        if len(bounds_68cl) == 0:
+        if len(bounds) == 0:
             label += "outside range"
-        if len(bounds_68cl) == 1:
-            label += f"[{bounds_68cl[0]:.3f},+inf]"
-        if len(bounds_68cl) == 2:
-            label += f"[{bounds_68cl[0]:.3f},{bounds_68cl[1]:.3f}]"
-        if len(bounds_68cl) == 4:
-            label += f"[{bounds_68cl[0]:.3f},{bounds_68cl[1]:.3f}] && [{bounds_68cl[2]:.3f},{bounds_68cl[3]:.3f}]"
-        if len(bounds_68cl) >= 6:
+        if len(bounds) == 1:
+            label += f"[{bounds[0]:.3f},+inf]"
+        if len(bounds) == 2:
+            label += f"[{bounds[0]:.3f},{bounds[1]:.3f}]"
+        if len(bounds) == 4:
+            label += f"[{bounds[0]:.3f},{bounds[1]:.3f}] && [{bounds[2]:.3f},{bounds[3]:.3f}]"
+        if len(bounds) >= 6:
             raise NotImplementedError("More than two 68% CL bounds, not implemented.")
 
         ax.plot(poi_values, delta_nll, marker="o", label=label,fillstyle='none')
@@ -94,7 +93,13 @@ def plot_1d_scan(points_list: List[np.ndarray], labels, poi_name: str, out_path:
     ax.set_ylabel(r"$-2\Delta\ln L$")
     ax.set_ylim(0.0, 6.0)
     ax.set_xlim(np.min(bounds_plot),np.max(bounds_plot))
-    ax.legend(frameon=True, title="68%CL", framealpha=1.0)
+    legend_title = f"threshold: {threshold}"
+    if threshold == 1.0:
+        legend_title = "68% CL"
+    elif threshold == 3.84:
+        legend_title = "95% CL"
+
+    ax.legend(frameon=True, title=legend_title, framealpha=1.0)
     hep.cms.label("Preliminary" if MAKE_PUBLIC_PLOTS else "Internal", data=False, ax=ax, loc=0, fontsize=14)
     plt.savefig(out_path+".png")
     print(f"Saved {out_path}")
@@ -121,7 +126,8 @@ def plot_2d_scan(points: np.ndarray, poi_names: list[str], out_path: str) -> Non
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot a MultiDimFit.py likelihood scan")
     parser.add_argument("patterns", nargs="+", help="Glob pattern matching the scan .npy files")
-    parser.add_argument("--labels", nargs="+", type=str, help="labels for each of the points")
+    parser.add_argument("--labels", nargs="+", required=True, type=str, help="labels for each of the points")
+    parser.add_argument("--threshold", default=1.0, type=float, help="Threshold for limits placed in legend (1.0: 68%CL, 3.84: 95%CL).")
     parser.add_argument("--out", default="scan", help="Output plot path (without file extension)")
     args = parser.parse_args()
 
@@ -134,7 +140,7 @@ if __name__ == "__main__":
         points_list.append(points)
     
     if len(poi_names) == 1:
-        plot_1d_scan(points_list, args.labels, poi_names[0], os.path.join(user.plot_directory,"lh_scans",args.out))
+        plot_1d_scan(points_list, args.labels, poi_names[0], os.path.join(user.plot_directory,"lh_scans",args.out), threshold=args.threshold)
     elif len(poi_names) == 2:
         plot_2d_scan(points_list, args.labels, poi_names, os.path.join(user.plot_directory,"lh_scans",args.out))
     else:
