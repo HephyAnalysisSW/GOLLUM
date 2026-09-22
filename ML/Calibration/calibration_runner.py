@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import common.user as user
 import common.yaml_loader as yaml_loader
-from data.UIDSplitter import UIDSplitter
+from data.UIDSplitter import UIDSplitter, uid_split_interval
 
 from common.derivative_providers import build_derivative_provider
 from ML.Calibration.binned_calibration import format_derivative
@@ -93,55 +93,6 @@ def _list_jobs_and_exit(cfg, args):
 
 
 # --------------------------------------------------------------------------------
-# UID splitting
-# --------------------------------------------------------------------------------
-
-def _uid_split_interval(split_cfg: dict, *split_names: str):
-    """Build the UID splitter and the merged bucket interval for one or more named splits.
-
-    `split_cfg` is a `splitting:` block (`{enabled, uid_fields, seed, n_buckets, scheme}`),
-    either a job's or `defaults.splitting` directly -- both have the same shape.
-    Multiple split names are merged into one interval by concatenating their [lo,hi)
-    bucket ranges in scheme order; this is only a contiguous range when the named
-    splits are adjacent in `scheme`, which holds for ('c2st_train','c2st_val') and
-    for any standalone split such as ('final_eval',).
-    """
-    split_cfg = split_cfg or {}
-    if not bool(split_cfg.get("enabled", False)):
-        raise RuntimeError("Requires splitting.enabled=True (UID splitting) to avoid data leakage.")
-
-    uid_fields = split_cfg.get("uid_fields", ["run", "luminosityBlock", "event"])
-    uid_seed = int(split_cfg.get("seed", 0))
-    uid_n_buckets = int(split_cfg.get("n_buckets", 10000))
-    uid_scheme = split_cfg.get("scheme") or {}
-
-    uid_splitter = UIDSplitter(uid_fields=tuple(uid_fields), seed=uid_seed, n_buckets=uid_n_buckets)
-
-    keys = list(uid_scheme.keys())
-    fracs = [float((uid_scheme[k] or {}).get("fraction", 0.0)) for k in keys]
-    sizes = [int(math.floor(f * uid_n_buckets)) for f in fracs]
-    sizes[-1] += uid_n_buckets - sum(sizes)
-
-    uid_intervals = {}
-    lo = 0
-    for k, sz in zip(keys, sizes):
-        uid_intervals[k] = (lo, lo + int(sz))
-        lo += int(sz)
-
-    missing = [nm for nm in split_names if nm not in uid_intervals]
-    if missing:
-        raise RuntimeError(f"splitting.scheme must define {missing}.")
-
-    merged = (min(uid_intervals[nm][0] for nm in split_names),
-              max(uid_intervals[nm][1] for nm in split_names))
-
-    logger.info("[UID] fields=%s seed=%d n_buckets=%d", uid_fields, uid_seed, uid_n_buckets)
-    logger.info("[UID] scheme intervals: %s", uid_intervals)
-    logger.info("[UID] split %s -> %s", split_names, merged)
-
-    return uid_splitter, list(uid_fields), merged
-
-# --------------------------------------------------------------------------------
 # main entry: materialize + save
 # --------------------------------------------------------------------------------
 
@@ -157,7 +108,7 @@ def get_truth_pred_values(cfg, job, samples_mod, args, provider):
         raise RuntimeError(f"Loader/view '{loader_name}' not found in module {samples_mod.__name__}.")
     loader = getattr(samples_mod, loader_name)
 
-    uid_splitter, uid_fields, partition_interval = _uid_split_interval(job.get("splitting") or {}, *args.partition)
+    uid_splitter, uid_fields, partition_interval = uid_split_interval(job.get("splitting") or {}, *args.partition)
 
     required_observers = list(provider.required_observers)
     required_observers += [f for f in uid_fields if f not in required_observers]

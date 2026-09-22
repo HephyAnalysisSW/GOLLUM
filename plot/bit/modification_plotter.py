@@ -385,7 +385,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
                         args.split, splitter.fraction, splitter.seed)
 
         elif split_type == "uid":
-            from ML.Calibration.calibration_runner import _uid_split_interval
+            from data.UIDSplitter import uid_split_interval
 
             if args.split == "train":
                 partition = ["pnn_train", "pnn_val"]
@@ -394,7 +394,7 @@ def make_modification_plots(cfg, job, samples_mod, args, provider):
             elif args.split == "eval":
                 partition = ["final_eval"]
 
-            splitter, uid_fields, partition_interval = _uid_split_interval(split_cfg, *partition)
+            splitter, uid_fields, partition_interval = uid_split_interval(split_cfg, *partition)
             uid_idx = [obs_names.index(f) for f in uid_fields]
 
         else:
