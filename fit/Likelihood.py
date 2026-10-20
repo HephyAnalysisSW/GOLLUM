@@ -8,6 +8,7 @@ import json, math, importlib
 import h5py
 
 from math import ceil
+from time import perf_counter
 from tqdm import tqdm
 
 from collections import defaultdict, deque
@@ -1862,15 +1863,26 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     eval_count = 0
     def fcn(*x):
         nonlocal eval_count
+        # Wall time excludes startup and diagnostic printing.
+        callback_start = perf_counter()
         # one-shot parameter map (avoid sequential setattr on Rotated)
         pars = {names[i]: float(x[i]) for i in range(len(names))}
         h_eval = hypothesis.cloneModify(**pars)   # absolute update in one go
+        likelihood_start = perf_counter()
         f = float(n2ll(h_eval))
+        evaluation_end = perf_counter()
+        likelihood_seconds = evaluation_end - likelihood_start
+        callback_seconds = evaluation_end - callback_start
         eval_count += 1
-        if verbosity >= 2:
+        if verbosity >= 1:
             if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
-                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
-                h_eval.print()  # print the actually evaluated point
+                print(
+                    f"\n[eval {eval_count:6d}] f = {f: .6e}"
+                    f"  likelihood = {likelihood_seconds:.6f} s"
+                    f"  callback = {callback_seconds:.6f} s"
+                )
+                if verbosity >= 2:
+                    h_eval.print()  # print the actually evaluated point
         if math.isnan(f):
             raise RuntimeError("NaN likelihood!")
         return f
