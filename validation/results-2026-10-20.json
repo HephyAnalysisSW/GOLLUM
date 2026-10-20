@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-20",
+  "host": "clip-login-0.cbe.vbc.ac.at",
+  "paper_commit": "b7a9e9a",
+  "cms_commit": "222f7b2",
+  "thread_limits": {
+    "OPENBLAS_NUM_THREADS": 1,
+    "OMP_NUM_THREADS": 1,
+    "NUMBA_NUM_THREADS": 1
+  },
+  "binned": {
+    "maximum_likelihood_absolute_difference": 2.371343121865266e-10,
+    "maximum_scaled_gradient_error": 1.0140272219683055e-05,
+    "modern_minuit_vs_autograd_maximum_relative_error_difference": 0.02614181413129435,
+    "legacy_vs_saved_paper_maximum_relative_error_difference": 4.8692077426748526e-05
+  },
+  "unbinned_paper_mode": {
+    "events": 10215508,
+    "maximum_likelihood_absolute_difference": 9.778887033462524e-09,
+    "maximum_scaled_gradient_error": 7.977751559549896e-07,
+    "paper_warmed_forward_seconds": [
+      4.604599671438336,
+      4.616264250129461,
+      4.778764463961124
+    ],
+    "development_warmed_forward_seconds": [
+      5.5780052384361625,
+      7.823550269007683,
+      6.148156805895269
+    ],
+    "paper_central_difference_31_parameter_gradient_seconds": 292.0604809205979,
+    "autograd_gradient_seconds": 13.427550878375769,
+    "gradient_speedup": 21.750837778685543
+  },
+  "environment": {
+    "autograd": "1.8.0",
+    "preexisting_packages_unchanged": 227
+  },
+  "fresh_clone_recipe": "passed with synthetic username/private home/copied inputs",
+  "scope": "Fixed existing surrogates, rotations, and cache. Training and cache regeneration not validated.",
+  "unbinned_complete_fits": {
+    "cms_total_wall_seconds": 468.1827277317643,
+    "paper_mode_total_wall_seconds": 512.1477365531027,
+    "minimum": 0.0,
+    "covariance_mode_max_absolute_difference": 0.0,
+    "exact_hessians": true,
+    "diagnostic_plots": true
+  },
+  "unbinned_cms_mode": {
+    "maximum_scaled_gradient_error": 7.977748409483747e-07,
+    "autograd_gradient_seconds": 13.652012487873435,
+    "central_difference_gradient_seconds": 387.3808747306466,
+    "paper_reference_differences": {
+      "null": 0.0,
+      "eig_0": 1.5875821731015094e-05,
+      "eig_5": -8.998878031629687e-18,
+      "nu_lumi": -6.111550154841439e-11,
+      "nu_mu_ren": 1.7965646748052677e-08,
+      "nu_pu": 0.15680950471393995,
+      "mixed": 2.3181200958788395e-08,
+      "mixed_repeat": 2.3181200958788395e-08
+    }
+  }
+}

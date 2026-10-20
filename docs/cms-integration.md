@@ -26,7 +26,8 @@ The historical Numba kernel applies its truncated polynomial to every
 `-1 < T < 1e-4`; the vectorized CMS implementation applies it only when
 `abs(T) < 1e-4`. Installing Autograd exposes this difference because the
 Numba path is disabled. This is an approximation difference, not merely
-parallel reduction roundoff.
+parallel reduction roundoff. For example, at the tested `nu_pu=0.1` point,
+the paper value is about 1.03873 and the CMS value about 1.19554.
 
 Use `--paper-numerics` to reproduce the historical reduction with a
 differentiable implementation. Without it the development branch uses the
@@ -40,7 +41,9 @@ For the binned reference, the historical setting produces a covariance
 reported by Minuit as forced positive definite. The modern setting reports
 an accurate covariance. Their minima agree, but the errors differ
 substantially. To reproduce the historical optimizer setting explicitly,
-use `--minuit --minuit-precision 0.001`. This is not the development default.
+use `--minuit --minuit-precision 0.001`. A complete binned run with this
+setting reproduces saved paper errors to within 0.005%. This is not the
+development default.
 
 Autograd provides Hessian errors; it does not provide MINOS intervals.
 The CLI requires `--minuit` when `--minos` is requested. An ICH prediction
@@ -114,16 +117,42 @@ earlier unrestricted-thread likelihood benchmark.
   difference is `9.8e-9` at a likelihood value of about `113625`.
 - Central differences check all 32 binned and 31 unbinned free parameters.
   Maximum gradient error scaled by `max(1, abs(finite_difference))` is
-  `1.02e-5` binned and `7.98e-7` unbinned.
+  `1.02e-5` binned and `7.98e-7` unbinned. The default CMS-mode
+  unbinned gradient also passes all 31 central-difference checks, with
+  maximum scaled error `7.98e-7`.
 - Complete binned Autograd and Minuit/MINOS runs write finite covariance
   matrices, result JSON, and diagnostic plots. Both minima are zero.
   Modern Minuit and Autograd Hessian errors differ by at most 2.7%.
   They must not be described as reproducing the historical forced covariance.
-- The full unbinned CMS-mode Autograd fit also completes with result JSON,
-  covariance, and plots. Its nominal Asimov minimum is zero.
+- Full unbinned CMS-mode and paper-mode Autograd fits complete with exact
+  Hessians, result JSON, positive-definite covariance, and plots. Both nominal
+  Asimov minima are zero. Total wall times including setup, exact Hessian,
+  and plots were approximately 468 and 512 seconds, respectively.
 - New or modified Python sources pass syntax compilation. Training jobs,
   raw-data cache regeneration, and all new CMS analysis configurations
   are not individually validated by these checks.
 
 Detailed logs and machine-readable measurements are retained on CBE under
 `/scratch-cbe/users/robert.schoefbeck/SBIPDF/cms-paper-audit-q97yOs/`.
+
+## Measured derivative speedup
+
+For the 31-parameter unbinned mixed point, a full Autograd gradient takes
+13.43 seconds. A central-difference gradient in the frozen paper evaluator,
+using 62 likelihood calls, takes 292.06 seconds: a 21.75-fold derivative
+speedup. The gradient vectors agree within the same validation tolerance.
+
+Warmed forward calls average 4.67 seconds in the paper evaluator versus
+6.52 seconds in the differentiable paper-mode evaluator in this measurement.
+The speedup is in derivatives, not an individual forward call. These are
+one-thread measurements on a shared login node, with other validation
+processes running; they do not establish an end-to-end fit speedup.
+Full Hessian construction is still substantial work. Binned Autograd and
+Minuit/MINOS wall times are not directly comparable because MINOS computes
+additional profile intervals.
+
+Machine-readable measurements are in
+[validation/results-2026-10-20.json](../validation/results-2026-10-20.json).
+The README recipe was also executed from an independent clone with a private
+home directory, synthetic username, and copied artifacts; the Autograd fit,
+result metadata, covariance, and diagnostic plots passed.
