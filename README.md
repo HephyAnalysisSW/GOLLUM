@@ -3,6 +3,8 @@
 This development branch integrates CMS developments and defaults to Autograd/SciPy.
 The frozen [sbi-pdf-paper](https://github.com/HephyAnalysisSW/GOLLUM/tree/sbi-pdf-paper)
 branch remains the paper reference. See [integration checks](docs/cms-integration.md).
+For NNPDF/global-fit exploration, complete setup steps 1–3, then use the
+[unbinned example](#explore-the-unbinned-term-without-minimizing) below.
 
 ## Run the paper's binned “8-1” configuration on CBE
 
@@ -27,7 +29,7 @@ Python 3.10.18 and Autograd 1.8.0; `env/environment.yaml` does not yet fully rep
 ### 2. Copy the external fit inputs
 
 ```bash
-export GOLLUM_RUN_DIR="$HOME/gollum-8-1"
+export GOLLUM_RUN_DIR="${GOLLUM_RUN_DIR:-$HOME/gollum-explore}"
 shared=/groups/hephy/cms/robert.schoefbeck/SBIPDF/models/binned_delphes_RunII_v5D/SR_binned
 models="$GOLLUM_RUN_DIR/models/binned_delphes_RunII_v5D/SR_binned"
 mkdir -p "$models/ICH" "$models/ICPH" "$GOLLUM_RUN_DIR/output" \
@@ -64,7 +66,7 @@ PY
 ```
 
 In a new shell, repeat environment activation, `PYTHONPATH`, `unset CERN_USER`,
-and `export GOLLUM_RUN_DIR="$HOME/gollum-8-1"` before running.
+and export the same `GOLLUM_RUN_DIR` before running.
 
 ### 4. Fit
 
@@ -85,6 +87,60 @@ An existing result is loaded instead of refitted; add `--overwrite fit` to rerun
 The binned recipe and both backends are checked on CBE. The unbinned paper
 calculation additionally requires `--paper-numerics`; see the integration notes.
 Result JSON records the backend and numerical mode.
+
+## Explore the unbinned term without minimizing
+
+For NNPDF/global-fit exploration, follow steps 1–3 above and skip step 4.
+The example below loads once, holds the cached arrays in RAM, and benchmarks
+repeated scalar and joint value/gradient calls. It does not run a fit,
+train models, or rebuild caches.
+
+The unbinned models and cache remain external shared inputs (about 5 GiB of
+cache plus models). Link them into your configured run directory; the example
+only reads them:
+
+```bash
+shared=/groups/hephy/cms/robert.schoefbeck/SBIPDF
+test -e "$GOLLUM_RUN_DIR/models/unbinned_v5D" || \
+  ln -s "$shared/models/unbinned_v5D" "$GOLLUM_RUN_DIR/models/unbinned_v5D"
+cache="$GOLLUM_RUN_DIR/caches/NN2LCache/unbinned_delphes_7_RunII/unbinned_v5D"
+mkdir -p "$cache"
+test -e "$cache/SR" || \
+  ln -s "$shared/caches/NN2LCache/unbinned_delphes_7_RunII/unbinned_v5D/SR" "$cache/SR"
+cp /scratch-cbe/users/robert.schoefbeck/SBIPDF/output/eigen_basis_unbinned_delphes_7_RunII_unbinned_v5D.json \
+   "$GOLLUM_RUN_DIR/output/"
+export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1
+python examples/unbinned_term.py \
+  --rotation "$GOLLUM_RUN_DIR/output/eigen_basis_unbinned_delphes_7_RunII_unbinned_v5D.json" \
+  --numerics paper --repeat 3 --output "$GOLLUM_RUN_DIR/unbinned-timings.json"
+```
+
+Expect 48 loaded artifacts, 10,215,508 simulation rows, and 31 parameters.
+Allow a few minutes and roughly 10 GiB RAM per process. The JSON contains
+parameter ordering, setup time, and repeated evaluation times.
+The shared paths must be readable by your CBE account; raw sample discovery
+also uses the existing CBE paths in `common/directories.py`.
+
+For use in a persistent Python process:
+
+```python
+import os
+from pathlib import Path
+from examples.unbinned_term import UnbinnedTerm
+rotation_path = Path(os.environ["GOLLUM_RUN_DIR"]) / "output" / \
+    "eigen_basis_unbinned_delphes_7_RunII_unbinned_v5D.json"
+term = UnbinnedTerm(rotation_path, numerics="paper")
+names = term.names
+value, gradient = term.value_and_gradient(term.theta0)
+```
+
+This is the nominal Asimov term and returns **−2 log L**, including nuisance constraints. If the global fit
+supplies those constraints separately, construct with `include_penalty=False`
+(or benchmark with `--data-only`). The present parameters are six rotated
+PDF directions and 25 nuisances, not EFT Wilson coefficients.
+Use `--numerics cms` to explore the distinct CMS reduction.
+See [global-fit timing figures](docs/global-fit-timings.md) and
+[integration details](docs/cms-integration.md). Artifact packaging remains deferred.
 
 ## Paper command record
 
