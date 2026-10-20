@@ -314,21 +314,28 @@ l2              = float(J.get("optim", {}).get("l2", 0))
 
 pnn = None
 model_dir = os.path.join(user.model_directory, cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
-plot_dir  = os.path.join(user.plot_directory,  cfg_base+("_for_debug" if args.for_debug else ""), "PNN", J["id"])
+plot_dir  = os.path.join(user.plot_directory, "PNN", cfg_base+("_for_debug" if args.for_debug else ""),  J["id"])
 os.makedirs(model_dir, exist_ok=True); os.makedirs(plot_dir, exist_ok=True)
 
 # A small pointer file for BEST (epoch + val_loss)
 best_txt = os.path.join(model_dir, "best_checkpoint.txt")
 
-if not args.overwrite:
-    try:
+if args.overwrite:
+    import shutil
+    shutil.rmtree(model_dir, ignore_errors=True)
+    os.makedirs(model_dir, exist_ok=True)
+    print(f"Directory {model_dir} has been removed successfully")
+else:
+
+    if os.path.exists(os.path.join(model_dir,"done")):
+        raise Exception("Training finished properly and rerunning without --overwrite. Will stop here.")
+    else:
         print(f"Trying to load PNN from {model_dir}")
-        pnn = PNN.load(model_dir, latest_filename="last_checkpoint")
-        print("Success!")
-    except Exception as e:
-        pnn = None
-        print("Failed! Gonna train.")
-        #raise e
+        try:
+            pnn = PNN.load(model_dir, latest_filename="last_checkpoint")
+            print("Found model with unfinished training! Will continue training from the last epoch.")
+        except Exception as e:
+            print("Did not find any model! Gonna train from scratch.")
 
 if pnn is None:
     pnn = PNN(parameters=parameters,
@@ -650,6 +657,8 @@ es_enabled = stopping.get("enabled", True)
 patience = stopping.get("patience", 20)
 min_delta = stopping.get("min_delta", 0.0)
 mode = stopping.get("mode", "min").lower()
+if mode not in ("min", "max"):
+    raise ValueError(f"Invalid early_stopping mode: {mode}")
 warmup_epochs = stopping.get("warmup_epochs", 0)
 
 def _is_improved(current: float, best: float) -> bool:
@@ -659,7 +668,8 @@ def _is_improved(current: float, best: float) -> bool:
         return current < (best - min_delta)
     else:
         return current > (best + min_delta)
-best_val = float("inf")
+    
+best_val = float("inf") if mode == "min" else -float("inf")
 best_epoch = -1
 bad_epochs = 0
 
@@ -668,6 +678,8 @@ if os.path.exists(best_txt):
     try:
         with open(best_txt, "r") as f:
             line = f.read().strip()
+        # TODO: in next round of trainings, implement access bad_epochs in this file
+        # not having it will lead to at max `patience` epochs of unnecessary training            
         if line:
             e, v = line.split()[:2]
             best_epoch = int(e)
@@ -836,3 +848,4 @@ for epoch in trange(start_epoch, epochs, desc="Epoch"):
         syncer.sync()
 
 print(f"Done. Model stored in {model_dir}")
+open(f"{model_dir}/done","w")

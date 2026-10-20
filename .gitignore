@@ -2,12 +2,14 @@ __pycache__
 .ipynb_checkpoints/
 *.pyc
 www
-output
-caches
-models
+output*
+caches*
+models*
 *.err
 *.out
 slurm*
 launch*
 .github/
 .vscode/
+*.pdf
+user/ricardo/claude/

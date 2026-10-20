@@ -8,7 +8,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import common.user as user
+import common.syncer as syncer
+from data.plot_options import get_nice_parameter_name
 
+import mplhep
+plt.style.use(mplhep.style.CMS)
+
+# better formatting for parameter names
+# unnecessary for everyday analysis 
+MAKE_PUBLIC_PLOTS = False
 
 def load_correlation(json_path: str) -> tuple[list[str], np.ndarray]:
     """Load correlation order and matrix from a fit JSON file."""
@@ -61,11 +69,11 @@ def create_comparison_canvas(
     for axis, image in zip(axes, images):
         fig.colorbar(image, ax=axis, fraction=0.046, pad=0.04)
 
-    fig.tight_layout()
+    plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    fig.savefig(os.path.join(output_dir, "correlation_comparison.png"), dpi=150, bbox_inches="tight")
-    fig.savefig(os.path.join(output_dir, "correlation_comparison.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_comparison.png"), dpi=150, bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_comparison.pdf"), bbox_inches="tight")
     plt.close(fig)
 
 
@@ -87,15 +95,21 @@ def create_difference_heatmap(
     ax.set_title("Correlation Difference")
     ax.set_xticks(range(len(order)))
     ax.set_yticks(range(len(order)))
-    ax.set_xticklabels(order, rotation=90, fontsize=6)
-    ax.set_yticklabels(order, fontsize=6)
+
+    if MAKE_PUBLIC_PLOTS:
+        ticklabels = [get_nice_parameter_name(param_name) for param_name in order]
+    else:
+        ticklabels = [param_name.removeprefix("nu_") for param_name in order]
+
+    ax.set_xticklabels(ticklabels, rotation=90, fontsize=6)
+    ax.set_yticklabels(ticklabels, fontsize=6)
 
     fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
-    fig.tight_layout()
+    plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    fig.savefig(os.path.join(output_dir, "correlation_difference.png"), dpi=150, bbox_inches="tight")
-    fig.savefig(os.path.join(output_dir, "correlation_difference.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_difference.png"), dpi=150, bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "correlation_difference.pdf"), bbox_inches="tight")
     plt.close(fig)
 
 
@@ -104,30 +118,48 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare correlation matrices across two JSON files"
     )
+
     parser.add_argument(
-        "fit_a",
-        help="Path to first fit JSON file"
+        'fit_files',
+        nargs='+',
+        help='Path(s) to fit result JSON file(s)'
     )
+
     parser.add_argument(
-        "fit_b",
-        help="Path to second fit JSON file"
+        "-l","--labels",
+        nargs="+",
+        type=str,
+        help="Optional labels for plots. If not given, uses version name."
     )
+
     parser.add_argument(
         "-o", "--output",
         help="Output directory (relative to user.plot_directory)",
     )
     args = parser.parse_args()
 
-    fit_a_path = args.fit_a
-    fit_b_path = args.fit_b
+    if len(args.fit_files) != 2:
+        raise ValueError("Need to pass two fit files.")
+
+    fit_a_path = args.fit_files[0]
+    fit_b_path = args.fit_files[1]
+    
+    label_a = os.path.basename(fit_a_path).replace(".json", "")
+    label_b = os.path.basename(fit_b_path).replace(".json", "")
+
+    if args.labels:
+        if len(args.labels) != 2:
+            raise ValueError("If passing labels, should pass both labels")
+
+        label_a = args.labels[0]
+        label_b = args.labels[1]
+            
 
     output_name = args.output
     if output_name is None:
-        base_a = os.path.basename(fit_a_path).replace(".json", "")
-        base_b = os.path.basename(fit_b_path).replace(".json", "")
-        output_name = f"correlation_comparison_{base_a}_vs_{base_b}"
+        output_name = f"correlation_comparison_{label_a}_vs_{label_b}"
 
-    output_dir = os.path.join(user.plot_directory, output_name)
+    output_dir = os.path.join(user.plot_directory, "fit_comparison" ,output_name)
 
     order_a, matrix_a = load_correlation(fit_a_path)
     order_b, matrix_b = load_correlation(fit_b_path)
@@ -141,13 +173,11 @@ def main() -> None:
         )
 
     diff_matrix = matrix_a - matrix_b
-    base_a = os.path.basename(fit_a_path).replace(".json", "")
-    base_b = os.path.basename(fit_b_path).replace(".json", "")
 
-    create_comparison_canvas(order_a, matrix_a, matrix_b, output_dir, base_a, base_b, diff_matrix)
-    create_difference_heatmap(order_a, diff_matrix, output_dir, base_a, base_b)
+    create_comparison_canvas(order_a, matrix_a, matrix_b, output_dir, label_a, label_b, diff_matrix)
+    create_difference_heatmap(order_a, diff_matrix, output_dir, label_a, label_b)
     
-    diff_filename = f"correlation_only_diff_{base_a}_vs_{base_b}.json"
+    diff_filename = f"correlation_only_diff_{label_a}_vs_{label_b}.json"
     os.makedirs(output_dir, exist_ok=True)
     payload = {
         "correlation": {

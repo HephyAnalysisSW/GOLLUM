@@ -56,6 +56,15 @@ TOP_KINEMATICS = [
     "tr_AntiTop_y",
 ]
 
+TOP_KINEMATICS_NO_PT_TTBAR = [
+    "tr_ttbar_mass",
+    "tr_ttbar_y",
+    "tr_Top_pt",
+    "tr_AntiTop_pt",
+    "tr_Top_y",
+    "tr_AntiTop_y",
+]
+
 LEPTON_KINEMATICS = [
     "lep0_pt",
     "lep1_pt",

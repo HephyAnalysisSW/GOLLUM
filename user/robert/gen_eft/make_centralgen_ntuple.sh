@@ -1,0 +1,12 @@
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16APV_TT01j2l_mtt_0to700.json --redirector root://cmsxrootd.crc.nd.edu/    #SPLIT149
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16APV_TT01j2l_mtt_700to900.json --redirector root://cmsxrootd.crc.nd.edu/   #SPLIT45 
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16APV_TT01j2l_mtt_900toInf.json --redirector root://cmsxrootd.crc.nd.edu/   #SPLIT76 
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16_TT01j2l_mtt_0to700.json --redirector root://cmsxrootd.crc.nd.edu/       #SPLIT147
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16_TT01j2l_mtt_700to900.json --redirector root://cmsxrootd.crc.nd.edu/      #SPLIT60 
+python make_centralgen_ntuple.py --sample-json signal_samples/UL16_TT01j2l_mtt_900toInf.json --redirector root://cmsxrootd.crc.nd.edu/      #SPLIT77 
+python make_centralgen_ntuple.py --sample-json signal_samples/UL17_TT01j2l_mtt_0to700.json --redirector root://cmsxrootd.crc.nd.edu/       #SPLIT283
+python make_centralgen_ntuple.py --sample-json signal_samples/UL17_TT01j2l_mtt_700to900.json --redirector root://cmsxrootd.crc.nd.edu/      #SPLIT87 
+python make_centralgen_ntuple.py --sample-json signal_samples/UL17_TT01j2l_mtt_900toInf.json --redirector root://cmsxrootd.crc.nd.edu/     #SPLIT149
+python make_centralgen_ntuple.py --sample-json signal_samples/UL18_TT01j2l_mtt_0to700.json --redirector root://cmsxrootd.crc.nd.edu/       #SPLIT443
+python make_centralgen_ntuple.py --sample-json signal_samples/UL18_TT01j2l_mtt_700to900.json --redirector root://cmsxrootd.crc.nd.edu/     #SPLIT144
+python make_centralgen_ntuple.py --sample-json signal_samples/UL18_TT01j2l_mtt_900toInf.json --redirector root://cmsxrootd.crc.nd.edu/     #SPLIT233

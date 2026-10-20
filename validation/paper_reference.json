@@ -1,0 +1,319 @@
+{
+  "paper_commit": "b7a9e9a",
+  "cms_commit": "222f7b2",
+  "fits": {
+    "binned": {
+      "branch": "paper",
+      "fit": "binned",
+      "names": [
+        "eig_0",
+        "eig_1",
+        "eig_2",
+        "eig_3",
+        "eig_4",
+        "eig_5",
+        "eig_6",
+        "nu_CMS_res_j_0",
+        "nu_CMS_res_j_1",
+        "nu_CMS_res_j_2",
+        "nu_CMS_res_j_3",
+        "nu_CMS_res_j_4",
+        "nu_CMS_res_j_5",
+        "nu_CMS_scale_j_Total_EtaBin0",
+        "nu_CMS_scale_j_Total_EtaBin1",
+        "nu_CMS_scale_j_Total_EtaBin2",
+        "nu_CMS_scale_j_Total_EtaBin3",
+        "nu_CMS_scale_j_Total_EtaBin4",
+        "nu_CMS_scale_j_Total_EtaBin5",
+        "nu_EleSF",
+        "nu_MuSF",
+        "nu_Uncl",
+        "nu_alphaS",
+        "nu_btag_b",
+        "nu_btag_l",
+        "nu_l1prefire",
+        "nu_lumi",
+        "nu_mu_fac",
+        "nu_mu_ren",
+        "nu_pu",
+        "nu_showerFSR",
+        "nu_showerISR"
+      ],
+      "rows": [
+        {
+          "label": "null",
+          "changes": {},
+          "value": 0.0
+        },
+        {
+          "label": "eig_0",
+          "changes": {
+            "eig_0": 0.05
+          },
+          "value": 128.2737095080743
+        },
+        {
+          "label": "eig_5",
+          "changes": {
+            "eig_5": 0.05
+          },
+          "value": 0.0012528545329874297
+        },
+        {
+          "label": "nu_lumi",
+          "changes": {
+            "nu_lumi": 0.1
+          },
+          "value": 0.2850843689618945
+        },
+        {
+          "label": "nu_mu_ren",
+          "changes": {
+            "nu_mu_ren": 0.1
+          },
+          "value": 53.6106985493056
+        },
+        {
+          "label": "nu_pu",
+          "changes": {
+            "nu_pu": 0.1
+          },
+          "value": 0.3647313007991626
+        },
+        {
+          "label": "mixed",
+          "changes": {
+            "eig_0": 0.0067227647286386815,
+            "eig_1": 0.0062010812235830685,
+            "eig_2": -0.0005775863347631924,
+            "eig_3": -0.0072749693675751015,
+            "eig_4": -0.010692050917567331,
+            "eig_5": 0.008740052517472006,
+            "eig_6": 0.0023794047736094095,
+            "nu_CMS_res_j_0": 0.04087296755339196,
+            "nu_CMS_res_j_1": -0.03259297033885834,
+            "nu_CMS_res_j_2": 0.011154580531583361,
+            "nu_CMS_res_j_3": -0.05759754611166558,
+            "nu_CMS_res_j_4": 0.022262461796375827,
+            "nu_CMS_res_j_5": 0.011996571845697752,
+            "nu_CMS_scale_j_Total_EtaBin0": 0.025862224113287337,
+            "nu_CMS_scale_j_Total_EtaBin1": 0.011137223759923792,
+            "nu_CMS_scale_j_Total_EtaBin2": 0.022544111264422097,
+            "nu_CMS_scale_j_Total_EtaBin3": -0.010685372754568498,
+            "nu_CMS_scale_j_Total_EtaBin4": -0.021017081937822358,
+            "nu_CMS_scale_j_Total_EtaBin5": 0.018561603031112588,
+            "nu_EleSF": -0.0006074606109559063,
+            "nu_MuSF": -0.01679535192234314,
+            "nu_Uncl": 0.021408230652207285,
+            "nu_alphaS": 0.00990534165671071,
+            "nu_btag_b": 0.060386187616339994,
+            "nu_btag_l": -0.0005044578186903471,
+            "nu_l1prefire": 0.014371013693065305,
+            "nu_lumi": -0.021608621296696988,
+            "nu_mu_fac": 0.00904152592369606,
+            "nu_mu_ren": -0.014349158978227614,
+            "nu_pu": 0.02044100172113544,
+            "nu_showerFSR": 0.05247787387120847,
+            "nu_showerISR": -0.028347457184653303
+          },
+          "value": 3.7393704588103143
+        },
+        {
+          "label": "mixed_repeat",
+          "changes": {
+            "eig_0": 0.0067227647286386815,
+            "eig_1": 0.0062010812235830685,
+            "eig_2": -0.0005775863347631924,
+            "eig_3": -0.0072749693675751015,
+            "eig_4": -0.010692050917567331,
+            "eig_5": 0.008740052517472006,
+            "eig_6": 0.0023794047736094095,
+            "nu_CMS_res_j_0": 0.04087296755339196,
+            "nu_CMS_res_j_1": -0.03259297033885834,
+            "nu_CMS_res_j_2": 0.011154580531583361,
+            "nu_CMS_res_j_3": -0.05759754611166558,
+            "nu_CMS_res_j_4": 0.022262461796375827,
+            "nu_CMS_res_j_5": 0.011996571845697752,
+            "nu_CMS_scale_j_Total_EtaBin0": 0.025862224113287337,
+            "nu_CMS_scale_j_Total_EtaBin1": 0.011137223759923792,
+            "nu_CMS_scale_j_Total_EtaBin2": 0.022544111264422097,
+            "nu_CMS_scale_j_Total_EtaBin3": -0.010685372754568498,
+            "nu_CMS_scale_j_Total_EtaBin4": -0.021017081937822358,
+            "nu_CMS_scale_j_Total_EtaBin5": 0.018561603031112588,
+            "nu_EleSF": -0.0006074606109559063,
+            "nu_MuSF": -0.01679535192234314,
+            "nu_Uncl": 0.021408230652207285,
+            "nu_alphaS": 0.00990534165671071,
+            "nu_btag_b": 0.060386187616339994,
+            "nu_btag_l": -0.0005044578186903471,
+            "nu_l1prefire": 0.014371013693065305,
+            "nu_lumi": -0.021608621296696988,
+            "nu_mu_fac": 0.00904152592369606,
+            "nu_mu_ren": -0.014349158978227614,
+            "nu_pu": 0.02044100172113544,
+            "nu_showerFSR": 0.05247787387120847,
+            "nu_showerISR": -0.028347457184653303
+          },
+          "value": 3.7393704588103143
+        }
+      ],
+      "config_sha256": "54ac4c85d5af7bd143fc0003e5360c355223bb49b53833f772b52d5c01898faa",
+      "rotation_sha256": "61c75fdc2e40e0c86c84671b66cef562f37b261ab16fc9d72d6475b4167ca67b"
+    },
+    "unbinned": {
+      "branch": "paper",
+      "fit": "unbinned",
+      "names": [
+        "eig_0",
+        "eig_1",
+        "eig_2",
+        "eig_3",
+        "eig_4",
+        "eig_5",
+        "nu_CMS_res_j_0",
+        "nu_CMS_res_j_1",
+        "nu_CMS_res_j_2",
+        "nu_CMS_res_j_3",
+        "nu_CMS_res_j_4",
+        "nu_CMS_res_j_5",
+        "nu_CMS_scale_j_Total_EtaBin0",
+        "nu_CMS_scale_j_Total_EtaBin1",
+        "nu_CMS_scale_j_Total_EtaBin2",
+        "nu_CMS_scale_j_Total_EtaBin3",
+        "nu_CMS_scale_j_Total_EtaBin4",
+        "nu_CMS_scale_j_Total_EtaBin5",
+        "nu_EleSF",
+        "nu_MuSF",
+        "nu_Uncl",
+        "nu_alphaS",
+        "nu_btag_b",
+        "nu_btag_l",
+        "nu_l1prefire",
+        "nu_lumi",
+        "nu_mu_fac",
+        "nu_mu_ren",
+        "nu_pu",
+        "nu_showerFSR",
+        "nu_showerISR"
+      ],
+      "rows": [
+        {
+          "label": "null",
+          "changes": {},
+          "value": 0.0
+        },
+        {
+          "label": "eig_0",
+          "changes": {
+            "eig_0": 0.05
+          },
+          "value": 142.58851311722796
+        },
+        {
+          "label": "eig_5",
+          "changes": {
+            "eig_5": 0.05
+          },
+          "value": 0.00014428594346650004
+        },
+        {
+          "label": "nu_lumi",
+          "changes": {
+            "nu_lumi": 0.1
+          },
+          "value": 0.2884357238856858
+        },
+        {
+          "label": "nu_mu_ren",
+          "changes": {
+            "nu_mu_ren": 0.1
+          },
+          "value": 433.2079361764147
+        },
+        {
+          "label": "nu_pu",
+          "changes": {
+            "nu_pu": 0.1
+          },
+          "value": 1.0387330681862597
+        },
+        {
+          "label": "mixed",
+          "changes": {
+            "eig_0": 0.0067227647286386815,
+            "eig_1": 0.0062010812235830685,
+            "eig_2": -0.0005775863347631924,
+            "eig_3": -0.0072749693675751015,
+            "eig_4": -0.010692050917567331,
+            "eig_5": 0.008740052517472006,
+            "nu_CMS_res_j_0": 0.007138214320828227,
+            "nu_CMS_res_j_1": 0.04087296755339196,
+            "nu_CMS_res_j_2": -0.03259297033885834,
+            "nu_CMS_res_j_3": 0.011154580531583361,
+            "nu_CMS_res_j_4": -0.05759754611166558,
+            "nu_CMS_res_j_5": 0.022262461796375827,
+            "nu_CMS_scale_j_Total_EtaBin0": 0.011996571845697752,
+            "nu_CMS_scale_j_Total_EtaBin1": 0.025862224113287337,
+            "nu_CMS_scale_j_Total_EtaBin2": 0.011137223759923792,
+            "nu_CMS_scale_j_Total_EtaBin3": 0.022544111264422097,
+            "nu_CMS_scale_j_Total_EtaBin4": -0.010685372754568498,
+            "nu_CMS_scale_j_Total_EtaBin5": -0.021017081937822358,
+            "nu_EleSF": 0.018561603031112588,
+            "nu_MuSF": -0.0006074606109559063,
+            "nu_Uncl": -0.01679535192234314,
+            "nu_alphaS": 0.021408230652207285,
+            "nu_btag_b": 0.00990534165671071,
+            "nu_btag_l": 0.060386187616339994,
+            "nu_l1prefire": -0.0005044578186903471,
+            "nu_lumi": 0.014371013693065305,
+            "nu_mu_fac": -0.021608621296696988,
+            "nu_mu_ren": 0.00904152592369606,
+            "nu_pu": -0.014349158978227614,
+            "nu_showerFSR": 0.02044100172113544,
+            "nu_showerISR": 0.05247787387120847
+          },
+          "value": 113625.43899384452
+        },
+        {
+          "label": "mixed_repeat",
+          "changes": {
+            "eig_0": 0.0067227647286386815,
+            "eig_1": 0.0062010812235830685,
+            "eig_2": -0.0005775863347631924,
+            "eig_3": -0.0072749693675751015,
+            "eig_4": -0.010692050917567331,
+            "eig_5": 0.008740052517472006,
+            "nu_CMS_res_j_0": 0.007138214320828227,
+            "nu_CMS_res_j_1": 0.04087296755339196,
+            "nu_CMS_res_j_2": -0.03259297033885834,
+            "nu_CMS_res_j_3": 0.011154580531583361,
+            "nu_CMS_res_j_4": -0.05759754611166558,
+            "nu_CMS_res_j_5": 0.022262461796375827,
+            "nu_CMS_scale_j_Total_EtaBin0": 0.011996571845697752,
+            "nu_CMS_scale_j_Total_EtaBin1": 0.025862224113287337,
+            "nu_CMS_scale_j_Total_EtaBin2": 0.011137223759923792,
+            "nu_CMS_scale_j_Total_EtaBin3": 0.022544111264422097,
+            "nu_CMS_scale_j_Total_EtaBin4": -0.010685372754568498,
+            "nu_CMS_scale_j_Total_EtaBin5": -0.021017081937822358,
+            "nu_EleSF": 0.018561603031112588,
+            "nu_MuSF": -0.0006074606109559063,
+            "nu_Uncl": -0.01679535192234314,
+            "nu_alphaS": 0.021408230652207285,
+            "nu_btag_b": 0.00990534165671071,
+            "nu_btag_l": 0.060386187616339994,
+            "nu_l1prefire": -0.0005044578186903471,
+            "nu_lumi": 0.014371013693065305,
+            "nu_mu_fac": -0.021608621296696988,
+            "nu_mu_ren": 0.00904152592369606,
+            "nu_pu": -0.014349158978227614,
+            "nu_showerFSR": 0.02044100172113544,
+            "nu_showerISR": 0.05247787387120847
+          },
+          "value": 113625.43899384452
+        }
+      ],
+      "config_sha256": "fb1a9cd15524cbb6399f045b9f0ae481f37043c0ab250bb17a002668eafb7711",
+      "rotation_sha256": "d71dbfc0d25a3549a0fe2039c223e49b0b39886733d1e412cccd9a32182b5ad0"
+    }
+  }
+}

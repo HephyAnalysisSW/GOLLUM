@@ -1,6 +1,10 @@
 # Learning the gluon PDF with SBI
 
-## Run the paper's binned “8-1” fit on CBE
+This development branch integrates CMS developments and defaults to Autograd/SciPy.
+The frozen [sbi-pdf-paper](https://github.com/HephyAnalysisSW/GOLLUM/tree/sbi-pdf-paper)
+branch remains the paper reference. See [integration checks](docs/cms-integration.md).
+
+## Run the paper's binned “8-1” configuration on CBE
 
 Log in with `ssh YOUR_CBE_LOGIN@cbe.vbc.ac.at`. You need GitHub repository access and read access to
 Robert's shared Conda environment and artifacts below. This recipe uses the
@@ -9,7 +13,7 @@ existing trained surrogates; it does not retrain them or require raw ntuples.
 ### 1. Clone and activate the environment
 
 ```bash
-git clone --branch sbi-pdf-paper --single-branch git@github.com:HephyAnalysisSW/GOLLUM.git
+git clone --branch sbi-pdf-dev --single-branch git@github.com:HephyAnalysisSW/GOLLUM.git
 cd GOLLUM
 source /software/f2022/software/mamba/24.3.0-0/etc/profile.d/conda.sh
 conda activate /groups/hephy/cms/robert.schoefbeck/conda/envs/hephy-ml-gpu-claude
@@ -18,7 +22,7 @@ unset CERN_USER  # keep plots local; disable automatic CERN upload
 ```
 
 Run all remaining commands from this directory. The verified environment uses
-Python 3.10.18; `env/environment.yaml` does not yet fully reproduce it.
+Python 3.10.18 and Autograd 1.8.0; `env/environment.yaml` does not yet fully reproduce it.
 
 ### 2. Copy the external fit inputs
 
@@ -67,19 +71,20 @@ and `export GOLLUM_RUN_DIR="$HOME/gollum-8-1"` before running.
 ```bash
 python fit/Likelihood.py configs/binned_v5D/binned_delphes_8_RunII.yaml \
   --rotate "$GOLLUM_RUN_DIR/output/eigen_basis_binned_delphes_8_RunII_binned_delphes_RunII_v5D.json" \
-  --minos --freezePOI 0.001
+  --freezePOI 0.001 --overwrite fit
 ```
 
 Startup should report `24 ready artifact(s), 0 missing` and freeze `eig_7`
 (eigenvalue about `9.04e-5`), leaving seven POIs floating.
-The fit runs MIGRAD, HESSE, and MINOS. Its result is
+The default fit uses Autograd gradients, L-BFGS-B, and Hessian errors.
+For MIGRAD/HESSE and MINOS intervals, append `--minuit --minos`. Its result is
 `$GOLLUM_RUN_DIR/output/binned_delphes_8_RunII_binned_delphes_RunII_v5D_rotate_freezePOI0.001_fit.json`;
 logs and diagnostic plots are under `$GOLLUM_RUN_DIR/plots/likelihood_fit/`.
 An existing result is loaded instead of refitted; add `--overwrite fit` to rerun.
 
-Verified on CBE in an independent clone with a private home directory and
-user configuration: all 24 surrogates loaded, MIGRAD/HESSE/MINOS completed,
-and the result JSON and diagnostic plots were written (2026-10-20).
+The binned recipe and both backends are checked on CBE. The unbinned paper
+calculation additionally requires `--paper-numerics`; see the integration notes.
+Result JSON records the backend and numerical mode.
 
 ## Paper command record
 

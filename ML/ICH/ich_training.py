@@ -148,16 +148,23 @@ for name in axis_names:
 
 # ---------------- PDF & combinations ----------------
 
-pdf_cfg = J.get("pdf", {}) or {}
-pdf_n   = pdf_cfg.get("pdf_n", None)
-pdf_type  = pdf_cfg.get("pdf_type", None)
-pdf_basis = pdf_cfg.get("pdf_basis", None)
-pdf_rescale_pod_amplitudes = pdf_cfg.get("rescale_pod_amplitudes", True)
+cfg = J.get("pdf", {}) or {}
+if cfg == {}:
+    variables = []
+    combinations = [()]
 
-pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
+    pdf = None
 
-variables   = list(pdf.variables)     # ['c0', ..., 'cN']
-combinations = list(pdf.combinations) # [(), ('c0',),..., ('ci','cj'),...]
+else:
+    pdf_n   = cfg.get("pdf_n", None)
+    pdf_type  = cfg.get("pdf_type", None)
+    pdf_basis = cfg.get("pdf_basis", None)
+    pdf_rescale_pod_amplitudes = cfg.get("rescale_pod_amplitudes", True)
+
+    pdf = PDFParametrization(n=pdf_n, typ=pdf_type, basis=pdf_basis, rescale_pod_amplitudes=pdf_rescale_pod_amplitudes)
+
+    variables   = list(pdf.variables)     # ['c0', ..., 'cN']
+    combinations = list(pdf.combinations) # [(), ('c0',),..., ('ci','cj'),...]
 
 # ---------------- build ICH object ----------------
 
@@ -167,7 +174,7 @@ region = J.get("region", None)
 if region:
     cfg_base = os.path.join(cfg_base, region)
 
-filename = pdf_cfg.get("filename", f"ICH_{J.get('id')}.pkl")
+filename = cfg.get("filename", f"ICH_{J.get('id')}.pkl")
 model_dir = os.path.join(user.model_directory, cfg_base, "ICH")
 os.makedirs(model_dir, exist_ok=True)
 out_path = os.path.join(model_dir, filename)
@@ -256,16 +263,19 @@ if ich is None or args.overwrite:
         id1 = G[:, gid1_idx]
         id2 = G[:, gid2_idx]
 
-        # derivatives aligned with pdf.combinations (M columns)
-        deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)       # shape (N, M)
-        deriv = np.asarray(deriv, dtype=np.float64)
+        if pdf:
+            # derivatives aligned with pdf.combinations (M columns)
+            deriv = pdf.derivatives(x1=x1, x2=x2, id1=id1, id2=id2, Q=Q)       # shape (N, M)
+            deriv = np.asarray(deriv, dtype=np.float64)
 
-        # treat derivatives as reweights and multiply by event weight
-        weights_per_comb = deriv * w.reshape(-1, 1)                  # (N, M)
-        #weights_per_comb = deriv * w.reshape(1, -1)   # (28, 1261796)
+            # treat derivatives as reweights and multiply by event weight
+            weights_per_comb = deriv * w.reshape(-1, 1)                  # (N, M)
+            #weights_per_comb = deriv * w.reshape(1, -1)   # (28, 1261796)
 
-        # accumulate into ICH
-        ich.accumulate(axis1_vals, weights_per_comb, axis2_vals)
+            # accumulate into ICH
+            ich.accumulate(axis1_vals, weights_per_comb, axis2_vals)
+        else:
+            ich.accumulate(axis1_vals, w.reshape(-1,1), axis2_vals)
 
     ich.finalize()
     ich.save(out_path)

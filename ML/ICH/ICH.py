@@ -210,6 +210,23 @@ class InclusiveCrosssectionHistogram:
         alphas = np.array([self._combo_weight(c, coeffs) for c in self.combinations], dtype=float)
         # contracted over combination axis (0)
         return np.tensordot(alphas, self.histograms, axes=(0, 0))
+    def predict_differentiable(self, coeffs):
+        """Evaluate the same polynomial as predict without detaching Autograd values."""
+        import autograd.numpy as anp
+
+        coeffs = anp.array(coeffs)
+        if coeffs.shape[0] != len(self.variables):
+            raise ValueError(f"ICH.predict: expected {len(self.variables)} coeffs, got {coeffs.shape[0]}.")
+        weights = []
+        for combination in self.combinations:
+            weight = 1.0
+            for name in combination:
+                weight = weight * coeffs[self.variables.index(name)]
+            if len(combination) == 2 and combination[0] == combination[1]:
+                weight = weight * 0.5
+            weights.append(weight)
+        return anp.tensordot(anp.array(weights), self.histograms, axes=(0, 0))
+
     # ---------------- nice printing ----------------
 
     def __str__(self) -> str:

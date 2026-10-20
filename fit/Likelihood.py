@@ -1,6 +1,26 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple, Any, Optional
-from iminuit import Minuit
+from types import SimpleNamespace
+
+try:
+    import autograd.numpy as np
+    from autograd import grad, hessian
+    from autograd.tracer import getval
+    _HAS_AUTOGRAD = True
+except ImportError:
+    import numpy as np
+    _HAS_AUTOGRAD = False
+
+    def grad(function):
+        raise ImportError("autograd is required for gradient-based fits.")
+
+    def hessian(function):
+        raise ImportError("autograd is required for Hessian-based fits.")
+
+    def getval(value):
+        return value
+
+from scipy.optimize import minimize
 
 import os
 import yaml
@@ -17,7 +37,7 @@ import copy
 import logging
 logger = logging.getLogger(__name__)
 
-import numpy as np
+import numpy as onp
 
 import sys
 sys.path.insert(0, '..')
@@ -53,6 +73,7 @@ def load_likelihood(cfg):
         'binned':    [... enriched binned regions ...],     # may be empty
         'pois':      sorted list of POI names,
         'nuisances': sorted list of nuisance names
+        'floating': sorted list of floating nuisance parameter names
       }
 
     The function mutates the region dictionaries to include predictor hooks:
@@ -76,7 +97,7 @@ def load_likelihood(cfg):
 
     all_pois = set()
     all_nuis = set()
-    floating = []
+    floating = set()
     # convenience cache of jobs by id
     id2job = {j.get("id"): j for j in (cfg.get("jobs") or []) if isinstance(j, dict) and j.get("id")}
 
@@ -139,38 +160,50 @@ def load_likelihood(cfg):
                         S['parameters'] = pnn_params
                     S['combinations'] = pnn_combs
 
-                    # optional: check PNN↔ICP consistency if referenced
-                    try:
-                        extras = (pnn_job or {}).get('extras', {}) or {}
-                        icp_id = extras.get('use_icp')
-                        if isinstance(icp_id, str) and icp_id in id2job:
-                            icp_job = id2job[icp_id]
-                            icp = icp_job.get('predictor', None)
-                            if icp is not None:
-                                icp_params = list(getattr(icp, "parameters"))
-                                icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
-                                if not (pnn_params == icp_params and pnn_combs == icp_combs):
-                                    logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
-                    except Exception:
-                        pass
+                    if S.get('shape_only', False):
+
+                        logger.warning(f"[likelihood] PNN '{pnn_id}' will be used only for shape variations.")
+                        
+                        if S['predictor'] is not None:
+                            
+                            if not S['predictor'].has_icp():
+                                raise NotImplementedError("Currently, only allowing shape-only systematics for PNNs trained with ICP bias.")
+                            
+                            S['predictor'].remove_icp_bias()
+
+                    else:
+                        # optional: check PNN↔ICP consistency if referenced
+                        try:
+                            extras = (pnn_job or {}).get('extras', {}) or {}
+                            icp_id = extras.get('use_icp')
+                            if isinstance(icp_id, str) and icp_id in id2job:
+                                icp_job = id2job[icp_id]
+                                icp = icp_job.get('predictor', None)
+                                if icp is not None:
+                                    icp_params = list(getattr(icp, "parameters"))
+                                    icp_combs  = [tuple(c) for c in getattr(icp, "combinations")]
+                                    if not (pnn_params == icp_params and pnn_combs == icp_combs):
+                                        logger.warning(f"[likelihood] PNN '{pnn_id}' params/combs differ from ICP '{icp_id}'.")
+                        except Exception:
+                            pass
 
                     # collect nuisance names
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
                 else:
                     # future unbinned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
     # -----------------------
     # Binned regions (ICH/ICPH)
@@ -225,19 +258,19 @@ def load_likelihood(cfg):
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
                 elif styp == "lnN":
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
                 else:
                     # future binned syst types
                     for nm in (S.get("parameters") or []):
                         all_nuis.add(nm)
                         if S.get("floating", False):
-                            floating.append(nm)
+                            floating.add(nm)
 
     # Binning consistency check across regions:
     for R in binned:
@@ -279,9 +312,10 @@ def load_likelihood(cfg):
     # Keep deterministic order
     pois_list = sorted(all_pois)
     nuis_list = sorted(all_nuis)
+    floating_list = sorted(floating)
 
     # Return both sections enriched
-    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list, 'floating':floating}
+    return {'regions': regions, 'binned': binned, 'pois': pois_list, 'nuisances': nuis_list, 'floating': floating_list}
 
 def build_hypothesis_from_likelihood(like_info, *, name=None,
                                      poi_init=0.0, nuis_init=0.0,
@@ -295,6 +329,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     """
     pois = like_info.get('pois', []) or []
     nuis = like_info.get('nuisances', []) or []
+    floating = like_info.get('floating', []) or []
 
     params = []
     for nm in pois:
@@ -303,7 +338,7 @@ def build_hypothesis_from_likelihood(like_info, *, name=None,
     for nm in nuis:
         params.append(ModelParameter(
             name=nm, val=nuis_init, isPOI=False,
-            isPenalized=bool(nm not in like_info["floating"])
+            isPenalized=bool(nm not in floating)
         ))
     return Hypothesis(parameters=params, name=name or "from_yaml")
 
@@ -314,6 +349,9 @@ try:
 except Exception:
     _NUMBA = False
 
+if _HAS_AUTOGRAD:
+    _NUMBA = False
+
 if _NUMBA:
     @njit(parallel=True, fastmath=True)
     def _weighted_sum_log1p_minus_x(x: np.ndarray, w: np.ndarray) -> float:
@@ -322,8 +360,9 @@ if _NUMBA:
         for i in prange(n):
             xi = x[i]
             wi = w[i]
-            if -1.0 < xi < 1e-4:
+            if -1.0 < xi and abs(xi) < 1e-4:
                 x2 = xi * xi
+                # Taylor expansion of log1p(x) - x
                 t = 0.5 + xi * (-1.0/3.0 + xi * (1.0/4.0 + xi * (-1.0/5.0 + xi * (1.0/6.0))))
                 y = -x2 * t
             else:
@@ -332,24 +371,32 @@ if _NUMBA:
         return s
 else:
     def _weighted_sum_log1p_minus_x(x: np.ndarray, w: np.ndarray) -> float:
-        x = np.asarray(x, dtype=np.float64)
-        w = np.asarray(w, dtype=np.float64)
-        y = np.empty_like(x)
+        x = np.array(x)
+        w = np.array(w)
         small = (np.abs(x) < 1e-4) & (x > -1.0)
-        if np.any(small):
-            xs = x[small]
-            s_small = xs*xs * (0.5 + xs*(-1/3 + xs*(1/4 + xs*(-1/5 + xs*(1/6)))))
-            y[small] = -s_small
-        big = ~small
-        if np.any(big):
-            xb = x[big]
-            y[big] = np.log1p(xb) - xb
-        return float(np.sum(w * y, dtype=np.float64))
+        s_small = x * x * (0.5 + x * (-1.0 / 3.0 + x * (1.0 / 4.0 + x * (-1.0 / 5.0 + x * (1.0 / 6.0)))))
+        y_small = -s_small
+        y_big = np.log1p(x) - x
+        y = np.where(small, y_small, y_big)
+        return np.sum(w * y, dtype=np.float64)
+
+
+
+def _weighted_sum_log1p_minus_x_paper(x, w):
+    """Historical paper arithmetic, including its negative-x polynomial mask.
+
+    Opt-in compatibility: the original Numba kernel used the polynomial for
+    every -1 < x < 1e-4, rather than only abs(x) < 1e-4.
+    """
+    small = (x > -1.0) & (x < 1e-4)
+    x2 = x * x
+    polynomial = -x2 * (0.5 + x * (-1.0 / 3.0 + x * (1.0 / 4.0 + x * (-1.0 / 5.0 + x / 6.0))))
+    return np.sum(w * np.where(small, polynomial, np.log1p(x) - x), dtype=np.float64)
 
 
 def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, float]) -> np.ndarray:
     N = len(poi_names)
-    c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names], dtype=np.float64)
+    c = np.array([poi_values.get(n, 0.0) for n in poi_names])
     quads = []
 
     #FIXME careful here, double sum
@@ -361,19 +408,19 @@ def expand_pois_linear_quadratic(poi_names: List[str], poi_values: Dict[str, flo
     for i in range(N):
         for j in range(i,N): 
             quads.append((0.5 if i==j else 1) * c[i] * c[j])  # 1/2 c_i c_j
-    return np.concatenate([c, np.asarray(quads, dtype=np.float64)], axis=0) if quads else c
+    return np.concatenate([c, np.array(quads)], axis=0) if quads else c
 
 
 def nuis_to_A_vector(param_names: List[str], combinations: List[Tuple[str, ...]], values: Dict[str, float]) -> np.ndarray:
     if not combinations:
-        return np.zeros(0, dtype=np.float64)
-    out = np.empty(len(combinations), dtype=np.float64)
-    for k, comb in enumerate(combinations):
+        return np.zeros(0)
+    out = []
+    for comb in combinations:
         v = 1.0
         for p in comb:
-            v *= float(values.get(p, 0.0))
-        out[k] = v
-    return out
+            v *= values.get(p, 0.0)
+        out.append(v)
+    return np.array(out)
 
 def pois_jacobian_linear_quadratic(poi_names: List[str],
                                     poi_values: Dict[str, float]) -> np.ndarray:
@@ -391,7 +438,7 @@ def pois_jacobian_linear_quadratic(poi_names: List[str],
         return np.zeros((0, 0), dtype=np.float64)
 
     # Base c-vector in the same order as in expand_pois_linear_quadratic
-    c = np.array([float(poi_values.get(n, 0.0)) for n in poi_names],
+    c = np.array([poi_values.get(n, 0.0) for n in poi_names],
                  dtype=np.float64)
 
     n_quads = N * (N + 1) // 2
@@ -451,7 +498,7 @@ def nuis_jacobian_A(param_names: List[str],
     # Loop over rows (each monomial ν_B)
     for k, comb in enumerate(combinations):
         # Fetch the ν values for each factor in the comb
-        vals = [float(values.get(p, 0.0)) for p in comb]
+        vals = [values.get(p, 0.0) for p in comb]
 
         # For each parameter column a, compute ∂ν_B/∂ν_a
         for a_idx, pname in enumerate(param_names):
@@ -530,7 +577,8 @@ class N2LL:
                  cache_subdir: str = "caches",
                  cache_root: Optional[str] = None,
                  overwrite: bool = False,
-                 eval_chunk_size: int = 2000000_000):
+                 eval_chunk_size: int = 2000000_000,
+                 paper_numerics: bool = False):
         import importlib, os
         self.lk = likelihood
         self.regions = list(likelihood.get('regions', []))
@@ -541,6 +589,8 @@ class N2LL:
         self.cache_subdir = cache_subdir
         self.overwrite = overwrite
         self.eval_chunk_size = int(eval_chunk_size)
+        self._event_reduce = (_weighted_sum_log1p_minus_x_paper if paper_numerics
+                              else _weighted_sum_log1p_minus_x)
 
         # ===== Binned likelihood support =====
         self.binned = list(likelihood.get('binned', []) or [])
@@ -963,14 +1013,15 @@ class N2LL:
                     pred = S.get('predictor', None)
                     if pred is None:
                         raise RuntimeError(f"[binned] Missing ICPH predictor for {rid}/{cid}/{S.get('id','?')}")
-                    # stash a meta dict we’ll enrich with deltas as numpy arrays for fast math
+                    # stash a meta dict we'll enrich with deltas as numpy arrays for fast math
                     gm = {
                         'id': S['id'],
                         'params': list(S.get('parameters', []) or []),
                         'combs':  [list(t) for t in (getattr(pred, "combinations", []) or [])],
-                        # We store deltas as (nB, nb1) or (nB, nb1, nb2) in float64
-                        '_deltas': np.asarray(pred.deltas, dtype=np.float64),
+                        # Always copy so shape_only normalization below does not mutate the loaded surrogate
+                        '_deltas': np.array(pred.deltas, dtype=np.float64),
                         '_obj': pred,
+                        'shape_only': bool(S.get('shape_only', False)),
                     }
                     icph_groups.append({'_meta': gm})
 
@@ -1155,8 +1206,8 @@ class N2LL:
 
     @staticmethod
     def _safe_log_ratio(num: np.ndarray, den: np.ndarray, eps: float = 1e-15) -> np.ndarray:
-        num = np.maximum(np.asarray(num, dtype=np.float64), eps)
-        den = np.maximum(np.asarray(den, dtype=np.float64), eps)
+        num = np.maximum(np.array(num, dtype=np.float64), eps)
+        den = np.maximum(np.array(den, dtype=np.float64), eps)
         return np.log(num) - np.log(den)
 
     # ---------- Binned A-basis assembly ----------
@@ -1178,13 +1229,13 @@ class N2LL:
                 f"Expected order: {poi_names}"
             )
 
-        return np.array([float(h[name].val) for name in poi_names], dtype=np.float64)
+        return np.array([h[name].val for name in poi_names], dtype=np.float64)
 
     def _assemble_nuA_groups_binned(self, rid: str, hypothesis) -> dict[str, list[tuple[dict, np.ndarray]]]:
         """
         ν_A vector per ICPh group, per class, for a given hypothesis.
         """
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         out: dict[str, list[tuple[dict, np.ndarray]]] = {}
         for C in self._binned_classes_by_region.get(rid, []):
             cid = C['id']
@@ -1204,7 +1255,7 @@ class N2LL:
         Build λ_i(c,ν) for all bins in a binned region rid by summing processes.
         """
         # per-class lnN (same as unbinned)
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         ln_bias = {}
         for C in self._binned_classes_by_region[rid]:
             cid = C['id']
@@ -1223,28 +1274,45 @@ class N2LL:
         for C in self._binned_classes_by_region[rid]:
             cid = C['id']
             ich = C['_ich']
-            cvec = np.array([float(p.val) for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
+            cvec = np.array([p.val for p in getattr(hypothesis, 'POIs', []) if p.name in C['_poi_params']])
             # IMPORTANT: ICH.predict takes the plain c-vector in the same order as variables
             cvec = self._assemble_c_vector_for_ich(rid, hypothesis, cid)
-            sigma_hist = ich.predict(cvec)  # shape (nb1,) or (nb1,nb2)
+            sigma_hist = ich.predict_differentiable(cvec) if _HAS_AUTOGRAD else ich.predict(cvec)
 
-            # accumulate nuisance exponent per bin from all ICPh groups
-            # we’ll form a flat vector exp(exponent + ln_bias[cid])
+            # accumulate nuisance exponent per bin from all ICPh groups,
+            # separating shape-only groups (exact runtime renormalization) from the rest
             if sigma_hist.ndim == 1:
                 nb1 = sigma_hist.shape[0]
-                expo = np.zeros(nb1, dtype=np.float64)
+                expo_norm  = np.zeros(nb1, dtype=np.float64)
+                expo_shape = np.zeros(nb1, dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1)
-                    expo += (nuA @ dA).astype(np.float64)  # (nb1,)
-                lam += sigma_hist * np.exp(expo + ln_bias[cid])
+                    if gm.get('shape_only', False):
+                        expo_shape = expo_shape + (nuA @ dA)
+                    else:
+                        expo_norm  = expo_norm  + (nuA @ dA)
+                shape_factor = np.exp(expo_shape)
+                shape_sum = sigma_hist @ shape_factor
+                if shape_sum > 0:
+                    shape_factor *= sigma_hist.sum() / shape_sum
+                lam = lam + sigma_hist * np.exp(expo_norm + ln_bias[cid]) * shape_factor
             else:
                 nb1, nb2 = sigma_hist.shape
-                expo2d = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_norm2d  = np.zeros((nb1, nb2), dtype=np.float64)
+                expo_shape2d = np.zeros((nb1, nb2), dtype=np.float64)
                 for gm, nuA in nuA_per_group[cid]:
                     dA = gm['_deltas']   # shape (nB, nb1, nb2)
-                    # tensordot over combination axis -> (nb1,nb2)
-                    expo2d += np.tensordot(nuA, dA, axes=(0, 0)).astype(np.float64)
-                lam += sigma_hist.reshape(-1) * np.exp(expo2d.reshape(-1) + ln_bias[cid])
+                    contrib = np.tensordot(nuA, dA, axes=(0, 0))  # (nb1, nb2)
+                    if gm.get('shape_only', False):
+                        expo_shape2d = expo_shape2d + contrib
+                    else:
+                        expo_norm2d  = expo_norm2d  + contrib
+                shape_factor2d = np.exp(expo_shape2d)
+                sig_flat = sigma_hist.reshape(-1)
+                shape_sum = sig_flat @ shape_factor2d.reshape(-1)
+                if shape_sum > 0:
+                    shape_factor2d *= sig_flat.sum() / shape_sum
+                lam = lam + sig_flat * np.exp(expo_norm2d.reshape(-1) + ln_bias[cid]) * shape_factor2d.reshape(-1)
 
         return lam
 
@@ -1253,7 +1321,7 @@ class N2LL:
     def _assemble_cA_per_class(self, rid: str, hypothesis) -> Dict[str, np.ndarray]:
         """Build c_A vectors per class for a given hypothesis."""
         cA_per_class: Dict[str, np.ndarray] = {}
-        c_vec = {p.name: float(p.val) for p in getattr(hypothesis, 'POIs', [])}
+        c_vec = {p.name: p.val for p in getattr(hypothesis, 'POIs', [])}
         for cid in self._class_ids_by_region.get(rid, []):
             poi_names = self._poi_order[(rid, cid)]
             cA_per_class[cid] = expand_pois_linear_quadratic(poi_names, c_vec)
@@ -1270,12 +1338,12 @@ class N2LL:
             if pname is None:
                 out[cid] = 0.0
             else:
-                out[cid] = float(hypothesis[pname].val) if pname in hypothesis else 0.0
+                out[cid] = hypothesis[pname].val if pname in hypothesis else 0.0
         return out
 
     def _assemble_nuA_groups(self, rid: str, hypothesis) -> Dict[str, list[tuple[dict, np.ndarray]]]:
         """Build ν_A vectors per Δ-group for a given hypothesis."""
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis, 'parameters', []) if not p.isPOI}
         nuA_per_group: Dict[str, list[tuple[dict, np.ndarray]]] = {}
         for cid in self._class_ids_by_region.get(rid, []):
             meta = self._meta[(rid, cid)]
@@ -1311,7 +1379,7 @@ class N2LL:
                 c_dot_R = R_slice @ cA
 
             # --- additive POI bias: rate_shift (scalar per class) ---
-            rs = float(rate_shift_map.get(cid, 0.0))
+            rs = rate_shift_map.get(cid, 0.0)
             if rs != 0.0:
                 c_dot_R = c_dot_R + rs
 
@@ -1322,11 +1390,11 @@ class N2LL:
                 dA   = f[dset][start:stop, :]           # (M, nB)
                 if dA.shape[1] != nuA.shape[0]:
                     raise RuntimeError(f"[N2LL] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
-                expo += dA @ nuA                        # (M,)
+                expo = expo + (dA @ nuA)                # (M,)
 
             # include per-class lnN bias additively in exponent
-            exp_expo = np.exp(expo + ln_bias_map[cid])  # (M,)
-            T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+            expo += ln_bias_map[cid] # (M,)
+            T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
         return T
 
@@ -1347,7 +1415,7 @@ class N2LL:
             return
 
         # quick check: any parameter nonzero?
-        any_nonzero = any(abs(float(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
+        any_nonzero = any(abs(getval(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
         # _asimov_active controls whether we have (c',nu')!=(0,0). If that's false, we need not evaluate T(x;c',nu')
         self._asimov_active = bool(any_nonzero)
         self._asimov_hyp = hypothesis if self._asimov_active else None
@@ -1370,7 +1438,7 @@ class N2LL:
             cA_per_class = self._assemble_cA_per_class(rid, hypothesis)
             nuA_per_group = self._assemble_nuA_groups(rid, hypothesis)
             ln_bias = {
-                cid: sum(log1p_alpha * float(hypothesis[nm].val) if nm in hypothesis else 0.0
+                cid: sum(log1p_alpha * hypothesis[nm].val if nm in hypothesis else 0.0
                          for nm, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
                 for cid in class_ids
             }
@@ -1437,9 +1505,14 @@ class N2LL:
         # We allow switching, but make it explicit and clear.
         if getattr(self, "_asimov_hypothesis_set", False) and getattr(self, "_asimov_active", False):
             print("[N2LL.setObservation] An Asimov hypothesis had been set; disabling it in favor of observed-data mode.")
+        
+        if not ignore_weights:
+            print("[N2LL.setObservation] Using weighted sample in setObservation.")
         self._asimov_hypothesis_set = False
         self._asimov_active = False
         self._asimov_hyp = None
+
+        # hypothesis for non-central Asimov 
         self._asimov_T.clear()
         self._binned_asimov_lambda.clear()
 
@@ -1475,16 +1548,93 @@ class N2LL:
                         raise RuntimeError(f"[setObservation:unbinned:{rid}] len(weights) != nEvents ({w.shape[0]} != {X.shape[0]}).")
                     Xs.append(X); Ws.append(w)
 
+                    # checks of the existence of surrogates has been done before setObservation is called
+
                 if Xs:
                     X_all = np.concatenate(Xs, axis=0)
                     w_all = np.concatenate(Ws, axis=0)
-                else:
+                else: # Q: shouldn't this raise an error ? in principle a shard should *always* have events
                     X_all = np.empty((0, len(getattr(loader, "feature_names", []))), dtype=np.float64)
                     w_all = np.empty((0,), dtype=np.float64)
 
                 self._obs_unbinned[rid] = {'X': X_all, 'w': w_all}
+                
+                # pre-evaluating surrogates on observed events
+                # to avoid evaluating everytime n2ll(hyp) is called
+
+                # NB: in binned, evaluation is done directly in n2ll(hyp),
+                # because ICH and ICPH already give the ratio for nominal vs. alternative
+
+                self._obs_unbinned[rid]['by_class'] = {}
+                
+                # load region info from likelihood object list
+                # does not protect against two regions with
+                # the same name - is this allowed ?
+                # currently, if there's two regions with the same name,
+                # keeps the last one checked
+                region_info = {}
+                for region in self.regions:
+                    if region['id']==rid:
+                        region_info = region
+
+                if region_info == {}:
+                    raise ValueError(f"Did not find information in config corresponding to region {rid}")
+
+                n_classes = len(region_info['classes'])
+                
+                class_predictor = region_info.get('_classifier_predictor', None)
+                
+                n_classifiers = 0
+                if class_predictor is None or n_classes <= 1:
+                    g_obs = np.ones((len(w_all), n_classes), dtype=np.float64)
+                else:
+                    # in the case where class_predictor uses
+                    # subset of the features in dataloader
+                    class_predictor_column_mask = self.make_column_mask(loader.feature_names, class_predictor.feature_names)
+                    
+                    g_obs = _predict_classifier(class_predictor, X_all[:, class_predictor_column_mask])  # (n_events, n_classes)
+                    if g_obs.shape[1] != n_classes:
+                        raise RuntimeError(f"[N2LL] Classifier outputs {g_obs.shape[1]} != {n_classes} classes in region '{rid}'")
+                    n_classifiers+=1
+
+                n_poi_predictors = 0
+                n_syst_predictors = 0
+                for class_info in region_info['classes']:
+                    cid = class_info['id']
+                    i_class = class_index(region_info['classes'], cid)
+
+                    self._obs_unbinned[rid]['by_class'][cid] = {}
+
+                    # classifier output per classfrom global classifier
+                    self._obs_unbinned[rid]['by_class'][cid]['g'] = g_obs[:,i_class]
+
+                    # POI predictor for each class
+                    poi_predictor = (class_info.get('POI') or {}).get('predictor')
+                    
+                    if poi_predictor is None:
+                        R_A = np.empty((len(w_all), 0), dtype=np.float64)
+                    else:
+                        poi_predictor_column_mask = self.make_column_mask(loader.feature_names, poi_predictor.feature_names)
+                        R_A = predict_bit_ratio(poi_predictor, X_all[:,poi_predictor_column_mask])
+                        n_poi_predictors +=1
+                    
+                    self._obs_unbinned[rid]['by_class'][cid]['R'] = R_A
+                    
+                    # syst predictors for each class
+                    for syst_info in class_info['_pnn_systs']:
+                        
+                        syst_column_mask = self.make_column_mask(loader.feature_names, syst_info['predictor'].feature_names)
+                        pnn = syst_info['predictor']
+                        syst_id = syst_info['id']
+                        dA = predict_pnn_deltaA(pnn, X_all[:, syst_column_mask])  # (N_events, nB)
+                        dset = f'Delta::{syst_id}'           
+
+                        self._obs_unbinned[rid]['by_class'][cid][dset] = dA
+                        n_syst_predictors += 1
+
                 print(f"[setObservation] Unbinned region '{rid}': loaded {X_all.shape[0]:,} events "
                       f"({'unit weights' if ignore_weights else 'with weights'}).")
+                print(f'[setObservation] Evaluated {n_classifiers} classifiers, and individual surrogates for {n_classes} classes. Total: {n_poi_predictors} POI predictors and {n_syst_predictors} systematics predictors.')
 
         # ------------- BINNED OBSERVATION (from unbinned events) -------------
         if binned_loaders:
@@ -1530,12 +1680,12 @@ class N2LL:
                     X = np.asarray(X, dtype=np.float64)
                     if len(edges) == 1:
                         x = X[:, idx[0]]
-                        H, _ = np.histogram(x, bins=edges[0], weights=(w if w is not None else None))
+                        H, _ = onp.histogram(x, bins=edges[0], weights=(w if w is not None else None))
                         counts += H.astype(np.float64)
                     else:
                         x = X[:, idx[0]]
                         y = X[:, idx[1]]
-                        H, _, _ = np.histogram2d(x, y, bins=[edges[0], edges[1]], weights=(w if w is not None else None))
+                        H, _, _ = onp.histogram2d(x, y, bins=[edges[0], edges[1]], weights=(w if w is not None else None))
                         counts2d += H.astype(np.float64)
 
                 flat_counts = counts if len(edges) == 1 else counts2d.reshape(-1)
@@ -1572,17 +1722,9 @@ class N2LL:
             # ---------- UNBINNED (if provided) ----------
             if getattr(self, "_obs_unbinned", None):
                 # ν values for lnN bias if we need to reconstruct T from by_class
-                nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
+                nu_vals = {p.name: p.val for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
                 for rid, block in self._obs_unbinned.items():
-                    # Mode A: direct T
-                    if 'T' in block:
-                        T = np.asarray(block['T'], dtype=np.float64)
-                        W = np.asarray(block['w'], dtype=np.float64)
-                        total_unbinned += _weighted_sum_log1p_minus_x(T, W)
-                        continue
-
-                    # Mode B: by_class arrays -> reconstruct T with current (c,nu)
                     byc = block['by_class']
                     W   = np.asarray(block['w'], dtype=np.float64)
                     N   = len(W)
@@ -1594,10 +1736,32 @@ class N2LL:
                     ln_bias = {
                         cid: sum(log1p_alpha * nu_vals.get(pname, 0.0)
                                  for pname, log1p_alpha in self._lnN_by_class.get((rid, cid), []))
-                        for cid in byc.keys()
+                        for cid in self._class_ids_by_region[rid]
                     }
                     rate_shift = self._assemble_rate_shift_per_class(rid, hypothesis._base)
 
+                    # first term in N2LL: weighted sum of T evaluated on Asimov events for each class
+                    chunk = self.eval_chunk_size
+                    class_ids = self._class_ids_by_region[rid]
+                    
+                    # N = 0 case may happen if we have regions with spurious
+                    # data events without events in Asimov.
+                    # in any case, the loop for the calculation 
+                    # of the first term will simply not run
+                    N_asimov =self._N_region.get(rid, 0)
+                    for ichunk, start in enumerate(range(0, N_asimov, chunk)):
+                        stop = min(start + chunk, N_asimov)
+                        T_asimov_chunk = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                        W_asimov_chunk = self._h5[(rid, class_ids[0])]['w0'][start:stop]
+                        # IMPORTANT: event weights for all the events in Asimov are stored
+                        # in the cache file for all of the classes
+                        # So doing the below line with class_ids[-1] would also work.                                            
+                        total_unbinned -= np.dot(W_asimov_chunk, T_asimov_chunk)
+
+                    # second term in N2LL: divided into two parts
+                    # 1: get T evaluated on the observed events, summing over predictions of surrogates for each class
+                    # 2: make weighted sum of log1p(T), for observed weights can be one or not
+                    # depends on whether setObservation was called with ignoreWeights=True
                     for cid, comp in byc.items():
                         g_slice = np.asarray(comp['g'], dtype=np.float64)     # (N,)
                         R_slice = np.asarray(comp['R'], dtype=np.float64)     # (N, nA)
@@ -1607,7 +1771,7 @@ class N2LL:
                         c_dot_R = R_slice @ cA                                # (N,)
 
                         # Adding rate shift
-                        rs = float(rate_shift.get(cid, 0.0))
+                        rs = rate_shift.get(cid, 0.0)
                         if rs != 0.0:
                             c_dot_R = c_dot_R + rs
 
@@ -1619,28 +1783,29 @@ class N2LL:
                             dA = np.asarray(comp[dset], dtype=np.float64)     # (N, nB)
                             if dA.shape[1] != nuA.shape[0]:
                                 raise RuntimeError(f"[N2LL:obs:unbinned] Δ dim {dA.shape[1]} != ν_A dim {nuA.shape[0]} for {rid}/{cid}/{gm['id']}")
-                            expo += dA @ nuA
+                            expo = expo + (dA @ nuA)
 
-                        exp_expo = np.exp(expo + ln_bias[cid])
-                        T += g_slice * (c_dot_R * exp_expo + (exp_expo - 1.0))
+                        # include per-class lnN bias additively in exponent
+                        expo += ln_bias[cid] # (M,)
+                        T += g_slice * (c_dot_R * np.exp(expo) + np.expm1(expo))
 
-                    total_unbinned += _weighted_sum_log1p_minus_x(T, W)
+                    total_unbinned += np.dot(W,np.log1p(T))
 
             # ---------- BINNED (always available if you provided columns for axes) ----------
-            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned", None):
+            if getattr(self, "_binned_regions_ids", None) and getattr(self, "_obs_binned_counts", None):
                 for rid in self._binned_regions_ids:
-                    if rid not in self._obs_binned:
+                    if rid not in self._obs_binned_counts:
                         continue  # region not histogrammed (e.g. missing axis columns)
                     lam0 = self._binned_lambda0[rid]                    # (Nflat,)
                     lam  = self._compute_lambda_binned(rid, hypothesis._base) # (Nflat,)
-                    Nobs = self._obs_binned[rid]                        # (Nflat,)
+                    Nobs = self._obs_binned_counts[rid]                        # (Nflat,)
 
                     log_ratio = self._safe_log_ratio(lam, lam0)         # stable
                     total_binned += np.sum( -(lam - lam0) + Nobs * log_ratio, dtype=np.float64 )
 
             n2ll = -2.0 * (total_unbinned + total_binned)
             n2ll += hypothesis._base.penalty()
-            return float(n2ll)
+            return n2ll
 
         # ===================================================================
         # (B) ASIMOV MODE  
@@ -1648,7 +1813,7 @@ class N2LL:
         total_sum = 0.0   # Σ w * (log1p(T) - T)
         bias_sum  = 0.0   # Σ w * T'(asimov) * log1p(T)
 
-        nu_vals = {p.name: float(p.val) for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
+        nu_vals = {p.name: p.val for p in getattr(hypothesis._base, 'parameters', []) if not p.isPOI}
 
         for R in self.regions:
             rid = R['id']
@@ -1674,12 +1839,15 @@ class N2LL:
                 stop = min(start + chunk, N)
                 #T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, start, stop)
                 T = self._compute_T_chunk(rid, cA_per_class, nuA_per_group, ln_bias, rate_shift, start, stop)
+                # IMPORTANT: event weights for all the events in Asimov are stored
+                # in the cache file for all of the classes
+                # So doing the below line with class_ids[-1] would also work.
                 W = self._h5[(rid, class_ids[0])]['w0'][start:stop]
-                total_sum += _weighted_sum_log1p_minus_x(T, W)
+                total_sum += self._event_reduce(T, W)
 
                 if asimov_T_chunks is not None:
                     Tprime = asimov_T_chunks[ichunk]
-                    bias_sum += float(np.sum(W * np.log1p(T) * Tprime, dtype=np.float64))
+                    bias_sum += np.sum(W * np.log1p(T) * Tprime, dtype=np.float64)
 
         total_unbinned = total_sum + bias_sum
 
@@ -1695,138 +1863,55 @@ class N2LL:
 
         n2ll = -2.0 * (total_unbinned + total_binned)
         n2ll += hypothesis._base.penalty()
-        return float(n2ll)
-
-## This code 'fixes' frozen POIs in minuit
-#from iminuit import Minuit
-#
-#def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-#                   do_migrad=True, do_hesse=True, do_minos=False, verbosity=1):
-#
-#    # -- collect parameters to hand to Minuit --
-#    # ignored -> not passed at all
-#    # frozen  -> passed to Minuit but marked fixed, so they appear in the postfit
-#    if isinstance(hypothesis, Rotated):
-#        kept = [p for p in hypothesis.POIs if not getattr(p, "isIgnored", False)] + [
-#            p for p in hypothesis.nuisances if not getattr(p, "isIgnored", False)
-#        ]
-#        poi_names = {p.name for p in hypothesis.POIs if not getattr(p, "isIgnored", False)}
-#    else:
-#        kept = [p for p in hypothesis.parameters if not getattr(p, "isIgnored", False)]
-#        poi_names = set()
-#
-#    if not kept:
-#        raise RuntimeError("No parameters to pass to Minuit.")
-#
-#    names = [p.name for p in kept]
-#    x0 = [float(p.val) for p in kept]
-#    fixed_names = {p.name for p in kept if p.isFrozen}
-#    float_names = [p.name for p in kept if not p.isFrozen]
-#
-#    if not float_names:
-#        raise RuntimeError("No floating parameters to fit.")
-#
-#    # step defaults:
-#    #   None  -> rotated: POIs 1.0, nuisances 0.1 ; plain: all 0.1
-#    #   float -> uniform
-#    #   dict  -> per-parameter overrides
-#    if step is None:
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#    elif isinstance(step, (int, float)):
-#        steps = {p.name: float(step) for p in kept}
-#    elif isinstance(step, dict):
-#        if isinstance(hypothesis, Rotated):
-#            steps = {p.name: (1.0 if p.name in poi_names else 0.1) for p in kept}
-#        else:
-#            steps = {p.name: 0.1 for p in kept}
-#        for k, v in step.items():
-#            if k in steps:
-#                steps[k] = float(v)
-#    else:
-#        raise TypeError("step must be None, float, or dict{name: float}")
-#
-#    eval_count = 0
-#    def fcn(*x):
-#        nonlocal eval_count
-#        pars = {names[i]: float(x[i]) for i in range(len(names))}
-#        h_eval = hypothesis.cloneModify(**pars)
-#        f = float(n2ll(h_eval))
-#        eval_count += 1
-#        if verbosity >= 2:
-#            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
-#                print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
-#                h_eval.print()
-#        return f
-#
-#    # ---- Minuit with positional args and explicit names ----
-#    m = Minuit(fcn, *x0, name=names)
-#    m.errordef = 1.0
-#    m.strategy = 2
-#
-#    # set user step and mark fixed params
-#    for i, nm in enumerate(names):
-#        s = steps[nm]
-#        m.errors[i] = s
-#        if hasattr(m, "set_initial_step"):
-#            m.set_initial_step(i, 0.3 * s)
-#        if nm in fixed_names:
-#            m.fixed[nm] = True
-#
-#    # rate_shift nuisances are bound
-#    for name in m.parameters:
-#        if name.startswith("rate_shift"):
-#            m.limits[name] = (-1.0, None)
-#
-#    if verbosity >= 1:
-#        print("\n[make_minuit] Parameters passed to Minuit:")
-#        for i, nm in enumerate(names):
-#            status = "FIXED" if nm in fixed_names else "FLOAT"
-#            print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}  {status}")
-#
-#    m.precision = 0.001
-#    print(f"Minuit precision: {m.precision}")
-#
-#    if do_migrad:
-#        m.migrad()
-#        if verbosity >= 1:
-#            print("\n[MIGRAD]")
-#            print(m)
-#
-#    if do_hesse:
-#        m.hesse()
-#        if verbosity >= 1:
-#            print("\n[HESSE]")
-#            print(m)
-#
-#    if do_minos:
-#        poi_list = [
-#            p.name for p in getattr(hypothesis, "POIs", [])
-#            if p.name in m.parameters and not m.fixed[p.name]
-#        ] or [nm for nm in m.parameters if not m.fixed[nm]]
-#        m.minos(*poi_list)
-#        if verbosity >= 1:
-#            print("\n[MINOS]", poi_list)
-#            print(m)
-#
-#    # write back best fit once
-#    final_pars = {names[i]: float(m.values[i]) for i in range(len(names))}
-#    h_final = hypothesis.cloneModify(**final_pars)
-#
-#    for k, v in final_pars.items():
-#        setattr(hypothesis, k, v)
-#
-#    if verbosity >= 1:
-#        print("\n[final] Best-fit hypothesis:")
-#        h_final.print()
-#
-#    return m
+        return n2ll
 
 from iminuit import Minuit
-def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
-                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
+
+class _CovarianceMatrix:
+    def __init__(self, matrix, parameter_names):
+        self.matrix = onp.asarray(matrix, dtype=onp.float64)
+        self.parameter_names = list(parameter_names)
+
+    def correlation(self):
+        diag = onp.sqrt(onp.clip(onp.diag(self.matrix), 0.0, None))
+        denom = onp.outer(diag, diag)
+        corr = onp.zeros_like(self.matrix)
+        onp.divide(self.matrix, denom, out=corr, where=denom > 0)
+        onp.fill_diagonal(corr, 1.0)
+        return corr
+
+    def __array__(self, dtype=None):
+        return onp.asarray(self.matrix, dtype=dtype)
+
+
+class _FitResult:
+    def __init__(self, *, parameters, values, errors, covariance, fval, edm, niter, success, message, jac):
+        self.parameters = list(parameters)
+        self.values = onp.asarray(values, dtype=onp.float64)
+        self.errors = onp.asarray(errors, dtype=onp.float64)
+        self.covariance = _CovarianceMatrix(covariance, self.parameters)
+        self.fval = float(fval)
+        self.edm = float(edm)
+        self.niter = int(niter)
+        self.success = bool(success)
+        self.message = str(message)
+        self.jac = None if jac is None else onp.asarray(jac, dtype=onp.float64)
+
+    def __repr__(self):
+        status = "success" if self.success else "failed"
+        return f"FitResult(fval={self.fval:.6e}, niter={self.niter}, status={status})"
+
+
+def _scalar_value(value):
+    try:
+        return float(getval(value))
+    except Exception:
+        return float(value)
+
+
+from iminuit import Minuit
+def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1, minuit_precision=None):
 
     # -- collect free parameters (works for rotated or plain) --
     if isinstance(hypothesis, Rotated):
@@ -1891,6 +1976,8 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
     m = Minuit(fcn, *x0, name=names)
     m.errordef = 1.0
     m.strategy = 2
+    if minuit_precision is not None:
+        m.precision = minuit_precision
 
     # set user step and (if available) explicit FD step
     for i, nm in enumerate(names):
@@ -1909,8 +1996,6 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         for i, nm in enumerate(names):
             print(f"  - {nm:>16s}  start = {m.values[i]: .6e}  step = {m.errors[i]: .3g}")
 
-    m.precision = 0.001
-    print(f"Minuit precision: {m.precision}") 
     if do_migrad:
         m.migrad();
         if verbosity >= 1:
@@ -1945,12 +2030,157 @@ def run_minuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
         h_final.print()
     return m
 
+def run_autograd_fit(n2ll, hypothesis, *, step=None, print_every=25,
+                   do_migrad=True, do_hesse=True, do_minos=False, minosNP=None ,verbosity=1):
+
+    # -- collect free parameters (works for rotated or plain) --
+    if isinstance(hypothesis, Rotated):
+        free = [p for p in hypothesis.POIs if not p.isFrozen] + [p for p in hypothesis.nuisances
+                                  if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = {p.name for p in hypothesis.POIs if not p.isFrozen}
+    else:
+        free = [p for p in hypothesis.parameters
+                if not p.isFrozen and not getattr(p, "isIgnored", False)]
+        poi_names = set()
+
+    if not free:
+        raise RuntimeError("No free parameters to fit.")
+
+    names = [p.name for p in free]
+    x0 = np.asarray([_scalar_value(p.val) for p in free], dtype=np.float64)
+
+    # step defaults:
+    #   None  -> plain: all 0.1
+    #   float -> uniform
+    #   dict  -> per-parameter overrides
+    if step is None:
+        steps = {p.name: 0.1 for p in free}
+    elif isinstance(step, (int, float)):
+        steps = {p.name: float(step) for p in free}
+    elif isinstance(step, dict):
+        steps = {p.name: 0.1 for p in free}
+        for k, v in step.items():
+            if k in steps:
+                steps[k] = float(v)
+    else:
+        raise TypeError("step must be None, float, or dict{name: float}")
+
+    eval_count = 0
+
+    def fcn(x):
+        nonlocal eval_count
+        callback_start = perf_counter()
+        pars = {names[i]: x[i] for i in range(len(names))}
+        h_eval = hypothesis.cloneModify(**pars)
+        likelihood_start = perf_counter()
+        f = n2ll(h_eval)
+        evaluation_end = perf_counter()
+        eval_count += 1
+        if verbosity >= 1:
+            if ((eval_count - 1) % max(1, int(print_every)) == 0) and print_every >= 0:
+                print(
+                    f"\n[eval {eval_count:6d}] f = {_scalar_value(f): .6e}"
+                    f"  likelihood = {evaluation_end-likelihood_start:.6f} s"
+                    f"  callback = {evaluation_end-callback_start:.6f} s"
+                )
+                if verbosity >= 2:
+                    h_eval.print()
+        if not onp.isfinite(_scalar_value(f)):
+            raise RuntimeError("NaN likelihood!")
+        return f
+
+    bounds = [(-1.0, np.inf) if name.startswith("rate_shift") else (-np.inf, np.inf) for name in names]
+
+    if verbosity >= 1:
+        print("\n[fit] Floating parameters:")
+        for i, nm in enumerate(names):
+            print(f"  - {nm:>16s}  start = {x0[i]: .6e}  step = {steps[nm]: .3g}")
+
+    if do_migrad:
+        result = minimize(
+            fcn,
+            x0,
+            method="L-BFGS-B",
+            jac=grad(fcn),
+            bounds=bounds,
+            options={"maxiter": 1000, "ftol": 1e-9},
+        )
+        x_best = onp.asarray(result.x, dtype=onp.float64)
+        if verbosity >= 1:
+            print("\n[MINIMIZE]")
+            print(result)
+    else:
+        x_best = onp.asarray(x0, dtype=onp.float64)
+        result = SimpleNamespace(success=True, message="minimization skipped", nit=0, fun=fcn(x_best), jac=grad(fcn)(x_best))
+
+    # The objective is -2 log L.  Minuit's errordef=1 convention defines the
+    # 1-sigma boundary as Δ(-2 log L) = 1, so C = 2 H⁻¹ (the factor of 2
+    # absorbs the "-2" prefactor).  Apply the same scaling here.
+    if do_hesse:
+        try:
+            hess = onp.asarray(hessian(fcn)(x_best), dtype=onp.float64)
+            covariance = 2.0 * onp.linalg.pinv(hess)
+        except Exception as exc:
+            if verbosity >= 1:
+                print(f"[warn] Exact Hessian failed ({exc}); falling back to optimizer covariance.")
+            hess_inv = getattr(result, "hess_inv", None)
+            if hess_inv is not None and hasattr(hess_inv, "todense"):
+                covariance = 2.0 * onp.asarray(hess_inv.todense(), dtype=onp.float64)
+            elif hess_inv is not None:
+                covariance = 2.0 * onp.asarray(hess_inv, dtype=onp.float64)
+            else:
+                covariance = onp.eye(len(names), dtype=onp.float64)
+    else:
+        hess_inv = getattr(result, "hess_inv", None)
+        if hess_inv is not None and hasattr(hess_inv, "todense"):
+            covariance = 2.0 * onp.asarray(hess_inv.todense(), dtype=onp.float64)
+        elif hess_inv is not None:
+            covariance = 2.0 * onp.asarray(hess_inv, dtype=onp.float64)
+        else:
+            covariance = onp.eye(len(names), dtype=onp.float64)
+
+    errors = onp.sqrt(onp.clip(onp.diag(covariance), 0.0, None))
+    jac_best = onp.asarray(getattr(result, "jac", grad(fcn)(x_best)), dtype=onp.float64)
+    edm = float(0.5 * onp.dot(jac_best, jac_best))
+
+    final_pars = {names[i]: x_best[i] for i in range(len(names))}
+    h_final = hypothesis.cloneModify(**final_pars)
+    # copy final values onto the original object (single pass)
+    for k, v in final_pars.items():
+        setattr(hypothesis, k, v)
+    if verbosity >= 1:
+        print("\n[final] Best-fit hypothesis:")
+        h_final.print()
+    if do_minos and verbosity >= 1:
+        print("[warn] MINOS uncertainties are not available in the autograd backend; using Hessian errors.")
+
+    return _FitResult(
+        parameters=names,
+        values=x_best,
+        errors=errors,
+        covariance=covariance,
+        fval=_scalar_value(fcn(x_best)),
+        edm=edm,
+        niter=getattr(result, "nit", getattr(result, "niter", 0)),
+        success=getattr(result, "success", True),
+        message=getattr(result, "message", ""),
+        jac=jac_best,
+    )
+
 def serialize_result(m, base, version, args, out_path ):
 
     result_payload = {
         "config_basename": base,
         "version": version,
-        "no_syst": bool(args.no_syst) if "no_syst" in args else None,
+        "no_syst": args.no_syst,
+        "syst_only": args.syst_only,
+        "fit_backend": "minuit" if args.minuit else "autograd",
+        "paper_numerics": args.paper_numerics,
+        "minuit_precision": args.minuit_precision,
+        "minuit_covariance_accurate": getattr(getattr(m, "fmin", None), "has_accurate_covar", None),
+        "minuit_covariance_forced_posdef": getattr(getattr(m, "fmin", None), "has_made_posdef_covar", None),
+        "optimizer_success": bool(getattr(m, "success", getattr(m, "valid", True))),
+        "optimizer_message": str(getattr(m, "message", "")),
         "fval": float(m.fval),
         "edm": float(getattr(m, "edm", np.nan)),
         "niter": int(getattr(m, "niter", -1)),
@@ -1981,18 +2211,19 @@ def pretty_par_name(name: str) -> str:
     # replacements
     return name.replace("res_j", "JER").replace("scale_j_Regrouped", "JES")
 
-def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, suffix=""):
+def plot_fit_summary_root(out_dir, base, rotated, hyp, fit_vals, fit_errs, suffix=""):
     import ROOT
 
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptStat(0)
 
-    base = os.path.splitext(os.path.basename(cfg_path))[0]
     pois = [p.name for p in (getattr(hyp, "POIs", None) or getattr(hyp, "pois", []))]
     nuis = [p.name for p in getattr(hyp, "nuisances", []) if not p.isFrozen]
-    names = pois
-    if not args.no_syst:
-        names += nuis 
+    names = pois + nuis
+    if args.no_syst:
+        names = pois
+    elif args.syst_only:
+        names = nuis
     n_pois, n_nuis = len(pois), len(nuis)
     n = len(names)
     if n == 0:
@@ -2068,21 +2299,20 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
 
     # separator between POIs and nuisances
     ysep = None
-    lines = []
     if n_pois and n_nuis:
-        ysep = n - n_pois + 0.5
-        lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
-        lsep.SetLineStyle(2)
-        lsep.SetLineWidth(2)
-        lsep.Draw("SAME")
-        lines.append(ysep)
+        ysep=n
+        if not args.syst_only:
+            ysep = n - n_pois + 0.5
+            lsep = ROOT.TLine(xmin, ysep, xmax, ysep)
+            lsep.SetLineStyle(2)
+            lsep.SetLineWidth(2)
+            lsep.Draw("SAME")
         # prefit constraint band guides for nuisances: x=±1 from separator down to x-axis
         for xx in (-1.0, +1.0):
             lv = ROOT.TLine(xx, 0.5, xx, ysep)
             lv.SetLineStyle(2)
             lv.SetLineWidth(2)
             lv.Draw("SAME")
-            lines.append(lv)
 
     # run-identifying strings
     t = ROOT.TLatex()
@@ -2098,7 +2328,7 @@ def plot_fit_summary_root(out_dir, cfg_path, rotated, hyp, fit_vals, fit_errs, s
     c.SaveAs(os.path.join(out_dir, f"{base}{suffix}_fit_summary.png"))
     c.Close()
 
-def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
+def plot_correlation_root(out_dir, base, rotated, names, corr, suffix=""):
     import ROOT
 
     ROOT.gROOT.SetBatch(True)
@@ -2108,7 +2338,6 @@ def plot_correlation_root(out_dir, cfg_path, rotated, names, corr, suffix=""):
     except Exception:
         pass
 
-    base = os.path.splitext(os.path.basename(cfg_path))[0]
     n = len(names)
     if n == 0:
         return
@@ -2159,13 +2388,16 @@ if __name__ == "__main__":
     # ---------------- args ----------------
     import argparse
     p = argparse.ArgumentParser(description="Likelihood fit")
-    p.add_argument("config", help="Path to global YAML config")
+    p.add_argument("configs", nargs="+",help="Path to one or more global YAML configs")
+    p.add_argument("--base", help="Base name for fit result and cache directories")
     p.add_argument("--overwrite", nargs="?", const="all", default=None, choices=["fit", "all"],
                    help="Overwrite results: 'fit' overwrites fit JSON only; 'all' overwrites fit JSON and cache.")
     p.add_argument("--rotate", action="store", default=None, help="Point to a rotate JSON")
     p.add_argument("--freezePOI", type=float, default=None,
                    help="If used with --rotate, freeze rotated POIs with eigenvalue < threshold to 0.")
     p.add_argument("--no_syst", action="store_true", help="Disable all nuisances (freeze to 0).")
+    p.add_argument("--syst_only", action="store_true", help="Disable all POIs (freeze to 0).")
+    p.add_argument("--data", action="store_true", help="Fits to data defined in config.")
     p.add_argument("--asimov", nargs="+", default=None,  metavar=("PAR", "VAL"),
                    help="Set an off-nominal Asimov hypothesis via pairs: --asimov par1 val1 par2 val2 ...")
     p.add_argument("--shuffle", nargs="+", default=None,  help="Shuffle these features")
@@ -2173,13 +2405,36 @@ if __name__ == "__main__":
     p.add_argument("--minos", action="store_true", default=False,
                    help="Whether to use MINOS in the fit (POIs only). If not set, then use HESSE by default.")
     p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos. 'all' runs MINOS for all NPs.")
+    p.add_argument("--minuit", action="store_true", default=False,
+                   help="Use the original iminuit/MIGRAD backend instead of the autograd+SciPy backend.")
+    p.add_argument("--minuit-precision", type=float, default=None,
+                   help="Override Minuit precision; use 0.001 only to reproduce historical paper settings.")
+    p.add_argument("--paper-numerics", action="store_true",
+                   help="Reproduce the historical paper Asimov reducer, including its negative-x polynomial mask.")
     args = p.parse_args()
+    if args.minuit_precision is not None and (not args.minuit or args.minuit_precision <= 0):
+        p.error("--minuit-precision requires --minuit and a positive value.")
+    if args.minos and not args.minuit:
+        p.error("--minos requires --minuit; Autograd provides Hessian errors.")
+    if args.paper_numerics and args.data:
+        p.error("--paper-numerics is only supported for Asimov fits.")
 
     import common.yaml_loader as yaml_loader
 
-    cfg = yaml_loader.load_yaml(args.config)
-    yaml_loader.print_summary(cfg, args.config, yaml_loader._INCLUDE_TRACE)
-    yaml_loader.load_surrogates(cfg, args.config, overwrite=False)
+    if not (args.minuit or _HAS_AUTOGRAD):
+        raise ImportError("Trying to run autograd fit but autograd was not imported properly.")
+
+    # doing it this way, since print_summary and load_surrogates
+    # use the path of the configs to give info to the user
+    list_configs = []
+    for config_path in args.configs:
+        aux_cfg = yaml_loader.load_yaml(config_path)
+        yaml_loader.print_summary(aux_cfg, config_path, yaml_loader._INCLUDE_TRACE)
+        yaml_loader.load_surrogates(aux_cfg, config_path, overwrite=False)
+
+        list_configs.append(aux_cfg)
+    
+    cfg = yaml_loader.combine_configs(list_configs)
 
     like_info = load_likelihood(cfg)
     hyp = build_hypothesis_from_likelihood(like_info, name="SR")
@@ -2187,24 +2442,83 @@ if __name__ == "__main__":
     rotated = bool(args.rotate)
     hyp_for_fit = Rotated(hyp, args.rotate, name="Fisher-basis") if rotated else hyp
 
+    if args.no_syst and args.syst_only:
+        raise ValueError("You cannot ask for a fit with --no_syst and --syst_only.")
+
     if args.no_syst:
         for p_ in hyp.nuisances + hyp_for_fit.nuisances:
             p_.val = 0.0
             p_.isFrozen = True
         print("[opts] --no_syst: all nuisances set to 0 and frozen.")
+    elif args.syst_only:
+        for p_ in hyp.POIs + hyp_for_fit.POIs:
+            # p_.val = 0.0 # do I need this ? I don't think I do.
+            p_.isFrozen = True
+        print("[opts] --syst_only: all POIs frozen.")
+
+    # currently rate parameters are implemented using unpenalized/floating lnN
+    # which is defined as a systematic (fit should be run with --syst_only)
+    # POI field (from ICH) still has to be in config to get nominal yields
+
+    # code below avoids fitting rate and ICH POIs (e.g. forgetting --syst_only option)
+    if not args.syst_only and not args.no_syst:
+        # classes with active ICH POI and floating lnN parameters
+        offenders: list[str] = []
+
+        for section_name in ("regions", "binned"):
+            for region_cfg in like_info[section_name]:
+                region_id = region_cfg["id"]
+
+                for class_cfg in region_cfg["classes"]:
+                    class_id = class_cfg["id"]
+                    poi_cfg = class_cfg.get("POI", {})
+                    poi_type = poi_cfg.get("type")
+                    poi_parameters = poi_cfg.get("parameters", [])
+
+                    has_active_poi = (poi_type is not None) and (len(poi_parameters) > 0)
+
+                    has_floating_lnn = any(
+                        (syst_cfg.get("type") == "lnN") and bool(syst_cfg.get("floating", False))
+                        for syst_cfg in class_cfg.get("systematics", [])
+                    )
+
+                    if has_active_poi and has_floating_lnn:
+                        offenders.append(f"{section_name}:{region_id}/{class_id}")
+
+        if offenders:
+            raise RuntimeError(
+                "Invalid configuration for non-syst-only fit: active POI with floating lnN in "
+                f"{offenders}. Run with --syst_only or fix the configuration."
+            )
 
     # -------- paths (fit + plots) --------
     from common.user import plot_directory
     import common.user as user
+    
+    # base from mangling together configs or given by user
+    base_list = []
+    for config_path in args.configs:
+        base_list.append(os.path.splitext(os.path.basename(config_path))[0])
+    
+    base = "_".join(base_list) 
+    
+    if args.base:
+        base = args.base
 
-    base = os.path.splitext(os.path.basename(args.config))[0]
     version = str(cfg.get("version", "v0"))
     suffix = ("_nosyst" if args.no_syst else "") + ("_rotate" if rotated else "")
-    if args.freezePOI is not None:
+    if args.freezePOI is not None and (args.syst_only == False):
         suffix += f"_freezePOI{args.freezePOI:g}"
+    if args.syst_only:
+        suffix = "_systonly"
     if args.shuffle:
         suffix += "_" + "_".join(args.shuffle)
         print(f"Shuffling these features: {','.join(args.shuffle)}")
+    if args.paper_numerics:
+        suffix += "_paperNumerics"
+    if args.data:
+        suffix += "_data"
+        print("Fitting to data!")
 
     os.makedirs(user.output_directory, exist_ok=True)
     out_path = os.path.join(user.output_directory, f"{base}_{version}{suffix}_fit.json")
@@ -2302,14 +2616,58 @@ if __name__ == "__main__":
                     cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
                     cache_root=None,
                     overwrite=overwrite_cache,
+                    paper_numerics=args.paper_numerics,
                 )
                 n2ll.shuffle_features = args.shuffle
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
 
-                # ---- optional off-nominal Asimov point ----
-                if args.asimov is None:
+                # allow unbinned and binned regions simultaneously
+                # they should have different names
+                # e.g. SR_2016 (unbinned) and CR_2016 (binned)
+
+                # default for data, but can be changed below,
+                # if one wants to pass a MC sample/toy as "data sample"
+                ignore_weights = True
+                # unbinned region data
+                unbinned_dataloaders = {}
+                for region in like_info['regions']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        unbinned_dataloaders.update({region_id: loader})
+                        # if there's at least one region with a weighted sample for "data"
+                        # will use weights. not an issue if mix weighted/unweighted as "data"
+                        # weights are usually ~ 1
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
+                            
+
+                # binned region data
+                binned_dataloaders = {}
+                for region in like_info['binned']:
+                    region_id = region['id']
+                    if 'data' in region:
+                        loader = factory.get(region['data']['sample'])
+                        # if 'selection' in region:
+                        #     loader.addSelection(region['selection'])
+                        binned_dataloaders.update({region_id: loader})
+                        if (region['data'].get('ignore_weights', True) is False) and ignore_weights:
+                            ignore_weights = False
+
+                # data
+                if args.data:
+                    if (not unbinned_dataloaders) and (not binned_dataloaders):
+                        raise ValueError("You asked for a data fit, but did not define any dataset in your config. Exiting!")
+                    n2ll.setObservation(unbinned_dataloaders, binned_dataloaders, ignore_weights=ignore_weights)
+
+                # ---- on-nominal Asimov point ----
+                elif args.asimov is None:
                     n2ll.setAsimov()
+
+                # ---- optional off-nominal Asimov point ----
                 else:
                     if rotated:
                         raise NotImplementedError
@@ -2338,7 +2696,13 @@ if __name__ == "__main__":
                 # which sets step to 0.1 for all parameters
                 # (see function definition)
                 # step can also be a single value or a dictionary
-                m = run_minuit_fit(
+                _fitter = run_iminuit_fit if args.minuit else run_autograd_fit
+                if args.minuit:
+                    print("[opts] Using iminuit/MIGRAD backend (--minuit)")
+                else:
+                    print("[opts] Using autograd+SciPy backend (default)")
+                fitter_options = {"minuit_precision": args.minuit_precision} if args.minuit else {}
+                m = _fitter(
                     n2ll,
                     hyp_for_fit,
                     print_every=1,
@@ -2347,6 +2711,7 @@ if __name__ == "__main__":
                     do_minos=args.minos,
                     minosNP=args.minosNP,
                     verbosity=args.verbosity,
+                    **fitter_options,
                 )
 
                 serialize_result(m, base, version, args, out_path)
@@ -2355,7 +2720,6 @@ if __name__ == "__main__":
             print("Best -2logL =", fit["fval"])
             print("Correlation")
             print(np.asarray(fit["correlation"]["matrix"]))
-
             # -------- generic Minuit covariance diagnosis (fit basis only) --------
             cov = np.asarray(fit["covariance"]["matrix"], dtype=np.float64)
             cov = 0.5 * (cov + cov.T)  # symmetrize numerically
@@ -2438,7 +2802,7 @@ if __name__ == "__main__":
 
     plot_fit_summary_root(
         plot_dir,
-        args.config,
+        base,
         rotated=rotated,
         hyp=hyp_for_fit,
         fit_vals=fit_vals,
@@ -2448,10 +2812,19 @@ if __name__ == "__main__":
 
     plot_correlation_root(
         plot_dir,
-        args.config,
+        base,
         rotated=rotated,
         names=names,
         corr=fit["correlation"]["matrix"],
         suffix=f"_{version}{suffix}",
     )
-    syncer.sync()
+    try:
+        syncer.sync()
+    except Exception as e:
+        print(f"[sync] Warning: failed to sync outputs ({e}).")
+        # Prevent duplicate failing retries from the atexit sync hook.
+        try:
+            syncer.file_sync_storage = []
+        except Exception:
+            pass
+

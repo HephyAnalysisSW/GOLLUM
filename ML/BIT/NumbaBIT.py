@@ -175,7 +175,7 @@ class MultiBoostedInformationTree:
         T = max_n_tree if max_n_tree is not None else self.n_trees
         T = min(T, len(self.trees))
 
-        learning_rates = self.learning_rate * np.ones(T, dtype=np.float64)
+        learning_rates = self.learning_rate * np.ones(T, dtype=np.float32)
         if T > 0 and last_tree_counts_full and (max_n_tree is None or max_n_tree == self.n_trees) and (T == len(self.trees)):
             learning_rates[-1] = 1.0
         if self.cfg.get("learn_global_score", False) and T > 0:
@@ -186,8 +186,8 @@ class MultiBoostedInformationTree:
             if len(self.trees) > 0:
                 tmp = self.trees[0].vectorized_predict(feature_array[:1])
                 K = max(0, tmp.shape[1] - 1)
-            return np.zeros((feature_array.shape[0], K), dtype=np.float64) if summed else \
-                   np.zeros((0, feature_array.shape[0], K), dtype=np.float64)
+            return np.zeros((feature_array.shape[0], K), dtype=np.float32) if summed else \
+                   np.zeros((0, feature_array.shape[0], K), dtype=np.float32)
 
         first = self.trees[0].vectorized_predict(feature_array[:1])
         K = first.shape[1] - 1
@@ -195,7 +195,7 @@ class MultiBoostedInformationTree:
 
         if summed:
             self._ensure_prediction_cache()
-            acc = np.zeros((N, K), dtype=np.float64)
+            acc = np.zeros((N, K), dtype=np.float32)
             kernel = MultiNode._predict_forest_ratio_numba_parallel if N >= 4096 else MultiNode._predict_forest_ratio_numba
             kernel(
                 np.asarray(feature_array),
@@ -211,11 +211,11 @@ class MultiBoostedInformationTree:
             )
             return acc
         else:
-            out = np.empty((T, N, K), dtype=np.float64)
+            out = np.empty((T, N, K), dtype=np.float32)
             for t in range(T):
                 raw = self.trees[t].vectorized_predict(feature_array)
-                if raw.dtype != np.float64:
-                    raw = raw.astype(np.float64, copy=False)
+                if raw.dtype != np.float32:
+                    raw = raw.astype(np.float32, copy=False)
                 denom = raw[:, :1]
                 num   = raw[:, 1:]
                 np.divide(num, denom, out=out[t], where=(denom != 0.0))
