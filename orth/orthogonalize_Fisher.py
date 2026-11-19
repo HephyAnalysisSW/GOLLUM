@@ -99,6 +99,7 @@ n2ll = N2LLExtensions(
     ),
     cache_root=args.cache_root,
     overwrite=args.overwrite,
+    splitting_cfg=(cfg.get("defaults") or {}).get("splitting"),
 )
 n2ll.build_cache()
 n2ll.prepare_runtime()

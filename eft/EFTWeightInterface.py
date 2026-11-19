@@ -35,12 +35,26 @@ class EFTWeightInterface:
         self._combinations.extend(itertools.combinations_with_replacement(self.parameters, 2))
 
         self.base_points = []
+        self.base_points_alt = []
         for comb in itertools.combinations_with_replacement(self.parameters, 1):
+            # (ctG=0.5,cQj=1.5), BP =(1,0); (ctG=-0.5,cQj=2.5), BP=(0,1)
             self.base_points.append({op: comb.count(op) for op in self.parameters})
+            # (ctG=0,cQj=1.5), BP =(0.5,0); or (ctG=-0.5,cQj=0), BP =(0,-1.5)
+            self.base_points_alt.append({op: -self.reference_point[op]*comb.count(op) for op in self.parameters})
         for comb in itertools.combinations_with_replacement(self.parameters, 2):
+            # (ctG=1.5,cQj=1.5), BP =(2,0); (ctG=-0.5,cQj=3.5), BP=(0,2)
+            # (ctG=0.5,cQj=2.5), BP =(1,1)
             self.base_points.append({op: comb.count(op) for op in self.parameters})
+            # (ctG=1.5,cQj=1.5), BP =(1,0); (ctG=-0.5,cQj=-1.5), BP=(0,-3)
+            # (ctG=0.0,cQj=0.0), BP =(0.5,1.5)
+            self.base_points_alt.append({op: -self.reference_point[op]*comb.count(op) for op in self.parameters})
+        
+        sm_point = {op: -self.reference_point[op] for op in self.parameters}
+        self.base_points_sm = self.base_points
+        self.base_points_sm.append(sm_point)
+        self.base_points_alt.append(sm_point)
 
-        self.required_observers = ["EFTWeight_gen"]
+        self.required_observers = ["Generator_weight"]
         self.required_observers.extend(f"der_{op}" for op in self.parameters)
         # Full row of the Hessian for each fitted operator, against every operator in
         # wc_names: the derivative shift D'_i = D_i + sum_j H_ij r_j sums over all 16
@@ -66,7 +80,7 @@ class EFTWeightInterface:
         if missing:
             raise RuntimeError(f"Observer_names missing EFT targets: {missing}")
 
-        gen = observers[:, idx["EFTWeight_gen"]].astype(np.float32, copy=False)
+        gen = observers[:, idx["Generator_weight"]].astype(np.float32, copy=False)
         safe_gen = gen.copy()
         safe_gen[safe_gen == 0] = 1.0
 

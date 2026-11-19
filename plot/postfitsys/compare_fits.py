@@ -56,6 +56,18 @@ def create_comparison_plot(
 
     cms_param_names = [param_name for param_name in all_param_names if 'CMS' in param_name]
     other_param_names = [param_name for param_name in all_param_names if 'CMS' not in param_name]
+    poi_param_names = [param_name for param_name in all_param_names if 'nu' not in param_name]
+    np_param_names = [param_name for param_name in all_param_names if 'nu' in param_name]
+
+    # to put all the POIs at the same order of magnitude in the plot
+    rescale_factor = {param: 1.0 for param in all_param_names}
+    for fit_idx, (version, params) in enumerate(fit_data):
+        for param in params:
+            error = param['error']
+            if error < 0.01:
+                rescale_factor[param["name"]] = max(rescale_factor[param["name"]],100.)
+            elif error < 0.1:
+                rescale_factor[param["name"]] = max(rescale_factor[param["name"]],10.)
 
     def save_plot_for_parameters(param_names: Sequence[str], output_basename: str) -> None:
         """Create and save a comparison plot for a specific parameter subset."""
@@ -93,9 +105,9 @@ def create_comparison_plot(
                     values.append(0)
                     errors.append(0)
                 else:
-                    values.append(param['value'])
+                    values.append(param['value']*rescale_factor[param["name"]])
                     # NB: will crash for asymmetric errors
-                    errors.append(param['error'])
+                    errors.append(param['error']*rescale_factor[param["name"]])
                     lo = param['value']-param['error']
                     hi = param['value']+param['error']
 
@@ -132,6 +144,10 @@ def create_comparison_plot(
         else:
             yticklabels = [param_name.removeprefix("nu_") for param_name in param_names]
             cms_label += " Internal"
+        
+        for i_param, param_name in enumerate(param_names):
+            if rescale_factor[param_name] != 1.0:
+                yticklabels[i_param] += f"(x {rescale_factor[param_name]:.0f})"
 
         ax.set_yticklabels(yticklabels, fontsize=9)
         ax.set_xlabel('Parameter value', fontsize=11)
@@ -168,6 +184,8 @@ def create_comparison_plot(
     save_plot_for_parameters(all_param_names, 'fit_comparison_all')
     save_plot_for_parameters(cms_param_names, 'fit_comparison_JME_NPs')
     save_plot_for_parameters(other_param_names, 'fit_comparison_rest')
+    save_plot_for_parameters(poi_param_names, 'fit_comparison_poi')
+    save_plot_for_parameters(np_param_names, 'fit_comparison_NPs')
 
 if __name__ == '__main__':
     
@@ -189,7 +207,7 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '-o', '--output',
-        help='Output directory (relative to user.plot_directory)',
+        help='Output directory (relative to user.plot_directory/fit_comparison)',
     )
     parser.add_argument(
         '-b', '--blind',

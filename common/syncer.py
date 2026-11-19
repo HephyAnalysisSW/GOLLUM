@@ -286,7 +286,10 @@ def sync(gifs=False):
         dest_spec = _eos_url(dest_abs)
         cmd = f'xrdcp -f {shlex.quote(src_abs)} {shlex.quote(dest_spec)}'
         print(cmd)
-        _run(cmd)
+        try:
+            _run(cmd)
+        except RuntimeError as e:
+            print(e)
 
     # Cleanup / post
     # os.remove(filename)

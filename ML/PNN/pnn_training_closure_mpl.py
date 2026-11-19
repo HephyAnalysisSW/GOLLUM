@@ -323,7 +323,6 @@ def iterate_epoch(shard_limit=None):
             yield Xs, Ws
             continue
 
-        # evaluating on 'final_eval' partition only
         # follow structure used in training code
         Xs_eval, Ws_eval = [], []
         for L, X, w, O in zip(loaders, Xs, Ws, Os):

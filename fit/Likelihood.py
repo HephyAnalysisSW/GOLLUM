@@ -44,6 +44,7 @@ sys.path.insert(0, '..')
 from fit.Modeling import ModelParameter, Hypothesis, Rotated
 from ML.Calibration.binned_calibration import apply_binned_calibration
 import common.helpers as helpers
+from data.UIDSplitter import uid_split_interval
  
 # ---- Likelihood wiring + model parameter scaffolding -----------------------
 
@@ -602,17 +603,24 @@ class N2LL:
                  cache_subdir: str = "caches",
                  cache_root: Optional[str] = None,
                  overwrite: bool = False,
-                 eval_chunk_size: int = 2000000_000):
+                 eval_chunk_size: int = 2000000_000,
+                 splitting_cfg: Optional[dict] = None):
         import importlib, os
         self.lk = likelihood
         self.regions = list(likelihood.get('regions', []))
-        self.factory = factory 
+        self.factory = factory
         #self.module_samples = module_samples
         #self.samples_mod = importlib.import_module(module_samples)
         #self.default_features = default_features
         self.cache_subdir = cache_subdir
         self.overwrite = overwrite
         self.eval_chunk_size = int(eval_chunk_size)
+
+        # ----- Asimov cache UID split (part of the cache's identity, see
+        # _region_cache_dir) -----
+        self.splitting_cfg = splitting_cfg
+        asimov_split = (splitting_cfg or {}).get("asimov_split") if (splitting_cfg or {}).get("enabled") else None
+        self.asimov_split = ([asimov_split] if isinstance(asimov_split, str) else list(asimov_split)) if asimov_split else None
 
         # ===== Binned likelihood support =====
         self.binned = list(likelihood.get('binned', []) or [])
@@ -749,8 +757,9 @@ class N2LL:
     def _region_cache_dir(self, region_id: str) -> str:
         import os
         d = os.path.join(
-            self.cache_root, 
+            self.cache_root,
             region_id,
+            ('asimov_' + '_'.join(self.asimov_split)) if self.asimov_split else "",
             ('shuffle_'+'_'.join(self.shuffle_features)) if (hasattr(self, "shuffle_features") and self.shuffle_features is not None) else ""
         )
         os.makedirs(d, exist_ok=True)
@@ -768,9 +777,29 @@ class N2LL:
         """
         Yields (feat_names, X, w0) per shard over all Asimov samples in a region.
         Sets n_split=100 temporarily on RDataLoader-like objects.
+
+        When `self.asimov_split` is set, each batch is masked to that UID split before
+        being yielded, and this method records into `self._asimov_weight_fraction[sname]`
+        (retained/total nominal weight) and `self._asimov_segments` (list of
+        `(sname, row_start, row_end)`) as it streams. `row_start`/`row_end` are exact
+        HDF5 row indices into the cache being built by `build_cache`, because that
+        method appends every yielded batch in order and this generator never yields an
+        empty batch. Callers that don't build a cache from this stream (e.g. the
+        diagnostic re-stream in `fit/ToyGenerator.py`) can ignore these attributes.
         """
         feat_names_ref = None
         print(region['_asimov_samples'])
+
+        # mask if using UID splitting
+        uid_splitter = lo = hi = None
+        uid_fields = ["run", "luminosityBlock", "event"]
+        if self.asimov_split:
+            uid_splitter, uid_fields, (lo, hi) = uid_split_interval(self.splitting_cfg, *self.asimov_split)
+
+        self._asimov_weight_fraction = {}
+        self._asimov_segments = []
+        row_counter = 0
+
         for sname in region['_asimov_samples']:
             #L = getattr(self.samples_mod, sname)
             L = self.factory.get(sname)
@@ -780,6 +809,9 @@ class N2LL:
                 feat_names_ref = feat_names
             elif feat_names != feat_names_ref:
                 raise RuntimeError(f"[N2LL] Feature mismatch across Asimov samples in region '{region['id']}'")
+
+            obs_names = list(list(getattr(L, "observer_names", []) or []))
+            on2idx = {n: i for i, n in enumerate(obs_names)}
 
             # set n_split=100 if available (temporary)
             reset_split = False
@@ -792,19 +824,50 @@ class N2LL:
                 except Exception:
                     reset_split = False
 
-            n_shards = len(getattr(L, "base", L))
+            n_shards = 1
+            if hasattr(L,"_all_files"):
+                n_shards = len(L._all_files)
+
+            L.set_n_split(n_shards)
+
+            sum_w_all = 0.0
+            sum_w_split = 0.0
+            row_start = row_counter
+            what = "fow" if self.asimov_split else "fw"
             for shard in range(n_shards):
-                X, w0 = L.materialize(shard=shard, what="fw", n=None)
+                if self.asimov_split:
+                    X, O, w0 = L.materialize(shard=shard, what=what, n=None)
+                    O = np.asarray(O, dtype=np.float64)
+                else:
+                    X, w0 = L.materialize(shard=shard, what=what, n=None)
                 X = np.asarray(X, dtype=np.float64)      # allow copy if needed (NumPy 2.x safe)
                 w0 = np.asarray(w0, dtype=np.float64)    # allow copy if needed
+                sum_w_all += float(np.sum(w0))
+                if self.asimov_split:
+                    O_uid = O[:, [on2idx[f] for f in uid_fields]]
+                    m_keep = uid_splitter.mask_from_np(O_uid, uid_fields, lo, hi)
+                else:
+                    m_keep = np.ones(len(w0), dtype=bool)
+                sum_w_split += float(np.sum(w0[m_keep]))
+
                 if X is not None and len(X) > 0:
-                    yield feat_names, X, w0
+                    Xb, w0b = X[m_keep, :], w0[m_keep]
+                    row_counter += len(w0b)
+                    yield feat_names, Xb, w0b
 
             if reset_split:
                 try:
                     L.n_split = old_split
                 except Exception:
                     pass
+
+            if self.asimov_split:
+                if sum_w_all <= 0:
+                    raise RuntimeError(f"[N2LL] Asimov sample '{sname}' has zero total weight.")
+                if sum_w_split <= 0:
+                    raise RuntimeError(f"[N2LL] Asimov sample '{sname}' has zero weight in split {self.asimov_split}.")
+                self._asimov_weight_fraction[sname] = sum_w_split / sum_w_all
+                self._asimov_segments.append((sname, row_start, row_counter))
 
     # --------- dataset appends (HDF5) ---------
     @staticmethod
@@ -913,7 +976,7 @@ class N2LL:
 
             with tqdm(total=total_shards, desc=f"[N2LL] cache {rid}", unit="shard", leave=False) as pbar:
                 for feat_names, X, w0 in self._iter_asimov_batches(R):
-                   
+
                     if hasattr( self, "shuffle_features" ) and ( self.shuffle_features is not None ):
                         for s_feature in self.shuffle_features:
                             if s_feature not in feat_names:
@@ -999,6 +1062,22 @@ class N2LL:
                     shard_counter += 1
                     pbar.update(1)
 
+            # Rescale w0 by the retained weight fraction, per Asimov sample, so the
+            # split cache describes the same expected luminosity as the full one
+            # (mirrors ToyGenerator._materialize_truth_weights). Skipped entirely when
+            # unsplit, so the unsplit cache stays bit-identical to before this change.
+            if self.asimov_split:
+                for sname, row_start, row_end in self._asimov_segments:
+                    f_weight = self._asimov_weight_fraction[sname]
+                    for cid, writer in writers.items():
+                        dset = writer["w0"]
+                        dset[row_start:row_end] = dset[row_start:row_end] / f_weight
+                    logger.info(f"[N2LL] Asimov sample '{sname}' in region '{rid}': "
+                                f"retained weight fraction f_weight={f_weight:.6g} (rows [{row_start}:{row_end}))")
+                for cid, writer in writers.items():
+                    logger.info(f"[N2LL] Region '{rid}' class '{cid}': rescaled yield sum(w0)="
+                                f"{float(np.sum(writer['w0'][:])):.6g}")
+
             # write meta and close writers
             for C in classes:
                 cid = C['id']
@@ -1008,6 +1087,8 @@ class N2LL:
                 w = writers[cid]
                 # finalize meta with shapes (nice to have)
                 meta_out = w["meta"]
+                meta_out["asimov_split"] = self.asimov_split
+                meta_out["asimov_weight_fraction"] = dict(self._asimov_weight_fraction) if self.asimov_split else {}
                 with open(meta_path, "w") as f:
                     json.dump(meta_out, f, indent=2)
                 w["file"].flush(); w["file"].close()
@@ -1554,14 +1635,22 @@ class N2LL:
             return
 
         # quick check: any parameter nonzero?
+        self._asimov_active = False
+        from fit.ToyGenerator import likelihood_generation_point
+        gen_point_dict = likelihood_generation_point(self)
+        for poi in hypothesis.POIs:
+            if poi.name in gen_point_dict and gen_point_dict[poi.name] != poi.val:
+                self._asimov_active = True
+
         any_nonzero = any(abs(getval(p.val)) > 0.0 for p in getattr(hypothesis, 'parameters', []))
-        # _asimov_active controls whether we have (c',nu')!=(0,0). If that's false, we need not evaluate T(x;c',nu')
-        self._asimov_active = bool(any_nonzero)
+        # _asimov_active controls whether we have (c',nu')!=(gen_point,0).
+        # If that's false but the user gave an hypothesis, crash to let him know
+        self._asimov_active |= bool(any_nonzero) 
         self._asimov_hyp = hypothesis if self._asimov_active else None
         self._asimov_T.clear()
 
         if not self._asimov_active:
-            return  # nothing to cache; bias term will be skipped
+            raise RuntimeError("You've provided an Asimov hypothesis, but it's the same as the generation point.")
 
         # Precompute per region
         for R in self.regions:
@@ -2070,7 +2159,9 @@ def run_iminuit_fit(n2ll, hypothesis, *, step=None, print_every=25,
                 print(f"\n[eval {eval_count:6d}] f = {f: .6e}")
                 h_eval.print()  # print the actually evaluated point
         if math.isnan(f):
-            raise RuntimeError("NaN likelihood!")
+            #raise RuntimeError("NaN likelihood!")
+            f = 1e12
+            print("NaN likelihood !")
         return f
 
     # ---- Minuit with positional args and explicit names ----
@@ -2504,6 +2595,7 @@ if __name__ == "__main__":
     p.add_argument("--minosNP", nargs="+", default=None, help="NPs for which to derive MINOS uncertainties. Only works if fit is ran with --minos. 'all' runs MINOS for all NPs.")
     p.add_argument("--minuit", action="store_true", default=False,
                    help="Use the original iminuit/MIGRAD backend instead of the autograd+SciPy backend.")
+    p.add_argument("--init_gen", action="store_true", help="initialize fit at generation hypothesis for POIs. if not set, initializes all at 0.0")
     args = p.parse_args()
 
     import common.yaml_loader as yaml_loader
@@ -2616,6 +2708,10 @@ if __name__ == "__main__":
                     "seed": _toy_seed, "hypothesis": _toy_hypothesis}
         if "no_poisson" in args.toyFile:
             _toy_source += "_no_poisson"
+
+        if "allevents" in args.toyFile:
+            _toy_source += "_allevents"     
+
         suffix += f"_{_toy_point}_{_toy_source}_toy{_toy_seed}"
         # storing many toy fit results in their own folder
         out_path = os.path.join(out_path, f"{base}_{_toy_point}_{_toy_source}_toy_fits")
@@ -2721,10 +2817,18 @@ if __name__ == "__main__":
                     cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
                     cache_root=None,
                     overwrite=overwrite_cache,
+                    splitting_cfg=(cfg.get("defaults") or {}).get("splitting"),
                 )
                 n2ll.shuffle_features = args.shuffle
+
                 n2ll.build_cache()
                 n2ll.prepare_runtime()
+
+                if args.init_gen is True:
+                    from fit.ToyGenerator import likelihood_generation_point
+                    for poi_name, val in likelihood_generation_point(n2ll).items():
+                        if poi_name in hyp_for_fit:
+                            hyp_for_fit[poi_name].val = float(val)
 
                 # allow unbinned and binned regions simultaneously
                 # they should have different names
@@ -2784,21 +2888,27 @@ if __name__ == "__main__":
                     if rotated:
                         raise NotImplementedError
 
-                    if len(args.asimov) % 2 != 0:
-                        raise RuntimeError(
-                            f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}"
-                        )
-
                     asimov_kwargs = {}
-                    for i in range(0, len(args.asimov), 2):
-                        par = args.asimov[i]
-                        try:
-                            val = float(args.asimov[i + 1])
-                        except ValueError as e:
+                    # express declaration of all POIs set to 0.0
+                    if args.asimov and args.asimov[0] == "sm":
+                        print("setting Asimov for all POIs to 0 (SM)")
+                        for param in hyp.POIs:
+                            asimov_kwargs[param.name] = 0.0
+                    else:
+                        if len(args.asimov) % 2 != 0:
                             raise RuntimeError(
-                                f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'"
-                            ) from e
-                        asimov_kwargs[par] = val
+                                f"--asimov expects pairs PAR VAL (even number of tokens), got: {args.asimov}"
+                            )
+
+                        for i in range(0, len(args.asimov), 2):
+                            par = args.asimov[i]
+                            try:
+                                val = float(args.asimov[i + 1])
+                            except ValueError as e:
+                                raise RuntimeError(
+                                    f"--asimov value for '{par}' must be a float, got '{args.asimov[i+1]}'"
+                                ) from e
+                            asimov_kwargs[par] = val
 
                     asimov_h = hyp.cloneModify(**asimov_kwargs)
                     print(f"[opts] --asimov: setting Asimov hypothesis to {asimov_kwargs}")

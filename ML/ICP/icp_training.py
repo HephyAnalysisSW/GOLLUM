@@ -19,6 +19,7 @@ p.add_argument("config", help="Path to global YAML config")
 p.add_argument("--job", default=None, help="ICP job id to run")
 p.add_argument("--overwrite", action="store_true", help="Overwrite saved ICP?")
 p.add_argument("--small", action="store_true", help="Only first shard, for debugging")
+p.add_argument("--n_split", type=int, help="Set the number of shards of the overall sample")
 args = p.parse_args()
 
 # ---------------- load cfg ----------------

@@ -89,6 +89,7 @@ def build_n2ll(config_paths: list[str]):
         like_info, factory=factory,
         cache_subdir=os.path.join("NN2LCache", base, cfg["version"]),
         cache_root=None, overwrite=False,
+        splitting_cfg=(cfg.get("defaults") or {}).get("splitting"),
     )
     n2ll.shuffle_features = None
     n2ll.build_cache()
