@@ -1,0 +1,87 @@
+NNLO QCD corrections to leptonic observables in top-quark pair production and decay
+
+Fiducial phase space corresponding to section 3.3 in JHEP 05 (2021) 212 (arxiv:2008.11133)
+Inclusive phase corresponds to partonic tops only.
+
+Authors: Czakon, Mitov, Poncelet
+
+Contact:  mczakon@physik.rwth-aachen.de
+          adm74@cam.ac.uk
+          poncelet@hep.phy.cam.ac.uk
+
+Model parameters:
+mt = 172.5 GeV
+mW = 80.385 GeV
+mZ = 91.1876 GeV
+GW = 2.0928 GeV
+Gt = (1.48063 - 1.18*aS - 2.65*aS^2) GeV
+GF = 1.166379*10^-5 GeV^-2
+nf = 5 (massless b-quarks)
+
+PDF:
+  LO   : NNPDF31_lo_as_0118
+  NLO  : NNPDF31_nlo_as_0118
+  NNLO : NNPDF31_nnlo_as_0118
+
+Scales: muR = HT/4, muF = HT/4
+
+All histograms are given as a list of bins with the data format in case of absolute distributions ([X]: energy unit of observable):
+
+Units : [X]      [X]       pb/[X]        pb/[X]   pb/[X]     pb/[X]        pb/[X]  pb/[X]
+Values: edge-low edge-high scale_central scale_up scale_down mcerr_central PDF_up  PDF_down
+
+in case of 2D (and analogously for 3D):
+
+Units : [X]           [X]            [Y]           [Y]            pb/[X]/[Y]    pb/[X]/[Y] pb/[X]/[Y] pb/[X]/[Y]    pb/[X]/[Y] pb/[X]/[Y]
+Values: edge-dim1-low edge-dim1-high edge-dim2-low edge-dim2-high scale_central scale_up   scale_down mcerr_central PDF_up     PDF_down
+
+Each file name is constructed after the pattern: <phasespace>_<order>_mt<mass>_<scale>_<pdf>_<obs>.dat  
+<phasespace> : fid,incl
+<order>      : LO,NLO,NNLO
+<mass>       : 172.5
+<scale>      : HT4
+<pdf>        : NNPDF31
+<obs>        :
+  absetallbar_x_mllbar
+  absetallbar_x_pTllbar
+  absyttbar_x_pTttbar
+  absyt_x_pTt
+  detallbar_x_dphillbar
+  dphittbar
+  dyttbar
+  logksi1
+  logksi2
+  mbbbar
+  mllbarbbbar
+  mllbar
+  mttbar
+  mttbar_x_absdetattbar
+  mttbar_x_absyt
+  mttbar_x_absyttbar
+  mttbar_x_dphillbar
+  mttbar_x_dphittbar
+  mttbar_x_pTt
+  mttbar_x_pTttbar
+  njet
+  pTb1
+  pTb2
+  pTlbar
+  pTl
+  pTllbar_x_mllbar
+  pTtbar
+  pTt
+  pTttbar
+  pTttbar_x_mttbar_x_absyttbar
+  pTt_x_dphillbar
+  pTt_x_pTttbar
+  r_pTbpTbbar_pTtpTtbar
+  r_pTl1_pTl2
+  r_pTlbar_pTt
+  r_pTl_pTtbar
+  r_pTt_mttbar
+  r_pTttbar_mttbar
+  ytbar
+  yt
+  yttbar
+  absetallbar
+  pTllbar
