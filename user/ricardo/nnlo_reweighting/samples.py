@@ -46,12 +46,41 @@ PREDICTIONS = {p.key: p for p in [
 # Reference prediction for the ratio panel, per binning.
 RATIO_REFERENCE = {'stripper': 'stripper_nnlo', 'matrix': 'matrix_nnlo'}
 
-Variable = namedtuple('Variable', 'key branch stripper_observable matrix_file axis_label unit log_y')
+# One axis of a (multi-dimensional) observable. `absolute` histograms |branch|; `log_y` applies when the axis
+# is the innermost (plotted) one.
+Axis = namedtuple('Axis', 'key branch absolute label unit log_y')
+
+AXES = {a.key: a for a in [
+    Axis('m_ttbar', 'parton_ttbar_mass', False, r'$m(t\bar{t})$', 'GeV', True),
+    Axis('y_ttbar', 'parton_ttbar_y', False, r'$y(t\bar{t})$', '', False),
+    Axis('abs_y_ttbar', 'parton_ttbar_y', True, r'$|y(t\bar{t})|$', '', False),
+    Axis('pt_ttbar', 'parton_ttbar_pt', False, r'$p_{T}(t\bar{t})$', 'GeV', True),
+    Axis('pt_top', 'parton_Top_pt', False, r'$p_{T}(t)$', 'GeV', True),
+    Axis('abs_y_top', 'parton_Top_y', True, r'$|y(t)|$', '', False),
+]}
+
+# A 1D, 2D or 3D observable; the key is the axis keys joined by '_x_', in the STRIPPER axis order (the last
+# axis runs fastest in the files and is the one drawn on the x axis of each panel).
+Variable = namedtuple('Variable', 'key axes stripper_observable matrix_file')
+
+
+def make_variable(axes: tuple, stripper_observable: str, matrix_file: str | None = None) -> Variable:
+    """Variable from AXES keys, with its key built from the axis keys."""
+    return Variable('_x_'.join(axes), tuple(AXES[axis] for axis in axes), stripper_observable, matrix_file)
+
 
 VARIABLES = {v.key: v for v in [
-    Variable('y_ttbar', 'parton_ttbar_y', 'yttbar', None, r'$y(t\bar{t})$', '', False),
-    Variable('m_ttbar', 'parton_ttbar_mass', 'mttbar', 'm_ttbar_MATRIX.dat', r'$m(t\bar{t})$', 'GeV', True),
-    Variable('pt_ttbar', 'parton_ttbar_pt', 'pTttbar', None, r'$p_{T}(t\bar{t})$', 'GeV', True),
+    make_variable(('y_ttbar',), 'yttbar'),
+    make_variable(('m_ttbar',), 'mttbar', 'm_ttbar_MATRIX.dat'),
+    make_variable(('pt_ttbar',), 'pTttbar'),
+    make_variable(('m_ttbar', 'abs_y_ttbar'), 'mttbar_x_absyttbar'),
+    make_variable(('m_ttbar', 'pt_ttbar'), 'mttbar_x_pTttbar'),
+    make_variable(('abs_y_ttbar', 'pt_ttbar'), 'absyttbar_x_pTttbar'),
+    make_variable(('m_ttbar', 'abs_y_top'), 'mttbar_x_absyt'),
+    make_variable(('m_ttbar', 'pt_top'), 'mttbar_x_pTt'),
+    make_variable(('abs_y_top', 'pt_top'), 'absyt_x_pTt'),
+    make_variable(('pt_top', 'pt_ttbar'), 'pTt_x_pTttbar'),
+    make_variable(('pt_ttbar', 'm_ttbar', 'abs_y_ttbar'), 'pTttbar_x_mttbar_x_absyttbar'),
 ]}
 
 

@@ -2,8 +2,8 @@
 """Fill parton-level tt-bar histograms (in the fixed-order binnings) from the gen ntuples of one sample.
 
 Output: `histograms/<sample>.npz` with `sum_w_all` (all events, for the normalisation), `sum_w_tops`
-(events with two gen tops) and, per `<variable>__<binning>`, `edges`, `sum_w`, `sum_w2`. The `sum_w`/`sum_w2`
-arrays have len(edges)+1 entries: [underflow, bins..., overflow].
+(events with two gen tops) and, per `<variable>__<binning>`, `edges<axis>` (one per axis), `sum_w`, `sum_w2`.
+`sum_w`/`sum_w2` have shape (n_1 + 2, ..., n_d + 2): every axis has [underflow, bins..., overflow].
 
     python user/ricardo/nnlo_reweighting/fill_histograms.py --sample nom_13 --jobs 12
 """
@@ -18,18 +18,19 @@ import uproot
 
 from samples import HISTOGRAM_DIR, SIM_SAMPLES, VARIABLES, histogram_path
 from theory import binnings
-j
+
 logger = logging.getLogger(__name__)
 
-BRANCHES = ['parton_hasGenTops', 'Generator_weight'] + [variable.branch for variable in VARIABLES.values()]
+BRANCHES = ['parton_hasGenTops', 'Generator_weight'] + sorted(
+    {axis.branch for variable in VARIABLES.values() for axis in variable.axes})
 
 
 def all_binnings() -> dict:
-    """{'<variable>__<binning>': (branch, edges)} for all variables and their fixed-order binnings."""
+    """{'<variable>__<binning>': (axes, edges)} for all variables and their fixed-order binnings."""
     result = {}
     for variable_key, variable in VARIABLES.items():
         for binning_name, edges in binnings(variable_key).items():
-            result[f'{variable_key}__{binning_name}'] = (variable.branch, edges)
+            result[f'{variable_key}__{binning_name}'] = (variable.axes, edges)
     return result
 
 
@@ -39,14 +40,15 @@ BINNINGS = all_binnings()
 def accumulate_file(path: str) -> dict:
     """Weighted sums for one ntuple file."""
     arrays = uproot.open(path)['Events'].arrays(BRANCHES, library='np')
-    weights = arrays['Generator_weight']
+    weights = arrays['Generator_weight'].astype(np.float64)  # float32 in the ntuples; sum in double precision
     has_tops = arrays['parton_hasGenTops'] == 1
     result = {'sum_w_all': weights.sum(), 'sum_w_tops': weights[has_tops].sum()}
-    for name, (branch, edges) in BINNINGS.items():
-        padded_edges = np.concatenate([[-np.inf], edges, [np.inf]])
-        values = arrays[branch][has_tops]
-        result[f'{name}__sum_w'] = np.histogram(values, padded_edges, weights=weights[has_tops])[0]
-        result[f'{name}__sum_w2'] = np.histogram(values, padded_edges, weights=weights[has_tops] ** 2)[0]
+    for name, (axes, edges) in BINNINGS.items():
+        padded_edges = [np.concatenate([[-np.inf], axis_edges, [np.inf]]) for axis_edges in edges]
+        values = np.column_stack([np.abs(arrays[axis.branch][has_tops]) if axis.absolute
+                                  else arrays[axis.branch][has_tops] for axis in axes])
+        result[f'{name}__sum_w'] = np.histogramdd(values, padded_edges, weights=weights[has_tops])[0]
+        result[f'{name}__sum_w2'] = np.histogramdd(values, padded_edges, weights=weights[has_tops] ** 2)[0]
     return result
 
 
@@ -79,10 +81,12 @@ def main():
                 logger.info('processed %d / %d files', file_index + 1, len(files))
 
     for name, (_, edges) in BINNINGS.items():
-        totals[f'{name}__edges'] = edges
+        for axis, axis_edges in enumerate(edges):
+            totals[f'{name}__edges{axis}'] = axis_edges
         sum_w = totals[f'{name}__sum_w']
-        logger.info('%-22s underflow %.4f  overflow %.4f  (fraction of two-top weight)',
-                    name, sum_w[0] / totals['sum_w_tops'], sum_w[-1] / totals['sum_w_tops'])
+        in_range = sum_w[(slice(1, -1),) * len(edges)].sum()
+        logger.info('%-45s outside range %.4f  (fraction of two-top weight)',
+                    name, 1 - in_range / totals['sum_w_tops'])
     logger.info('fraction of weight without two gen tops: %.4f', 1 - totals['sum_w_tops'] / totals['sum_w_all'])
 
     os.makedirs(HISTOGRAM_DIR, exist_ok=True)
