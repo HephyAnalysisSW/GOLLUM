@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Plot parton-level 1D/2D/3D tt-bar distributions of POWHEG hvq / bb4l against STRIPPER LO/NLO/NNLO and MATRIX NNLO.
 
-One figure per (variable, fixed-order binning), with a ratio panel to the NNLO reference of that binning. Multi-
+One figure per (variable, fixed-order binning), with a ratio panel to the NNLO reference of that binning (to the
+nominal POWHEG sample for simulation-only variables such as the top mass, which use their own binning). Multi-
 dimensional variables get one panel per bin of the outer axes, showing the innermost (last) axis.
 Simulations are scaled to the inclusive tt-bar cross section via sigma_sample / BR_DILEPTON / sum_w_all;
 `--normalized` shows 1/sigma dsigma/dX instead.
@@ -147,7 +148,7 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
     reference_key = RATIO_REFERENCE[binning_name]
     predictions = {key: load_prediction(key, variable_key, normalized) for key in PREDICTIONS}
     predictions = {key: histogram for key, histogram in predictions.items() if histogram is not None}
-    reference_edges = predictions[reference_key]['edges']
+    reference_edges = binnings(variable_key)[binning_name]
     edges = tuple(coarsen_edges(axis_edges, upper_edge, factor)
                   for axis_edges, upper_edge, factor in zip(reference_edges, upper_edges, rebin_factors))
     if not same_edges(edges, reference_edges):
@@ -173,7 +174,6 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
             logger.warning('%-14s %-9s %-14s only %d/%d bins rebinnable, the others are drawn as gaps',
                            variable_key, binning_name, key, rebinned['compatible'].sum(), rebinned['compatible'].size)
         predictions[key] = rebinned
-    reference = predictions[reference_key]
     for key, histogram in predictions.items():
         logger.info('%-14s %-9s %-14s sigma in range = %.3f', variable_key, binning_name, key, integral(histogram))
 
@@ -185,6 +185,7 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
         simulations[sample_key] = simulation
         logger.info('%-14s %-9s %-14s sigma in range = %.3f (two-top total %.2f)', variable_key, binning_name,
                     sample_key, integral(simulation), simulation['sigma_total'])
+    reference = predictions[reference_key] if reference_key in PREDICTIONS else simulations[reference_key]
 
     # One panel per outer bin (a single panel for 1D), wrapped into rows of PANELS_PER_ROW.
     panel_indices = list(np.ndindex(*(len(axis_edges) - 1 for axis_edges in edges[:-1])))
@@ -220,7 +221,8 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
                               fontsize=18 if single_panel else 16)
         if column == 0:
             axis_main.set_ylabel(density_label(variable.axes, normalized), fontsize=20 if single_panel else 16)
-            reference_label = PREDICTIONS[reference_key].label.replace(' ', '\n', 1)
+            reference_label = (PREDICTIONS[reference_key].label if reference_key in PREDICTIONS
+                               else SIM_SAMPLES[reference_key].label.split(' (')[0]).replace(' ', '\n', 1)
             axis_ratio.set_ylabel(f'X / {reference_label}', fontsize=14)
         panel_axes.append(axis_main)
 

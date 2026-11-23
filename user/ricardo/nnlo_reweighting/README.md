@@ -35,6 +35,10 @@ panel per bin of the outer axes, with the last axis on the x axis. The 2D/3D gri
 phase space (e.g. m(tt) < 1500 GeV, |y| < 2.5), so their integrals are 1-3% below the total.
 Plots use `mplhep` (CMS style); the simulation markers are offset within each bin (`xoffsets`).
 
+Simulation-only variables (no fixed-order prediction, e.g. the parton-level top and antitop masses `m_top`,
+`m_antitop`) are declared with `make_variable(axes, edges=(...,))` instead of a STRIPPER observable. They get a
+single `simulation` binning and the ratio panel is X / POWHEG hvq (`RATIO_REFERENCE['simulation']`).
+
 `--max-files N` on `fill_histograms.py` for a quick test; `--pdf-band` on `plot_comparison.py`
 adds the STRIPPER NNLO PDF band.
 

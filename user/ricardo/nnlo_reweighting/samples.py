@@ -6,6 +6,8 @@ not imported: it lives untracked in another user's area and carries spin-study s
 import os
 from collections import namedtuple
 
+import numpy as np
+
 NNLO_REWEIGHTING_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTOGRAM_DIR = os.path.join(NNLO_REWEIGHTING_DIR, 'histograms')
 
@@ -43,8 +45,8 @@ PREDICTIONS = {p.key: p for p in [
     Prediction('matrix_nnlo', 'MATRIX NNLO', 'matrix', 'NNLO', '#964a8b', '-'),
 ]}
 
-# Reference prediction for the ratio panel, per binning.
-RATIO_REFERENCE = {'stripper': 'stripper_nnlo', 'matrix': 'matrix_nnlo'}
+# Reference for the ratio panel, per binning: a PREDICTIONS key, or a SIM_SAMPLES key for simulation-only variables.
+RATIO_REFERENCE = {'stripper': 'stripper_nnlo', 'matrix': 'matrix_nnlo', 'simulation': 'nom_13'}
 
 # One axis of a (multi-dimensional) observable. `absolute` histograms |branch|; `log_y` applies when the axis
 # is the innermost (plotted) one.
@@ -57,16 +59,31 @@ AXES = {a.key: a for a in [
     Axis('pt_ttbar', 'parton_ttbar_pt', False, r'$p_{T}(t\bar{t})$', 'GeV', True),
     Axis('pt_top', 'parton_Top_pt', False, r'$p_{T}(t)$', 'GeV', True),
     Axis('abs_y_top', 'parton_Top_y', True, r'$|y(t)|$', '', False),
+    Axis('m_top', 'parton_Top_mass', False, r'$m(t)$', 'GeV', True),
+    Axis('m_antitop', 'parton_AntiTop_mass', False, r'$m(\bar{t})$', 'GeV', True),
 ]}
 
 # A 1D, 2D or 3D observable; the key is the axis keys joined by '_x_', in the STRIPPER axis order (the last
 # axis runs fastest in the files and is the one drawn on the x axis of each panel).
-Variable = namedtuple('Variable', 'key axes stripper_observable matrix_file')
+# Variables without fixed-order prediction (stripper_observable None) carry their own `edges` (one array per axis)
+# and are compared between the simulated samples only.
+Variable = namedtuple('Variable', 'key axes stripper_observable matrix_file edges')
 
 
-def make_variable(axes: tuple, stripper_observable: str, matrix_file: str | None = None) -> Variable:
-    """Variable from AXES keys, with its key built from the axis keys."""
-    return Variable('_x_'.join(axes), tuple(AXES[axis] for axis in axes), stripper_observable, matrix_file)
+def make_variable(axes: tuple, stripper_observable: str | None = None, matrix_file: str | None = None,
+                  edges: tuple | None = None) -> Variable:
+    """Variable from AXES keys, with its key built from the axis keys; either a STRIPPER observable or edges."""
+    if (stripper_observable is None) == (edges is None):
+        raise ValueError(f'{axes}: give either a STRIPPER observable or simulation-only edges')
+    if edges is not None and len(edges) != len(axes):
+        raise ValueError(f'{axes}: {len(edges)} edge arrays for {len(axes)} axes')
+    return Variable('_x_'.join(axes), tuple(AXES[axis] for axis in axes), stripper_observable, matrix_file,
+                    None if edges is None else tuple(np.asarray(axis_edges, dtype=float) for axis_edges in edges))
+
+
+# Top-quark mass binning: 0.5 GeV around the peak (width ~1.3 GeV), coarser in the Breit-Wigner tails.
+TOP_MASS_EDGES = np.concatenate([[80, 100, 120, 140, 150, 155, 160, 162, 164], np.arange(166, 179.01, 0.5),
+                                 [181, 183, 185, 190, 195, 200, 220, 250]])
 
 
 VARIABLES = {v.key: v for v in [
@@ -81,6 +98,8 @@ VARIABLES = {v.key: v for v in [
     make_variable(('abs_y_top', 'pt_top'), 'absyt_x_pTt'),
     make_variable(('pt_top', 'pt_ttbar'), 'pTt_x_pTttbar'),
     make_variable(('pt_ttbar', 'm_ttbar', 'abs_y_ttbar'), 'pTttbar_x_mttbar_x_absyttbar'),
+    make_variable(('m_top',), edges=(TOP_MASS_EDGES,)),
+    make_variable(('m_antitop',), edges=(TOP_MASS_EDGES,)),
 ]}
 
 

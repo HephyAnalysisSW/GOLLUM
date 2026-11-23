@@ -96,6 +96,8 @@ def load_prediction(prediction_key: str, variable_key: str, normalized: bool) ->
     prediction = PREDICTIONS[prediction_key]
     variable = VARIABLES[variable_key]
     if prediction.generator == 'stripper':
+        if variable.stripper_observable is None:
+            return None
         return read_stripper(stripper_path(prediction.order, variable.stripper_observable, normalized),
                              len(variable.axes))
     if prediction.generator == 'matrix':
@@ -196,8 +198,11 @@ def rebin(histogram: dict, target_edges: tuple) -> dict:
 
 
 def binnings(variable_key: str) -> dict:
-    """Bin edges (tuple per axis) per binning name ('stripper', and 'matrix' where MATRIX provides the variable)."""
+    """Bin edges (tuple per axis) per binning name: 'stripper' (and 'matrix' where MATRIX provides the variable),
+    or 'simulation' (the variable's own edges) for variables without fixed-order prediction."""
     variable = VARIABLES[variable_key]
+    if variable.stripper_observable is None:
+        return {'simulation': variable.edges}
     result = {'stripper': read_stripper(stripper_path('NNLO', variable.stripper_observable, False),
                                         len(variable.axes))['edges']}
     if variable.matrix_file is not None:
