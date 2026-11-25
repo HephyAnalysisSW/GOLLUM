@@ -29,7 +29,8 @@ import common.user as user
 from common.helpers import copyIndexPHP
 import common.syncer as syncer  # noqa: F401  (import hooks plt.savefig for the EOS sync)
 
-from samples import BR_DILEPTON, PREDICTIONS, RATIO_REFERENCE, SIM_SAMPLES, VARIABLES, histogram_path
+from samples import (BR_DILEPTON, PREDICTIONS, RATIO_REFERENCE, SCALE_ENVELOPE_INDICES, SIM_SAMPLES, VARIABLES,
+                     histogram_path)
 from theory import bin_volumes, binnings, coarsen_edges, integral, load_prediction, rebin, same_edges
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,8 @@ logger = logging.getLogger(__name__)
 hep.style.use('CMS')
 
 PANELS_PER_ROW = 4
+# Simulation scale bands are hatched to tell them apart from the filled fixed-order bands.
+SIMULATION_HATCH = '\\\\\\'
 RATIO_RANGE = (0.6, 1.4)
 
 
@@ -46,7 +49,7 @@ def load_simulation(sample_key: str, variable_key: str, binning_name: str, norma
     accumulated = np.load(histogram_path(sample_key))
     name = f'{variable_key}__{binning_name}'
     edges = binnings(variable_key)[binning_name]
-    stored_keys = [f'{name}__edges{axis}' for axis in range(len(edges))]
+    stored_keys = [f'{name}__edges{axis}' for axis in range(len(edges))] + [f'{name}__sum_w_scale']
     if not all(key in accumulated.files for key in stored_keys) or not all(
             np.array_equal(accumulated[key], axis_edges) for key, axis_edges in zip(stored_keys, edges)):
         raise RuntimeError(f'{histogram_path(sample_key)}: {name} missing or filled in an outdated binning, '
@@ -54,18 +57,38 @@ def load_simulation(sample_key: str, variable_key: str, binning_name: str, norma
     in_range = (slice(1, -1),) * len(edges)
     sum_w = accumulated[f'{name}__sum_w'][in_range]
     sum_w2 = accumulated[f'{name}__sum_w2'][in_range]
+    sum_w_scale = accumulated[f'{name}__sum_w_scale'][(slice(None),) + in_range]
     if normalized:
-        # Normalise to the total (incl. under/overflow), as the STRIPPER normalised files are.
+        # Normalise to the total (incl. under/overflow), as the STRIPPER normalised files are; each scale
+        # variation to its own total (shape-only variation).
         scale = 1.0 / float(accumulated['sum_w_tops'])
+        variation_scales = 1.0 / accumulated['sum_w_tops_scale']
     else:
+        # Scale variations keep their effect on the rate: same conversion to pb as the nominal.
         scale = sample.sigma / BR_DILEPTON / float(accumulated['sum_w_all'])
+        variation_scales = np.full(len(sum_w_scale), scale)
     volumes = bin_volumes(edges)
-    return {
+    simulation = {
         'edges': edges,
         'central': sum_w * scale / volumes,
         'stat_err': np.sqrt(sum_w2) * scale / volumes,
         'sigma_total': sample.sigma / BR_DILEPTON * float(accumulated['sum_w_tops'] / accumulated['sum_w_all']),
     }
+    for variation in SCALE_ENVELOPE_INDICES:
+        simulation[f'scale_{variation}'] = sum_w_scale[variation] * variation_scales[variation] / volumes
+    return simulation
+
+
+def scale_envelope(simulation: dict, index: tuple) -> tuple[np.ndarray, np.ndarray]:
+    """Lower and upper edge of the 7-point scale envelope (incl. the nominal) of a simulation in one panel."""
+    variations = np.stack([simulation['central'][index]] +
+                          [simulation[f'scale_{variation}'][index] for variation in SCALE_ENVELOPE_INDICES])
+    return variations.min(axis=0), variations.max(axis=0)
+
+
+def ratio(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+    """Bin-wise numerator / denominator, NaN (drawn as a gap) where the denominator is zero, e.g. LO pT(tt) > 0."""
+    return np.divide(numerator, denominator, out=np.full(np.shape(numerator), np.nan), where=denominator != 0)
 
 
 def draw_band(axis, edges, central, low, high, color, label=None, hatch=None):
@@ -112,17 +135,17 @@ def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictio
         central = histogram['central'][index]
         style = {'color': prediction.color, 'linestyle': prediction.linestyle, 'linewidth': 2, 'edges': False}
         hep.histplot(central, edges, histtype='step', ax=axis_main, label=label, **style)
-        hep.histplot(central / reference_central, edges, histtype='step', ax=axis_ratio, **style)
-        if prediction.order != 'NNLO':
-            continue
-        bands = [('band_down', 'band_up', 'scale unc.', None)]
+        hep.histplot(ratio(reference_central, central), edges, histtype='step', ax=axis_ratio, **style)
+        # Scale bands are explained once in the legend title; only the optional PDF band gets its own entry.
+        bands = [('band_down', 'band_up', None, None)]
         if show_pdf_band and 'pdf_down' in histogram:
-            bands.append(('pdf_down', 'pdf_up', 'PDF unc.', '////'))
+            bands.append(('pdf_down', 'pdf_up', f'{label} PDF unc.', '////'))
         for low_key, high_key, band_label, hatch in bands:
             low, high = histogram[low_key][index], histogram[high_key][index]
-            draw_band(axis_main, edges, central, low, high, prediction.color, f'{label} {band_label}', hatch)
-            draw_band(axis_ratio, edges, central / reference_central, low / reference_central,
-                      high / reference_central, prediction.color, hatch=hatch)
+            draw_band(axis_main, edges, central, low, high, prediction.color, band_label, hatch)
+            # reference / X flips the variations: the upper X variation gives the lower edge of the ratio band.
+            draw_band(axis_ratio, edges, ratio(reference_central, central), ratio(reference_central, high),
+                      ratio(reference_central, low), prediction.color, hatch=hatch)
 
     samples = [SIM_SAMPLES[sample_key] for sample_key in simulations]
     centrals = [simulation['central'][index] for simulation in simulations.values()]
@@ -130,8 +153,16 @@ def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictio
     style = {'histtype': 'errorbar', 'xoffsets': True, 'color': [sample.color for sample in samples],
              'marker': [sample.marker for sample in samples], 'markersize': 6}
     hep.histplot(centrals, edges, yerr=errors, ax=axis_main, label=[sample.label for sample in samples], **style)
-    hep.histplot([central / reference_central for central in centrals], edges,
-                 yerr=[error / reference_central for error in errors], ax=axis_ratio, **style)
+    for sample, simulation in zip(samples, simulations.values()):
+        low, high = scale_envelope(simulation, index)
+        central = simulation['central'][index]
+        draw_band(axis_main, edges, central, low, high, sample.color, hatch=SIMULATION_HATCH)
+        draw_band(axis_ratio, edges, ratio(reference_central, central), ratio(reference_central, high),
+                  ratio(reference_central, low), sample.color, hatch=SIMULATION_HATCH)
+    # Error of reference / X from the simulation statistics only: (reference / X) * (error / X).
+    hep.histplot([ratio(reference_central, central) for central in centrals], edges,
+                 yerr=[ratio(reference_central * error, central ** 2) for central, error in zip(centrals, errors)],
+                 ax=axis_ratio, **style)
     axis_ratio.axhline(1.0, color='grey', linewidth=1)
     axis_ratio.set_xlim(edges[0], edges[-1])
     axis_ratio.set_ylim(*RATIO_RANGE)
@@ -223,10 +254,10 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
             axis_main.set_ylabel(density_label(variable.axes, normalized), fontsize=20 if single_panel else 16)
             reference_label = (PREDICTIONS[reference_key].label if reference_key in PREDICTIONS
                                else SIM_SAMPLES[reference_key].label.split(' (')[0]).replace(' ', '\n', 1)
-            axis_ratio.set_ylabel(f'X / {reference_label}', fontsize=14)
+            axis_ratio.set_ylabel(f'{reference_label} / X', fontsize=14)
         panel_axes.append(axis_main)
 
-    legend_title = 'parton level, inclusive phase space'
+    legend_title = 'parton level, inclusive phase space\nbands: scale uncertainties (same colour)'
     if single_panel:
         hep.cms.label('Work in progress', data=False, ax=panel_axes[0], rlabel='13 TeV')
         panel_axes[0].legend(fontsize=14, title=legend_title, title_fontsize=14, loc='best')

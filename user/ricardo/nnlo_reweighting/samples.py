@@ -45,6 +45,10 @@ PREDICTIONS = {p.key: p for p in [
     Prediction('matrix_nnlo', 'MATRIX NNLO', 'matrix', 'NNLO', '#964a8b', '-'),
 ]}
 
+# LHEScaleWeight indices of the 7-point scale envelope for the simulated samples: (muR, muF) in {0.5, 1, 2}^2
+# without the anti-correlated (0.5, 2) [2] and (2, 0.5) [6]; [4] is the nominal, taken from Generator_weight.
+SCALE_ENVELOPE_INDICES = (0, 1, 3, 5, 7, 8)
+
 # Reference for the ratio panel, per binning: a PREDICTIONS key, or a SIM_SAMPLES key for simulation-only variables.
 RATIO_REFERENCE = {'stripper': 'stripper_nnlo', 'matrix': 'matrix_nnlo', 'simulation': 'nom_13'}
 

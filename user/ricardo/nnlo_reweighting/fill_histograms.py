@@ -4,6 +4,8 @@
 Output: `histograms/<sample>.npz` with `sum_w_all` (all events, for the normalisation), `sum_w_tops`
 (events with two gen tops) and, per `<variable>__<binning>`, `edges<axis>` (one per axis), `sum_w`, `sum_w2`.
 `sum_w`/`sum_w2` have shape (n_1 + 2, ..., n_d + 2): every axis has [underflow, bins..., overflow].
+The nine LHE scale variations (`LHEScaleWeight`, w_var / w_nominal) are stored as `sum_w_scale` with an extra
+leading axis of length 9, plus `sum_w_all_scale` and `sum_w_tops_scale`.
 
     python user/ricardo/nnlo_reweighting/fill_histograms.py --sample nom_13 --jobs 12
 """
@@ -21,7 +23,9 @@ from theory import binnings
 
 logger = logging.getLogger(__name__)
 
-BRANCHES = ['parton_hasGenTops', 'Generator_weight'] + sorted(
+NUMBER_OF_SCALE_WEIGHTS = 9
+
+BRANCHES = ['parton_hasGenTops', 'Generator_weight', 'LHEScaleWeight'] + sorted(
     {axis.branch for variable in VARIABLES.values() for axis in variable.axes})
 
 
@@ -42,13 +46,22 @@ def accumulate_file(path: str) -> dict:
     arrays = uproot.open(path)['Events'].arrays(BRANCHES, library='np')
     weights = arrays['Generator_weight'].astype(np.float64)  # float32 in the ntuples; sum in double precision
     has_tops = arrays['parton_hasGenTops'] == 1
-    result = {'sum_w_all': weights.sum(), 'sum_w_tops': weights[has_tops].sum()}
+    scale_ratios = np.stack(arrays['LHEScaleWeight']).astype(np.float64)
+    if scale_ratios.shape != (len(weights), NUMBER_OF_SCALE_WEIGHTS):
+        raise ValueError(f'{path}: expected {NUMBER_OF_SCALE_WEIGHTS} LHEScaleWeight entries per event, '
+                         f'got shape {scale_ratios.shape}')
+    scale_weights = weights[:, None] * scale_ratios  # (events, 9)
+    result = {'sum_w_all': weights.sum(), 'sum_w_tops': weights[has_tops].sum(),
+              'sum_w_all_scale': scale_weights.sum(axis=0), 'sum_w_tops_scale': scale_weights[has_tops].sum(axis=0)}
     for name, (axes, edges) in BINNINGS.items():
         padded_edges = [np.concatenate([[-np.inf], axis_edges, [np.inf]]) for axis_edges in edges]
         values = np.column_stack([np.abs(arrays[axis.branch][has_tops]) if axis.absolute
                                   else arrays[axis.branch][has_tops] for axis in axes])
         result[f'{name}__sum_w'] = np.histogramdd(values, padded_edges, weights=weights[has_tops])[0]
         result[f'{name}__sum_w2'] = np.histogramdd(values, padded_edges, weights=weights[has_tops] ** 2)[0]
+        result[f'{name}__sum_w_scale'] = np.stack([
+            np.histogramdd(values, padded_edges, weights=scale_weights[has_tops, variation])[0]
+            for variation in range(NUMBER_OF_SCALE_WEIGHTS)])
     return result
 
 

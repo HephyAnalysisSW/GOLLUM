@@ -3,7 +3,7 @@
 Compare parton-level 1D (y(tt), m(tt), pT(tt)), 2D and 3D (e.g. pT(tt) x m(tt) x |y(tt)|) distributions in
 the full phase space (no cuts) between the
 nominal POWHEG hvq sample, POWHEG bb4l, and fixed-order STRIPPER LO/NLO/NNLO (`inputs_rene/`,
-arXiv:2412.14910) and MATRIX NNLO (`inputs_niels/`, m(tt) only; MATRIX 3D results are in preparation).
+arXiv:2008.11133) and MATRIX NNLO (`inputs_niels/`, m(tt) only; MATRIX 3D results are in preparation).
 
 ```
 samples.py           registries: simulated samples, predictions, variables
@@ -37,7 +37,7 @@ Plots use `mplhep` (CMS style); the simulation markers are offset within each bi
 
 Simulation-only variables (no fixed-order prediction, e.g. the parton-level top and antitop masses `m_top`,
 `m_antitop`) are declared with `make_variable(axes, edges=(...,))` instead of a STRIPPER observable. They get a
-single `simulation` binning and the ratio panel is X / POWHEG hvq (`RATIO_REFERENCE['simulation']`).
+single `simulation` binning and the ratio panel is POWHEG hvq / X (`RATIO_REFERENCE['simulation']`).
 
 `--max-files N` on `fill_histograms.py` for a quick test; `--pdf-band` on `plot_comparison.py`
 adds the STRIPPER NNLO PDF band.
@@ -55,8 +55,13 @@ section conserved), are repeatable for several variables, and add `_<axis>upto<e
   `BR_DILEPTON = 87.98 / 833.9`, so the nominal sample integrates to the inclusive NNLO tt-bar
   cross section. bb4l uses 95.57 pb and is therefore higher (tW, non-resonant).
 - STRIPPER: absolute files in `pb/[X]`; `--normalized` uses Rene's normalised files (correlated bands).
-- MATRIX: `fb/GeV` converted to pb; normalised by its own integral (band scaled by the central integral).
-- Ratio panel: X / STRIPPER NNLO (STRIPPER binning), X / MATRIX NNLO (MATRIX m(tt) binning).
+- MATRIX: `fb/GeV` converted to pb; normalised by its own integral. As in Rene's files, each band edge is
+  normalised to its own integral before taking the envelope (MATRIX only provides the envelope edges, so this treats
+  each edge as one scale choice).
+- Simulation scale bands: 7-point envelope of `LHEScaleWeight` (indices 0, 1, 3, 5, 7, 8 and the nominal; the
+  anti-correlated (0.5, 2) and (2, 0.5) dropped). Absolute plots keep the rate effect of each variation;
+  `--normalized` normalises each variation to its own total before the envelope, as in Rene's files.
+- Ratio panel: STRIPPER NNLO / X (STRIPPER binning), MATRIX NNLO / X (MATRIX m(tt) binning).
 
 ## Rebinning between generators
 

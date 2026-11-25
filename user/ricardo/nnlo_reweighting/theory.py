@@ -89,9 +89,8 @@ def integral(histogram: dict, key: str = 'central') -> float:
 def load_prediction(prediction_key: str, variable_key: str, normalized: bool) -> dict | None:
     """Load a prediction for a variable; None if the generator does not provide the variable.
 
-    Normalized STRIPPER uses Rene's normalised files (bands with correlated normalisation). Normalized MATRIX
-    divides central, band and errors by the central integral over its own range (uncorrelated approximation
-    for the band).
+    Normalized STRIPPER uses Rene's normalised files (each scale/PDF choice normalised to its own total, then the
+    envelope). Normalized MATRIX follows the same prescription with its envelope edges, normalised over its own range.
     """
     prediction = PREDICTIONS[prediction_key]
     variable = VARIABLES[variable_key]
@@ -107,9 +106,15 @@ def load_prediction(prediction_key: str, variable_key: str, normalized: bool) ->
     else:
         raise ValueError(f'Unknown generator {prediction.generator}')
     if normalized:
+        # As in Rene's normalised files: every variation normalised to its own total, then the envelope. MATRIX only
+        # gives the per-bin envelope edges, so these are normalised as if each edge were a single scale choice.
         total = integral(histogram)
-        for key in ('central', 'band_down', 'band_up', 'mc_err'):
-            histogram[key] = histogram[key] / total
+        central = histogram['central'] / total
+        normalized_edges = [histogram[key] / integral(histogram, key) for key in ('band_down', 'band_up')]
+        histogram['band_down'] = np.minimum.reduce(normalized_edges + [central])
+        histogram['band_up'] = np.maximum.reduce(normalized_edges + [central])
+        histogram['central'] = central
+        histogram['mc_err'] = histogram['mc_err'] / total
     return histogram
 
 
@@ -169,9 +174,9 @@ def rebin(histogram: dict, target_edges: tuple) -> dict:
     """Rebin a differential histogram onto target_edges (one array per axis); target bins that are not an exact
     union of source bins (in every axis) or that contain NaN source bins are NaN.
 
-    Central values and bands are merged as volume-weighted sums (bands treated as fully correlated across the
-    merged bins), the errors `mc_err` (theory) and `stat_err` (simulation) in quadrature. The result carries
-    the boolean mask `compatible` over target bins.
+    All per-bin arrays (same shape as `central`) are rebinned: values and bands as volume-weighted sums (bands
+    treated as fully correlated across the merged bins), the errors `mc_err` (theory) and `stat_err` (simulation)
+    in quadrature. Other entries are not carried over. The result has the boolean mask `compatible` over target bins.
     """
     target_edges = tuple(np.asarray(axis_edges) for axis_edges in target_edges)
     if len(target_edges) != len(histogram['edges']):
@@ -181,10 +186,11 @@ def rebin(histogram: dict, target_edges: tuple) -> dict:
     source_volumes = bin_volumes(histogram['edges'])
     target_volumes = bin_volumes(target_edges)
     result = {'edges': target_edges, 'compatible': compatible}
-    for key in ('central', 'band_down', 'band_up', 'mc_err', 'stat_err', 'pdf_down', 'pdf_up'):
-        if key not in histogram:
+    for key, histogram_values in histogram.items():
+        # Every per-bin array is rebinned (central, bands, errors, simulation scale variations `scale_<i>`).
+        if key in ('edges', 'compatible') or np.shape(histogram_values) != np.shape(histogram['central']):
             continue
-        content = histogram[key] * source_volumes
+        content = histogram_values * source_volumes
         contains_nan = merge_axes(matrices, np.isnan(content).astype(float)) > 0
         content = np.nan_to_num(content, nan=0.0)
         if key in ('mc_err', 'stat_err'):
