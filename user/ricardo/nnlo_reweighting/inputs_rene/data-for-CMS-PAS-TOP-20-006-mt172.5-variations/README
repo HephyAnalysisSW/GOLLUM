@@ -1,0 +1,111 @@
+NNLO QCD corrections to leptonic observables in top-quark pair production and decay
+
+Fiducial phase space corresponding to section 3.3 in JHEP 05 (2021) 212 (arxiv:2008.11133)
+Inclusive phase corresponds to partonic tops only.
+
+Authors: Czakon, Mitov, Poncelet
+
+Contact:  mczakon@physik.rwth-aachen.de
+          adm74@cam.ac.uk
+          poncelet@hep.phy.cam.ac.uk
+
+Model parameters:
+mt = 172.5 GeV
+mW = 80.385 GeV
+mZ = 91.1876 GeV
+GW = 2.0928 GeV
+Gt = (1.48063 - 1.18*aS - 2.65*aS^2) GeV
+GF = 1.166379*10^-5 GeV^-2
+nf = 5 (massless b-quarks)
+
+PDF:
+  LO   : NNPDF31_lo_as_0118
+  NLO  : NNPDF31_nlo_as_0118
+  NNLO : NNPDF31_nnlo_as_0118
+
+Scales: muR = HT/4, muF = HT/4
+
+All histograms are given as a list of bins with the data format in case of absolute distributions ([X]: energy unit of observable):
+
+Units : [X]      [X]       pb/[X]        pb/[X]     (...) pb/[X]     pb/[X]        pb/[X]     (...) pb/[X]
+Values: edge-low edge-high scale_central scale_var1 (...) scale_var6 mcerr_central mcerr_var1 (...) mcerr_var6
+
+in case of 2D (and analogously for 3D):
+
+Units : [X]           [X]            [Y]           [Y]            pb/[X]/[Y]    pb/[X]/[Y] (...) pb/[X]/[Y] pb/[X]/[Y]    pb/[X]/[Y] (...) pb/[X]/[Y]
+Values: edge-dim1-low edge-dim1-high edge-dim2-low edge-dim2-high scale_central scale_var1 (...) scale_var6 mcerr_central mcerr_var1 (...) mcerr_var6
+
+Each file name is constructed after the pattern: <phasespace>_<order>_mt<mass>_<scale>_<pdf>_<obs>.dat  
+<phasespace> : fid,incl
+<order>      : LO,NLO,NNLO
+<mass>       : 172.5
+<scale>      : HT4
+<pdf>        : NNPDF31
+<obs>        :
+  absetallbar_x_mllbar
+  absetallbar_x_pTllbar
+  absyttbar_x_pTttbar
+  absyt_x_pTt
+  detallbar_x_dphillbar
+  dphittbar
+  dyttbar
+  logksi1
+  logksi2
+  mbbbar
+  mllbarbbbar
+  mllbar
+  mttbar
+  mttbar_x_absdetattbar
+  mttbar_x_absyt
+  mttbar_x_absyttbar
+  mttbar_x_dphillbar
+  mttbar_x_dphittbar
+  mttbar_x_pTt
+  mttbar_x_pTttbar
+  njet
+  pTb1
+  pTb2
+  pTlbar
+  pTl
+  pTllbar_x_mllbar
+  pTtbar
+  pTt
+  pTttbar
+  pTttbar_x_mttbar_x_absyttbar
+  pTt_x_dphillbar
+  pTt_x_pTttbar
+  r_pTbpTbbar_pTtpTtbar
+  r_pTl1_pTl2
+  r_pTlbar_pTt
+  r_pTl_pTtbar
+  r_pTt_mttbar
+  r_pTttbar_mttbar
+  ytbar
+  yt
+  yttbar
+  absetallbar
+  pTllbar
+
+
+=== Notes added in GOLLUM (user/ricardo/nnlo_reweighting), not from the authors ===
+
+Order of the scale variations (not given above; inferred from the LO totals, which factorise as
+alpha_s^2(muR) * PDF(muF): var2 = var4 * var3 and var1 = var5 * var6 to 0.1%; to be confirmed with Rene):
+  scale_var1 = (muR, muF) = (2, 2)
+  scale_var2 = (0.5, 0.5)
+  scale_var3 = (1, 0.5)
+  scale_var4 = (0.5, 1)
+  scale_var5 = (2, 1)
+  scale_var6 = (1, 2)
+The envelope of central + var1..var6 reproduces scale_up/scale_down of data-for-CMS-PAS-TOP-20-006-mt172.5 exactly.
+
+Added PDF columns (NNLO files only), appended after mcerr_var6 by diagnostics/add_pdf_columns_to_stripper_variations.py:
+  PDF_up PDF_down                         : absolute, copied from data-for-CMS-PAS-TOP-20-006-mt172.5 (pb/[X]...)
+  PDF_up_normalized PDF_down_normalized   : copied from data-for-CMS-PAS-TOP-20-006-mt172.5-norm (1/[X]...)
+The normalised PDF band cannot be rebuilt from the absolute up/down columns (the PDF members were normalised
+individually), hence both are kept. The original columns are unchanged; the original files are in
+/scratch/users/ricardo.barrue/stripper_variations_backup_20261127.tar.gz.
+
+Normalisation: dividing every scale choice by its own total cross section, taken as the integral of the 1D pTttbar
+distribution of the same scale choice (full phase space), reproduces the normalised files of
+data-for-CMS-PAS-TOP-20-006-mt172.5-norm to 1e-4, also for the 2D and 3D distributions.

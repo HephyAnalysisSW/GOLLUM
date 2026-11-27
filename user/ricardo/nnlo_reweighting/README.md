@@ -7,9 +7,11 @@ arXiv:2008.11133) and MATRIX NNLO (`inputs_niels/`, m(tt) only; MATRIX 3D result
 
 ```
 samples.py           registries: simulated samples, predictions, variables
-theory.py            readers for STRIPPER (1D/2D/3D) / MATRIX .dat files (pb/[X]/...), N-D rebinning
+theory.py            readers for STRIPPER (1D/2D/3D) / MATRIX .dat files (pb/[X]/...), scale envelopes, N-D rebinning
 fill_histograms.py   gen ntuples -> histograms/<sample>.npz, in the fixed-order binnings
 plot_comparison.py   npz + predictions -> <plot_directory>/nnlo_reweighting/parton_level/{absolute,normalized}/
+diagnostics/plot_stripper_variations.py   STRIPPER scale variations vs envelopes -> .../nnlo_reweighting/stripper_variations/
+diagnostics/add_pdf_columns_to_stripper_variations.py   one-off: PDF columns into the STRIPPER variations files
 ```
 
 Gen ntuples were produced with `user/robert/gen_top/make_gen_top_ntuple.py` (UL17, 13 TeV).
@@ -54,7 +56,17 @@ section conserved), are repeatable for several variables, and add `_<axis>upto<e
 - Simulation: `sigma_sample / BR_DILEPTON / sum(Generator_weight over all events)`, with
   `BR_DILEPTON = 87.98 / 833.9`, so the nominal sample integrates to the inclusive NNLO tt-bar
   cross section. bb4l uses 95.57 pb and is therefore higher (tW, non-resonant).
-- STRIPPER: absolute files in `pb/[X]`; `--normalized` uses Rene's normalised files (correlated bands).
+- STRIPPER: read from `inputs_rene/data-for-CMS-PAS-TOP-20-006-mt172.5-variations` (central and the six individual
+  scale choices, absolute `pb/[X]`; at NNLO also the appended PDF columns, see the README there). With
+  `--normalized` every scale choice is divided by its own total cross section, the integral of 1D pT(tt) for that
+  scale choice (full phase space); this reproduces Rene's normalised files to 1e-4, also in 2D/3D. The normalised
+  PDF band is copied from his files. The original envelope files are only used by `diagnostics/plot_stripper_variations.py`.
+- Scale envelopes are taken only when drawing (`theory.scale_envelope`): rebinning and normalisation act on every
+  scale choice separately, so merged bins get the exact envelope. Variations are stored as `scale_<muR>_<muF>` for
+  STRIPPER and the simulation alike (`samples.scale_key`); the order of Rene's columns is inferred (see the README of
+  the variations directory). `--correlated-scales` draws the simulation ratio bands as the envelope of
+  reference(muR, muF) / simulation(muR, muF), i.e. with fully correlated scale variations (MATRIX has no individual
+  variations: uncorrelated bands there, with a warning).
 - MATRIX: `fb/GeV` converted to pb; normalised by its own integral. As in Rene's files, each band edge is
   normalised to its own integral before taking the envelope (MATRIX only provides the envelope edges, so this treats
   each edge as one scale choice).

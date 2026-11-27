@@ -36,6 +36,15 @@ Prediction = namedtuple('Prediction', 'key label generator order color linestyle
 _RENE_DIR = os.path.join(NNLO_REWEIGHTING_DIR, 'inputs_rene')
 STRIPPER_ABSOLUTE_DIR = os.path.join(_RENE_DIR, 'data-for-CMS-PAS-TOP-20-006-mt172.5', 'mt172.5')
 STRIPPER_NORMALIZED_DIR = os.path.join(_RENE_DIR, 'data-for-CMS-PAS-TOP-20-006-mt172.5-norm', 'mt172.5_norm')
+# Files with the individual scale variations (and, at NNLO, the appended PDF columns): the STRIPPER input used for the
+# predictions. The two envelope directories above are only used for cross-checks.
+STRIPPER_VARIATIONS_DIR = os.path.join(_RENE_DIR, 'data-for-CMS-PAS-TOP-20-006-mt172.5-variations', 'mt172.5')
+# (muR, muF) of the columns scale_var1..scale_var6. Not documented in the files: inferred from the LO totals, which
+# factorise as alpha_s^2(muR) * PDF(muF) (e.g. var2 = var4 * var3 and var1 = var5 * var6 to 0.1%).
+STRIPPER_SCALE_VARIATIONS = ((2, 2), (0.5, 0.5), (1, 0.5), (0.5, 1), (2, 1), (1, 2))
+# STRIPPER observable whose binning covers the full phase space: its integral gives the total cross section of each
+# scale choice, used to normalise all STRIPPER distributions (reproduces Rene's normalised files to 1e-4).
+STRIPPER_TOTAL_OBSERVABLE = 'pTttbar'
 MATRIX_DIR = os.path.join(NNLO_REWEIGHTING_DIR, 'inputs_niels')
 
 PREDICTIONS = {p.key: p for p in [
@@ -45,9 +54,15 @@ PREDICTIONS = {p.key: p for p in [
     Prediction('matrix_nnlo', 'MATRIX NNLO', 'matrix', 'NNLO', '#964a8b', '-'),
 ]}
 
-# LHEScaleWeight indices of the 7-point scale envelope for the simulated samples: (muR, muF) in {0.5, 1, 2}^2
-# without the anti-correlated (0.5, 2) [2] and (2, 0.5) [6]; [4] is the nominal, taken from Generator_weight.
-SCALE_ENVELOPE_INDICES = (0, 1, 3, 5, 7, 8)
+# LHEScaleWeight index of each (muR, muF) of the 7-point scale envelope for the simulated samples, i.e.
+# {0.5, 1, 2}^2 without the anti-correlated (0.5, 2) [2] and (2, 0.5) [6]; [4] is the nominal, taken from
+# Generator_weight. Same (muR, muF) set as STRIPPER_SCALE_VARIATIONS.
+LHE_SCALE_VARIATIONS = {(0.5, 0.5): 0, (0.5, 1): 1, (1, 0.5): 3, (1, 2): 5, (2, 1): 7, (2, 2): 8}
+
+
+def scale_key(renormalization_factor: float, factorization_factor: float) -> str:
+    """Histogram key of a scale variation, shared by predictions and simulations, e.g. 'scale_0.5_1'."""
+    return f'scale_{renormalization_factor:g}_{factorization_factor:g}'
 
 # Reference for the ratio panel, per binning: a PREDICTIONS key, or a SIM_SAMPLES key for simulation-only variables.
 RATIO_REFERENCE = {'stripper': 'stripper_nnlo', 'matrix': 'matrix_nnlo', 'simulation': 'nom_13'}

@@ -5,10 +5,12 @@ One figure per (variable, fixed-order binning), with a ratio panel to the NNLO r
 nominal POWHEG sample for simulation-only variables such as the top mass, which use their own binning). Multi-
 dimensional variables get one panel per bin of the outer axes, showing the innermost (last) axis.
 Simulations are scaled to the inclusive tt-bar cross section via sigma_sample / BR_DILEPTON / sum_w_all;
-`--normalized` shows 1/sigma dsigma/dX instead.
+`--normalized` shows 1/sigma dsigma/dX instead. Bands are the scale envelopes (each scale choice normalised to its
+own total in the normalised plots); `--correlated-scales` draws the simulation ratio bands as the envelope of
+reference(muR, muF) / simulation(muR, muF), i.e. with fully correlated scale variations.
 
-    python user/ricardo/nnlo_reweighting/plot_comparison.py [--normalized] [--pdf-band] [--variables m_ttbar ...]
-        [--truncate m_ttbar=1500] [--rebin m_ttbar=2] [--rebin m_ttbar_x_pt_ttbar=1,2]
+    python user/ricardo/nnlo_reweighting/plot_comparison.py [--normalized] [--pdf-band] [--correlated-scales]
+        [--variables m_ttbar ...] [--truncate m_ttbar=1500] [--rebin m_ttbar=2] [--rebin m_ttbar_x_pt_ttbar=1,2]
 """
 import argparse
 import logging
@@ -29,9 +31,10 @@ import common.user as user
 from common.helpers import copyIndexPHP
 import common.syncer as syncer  # noqa: F401  (import hooks plt.savefig for the EOS sync)
 
-from samples import (BR_DILEPTON, PREDICTIONS, RATIO_REFERENCE, SCALE_ENVELOPE_INDICES, SIM_SAMPLES, VARIABLES,
-                     histogram_path)
-from theory import bin_volumes, binnings, coarsen_edges, integral, load_prediction, rebin, same_edges
+from samples import (BR_DILEPTON, LHE_SCALE_VARIATIONS, PREDICTIONS, RATIO_REFERENCE, SIM_SAMPLES, VARIABLES,
+                     histogram_path, scale_key)
+from theory import (bin_volumes, binnings, coarsen_edges, correlated_ratio_envelope, integral, load_prediction, ratio,
+                    rebin, same_edges, scale_envelope)
 
 logger = logging.getLogger(__name__)
 
@@ -74,21 +77,10 @@ def load_simulation(sample_key: str, variable_key: str, binning_name: str, norma
         'stat_err': np.sqrt(sum_w2) * scale / volumes,
         'sigma_total': sample.sigma / BR_DILEPTON * float(accumulated['sum_w_tops'] / accumulated['sum_w_all']),
     }
-    for variation in SCALE_ENVELOPE_INDICES:
-        simulation[f'scale_{variation}'] = sum_w_scale[variation] * variation_scales[variation] / volumes
+    for (renormalization_factor, factorization_factor), index in LHE_SCALE_VARIATIONS.items():
+        simulation[scale_key(renormalization_factor, factorization_factor)] = (
+            sum_w_scale[index] * variation_scales[index] / volumes)
     return simulation
-
-
-def scale_envelope(simulation: dict, index: tuple) -> tuple[np.ndarray, np.ndarray]:
-    """Lower and upper edge of the 7-point scale envelope (incl. the nominal) of a simulation in one panel."""
-    variations = np.stack([simulation['central'][index]] +
-                          [simulation[f'scale_{variation}'][index] for variation in SCALE_ENVELOPE_INDICES])
-    return variations.min(axis=0), variations.max(axis=0)
-
-
-def ratio(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
-    """Bin-wise numerator / denominator, NaN (drawn as a gap) where the denominator is zero, e.g. LO pT(tt) > 0."""
-    return np.divide(numerator, denominator, out=np.full(np.shape(numerator), np.nan), where=denominator != 0)
 
 
 def draw_band(axis, edges, central, low, high, color, label=None, hatch=None):
@@ -126,8 +118,12 @@ def outer_bin_text(axes: tuple, edges: tuple, index: tuple) -> str:
 
 
 def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictions: dict, rebinned_keys: set,
-               reference: dict, simulations: dict, show_pdf_band: bool):
-    """Draw predictions and simulations of one outer bin (index) along the innermost axis (edges)."""
+               reference: dict, simulations: dict, show_pdf_band: bool, correlated_scales: bool):
+    """Draw predictions and simulations of one outer bin (index) along the innermost axis (edges).
+
+    With correlated_scales, the simulation ratio bands are the envelope of reference / simulation with the same
+    (muR, muF) in both (the reference must have individual scale variations, checked in plot_variable).
+    """
     reference_central = reference['central'][index]
     for key, histogram in predictions.items():
         prediction = PREDICTIONS[key]
@@ -137,11 +133,10 @@ def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictio
         hep.histplot(central, edges, histtype='step', ax=axis_main, label=label, **style)
         hep.histplot(ratio(reference_central, central), edges, histtype='step', ax=axis_ratio, **style)
         # Scale bands are explained once in the legend title; only the optional PDF band gets its own entry.
-        bands = [('band_down', 'band_up', None, None)]
+        bands = [(*scale_envelope(histogram, index), None, None)]
         if show_pdf_band and 'pdf_down' in histogram:
-            bands.append(('pdf_down', 'pdf_up', f'{label} PDF unc.', '////'))
-        for low_key, high_key, band_label, hatch in bands:
-            low, high = histogram[low_key][index], histogram[high_key][index]
+            bands.append((histogram['pdf_down'][index], histogram['pdf_up'][index], f'{label} PDF unc.', '////'))
+        for low, high, band_label, hatch in bands:
             draw_band(axis_main, edges, central, low, high, prediction.color, band_label, hatch)
             # reference / X flips the variations: the upper X variation gives the lower edge of the ratio band.
             draw_band(axis_ratio, edges, ratio(reference_central, central), ratio(reference_central, high),
@@ -157,8 +152,12 @@ def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictio
         low, high = scale_envelope(simulation, index)
         central = simulation['central'][index]
         draw_band(axis_main, edges, central, low, high, sample.color, hatch=SIMULATION_HATCH)
-        draw_band(axis_ratio, edges, ratio(reference_central, central), ratio(reference_central, high),
-                  ratio(reference_central, low), sample.color, hatch=SIMULATION_HATCH)
+        if correlated_scales:
+            ratio_low, ratio_high = correlated_ratio_envelope(reference, simulation, index)
+        else:
+            ratio_low, ratio_high = ratio(reference_central, high), ratio(reference_central, low)
+        draw_band(axis_ratio, edges, ratio(reference_central, central), ratio_low, ratio_high, sample.color,
+                  hatch=SIMULATION_HATCH)
     # Error of reference / X from the simulation statistics only: (reference / X) * (error / X).
     hep.histplot([ratio(reference_central, central) for central in centrals], edges,
                  yerr=[ratio(reference_central * error, central ** 2) for central, error in zip(centrals, errors)],
@@ -169,7 +168,7 @@ def draw_panel(axis_main, axis_ratio, edges: np.ndarray, index: tuple, predictio
 
 
 def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_pdf_band: bool, plot_dir: str,
-                  upper_edges: tuple, rebin_factors: tuple):
+                  upper_edges: tuple, rebin_factors: tuple, correlated_scales: bool = False):
     """Make one comparison figure for a variable in one fixed-order binning.
 
     Each axis of the reference binning is optionally truncated at the first edge >= upper_edges[axis] (None: no
@@ -217,6 +216,10 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
         logger.info('%-14s %-9s %-14s sigma in range = %.3f (two-top total %.2f)', variable_key, binning_name,
                     sample_key, integral(simulation), simulation['sigma_total'])
     reference = predictions[reference_key] if reference_key in PREDICTIONS else simulations[reference_key]
+    if correlated_scales and correlated_ratio_envelope(reference, next(iter(simulations.values()))) is None:
+        logger.warning('%-14s %-9s reference %s has no individual scale variations: uncorrelated ratio bands',
+                       variable_key, binning_name, reference_key)
+        correlated_scales = False
 
     # One panel per outer bin (a single panel for 1D), wrapped into rows of PANELS_PER_ROW.
     panel_indices = list(np.ndindex(*(len(axis_edges) - 1 for axis_edges in edges[:-1])))
@@ -239,7 +242,7 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
         axis_ratio = figure.add_subplot(cell[1], sharex=axis_main)
         axis_main.tick_params(labelbottom=False)
         draw_panel(axis_main, axis_ratio, edges[-1], index, predictions, rebinned_keys, reference, simulations,
-                   show_pdf_band)
+                   show_pdf_band, correlated_scales)
         if inner_axis.log_y:
             axis_main.set_yscale('log')
         else:
@@ -258,6 +261,8 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
         panel_axes.append(axis_main)
 
     legend_title = 'parton level, inclusive phase space\nbands: scale uncertainties (same colour)'
+    if correlated_scales:
+        legend_title += '\nsimulation ratio bands: correlated scale variations'
     if single_panel:
         hep.cms.label('Work in progress', data=False, ax=panel_axes[0], rlabel='13 TeV')
         panel_axes[0].legend(fontsize=14, title=legend_title, title_fontsize=14, loc='best')
@@ -277,6 +282,8 @@ def plot_variable(variable_key: str, binning_name: str, normalized: bool, show_p
                      for axis, axis_edges, upper_edge in zip(variable.axes, edges, upper_edges) if upper_edge is not None)
     if any(factor != 1 for factor in rebin_factors):
         suffix += '_rebin' + 'x'.join(str(factor) for factor in rebin_factors)
+    if correlated_scales:
+        suffix += '_correlated_scales'
     file_name = os.path.join(plot_dir, f'{variable_key}_{binning_name}{suffix}')
     plt.savefig(file_name + '.png', dpi=150 if single_panel else 100, bbox_inches='tight')
     plt.savefig(file_name + '.pdf', bbox_inches='tight')
@@ -304,6 +311,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--normalized', action='store_true', help='plot 1/sigma dsigma/dX')
     parser.add_argument('--pdf-band', action='store_true', help='also draw the STRIPPER NNLO PDF band')
+    parser.add_argument('--correlated-scales', action='store_true',
+                        help='simulation ratio bands as the envelope of reference / simulation with the same '
+                             '(muR, muF)')
     parser.add_argument('--variables', nargs='+', choices=sorted(VARIABLES), default=list(VARIABLES),
                         help='only plot these variables (default: all)')
     parser.add_argument('--truncate', action='append', default=[], metavar='VARIABLE=VALUE[,VALUE...]',
@@ -325,7 +335,7 @@ def main():
         variable_rebin_factors = tuple(factor or 1 for factor in rebin_factors.get(variable_key, (1,) * dimension))
         for binning_name in binnings(variable_key):
             plot_variable(variable_key, binning_name, args.normalized, args.pdf_band, plot_dir,
-                          variable_upper_edges, variable_rebin_factors)
+                          variable_upper_edges, variable_rebin_factors, args.correlated_scales)
 
 
 if __name__ == '__main__':
